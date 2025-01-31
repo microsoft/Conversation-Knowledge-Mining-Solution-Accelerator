@@ -56,9 +56,9 @@ jobs:
       - name: Build and push Docker images optionally
         run: |
           cd App
-          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ env.TAG }} -f Dockerfile . && \
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/km-app:pmtest -f WebApp.Dockerfile . && \
           if [[ "${{ env.TAG }}" == "latest" || "${{ env.TAG }}" == "dev" || "${{ env.TAG }}" == "demo" || "${{ env.TAG }}" == "hotfix"  ]]; then
-            docker push ${{ secrets.ACR_LOGIN_SERVER }}/macaebackend:${{ env.TAG }} && \
+            docker push ${{ secrets.ACR_LOGIN_SERVER }}/macaebackend:pmtest && \
             echo "Backend image built and pushed successfully."
           else
             echo "Skipping Docker push for backend with tag: ${{ env.TAG }}"
