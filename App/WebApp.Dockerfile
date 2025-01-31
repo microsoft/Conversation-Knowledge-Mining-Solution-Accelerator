@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt \
 COPY . /usr/src/app/
 
 
-RUN ls -l /home/node/app/frontend/build/static
+RUN ls -l /home/node/app/frontend/build/static || echo "Frontend static folder does not exist"
 
 RUN [ -d /usr/src/app/static ] && echo "Directory exists" || echo "Directory does not exist"
 
