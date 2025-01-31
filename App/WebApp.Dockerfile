@@ -33,6 +33,14 @@ RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt \
 # Copy backend source code
 COPY . /usr/src/app/
 
+
+RUN ls -l /home/node/app/frontend/build/static
+
+RUN [ -d /usr/src/app/static ] && echo "Directory exists" || echo "Directory does not exist"
+
+RUN [ -d /usr/src/app/static ] && ls -l /usr/src/app/static || echo "Directory does not exist"
+
+
 # Copy static files from the frontend stage to the backend
 COPY --from=frontend /home/node/app/frontend/build/static /usr/src/app/static/
 
