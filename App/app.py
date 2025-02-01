@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 app = Quart(__name__)
 app = cors(app, allow_origin=["http://localhost:3000", "http://127.0.0.1:5000"])
 
-
 # Serve index.html from the React build folder
 @app.route("/")
 async def serve_index():
@@ -48,7 +47,7 @@ async def favicon():
 
 
 # Serve static files (JS, CSS, images, etc.)
-@app.route("/assets/<path:path>")
+@app.route("/static/<path:path>")
 async def assets(path):
     return await send_from_directory(
         os.path.join(app.root_path, "frontend", "build", "static"), path
