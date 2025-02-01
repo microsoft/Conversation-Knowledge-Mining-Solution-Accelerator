@@ -40,7 +40,7 @@ async def serve_index():
 @app.route("/favicon.ico")
 async def favicon():
     return await send_from_directory(
-        os.path.join(app.root_path, "frontend", "build", "static"),
+        os.path.join(app.root_path, "frontend", "build"),
         "favicon.ico",
         mimetype="image/x-icon",
     )
@@ -48,11 +48,10 @@ async def favicon():
 
 # Serve static files (JS, CSS, images, etc.)
 @app.route("/static/<path:path>")
-async def assets(path):
+async def static_files(path):
     return await send_from_directory(
         os.path.join(app.root_path, "frontend", "build", "static"), path
     )
-
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
 # Load environment variables
