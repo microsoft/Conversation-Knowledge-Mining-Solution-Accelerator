@@ -42,7 +42,7 @@ RUN [ -d /usr/src/app/static ] && ls -l /usr/src/app/static || echo "Directory d
 
 
 # Copy static files from the frontend stage to the backend
-COPY --from=frontend /home/node/app/frontend/build/static /usr/src/app/static/
+COPY --from=frontend /home/node/app/frontend/build /usr/src/app/static/
 
 # Set working directory and expose port
 WORKDIR /usr/src/app  
