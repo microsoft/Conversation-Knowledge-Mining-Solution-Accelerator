@@ -51,7 +51,7 @@ async def favicon():
 @app.route("/assets/<path:path>")
 async def assets(path):
     return await send_from_directory(
-        os.path.join(app.root_path, "frontend", "build", "static", "assets"), path
+        os.path.join(app.root_path, "frontend", "build", "static"), path
     )
 
 
