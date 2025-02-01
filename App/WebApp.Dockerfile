@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt \
 COPY . /usr/src/app/
 
 # Copy frontend build to correct location
-COPY --from=frontend /home/node/app/frontend/build /usr/src/app/frontend/build
+COPY --from=frontend /home/node/app/frontend/build/ /usr/src/app/frontend/build/
 
 # Set working directory and expose port
 WORKDIR /usr/src/app  
