@@ -37,6 +37,7 @@ async def debug():
     return {
         "app_root_path": app.root_path,
         "static_files_path": os.path.join(app.root_path, "frontend", "build", "static"),
+        "app_static_files_path": os.path.join(app.root_path, "static"),
         "files_in_static": os.listdir(os.path.join(app.root_path, "frontend", "build", "static")) if os.path.exists(os.path.join(app.root_path, "frontend", "build", "static")) else "Not found"
     }
 
