@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 app = Quart(__name__)
 app = cors(app, allow_origin=["http://localhost:3000", "http://127.0.0.1:5000"])
 
+print("app.root_path:", app.root_path)
+print("Expected static files location:", os.path.join(app.root_path, "frontend", "build", "static"))
+
+@app.route("/debug")
+async def debug():
+    return {
+        "app_root_path": app.root_path,
+        "static_files_path": os.path.join(app.root_path, "frontend", "build", "static"),
+        "files_in_static": os.listdir(os.path.join(app.root_path, "frontend", "build", "static")) if os.path.exists(os.path.join(app.root_path, "frontend", "build", "static")) else "Not found"
+    }
+
 # Serve index.html from the React build folder
 @app.route("/")
 async def serve_index():
