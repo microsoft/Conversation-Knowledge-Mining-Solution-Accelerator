@@ -19,7 +19,6 @@ App/.venv/
 # build
 lib/
 /lib
-/build
 
 .venv
 frontend/node_modules
