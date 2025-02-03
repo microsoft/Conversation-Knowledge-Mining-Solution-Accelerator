@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 app = Quart(__name__)
 app = cors(app, allow_origin=["http://localhost:3000", "http://127.0.0.1:5000"])
 
+STATIC_FOLDER = "/usr/src/app/frontend/build/static" 
+
 print("app.root_path:", app.root_path)
 print("Expected static files location:", os.path.join(app.root_path, "frontend", "build", "static"))
 
@@ -65,9 +67,8 @@ async def favicon():
 # Serve static files (JS, CSS, images, etc.)
 @app.route("/static/<path:path>")
 async def static_files(path):
-    return await send_from_directory(
-        os.path.join(app.root_path, "frontend", "build", "static"), path
-    )
+    static_path = os.path.join(STATIC_FOLDER, path)  
+    return await send_from_directory(STATIC_FOLDER, path)
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
 # Load environment variables
