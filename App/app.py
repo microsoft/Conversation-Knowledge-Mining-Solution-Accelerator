@@ -23,7 +23,7 @@ from backend.utils import format_as_ndjson, format_stream_response
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Quart(__name__)
