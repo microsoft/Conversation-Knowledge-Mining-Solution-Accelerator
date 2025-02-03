@@ -73,7 +73,7 @@ async def static_files(path):
     logging.debug(f"Serving from: {static_path}")
     logging.info(f"Incoming request for static file: /static/{path}")
     logging.info(f"Serving from: {static_path}")
-    return await send_from_directory(STATIC_FOLDER, path)
+    return await send_from_directory("frontend/build/static/", path)
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
 # Load environment variables
