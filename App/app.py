@@ -71,6 +71,8 @@ async def static_files(path):
     # Print/log the requested path
     logging.debug(f"Incoming request for static file: /static/{path}")
     logging.debug(f"Serving from: {static_path}")
+    logging.info(f"Incoming request for static file: /static/{path}")
+    logging.info(f"Serving from: {static_path}")
     return await send_from_directory(STATIC_FOLDER, path)
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
