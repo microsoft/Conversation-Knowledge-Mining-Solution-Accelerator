@@ -69,8 +69,8 @@ async def favicon():
 async def static_files(path):
     static_path = os.path.join(STATIC_FOLDER, path)
     # Print/log the requested path
-    print(f"Incoming request for static file: /static/{path}")
-    print(f"Serving from: {static_path}")
+    logging.debug(f"Incoming request for static file: /static/{path}")
+    logging.debug(f"Serving from: {static_path}")
     return await send_from_directory(STATIC_FOLDER, path)
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
