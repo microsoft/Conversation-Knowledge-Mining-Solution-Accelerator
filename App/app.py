@@ -36,6 +36,8 @@ print("Expected static files location:", os.path.join(app.root_path, "frontend",
 async def debug():
     return {
         "app_root_path": app.root_path,
+        "files_in_build_js": os.listdir(os.path.join(app.root_path, "frontend", "build","static","js")) if os.path.exists(os.path.join(app.root_path, "frontend", "build","static","js")) else "Not found",
+        "files_in_build_css": os.listdir(os.path.join(app.root_path, "frontend", "build","static","css")) if os.path.exists(os.path.join(app.root_path, "frontend", "build","static","css")) else "Not found",
         "files_in_build": os.listdir(os.path.join(app.root_path, "frontend", "build")) if os.path.exists(os.path.join(app.root_path, "frontend", "build")) else "Not found",
         "static_files_path": os.path.join(app.root_path, "frontend", "build", "static"),
         "app_static_files_path": os.path.join(app.root_path, "static"),
