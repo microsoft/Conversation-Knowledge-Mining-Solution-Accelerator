@@ -51,14 +51,14 @@ async def debug():
 @app.route("/")
 async def serve_index():
     return await send_from_directory(
-        os.path.join(app.root_path, "frontend", "build"), "index.html"
+        os.path.join(app.root_path, "static"), "index.html"
     )
 
 
 @app.route("/favicon.ico")
 async def favicon():
     return await send_from_directory(
-        os.path.join(app.root_path, "frontend", "build"),
+        os.path.join(app.root_path, "static"),
         "favicon.ico",
         mimetype="image/x-icon",
     )
@@ -67,13 +67,9 @@ async def favicon():
 # Serve static files (JS, CSS, images, etc.)
 @app.route("/static/<path:path>")
 async def static_files(path):
-    static_path = os.path.join(STATIC_FOLDER, path)
-    # Print/log the requested path
-    logging.debug(f"Incoming request for static file: /static/{path}")
-    logging.debug(f"Serving from: {static_path}")
-    logging.info(f"Incoming request for static file: /static/{path}")
-    logging.info(f"Serving from: {static_path}")
-    return await send_from_directory("frontend/build/static/", path)
+   return await send_from_directory(
+       os.path.join(app.root_path, "static"), path
+    )
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
 # Load environment variables
