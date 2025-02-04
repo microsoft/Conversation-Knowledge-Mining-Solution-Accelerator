@@ -30,7 +30,7 @@ An analyst managing large volumes of conversational data needs a solution to vis
  
 This solution empowers analysts with tools to ask questions and receive real-time, contextualized responses. It streamlines problem-solving, enhances collaboration, and fosters innovation by making data-driven insights accessible and shareable.
 
-The sample data used in this repository is synthetic and generated using Azure Open AI service. The data is intended for use as sample data only.
+The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
 
 ### Solution accelerator architecture
 ![image](./Documents/Images/ReadMe/ckm-sol-arch.png)
