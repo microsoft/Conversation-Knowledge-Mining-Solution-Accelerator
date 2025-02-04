@@ -30,7 +30,7 @@ An analyst managing large volumes of conversational data needs a solution to vis
  
 This solution empowers analysts with tools to ask questions and receive real-time, contextualized responses. It streamlines problem-solving, enhances collaboration, and fosters innovation by making data-driven insights accessible and shareable.
 
-The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+The sample data used in this repository is synthetic and generated using Azure OpenAI Service. The data is intended for use as sample data only.
 
 ### Solution accelerator architecture
 ![image](./Documents/Images/ReadMe/ckm-sol-arch.png)
@@ -48,7 +48,7 @@ To use this solution accelerator, you will need access to an [Azure subscription
 
 ### **How to install/deploy**
 
-1. Please check the link [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) and choose a region where Azure AI Search, Azure OpenAI services, Azure AI Foundry Services are available. 
+1. Please check the link [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) and choose a region where Azure AI Search, Azure OpenAI Services, Azure AI Foundry Services are available. 
 
 2. **Deploy Azure resources**  
    Click the following deployment button to create the required resources for this accelerator directly in your Azure Subscription.
