@@ -383,7 +383,6 @@ for path in paths:
             docs = []
             print(f' {str(counter)} uploaded')
     
-    time.sleep(4)
 # upload the last batch
 if docs != []:
     search_client.upload_documents(documents=docs)
