@@ -1,0 +1,29 @@
+version: 2
+updates:
+
+ 
+  - package-ecosystem: "pip"
+    directory: "/Deployment/scripts/fabric_scripts" 
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    open-pull-requests-limit: 16
+    labels:
+      - "Python"
+      - "dependencies"
+    commit-message:
+      prefix: "build"
+
+
+  
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    open-pull-requests-limit: 5
+    labels:
+      - "CI/CD"
+      - "dependencies"
+    commit-message:
+      prefix: "build"
