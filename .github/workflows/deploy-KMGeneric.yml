@@ -1,9 +1,14 @@
-name: CI-Validate Deployment-CKM-V2
+name: CI-Validate Deployment-KM-Generic
 on:
   push:
     branches:
-      - ckm-v2
 
+      - main
+      - dev
+      - demo
+
+  schedule:
+    - cron: '0 6,18 * * *'  # Runs at 6:00 AM and 6:00 PM GMT
     
 jobs:
   deploy:
@@ -29,25 +34,30 @@ jobs:
         run: |
           echo "Generating a unique resource group name..."
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          COMMON_PART="ci-ckmv2"
+          COMMON_PART="ci-KMGeneric"
           UNIQUE_RG_NAME="${COMMON_PART}${TIMESTAMP}"
           echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
           echo "Generated Resource_GROUP_PREFIX: ${UNIQUE_RG_NAME}"
 
       - name: Create Resource Group
         run: |
-          az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location eastus
+          az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location westeurope
 
       - name: Generate Unique Solution Prefix
         id: generate_solution_prefix
         run: |
           set -e
-          COMMON_PART="ckm2"
+          COMMON_PART="km"
           TIMESTAMP=$(date +%s)  
           UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 3) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
           echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
           echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
+
+
+      - name: Determine Tag Name Based on Branch
+        id: determine_tag
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
 
       - name: Deploy Bicep Template
         id: deploy
@@ -56,24 +66,9 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file Deployment/bicep/main.bicep \
-            --parameters solutionPrefix=${{ env.SOLUTION_PREFIX }} location=eastus
+            --parameters solutionPrefix=${{ env.SOLUTION_PREFIX }} otherLocation=centralus imageTag=${{ steps.determine_tag.outputs.tagname }}
 
-      - name: Delete Bicep Deployment
-        if: success()
-        run: |
-          set -e  
-          echo "Checking if resource group exists..."
-          rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
-          if [ "$rg_exists" = "true" ]; then
-            echo "Resource group exist. Cleaning..."
-            az group delete \
-                --name ${{ env.RESOURCE_GROUP_NAME }} \
-                --yes \
-                --no-wait
-            echo "Resource group deleted...  ${{ env.RESOURCE_GROUP_NAME }}"
-          else
-            echo "Resource group does not exists."
-          fi
+      
 
       - name: Send Notification on Failure
         if: failure()
@@ -92,3 +87,22 @@ jobs:
           curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
             -H "Content-Type: application/json" \
             -d "$EMAIL_BODY" || echo "Failed to send notification"
+
+
+      - name: Delete Bicep Deployment
+        
+        run: |
+              set -e  
+              echo "Checking if resource group exists..."
+              rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
+              if [ "$rg_exists" = "true" ]; then
+                echo "Resource group exist. Cleaning..."
+                az group delete \
+                    --name ${{ env.RESOURCE_GROUP_NAME }} \
+                    --yes \
+                    --no-wait
+                echo "Resource group deleted...  ${{ env.RESOURCE_GROUP_NAME }}"
+              else
+                echo "Resource group does not exists."
+              fi
+        
