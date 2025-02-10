@@ -15,10 +15,10 @@ param sqlDbUser string
 @secure()
 param sqlDbPwd string
 param managedIdentityObjectId string
-
+param imageTag string
 var functionAppName = '${solutionName}-rag-fn'
 var storageaccountname = '${solutionName}ragfnacc'
-var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-rag-function:latest'
+var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-rag-function:${imageTag}'
 var environmentName = '${solutionName}-rag-fn-env'
 
 // var sqlServerName = 'nc2202-sql-server.database.windows.net'

@@ -9,6 +9,7 @@ param solutionPrefix string
 @description('other Location')
 param otherLocation string
 
+param imageTag string = 'latest'
 // @description('Fabric Workspace Id if you have one, else leave it empty. ')
 // param fabricWorkspaceId string
 
@@ -104,6 +105,7 @@ module createIndex 'deploy_index_scripts.bicep' = {
 module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
   name : 'deploy_azure_function_charts'
   params:{
+    imageTag: imageTag
     solutionName: solutionPrefix
     solutionLocation: solutionLocation
     sqlServerName: sqlDBModule.outputs.sqlServerName
@@ -118,6 +120,7 @@ module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
 module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
   name : 'deploy_azure_function_rag'
   params:{
+    imageTag: imageTag
     solutionName: solutionPrefix
     solutionLocation: solutionLocation
     azureOpenAIApiKey:keyVault.getSecret('AZURE-OPENAI-KEY')
@@ -147,6 +150,7 @@ module azureFunctionURL 'deploy_azure_function_urls.bicep' = {
 module appserviceModule 'deploy_app_service.bicep' = {
   name: 'deploy_app_service'
   params: {
+    imageTag: imageTag
     identity:managedIdentityModule.outputs.managedIdentityOutput.id
     solutionName: solutionPrefix
     solutionLocation: solutionLocation

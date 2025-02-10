@@ -63,11 +63,12 @@ param AZURE_COSMOSDB_DATABASE string = ''
 @description('Enable feedback in Cosmos DB')
 param AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
+param imageTag string
 // var WebAppImageName = 'DOCKER|byoaiacontainer.azurecr.io/byoaia-app:latest'
 
 // var WebAppImageName = 'DOCKER|ncwaappcontainerreg1.azurecr.io/ncqaappimage:v1.0.0'
 
-var WebAppImageName = 'DOCKER|kmcontainerreg.azurecr.io/km-app:latest'
+var WebAppImageName = 'DOCKER|kmcontainerreg.azurecr.io/km-app:${imageTag}'
 
 resource HostingPlan 'Microsoft.Web/serverfarms@2020-06-01' = {
   name: HostingPlanName
