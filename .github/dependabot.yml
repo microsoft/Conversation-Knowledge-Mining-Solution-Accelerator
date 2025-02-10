@@ -1,6 +1,3 @@
-# Dependabot configuration file
-# For more details, refer to: https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
   # GitHub Actions dependencies
@@ -30,3 +27,11 @@ updates:
       prefix: "build"
     target-branch: "dependabotchanges"
     open-pull-requests-limit: 60
+    registries:
+      - azure_devops_registry
+
+registries:
+  azure_devops_registry:
+    type: npm-registry
+    url: https://pkgs.dev.azure.com/CSACTOSOL/KnowledgeMining/_packaging/KnowledgeMining/npm/registry
+    token: ${{ secrets.AZURE_DEVOPS_PAT }}
