@@ -29,9 +29,9 @@ updates:
    open-pull-requests-limit: 60
    registries:
      - npm_public_registry  # Only use public npm registry
-     
+
 registries:
  npm_public_registry:
    type: "npm-registry"
    url: "https://registry.npmjs.org/"
-   replaces-base: true  # Ensure it overrides the default npm registry
+   token: ""
