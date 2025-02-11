@@ -28,10 +28,10 @@ updates:
     target-branch: "dependabotchanges"
     open-pull-requests-limit: 60
     registries:
-      - azure_devops_registry
+      - npm_public_registry
 
 registries:
-  azure_devops_registry:
+  npm_public_registry:
     type: npm-registry
     url: https://registry.npmjs.org/
-  
+    # No token required for public npm registry
