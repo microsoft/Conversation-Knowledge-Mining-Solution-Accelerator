@@ -52,7 +52,7 @@ jobs:
     # Installing DotNet version
     - uses: actions/checkout@v3
     - name: Setup dotnet ${{ matrix.dotnet-version }}
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ matrix.dotnet-version }}
     # You can test your matrix by printing the current dotnet version
