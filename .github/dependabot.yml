@@ -33,5 +33,5 @@ updates:
 registries:
   azure_devops_registry:
     type: npm-registry
-    url: https://pkgs.dev.azure.com/CSACTOSOL/KnowledgeMining/_packaging/KnowledgeMining/npm/registry
-    token: ${{ secrets.AZURE_DEVOPS_PAT }}
+    url: https://registry.npmjs.org/
+  
