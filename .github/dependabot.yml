@@ -8,7 +8,7 @@ updates:
     commit-message:
       prefix: "build"
     target-branch: "dependabotchanges"
-    open-pull-requests-limit: 20
+    open-pull-requests-limit: 30
 
   - package-ecosystem: "pip"
     directory: "/App"
