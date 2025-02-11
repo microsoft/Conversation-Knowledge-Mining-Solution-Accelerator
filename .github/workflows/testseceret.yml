@@ -1,0 +1,12 @@
+name: Test Secret Access
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Output Secret
+        env:
+          TEST_SECRET: ${{ secrets.AZURE_DEVOPS_PAT }}
+        run: |
+            echo "Secret is set: ${{ env.TEST_SECRET }}"
