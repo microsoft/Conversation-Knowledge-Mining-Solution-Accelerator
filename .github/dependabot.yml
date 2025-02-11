@@ -34,4 +34,4 @@ registries:
  npm_public_registry:
    type: "npm-registry"
    url: "https://registry.npmjs.org/"
-   token: ""
+   token: ${{ secrets.TOKEN }}
