@@ -1,38 +1,37 @@
 version: 2
 updates:
-  # GitHub Actions dependencies
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    commit-message:
-      prefix: "build"
-    target-branch: "dependabotchanges"
-    open-pull-requests-limit: 30
+ # GitHub Actions dependencies
+ - package-ecosystem: "github-actions"
+   directory: "/"
+   schedule:
+     interval: "monthly"
+   commit-message:
+     prefix: "build"
+   target-branch: "dependabotchanges"
+   open-pull-requests-limit: 30
 
-  - package-ecosystem: "pip"
-    directory: "/App"
-    schedule:
-      interval: "monthly"
-    commit-message:
-      prefix: "build"
-    target-branch: "dependabotchanges"
-    open-pull-requests-limit: 60
+ - package-ecosystem: "pip"
+   directory: "/App"
+   schedule:
+     interval: "monthly"
+   commit-message:
+     prefix: "build"
+   target-branch: "dependabotchanges"
+   open-pull-requests-limit: 60
 
-  - package-ecosystem: "npm"
-    directory: "/App/frontend"
-    schedule:
-      interval: "monthly"
-    commit-message:
-      prefix: "build"
-    target-branch: "dependabotchanges"
-    open-pull-requests-limit: 60
-    registries:
-      - npm_public_registry
-
+ - package-ecosystem: "npm"
+   directory: "/App/frontend"
+   schedule:
+     interval: "monthly"
+   commit-message:
+     prefix: "build"
+   target-branch: "dependabotchanges"
+   open-pull-requests-limit: 60
+   registries:
+     - npm_public_registry  # Only use public npm registry
+     
 registries:
-  npm_public_registry:
-    type: npm-registry
-    url: https://registry.npmjs.org/
-    replaces-base: true
-    # No token required for public npm registry
+ npm_public_registry:
+   type: "npm-registry"
+   url: "https://registry.npmjs.org/"
+   replaces-base: true  # Ensure it overrides the default npm registry
