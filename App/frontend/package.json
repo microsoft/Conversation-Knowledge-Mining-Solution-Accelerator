@@ -5,7 +5,7 @@
   "proxy": "http://localhost:5000",
   "dependencies": {
     "@azure/msal-browser": "^3.27.0",
-    "@azure/msal-react": "^2.2.0",
+    "@azure/msal-react": "^3.0.4",
     "@fluentui/react": "^8.121.3",
     "@fluentui/react-components": "^9.56.3",
     "@fluentui/react-icons": "^2.0.266",
