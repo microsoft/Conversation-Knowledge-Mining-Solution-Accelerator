@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build Docker and Optional Push - KM Generic
 
 on:
   push:
@@ -63,8 +63,8 @@ jobs:
       - name: Build and Push Docker Image for WebApp
         uses: docker/build-push-action@v6
         with:
-          context: ./App
-          file: ./App/WebApp.Dockerfile
+          context: ./src/App
+          file: ./src/App/WebApp.Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}
@@ -73,8 +73,8 @@ jobs:
       - name: Build and Push Docker Image for km-rag-function
         uses: docker/build-push-action@v6
         with:
-          context: ./AzureFunctions/km-rag-function
-          file: ./AzureFunctions/km-rag-function/Dockerfile
+          context: ./src/api/km-rag-function
+          file: ./src/api/km-rag-function/Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-rag-function:${{ steps.determine_tag.outputs.tagname }}
@@ -83,8 +83,8 @@ jobs:
       - name: Build and Push Docker Image for km-charts-function
         uses: docker/build-push-action@v6
         with:
-          context: ./AzureFunctions/km-charts-function
-          file: ./AzureFunctions/km-charts-function/Dockerfile
+          context: ./src/api/km-charts-function
+          file: ./src/api/km-charts-function/Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER }}/km-charts-function:${{ steps.determine_tag.outputs.tagname }}
