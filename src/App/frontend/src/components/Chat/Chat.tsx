@@ -746,7 +746,7 @@ const Chat: React.FC<ChatProps> = ({
           messages.length === 0 && (
             <div className="initial-msg">
               {/* <SparkleRegular fontSize={32} /> */}
-              <h2>✨Heelloo</h2>
+              <h2>✨</h2>
               <Subtitle2>Start Chatting</Subtitle2>
               <Body1 style={{ textAlign: "center" }}>
                 You can ask questions around customers calls, call topics and
