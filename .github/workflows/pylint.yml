@@ -1,4 +1,4 @@
-name: Pylint and Flake8
+name: PyLint
 
 on: [push]
 
@@ -19,9 +19,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r App/requirements.txt
+          pip install -r src/App/requirements.txt
           pip install flake8  # Ensure flake8 is installed explicitly
       
       - name: Run flake8 and pylint
         run: |
-          flake8 --config=.flake8 App/backend  # Specify the directory to lint
+          flake8 --config=.flake8 src/App/backend  # Specify the directory to lint

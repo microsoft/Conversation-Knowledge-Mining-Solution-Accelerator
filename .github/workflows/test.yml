@@ -1,4 +1,4 @@
-name: Test Workflow with Coverage
+name: Test Workflow with Coverage - KM Generic
 
 on:
   push:
@@ -74,14 +74,14 @@ jobs:
       - name: Install Backend Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r App/requirements.txt
+          pip install -r src/App/requirements.txt
           pip install pytest-cov
           pip install pytest-asyncio
 
       - name: Check if Backend Test Files Exist
         id: check_backend_tests
         run: |
-          if [ -z "$(find App/backend -type f -name 'test_*.py')" ]; then
+          if [ -z "$(find src/App/backend -type f -name 'test_*.py')" ]; then
             echo "No backend test files found, skipping backend tests."
             echo "skip_backend_tests=true" >> $GITHUB_ENV
           else

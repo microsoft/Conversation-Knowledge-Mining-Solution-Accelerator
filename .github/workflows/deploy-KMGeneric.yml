@@ -1,4 +1,4 @@
-name: CI-Validate Deployment-KM-Generic
+name: Validate Deployment - KM Generic
 on:
   push:
     branches:
@@ -8,7 +8,7 @@ on:
       - demo
 
   schedule:
-    - cron: '0 6,18 * * *'  # Runs at 6:00 AM and 6:00 PM GMT
+    - cron: '0 0,12 * * *'  # Runs at 12:00 AM and 12:00 PM GMT
     
 jobs:
   deploy:

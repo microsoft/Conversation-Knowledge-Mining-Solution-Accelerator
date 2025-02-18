@@ -1,0 +1,94 @@
+name: Validate Deployment - CKM V2
+on:
+  push:
+    branches:
+      - ckm-v2
+
+    
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az --version  # Verify installation
+
+      - name: Login to Azure
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+      
+      - name: Install Bicep CLI
+        run: az bicep install
+    
+      - name: Generate Resource Group Name
+        id: generate_rg_name
+        run: |
+          echo "Generating a unique resource group name..."
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          COMMON_PART="ci-ckmv2"
+          UNIQUE_RG_NAME="${COMMON_PART}${TIMESTAMP}"
+          echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
+          echo "Generated Resource_GROUP_PREFIX: ${UNIQUE_RG_NAME}"
+
+      - name: Create Resource Group
+        run: |
+          az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location eastus
+
+      - name: Generate Unique Solution Prefix
+        id: generate_solution_prefix
+        run: |
+          set -e
+          COMMON_PART="ckm2"
+          TIMESTAMP=$(date +%s)  
+          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 3) 
+          UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
+          echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
+          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
+
+      - name: Deploy Bicep Template
+        id: deploy
+        run: |
+          set -e
+          az deployment group create \
+            --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
+            --template-file infra/main.bicep \
+            --parameters solutionPrefix=${{ env.SOLUTION_PREFIX }} location=eastus
+
+      - name: Delete Bicep Deployment
+        if: success()
+        run: |
+          set -e  
+          echo "Checking if resource group exists..."
+          rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
+          if [ "$rg_exists" = "true" ]; then
+            echo "Resource group exist. Cleaning..."
+            az group delete \
+                --name ${{ env.RESOURCE_GROUP_NAME }} \
+                --yes \
+                --no-wait
+            echo "Resource group deleted...  ${{ env.RESOURCE_GROUP_NAME }}"
+          else
+            echo "Resource group does not exists."
+          fi
+
+      - name: Send Notification on Failure
+        if: failure()
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      
+          # Construct the email body
+          EMAIL_BODY=$(cat <<EOF
+          {
+            "body": "<p>Dear Team,</p><p>We would like to inform you that the CKMv2 Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> ${RUN_URL}<br> ${OUTPUT}</p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>"
+          }
+          EOF
+          )
+      
+          # Send the notification
+          curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$EMAIL_BODY" || echo "Failed to send notification"

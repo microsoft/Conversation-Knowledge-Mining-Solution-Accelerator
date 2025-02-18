@@ -1,0 +1,81 @@
+/* General styles for the parent container */
+.citationPanel {
+    display: flex;
+    flex-direction: column; /* Stack children vertically */
+    border: 1px solid #ddd; /* Optional: Add a border for visibility */
+    border-radius: 8px; /* Optional: Rounded corners */
+    padding: 16px; /* Optional: Add padding */
+    background: radial-gradient(108.78% 108.78% at 50.02% 19.78%, #ffffff 57.29%, #eef6fe 100%); /* Optional: Background color */
+    height: 93%; /* Adjust height as needed */
+    overflow-y: auto; /* Enable vertical scrolling */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: Add a shadow */
+  }
+  
+  /* Styling the header section */
+  .citationPanelInner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Space between title and icon */
+    padding-bottom: 10px; /* Add some spacing below the header */
+    border-bottom: 1px solid #ccc; /* Optional: Add a bottom border */
+  }
+  
+  /* Style the title */
+  .citationPanelInner span {
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+  }
+  
+  /* Style the SVG button */
+  .citationPanelInner svg {
+    cursor: pointer;
+    transition: transform 0.3s;
+  }
+  
+  .citationPanelInner svg:hover {
+    transform: scale(1.1); /* Slightly enlarge on hover */
+  }
+  
+  /* Styling the file path link */
+  h5 {
+    word-break: break-all;
+    margin: 12px 0;
+    font-size: 14px;
+    color: #555;
+  }
+  
+  h5 a {
+    color: #0078d4; /* Microsoft blue */
+    text-decoration: none;
+  }
+  
+  h5 a:hover {
+    text-decoration: underline;
+  }
+  
+  /* Styling the paragraphs */
+  p {
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #444;
+  }
+  
+  p a {
+    word-break: break-all;
+  }
+  /* Optional: Customize the scrollbar */
+  .citationPanel::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .citationPanel::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+  }
+  
+  .citationPanel::-webkit-scrollbar-thumb:hover {
+    background-color: #555;
+  }

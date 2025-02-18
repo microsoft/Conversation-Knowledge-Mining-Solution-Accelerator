@@ -1,4 +1,3 @@
-name: Dependabot
 version: 2
 updates:
  # GitHub Actions dependencies

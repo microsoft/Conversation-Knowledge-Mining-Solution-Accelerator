@@ -1,0 +1,68 @@
+{
+  "analyzerId": "ckm-analyzer-text",
+  "name": "ckm-analyzer-text",
+  "scenario": "text",
+  "description": "Conversation analytics",
+  "tags": {
+    "projectId": "",
+    "templateId": "postCallAnalytics-2024-12-01"
+  },
+  "config": {
+    "returnDetails": true
+  },
+  "fieldSchema": {
+    "name": "CallCenterConversationAnalysis",
+    "descriptions": "Content, Summary, sentiment, and more analyses from a call center conversation",
+    "fields": {
+      "content": {
+        "type": "string",
+        "method": "generate",
+        "description": "Full text of the conversation"
+      },
+      "Duration": {
+        "type": "string",
+        "method": "generate",
+        "description": "Find out how long the conversation lasted in seconds"
+      },
+      "summary": {
+        "type": "string",
+        "method": "generate",
+        "description": "Summarize the conversation"
+      },
+      "satisfied": {
+        "type": "string",
+        "method": "classify",
+        "description": "Is the customer satisfied with the agent interaction",
+        "enum": [
+          "Yes",
+          "No"
+        ]
+      },
+      "sentiment": {
+        "type": "string",
+        "method": "classify",
+        "description": "Identify the sentiment of the conversation",
+        "enum": [
+          "Positive",
+          "Neutral",
+          "Negative"
+        ]
+      },
+      "topic": {
+        "type": "string",
+        "method": "generate",
+        "description": "Identify the single primary topic of the conversation in 6 words or less"
+      },
+      "keyPhrases": {
+        "type": "string",
+        "method": "generate",
+        "description": "Identify the top 10 key phrases as comma seperated string excluding people names"
+      },
+      "complaint": {
+        "type": "string",
+        "method": "generate",
+        "description": "Identify the single primary complaint of the conversation in 3 words or less"
+      }
+    }
+  }
+}

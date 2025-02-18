@@ -1,0 +1,61 @@
+# # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+environment:
+  name: conversation-knowledge-mining
+  location: eastus
+
+parameters:
+  solutionPrefix:
+    type: string
+    default: bs-azdtest  
+  otherLocation:
+    type: string
+    default: eastus2
+  baseUrl:
+    type: string
+    default: 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/'
+
+deployment:
+  mode: Incremental
+  template: ./infra/main.bicep  # Path to the main.bicep file inside the 'deployment' folder
+  parameters:
+    solutionPrefix: ${parameters.solutionPrefix}
+    otherLocation: ${parameters.otherLocation}
+    baseUrl: ${parameters.baseUrl}
+
+
+# environment:
+#   name: conversation-knowledge-mining-solution-accelerator
+#   location: eastus
+
+# metadata:
+#     template: azd-init@1.11.1
+# services:
+#     add-user-scripts:
+#         project: Deployment/scripts/add_user_scripts
+#         host: containerapp
+#         language: python
+#     app:
+#         project: App
+#         host: containerapp
+#         language: python
+#     fabric-scripts:
+#         project: Deployment/scripts/fabric_scripts
+#         host: containerapp
+#         language: python
+#     index-scripts:
+#         project: Deployment/scripts/index_scripts
+#         host: containerapp
+#         language: python
+#     km-charts-function:
+#         project: AzureFunctions/km-charts-function
+#         host: containerapp
+#         language: python
+#         docker:
+#             path: Dockerfile
+#     km-rag-function:
+#         project: AzureFunctions/km-rag-function
+#         host: containerapp
+#         language: python
+#         docker:
+#             path: Dockerfile
