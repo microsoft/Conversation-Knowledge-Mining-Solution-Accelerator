@@ -146,6 +146,8 @@ If you're not using one of the above options for opening the project, then you'l
 </details>
 <br/>
 
+The complete deployment can take 7-10 minutes.  
+
 ### Deploying
 
 Once you've opened the project in [Codespaces](#github-codespaces), in [Dev Containers](#vs-code-dev-containers), or [locally](#local-environment), 
@@ -201,7 +203,7 @@ azd env set AZURE_ENV_MODEL_NAME gpt-4o-mini
 Change the Model Capacity (choose a number based on available GPT model capacity in your subscription)
 
 ```shell
-azd env set AZURE_ENV_MODEL_CAPACITY 100
+azd env set AZURE_ENV_MODEL_CAPACITY 30
 ```
 
 Change the Embedding Model 

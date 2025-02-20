@@ -50,7 +50,7 @@ var gptModelVersion = '2024-02-15-preview'
 @description('Capacity of the GPT deployment:')
 // You can increase this, but capacity is limited per model/region, so you will get errors if you go over
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
-param gptDeploymentCapacity int = 100
+param gptDeploymentCapacity int = 30
 
 @minLength(1)
 @description('Name of the Text Embedding model to deploy:')
