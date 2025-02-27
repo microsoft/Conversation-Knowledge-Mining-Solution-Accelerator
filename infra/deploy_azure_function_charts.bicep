@@ -9,6 +9,8 @@ param sqlDbPwd string
 // param managedIdentityObjectId string
 param imageTag string
 param storageAccountName string
+param userassignedIdentityId string
+param userassignedIdentityClientId string
 var functionAppName = '${solutionName}-charts-fn'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-charts-function:${imageTag}'
 var environmentName = '${solutionName}-charts-fn-env'
@@ -50,7 +52,10 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
   location: solutionLocation
   kind: 'functionapp,linux,container,azurecontainerapps'
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${userassignedIdentityId}': {}
+    }
   }
   properties: {
     siteConfig: {
@@ -75,7 +80,10 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
           name: 'SQLDB_USERNAME'
           value: sqlDbUser
         }
-
+        {
+          name: 'SQLDB_USER_MID'
+          value: userassignedIdentityClientId
+        }
       ]
       linuxFxVersion: dockerImage
       functionAppScaleLimit: 10

@@ -14,6 +14,7 @@ import time
 import base64
 
 key_vault_name = 'kv_to-be-replaced'
+managed_identity_client_id = 'mici_to-be-replaced'
 
 file_system_client_name = "data"
 directory = 'call_transcripts'
@@ -22,7 +23,7 @@ audio_directory = 'audiodata'
 def get_secrets_from_kv(kv_name, secret_name):
     # Set the name of the Azure Key Vault  
     key_vault_name = kv_name 
-    credential = DefaultAzureCredential()
+    credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
     # Create a secret client object using the credential and Key Vault name  
     secret_client =  SecretClient(vault_url=f"https://{key_vault_name}.vault.azure.net/", credential=credential)  

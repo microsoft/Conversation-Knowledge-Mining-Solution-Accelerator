@@ -4,6 +4,7 @@ echo "started the script"
 # Variables
 baseUrl="$1"
 keyvaultName="$2"
+managedIdentityClientId="$3"
 requirementFile="requirements.txt"
 requirementFileUrl=${baseUrl}"infra/scripts/index_scripts/requirements.txt"
 
@@ -36,9 +37,13 @@ echo "Download completed"
 
 #Replace key vault name 
 sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "01_create_search_index.py"
+sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "01_create_search_index.py"
 sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_text.py"
+sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_text.py"
 sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_audio.py"
+sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_audio.py"
 sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "03_cu_process_data_text.py"
+sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_text.py"
 
 pip install -r requirements.txt
 
