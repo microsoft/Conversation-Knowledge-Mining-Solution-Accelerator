@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "18268444993934003213"
+      "templateHash": "6825681880627244193"
     }
   },
   "parameters": {
@@ -1534,7 +1534,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "11474265045594921784"
+              "templateHash": "7545776793009046091"
             }
           },
           "parameters": {
@@ -1581,11 +1581,16 @@
               "location": "[variables('location')]",
               "kind": "v12.0",
               "properties": {
-                "administratorLogin": "[variables('administratorLogin')]",
-                "administratorLoginPassword": "[variables('administratorLoginPassword')]",
                 "publicNetworkAccess": "Enabled",
                 "version": "12.0",
-                "restrictOutboundNetworkAccess": "Disabled"
+                "restrictOutboundNetworkAccess": "Disabled",
+                "administrators": {
+                  "login": "[parameters('managedIdentityName')]",
+                  "sid": "[parameters('managedIdentityObjectId')]",
+                  "tenantId": "[subscription().tenantId]",
+                  "administratorType": "ActiveDirectory",
+                  "azureADOnlyAuthentication": true
+                }
               }
             },
             {
@@ -1630,20 +1635,6 @@
                 "minCapacity": 1,
                 "readScale": "Disabled",
                 "zoneRedundant": false
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Sql/servers/administrators",
-              "apiVersion": "2023-08-01-preview",
-              "name": "[format('{0}/{1}', variables('serverName'), 'ActiveDirectory')]",
-              "properties": {
-                "login": "[parameters('managedIdentityName')]",
-                "sid": "[parameters('managedIdentityObjectId')]",
-                "tenantId": "[subscription().tenantId]",
-                "administratorType": "ActiveDirectory"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
@@ -1827,8 +1818,7 @@
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Sql/servers/databases', variables('serverName'), variables('sqlDBName'))]",
-                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]",
-                "[resourceId('Microsoft.Sql/servers/administrators', variables('serverName'), 'ActiveDirectory')]"
+                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
               ]
             }
           ],
@@ -1895,7 +1885,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "15667257570001516333"
+              "templateHash": "15055359245201632922"
             }
           },
           "parameters": {
@@ -1991,7 +1981,7 @@
                       "command": [
                         "/bin/sh",
                         "-c",
-                        "[format('mkdir -p /scripts && apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev && pip install --upgrade azure-cli && curl -s -o /scripts/copy_kb_files.sh {0} && chmod +x /scripts/copy_kb_files.sh && sh -x /scripts/copy_kb_files.sh {1} {2} {3} {4} && curl -s -o /scripts/run_create_index_scripts.sh {5} && chmod +x /scripts/run_create_index_scripts.sh && sh -x /scripts/run_create_index_scripts.sh {6} {7} {8}', parameters('setupCopyKbFiles'), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCreateIndexScriptsUrl'), parameters('baseUrl'), parameters('keyVaultName'), parameters('managedIdentityClientId'))]"
+                        "[format('mkdir -p /scripts && apk update && apk add --no-cache curl bash jq py3-pip gcc libc-dev g++ musl-dev libffi-dev libxml2 openssl-dev python3-dev icu-libs krb5-libs unixodbc-dev gcompat && pip install --upgrade azure-cli && apk add --no-cache --virtual .build-deps build-base unixodbc-dev && curl -O https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/msodbcsql18_18.4.1.1-1_amd64.apk && curl -O https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/mssql-tools18_18.4.1.1-1_amd64.apk && apk add --allow-untrusted msodbcsql18_18.4.1.1-1_amd64.apk && apk add --allow-untrusted mssql-tools18_18.4.1.1-1_amd64.apk && curl -s -o /scripts/copy_kb_files.sh {0} && chmod +x /scripts/copy_kb_files.sh && sh -x /scripts/copy_kb_files.sh {1} {2} {3} {4} && curl -s -o /scripts/run_create_index_scripts.sh {5} && chmod +x /scripts/run_create_index_scripts.sh && sh -x /scripts/run_create_index_scripts.sh {6} {7} {8}', parameters('setupCopyKbFiles'), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCreateIndexScriptsUrl'), parameters('baseUrl'), parameters('keyVaultName'), parameters('managedIdentityClientId'))]"
                       ],
                       "env": [
                         {
@@ -2662,7 +2652,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "11186995242820167426"
+              "templateHash": "5835426116727035307"
             }
           },
           "parameters": {
@@ -2797,7 +2787,7 @@
           },
           "variables": {
             "WebAppImageName": "[format('DOCKER|kmcontainerreg.azurecr.io/km-app:{0}', parameters('imageTag'))]",
-            "REACT_APP_LAYOUT_CONFIG": "{\n  \"appConfig\": {\n    \"THREE_COLUMN\": {\n      \"DASHBOARD\": 50,\n      \"CHAT\": 33,\n      \"CHATHISTORY\": 17\n    },\n    \"TWO_COLUMN\": {\n      \"DASHBOARD_CHAT\": {\n        \"DASHBOARD\": 65,\n        \"CHAT\": 35\n      },\n      \"CHAT_CHATHISTORY\": {\n        \"CHAT\": 80,\n        \"CHATHISTORY\": 20\n      }\n    }\n  },\n  \"charts\": [\n    {\n      \"id\": \"SATISFIED\",\n      \"name\": \"Satisfied\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\n    },\n    {\n      \"id\": \"TOTAL_CALLS\",\n      \"name\": \"Total Calls\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME\",\n      \"name\": \"Average Handling Time\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\n    },\n    {\n      \"id\": \"SENTIMENT\",\n      \"name\": \"Topics Overview\",\n      \"type\": \"donutchart\",\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\n      \"name\": \"Average Handling Time By Topic\",\n      \"type\": \"bar\",\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\n    },\n    {\n      \"id\": \"TOPICS\",\n      \"name\": \"Trending Topics\",\n      \"type\": \"table\",\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\n    },\n    {\n      \"id\": \"KEY_PHRASES\",\n      \"name\": \"Key Phrases\",\n      \"type\": \"wordcloud\",\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\n    }\n  ]\n}"
+            "REACT_APP_LAYOUT_CONFIG": "{\r\n  \"appConfig\": {\r\n    \"THREE_COLUMN\": {\r\n      \"DASHBOARD\": 50,\r\n      \"CHAT\": 33,\r\n      \"CHATHISTORY\": 17\r\n    },\r\n    \"TWO_COLUMN\": {\r\n      \"DASHBOARD_CHAT\": {\r\n        \"DASHBOARD\": 65,\r\n        \"CHAT\": 35\r\n      },\r\n      \"CHAT_CHATHISTORY\": {\r\n        \"CHAT\": 80,\r\n        \"CHATHISTORY\": 20\r\n      }\r\n    }\r\n  },\r\n  \"charts\": [\r\n    {\r\n      \"id\": \"SATISFIED\",\r\n      \"name\": \"Satisfied\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\r\n    },\r\n    {\r\n      \"id\": \"TOTAL_CALLS\",\r\n      \"name\": \"Total Calls\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME\",\r\n      \"name\": \"Average Handling Time\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"SENTIMENT\",\r\n      \"name\": \"Topics Overview\",\r\n      \"type\": \"donutchart\",\r\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\r\n      \"name\": \"Average Handling Time By Topic\",\r\n      \"type\": \"bar\",\r\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\r\n    },\r\n    {\r\n      \"id\": \"TOPICS\",\r\n      \"name\": \"Trending Topics\",\r\n      \"type\": \"table\",\r\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\r\n    },\r\n    {\r\n      \"id\": \"KEY_PHRASES\",\r\n      \"name\": \"Key Phrases\",\r\n      \"type\": \"wordcloud\",\r\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\r\n    }\r\n  ]\r\n}"
           },
           "resources": [
             {

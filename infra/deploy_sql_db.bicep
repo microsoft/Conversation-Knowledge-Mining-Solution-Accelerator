@@ -38,11 +38,16 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   location: location
   kind:'v12.0'
   properties: {
-      administratorLogin: administratorLogin
-      administratorLoginPassword: administratorLoginPassword
       publicNetworkAccess: 'Enabled'
       version: '12.0'
       restrictOutboundNetworkAccess: 'Disabled'
+      administrators: {
+        login: managedIdentityName
+        sid: managedIdentityObjectId
+        tenantId: subscription().tenantId
+        administratorType: 'ActiveDirectory'
+        azureADOnlyAuthentication: true
+      }
     }
 }
 
@@ -84,16 +89,16 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
-resource SQLServerName_ActiveDirectory 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = {
-  parent: sqlServer
-  name: 'ActiveDirectory'
-  properties: {
-    login: managedIdentityName
-    sid: managedIdentityObjectId
-    tenantId: subscription().tenantId
-    administratorType: 'ActiveDirectory'
-  }
-}
+// resource SQLServerName_ActiveDirectory 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = {
+//   parent: sqlServer
+//   name: 'ActiveDirectory'
+//   properties: {
+//     login: managedIdentityName
+//     sid: managedIdentityObjectId
+//     tenantId: subscription().tenantId
+//     administratorType: 'ActiveDirectory'
+//   }
+// }
 
 module sqluser 'create-sql-user-and-role.bicep' = [for user in users: {
   name: 'sqluser-${guid(location, user.principalId, user.principalName, sqlDBName, sqlServer.name)}'
@@ -106,7 +111,7 @@ module sqluser 'create-sql-user-and-role.bicep' = [for user in users: {
     sqlServerName: sqlServer.name
     databaseRoles: user.databaseRoles
   }
-  dependsOn: [ sqlDB, SQLServerName_ActiveDirectory ]
+  dependsOn: [ sqlDB ]
 }]
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {

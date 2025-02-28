@@ -10,6 +10,6 @@ azure-ai-textanalytics
 azure-search-documents==11.6.0b3
 azure-keyvault-secrets
 pandas
-pymssql
+pyodbc==5.2.0
 datetime
 # graphrag==0.3.6
