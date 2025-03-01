@@ -7,7 +7,7 @@
     "@azure/msal-browser": "^3.27.0",
     "@azure/msal-react": "^2.2.0",
     "@fluentui/react": "^8.121.3",
-    "@fluentui/react-components": "^9.56.3",
+    "@fluentui/react-components": "^9.60.0",
     "@fluentui/react-icons": "^2.0.266",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
