@@ -4,7 +4,7 @@
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
-    "@azure/msal-browser": "^3.27.0",
+    "@azure/msal-browser": "^4.5.0",
     "@azure/msal-react": "^2.2.0",
     "@fluentui/react": "^8.121.3",
     "@fluentui/react-components": "^9.56.3",
