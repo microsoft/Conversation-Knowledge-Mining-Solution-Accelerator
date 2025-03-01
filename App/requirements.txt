@@ -15,5 +15,5 @@ azure-cosmos
 azure-identity
 azure-mgmt-resource
 aiohttp
-fastapi==0.115.6
+fastapi==0.115.10
 httpx==0.28.0
