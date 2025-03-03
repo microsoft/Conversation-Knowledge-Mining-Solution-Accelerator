@@ -1,4 +1,4 @@
-openai==1.57.0
+openai==1.65.2
 Quart==0.19.4
 quart-cors==0.7.0
 Quart-Session==3.0.0
