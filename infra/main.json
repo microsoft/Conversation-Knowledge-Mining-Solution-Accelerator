@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "6595303576382456876"
+      "templateHash": "9375971005813994576"
     }
   },
   "parameters": {
@@ -1451,28 +1451,6 @@
           },
           "managedIdentityObjectId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityOutput.value.objectId]"
-          },
-          "managedIdentityId": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityOutput.value.id]"
-          },
-          "users": {
-            "value": [
-              {
-                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityChartsOutput.value.clientId]",
-                "principalName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityChartsOutput.value.name]",
-                "databaseRoles": [
-                  "db_datareader",
-                  "db_datawriter"
-                ]
-              },
-              {
-                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityRagOutput.value.clientId]",
-                "principalName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityRagOutput.value.name]",
-                "databaseRoles": [
-                  "db_datareader"
-                ]
-              }
-            ]
           }
         },
         "template": {
@@ -1482,7 +1460,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "7545776793009046091"
+              "templateHash": "16605082293199555822"
             }
           },
           "parameters": {
@@ -1500,18 +1478,11 @@
             "keyVaultName": {
               "type": "string"
             },
-            "managedIdentityId": {
-              "type": "string"
-            },
             "managedIdentityObjectId": {
               "type": "string"
             },
             "managedIdentityName": {
               "type": "string"
-            },
-            "users": {
-              "type": "array",
-              "defaultValue": []
             }
           },
           "variables": {
@@ -1619,155 +1590,6 @@
               "properties": {
                 "value": "[variables('administratorLoginPassword')]"
               }
-            },
-            {
-              "copy": {
-                "name": "sqluser",
-                "count": "[length(parameters('users'))]"
-              },
-              "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2022-09-01",
-              "name": "[format('sqluser-{0}', guid(variables('location'), parameters('users')[copyIndex()].principalId, parameters('users')[copyIndex()].principalName, variables('sqlDBName'), variables('serverName')))]",
-              "properties": {
-                "expressionEvaluationOptions": {
-                  "scope": "inner"
-                },
-                "mode": "Incremental",
-                "parameters": {
-                  "managedIdentityId": {
-                    "value": "[parameters('managedIdentityId')]"
-                  },
-                  "principalId": {
-                    "value": "[parameters('users')[copyIndex()].principalId]"
-                  },
-                  "principalName": {
-                    "value": "[parameters('users')[copyIndex()].principalName]"
-                  },
-                  "sqlDatabaseName": {
-                    "value": "[variables('sqlDBName')]"
-                  },
-                  "location": {
-                    "value": "[variables('location')]"
-                  },
-                  "sqlServerName": {
-                    "value": "[variables('serverName')]"
-                  },
-                  "databaseRoles": {
-                    "value": "[parameters('users')[copyIndex()].databaseRoles]"
-                  }
-                },
-                "template": {
-                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-                  "languageVersion": "2.0",
-                  "contentVersion": "1.0.0.0",
-                  "metadata": {
-                    "_generator": {
-                      "name": "bicep",
-                      "version": "0.33.93.31351",
-                      "templateHash": "10411559921856275300"
-                    }
-                  },
-                  "parameters": {
-                    "location": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The Azure region for the resource."
-                      }
-                    },
-                    "tags": {
-                      "type": "object",
-                      "defaultValue": {},
-                      "metadata": {
-                        "description": "The tags to associate with this resource."
-                      }
-                    },
-                    "databaseRoles": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      },
-                      "defaultValue": [
-                        "db_datareader"
-                      ],
-                      "metadata": {
-                        "description": "The database roles to assign to the user."
-                      }
-                    },
-                    "managedIdentityId": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The ID of the managed identity to be used to run the script."
-                      }
-                    },
-                    "principalId": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The principal (or object) ID of the user to create."
-                      }
-                    },
-                    "principalName": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The name of the user to create."
-                      }
-                    },
-                    "sqlDatabaseName": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The name of the SQL Database resource."
-                      }
-                    },
-                    "sqlServerName": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The name of the SQL Server resource."
-                      }
-                    },
-                    "uniqueScriptId": {
-                      "type": "string",
-                      "defaultValue": "[newGuid()]",
-                      "metadata": {
-                        "description": "Do not set - unique script ID to force the script to run."
-                      }
-                    }
-                  },
-                  "variables": {
-                    "$fxv#0": "#Requires -Version 7.0\r\n\r\n<#\r\n.SYNOPSIS\r\n    Creates a SQL user and assigns the user account to one or more roles.\r\n\r\n.DESCRIPTION\r\n    During an application deployment, the managed identity (and potentially the developer identity)\r\n    must be added to the SQL database as a user and assigned to one or more roles.  This script\r\n    does exactly that using the owner managed identity.\r\n\r\n.PARAMETER SqlServerName\r\n    The name of the SQL Server resource\r\n.PARAMETER SqlDatabaseName\r\n    The name of the SQL Database resource\r\n.PARAMETER ObjectId\r\n    The Object (Principal) ID of the user to be added.\r\n.PARAMETER DisplayName\r\n    The Object (Principal) display name of the user to be added.\r\n.PARAMETER DatabaseRole\r\n    The database role that needs to be assigned to the user.\r\n#>\r\n\r\nParam(\r\n    [string] $SqlServerName,\r\n    [string] $SqlDatabaseName,\r\n    [string] $ObjectId,\r\n    [string] $DisplayName,\r\n    [string] $DatabaseRole\r\n)\r\n\r\nfunction Resolve-Module($moduleName) {\r\n    # If module is imported; say that and do nothing\r\n    if (Get-Module | Where-Object { $_.Name -eq $moduleName }) {\r\n        Write-Debug \"Module $moduleName is already imported\"\r\n    } elseif (Get-Module -ListAvailable | Where-Object { $_.Name -eq $moduleName }) {\r\n        Import-Module $moduleName\r\n    } elseif (Find-Module -Name $moduleName | Where-Object { $_.Name -eq $moduleName }) {\r\n        Install-Module $moduleName -Force -Scope CurrentUser\r\n        Import-Module $moduleName\r\n    } else {\r\n        Write-Error \"Module $moduleName not found\"\r\n        [Environment]::exit(1)\r\n    }\r\n}\r\n\r\n###\r\n### MAIN SCRIPT\r\n###\r\nResolve-Module -moduleName Az.Resources\r\nResolve-Module -moduleName SqlServer\r\n\r\n$sql = @\"\r\nDECLARE @username nvarchar(max) = N'$($DisplayName)';\r\nDECLARE @clientId uniqueidentifier = '$($ObjectId)';\r\nDECLARE @sid NVARCHAR(max) = CONVERT(VARCHAR(max), CONVERT(VARBINARY(16), @clientId), 1);\r\nDECLARE @cmd NVARCHAR(max) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';\r\nIF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = @username)\r\nBEGIN\r\n    EXEC(@cmd)\r\nEND\r\nEXEC sp_addrolemember '$($DatabaseRole)', @username;\r\n\"@\r\n\r\nWrite-Output \"`nSQL:`n$($sql)`n`n\"\r\n\r\n$token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token\r\nInvoke-SqlCmd -ServerInstance \"$SqlServerName.database.windows.net\" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'"
-                  },
-                  "resources": {
-                    "createSqlUserAndRole": {
-                      "copy": {
-                        "name": "createSqlUserAndRole",
-                        "count": "[length(parameters('databaseRoles'))]"
-                      },
-                      "type": "Microsoft.Resources/deploymentScripts",
-                      "apiVersion": "2020-10-01",
-                      "name": "[format('sqlUserRole-{0}', guid(parameters('principalId'), parameters('databaseRoles')[copyIndex()], parameters('sqlServerName'), parameters('sqlDatabaseName')))]",
-                      "location": "[parameters('location')]",
-                      "tags": "[parameters('tags')]",
-                      "kind": "AzurePowerShell",
-                      "identity": {
-                        "type": "UserAssigned",
-                        "userAssignedIdentities": {
-                          "[format('{0}', parameters('managedIdentityId'))]": {}
-                        }
-                      },
-                      "properties": {
-                        "forceUpdateTag": "[parameters('uniqueScriptId')]",
-                        "azPowerShellVersion": "7.4",
-                        "retentionInterval": "PT1H",
-                        "cleanupPreference": "OnSuccess",
-                        "arguments": "[join(createArray(format('-SqlServerName ''{0}''', parameters('sqlServerName')), format('-SqlDatabaseName ''{0}''', parameters('sqlDatabaseName')), format('-ObjectId ''{0}''', parameters('principalId')), format('-DisplayName ''{0}''', parameters('principalName')), format('-DatabaseRole ''{0}''', parameters('databaseRoles')[copyIndex()])), ' ')]",
-                        "scriptContent": "[variables('$fxv#0')]"
-                      }
-                    }
-                  }
-                }
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Sql/servers/databases', variables('serverName'), variables('sqlDBName'))]",
-                "[resourceId('Microsoft.Sql/servers', variables('serverName'))]"
-              ]
             }
           ],
           "outputs": {
@@ -1794,7 +1616,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "deploy_upload_files_script",
+      "name": "deploy_upload_files_create_index_and_sqluser_script",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -1824,6 +1646,31 @@
           },
           "keyVaultName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.keyvaultName.value]"
+          },
+          "sqlServerName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db'), '2022-09-01').outputs.sqlServerName.value]"
+          },
+          "sqlDbName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db'), '2022-09-01').outputs.sqlDbName.value]"
+          },
+          "sqlUsers": {
+            "value": [
+              {
+                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityChartsOutput.value.clientId]",
+                "principalName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityChartsOutput.value.name]",
+                "databaseRoles": [
+                  "db_datareader",
+                  "db_datawriter"
+                ]
+              },
+              {
+                "principalId": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityRagOutput.value.clientId]",
+                "principalName": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityRagOutput.value.name]",
+                "databaseRoles": [
+                  "db_datareader"
+                ]
+              }
+            ]
           }
         },
         "template": {
@@ -1833,7 +1680,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "15055359245201632922"
+              "templateHash": "7849816708052852467"
             }
           },
           "parameters": {
@@ -1876,6 +1723,10 @@
               "type": "string",
               "defaultValue": "python:3.11-alpine"
             },
+            "run_all_scripts": {
+              "type": "string",
+              "defaultValue": "[format('{0}infra/scripts/run_all_scripts.sh', parameters('baseUrl'))]"
+            },
             "setupCopyKbFiles": {
               "type": "string",
               "defaultValue": "[format('{0}infra/scripts/copy_kb_files.sh', parameters('baseUrl'))]"
@@ -1884,8 +1735,22 @@
               "type": "string",
               "defaultValue": "[format('{0}infra/scripts/run_create_index_scripts.sh', parameters('baseUrl'))]"
             },
+            "createSqlUserAndRoleScriptsUrl": {
+              "type": "string",
+              "defaultValue": "[format('{0}infra/scripts/add_user_scripts/create-sql-user-and-role.ps1', parameters('baseUrl'))]"
+            },
             "keyVaultName": {
               "type": "string"
+            },
+            "sqlServerName": {
+              "type": "string"
+            },
+            "sqlDbName": {
+              "type": "string"
+            },
+            "sqlUsers": {
+              "type": "array",
+              "defaultValue": []
             }
           },
           "resources": [
@@ -1929,7 +1794,7 @@
                       "command": [
                         "/bin/sh",
                         "-c",
-                        "[format('mkdir -p /scripts && apk update && apk add --no-cache curl bash jq py3-pip gcc libc-dev g++ musl-dev libffi-dev libxml2 openssl-dev python3-dev icu-libs krb5-libs unixodbc-dev gcompat && pip install --upgrade azure-cli && apk add --no-cache --virtual .build-deps build-base unixodbc-dev && curl -O https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/msodbcsql18_18.4.1.1-1_amd64.apk && curl -O https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/mssql-tools18_18.4.1.1-1_amd64.apk && apk add --allow-untrusted msodbcsql18_18.4.1.1-1_amd64.apk && apk add --allow-untrusted mssql-tools18_18.4.1.1-1_amd64.apk && curl -s -o /scripts/copy_kb_files.sh {0} && chmod +x /scripts/copy_kb_files.sh && sh -x /scripts/copy_kb_files.sh {1} {2} {3} {4} && curl -s -o /scripts/run_create_index_scripts.sh {5} && chmod +x /scripts/run_create_index_scripts.sh && sh -x /scripts/run_create_index_scripts.sh {6} {7} {8}', parameters('setupCopyKbFiles'), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCreateIndexScriptsUrl'), parameters('baseUrl'), parameters('keyVaultName'), parameters('managedIdentityClientId'))]"
+                        "[format('mkdir -p /scripts && apk add --no-cache curl && curl -s -o /scripts/run_all_scripts.sh {0} && chmod +x /scripts/run_all_scripts.sh.sh && sh -x /scripts/run_all_scripts.sh {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11}', parameters('run_all_scripts'), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCopyKbFiles'), parameters('setupCreateIndexScriptsUrl'), parameters('createSqlUserAndRoleScriptsUrl'), parameters('keyVaultName'), parameters('sqlServerName'), parameters('sqlDbName'), parameters('sqlUsers'))]"
                       ],
                       "env": [
                         {
@@ -1959,6 +1824,7 @@
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_storage_account')]"
       ]
     },
