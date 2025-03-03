@@ -15,7 +15,7 @@
  
  ![Add Provider](Images/AppAuthIdentityProviderAdd.png)
 
-5. Accept the default values and click on `Add` button to go back to the previous page with the identify provider added.
+5. Accept the default values and click on `Add` button to go back to the previous page with the identity provider added.
 
  ![Add Provider](Images/AppAuthIdentityProviderAdded.png)
 

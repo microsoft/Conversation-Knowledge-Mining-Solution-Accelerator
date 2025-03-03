@@ -1,6 +1,6 @@
 ## How to Check & Update Quota
 
-1. **Navigate** to the [Azure AI Foundry portal](https://portal.azure.com/).  
+1. **Navigate** to the [Azure AI Foundry portal](https://ai.azure.com/).  
 2. **Select** the AI Project associated with this accelerator.  
 3. **Go to** the `Management Center` from the bottom-left navigation menu.  
 4. Select `Quota`  
