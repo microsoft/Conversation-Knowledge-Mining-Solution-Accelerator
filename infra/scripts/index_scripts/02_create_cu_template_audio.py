@@ -34,7 +34,12 @@ AZURE_AI_API_VERSION = "2024-12-01-preview"
 
 credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-
+print("managed_identity_client_id")
+print(managed_identity_client_id)
+print("credential")
+print(credential)
+print("token_provider")
+print(token_provider)
 client = AzureContentUnderstandingClient(
     endpoint=AZURE_AI_ENDPOINT,
     api_version=AZURE_AI_API_VERSION,
