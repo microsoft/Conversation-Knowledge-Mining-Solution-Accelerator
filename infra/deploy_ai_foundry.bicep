@@ -173,7 +173,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-09-01' =
 
 var storageNameCleaned = replace(storageName, '-', '')
 
-resource aiServices 'Microsoft.CognitiveServices/accounts@2021-10-01' = {
+resource aiServices 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {
   name: aiServicesName
   location: location
   sku: {
@@ -181,6 +181,7 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2021-10-01' = {
   }
   kind: 'AIServices'
   properties: {
+    customSubDomainName: aiServicesName
     apiProperties: {
       statisticsEnabled: false
     }
