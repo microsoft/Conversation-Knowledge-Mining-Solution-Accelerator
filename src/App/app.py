@@ -7,10 +7,10 @@ from types import SimpleNamespace
 from urllib.parse import quote
 import httpx
 import openai
+
 # from fastapi.responses import StreamingResponse
 import requests
-from azure.identity.aio import (DefaultAzureCredential,
-                                get_bearer_token_provider)
+from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from quart import Quart, jsonify, make_response, request, send_from_directory
@@ -34,14 +34,14 @@ app = cors(app, allow_origin=["http://localhost:3000", "http://127.0.0.1:5000"])
 @app.route("/")
 async def serve_index():
     return await send_from_directory(
-        os.path.join(app.root_path,"static"), "index.html"
+        os.path.join(app.root_path, "static"), "index.html"
     )
 
 
 @app.route("/favicon.ico")
 async def favicon():
     return await send_from_directory(
-        os.path.join(app.root_path,"static"),
+        os.path.join(app.root_path, "static"),
         "favicon.ico",
         mimetype="image/x-icon",
     )
@@ -50,9 +50,7 @@ async def favicon():
 # Serve static files (JS, CSS, images, etc.)
 @app.route("/static/<path:path>")
 async def static_files(path):
-    return await send_from_directory(
-        os.path.join(app.root_path, "static"), path
-    )
+    return await send_from_directory(os.path.join(app.root_path, "static"), path)
 
 
 USER_AGENT = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
@@ -228,7 +226,9 @@ def process_rag_response(rag_response, query):
         Do not include tooltip callbacks in JSON.
         Always make sure that the generated json can be rendered in chart.js.
         Always remove any extra trailing commas.
-        Verify and refine that JSON should not have any syntax errors like extra closing brackets."""
+        Verify and refine that JSON should not have any syntax errors like extra closing brackets.
+        Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
+        Ensure bars and data points are evenly spaced and not squished or cropped at **100%** resolution by maintaining appropriate **barPercentage** and **categoryPercentage** values."""
         user_prompt = f"""Generate chart data for -
         {query}
         {rag_response}
@@ -356,8 +356,7 @@ async def conversation():
     )
     query = request_json.get("messages")[-1].get("content")
     is_chart_query = any(
-        term in query.lower()
-        for term in ["chart", "graph", "visualize", "plot"]
+        term in query.lower() for term in ["chart", "graph", "visualize", "plot"]
     )
     try:
         if not is_chart_query:
@@ -384,12 +383,18 @@ async def get_layout_config():
         return layout_config_str
     return jsonify({"error": "Layout config not found in environment variables"}), 400
 
+
 @app.route("/api/display-chart-default", methods=["GET"])
 async def get_chart_config():
     chart_config = os.getenv("DISPLAY_CHART_DEFAULT", "")
     if chart_config:
-        return jsonify({"isChartDisplayDefault":  chart_config})
-    return jsonify({"error": "DISPLAY_CHART_DEFAULT flag not found in environment variables"}), 400
+        return jsonify({"isChartDisplayDefault": chart_config})
+    return (
+        jsonify(
+            {"error": "DISPLAY_CHART_DEFAULT flag not found in environment variables"}
+        ),
+        400,
+    )
 
 
 async def generate_title(conversation_messages):
