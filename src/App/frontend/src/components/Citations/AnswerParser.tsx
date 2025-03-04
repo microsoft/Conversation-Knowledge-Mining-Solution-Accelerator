@@ -1,3 +1,5 @@
+
+import { cloneDeep } from "lodash-es";
 import { AskResponse, Citation } from "../../types/AppTypes";
 
 
@@ -14,35 +16,37 @@ const isDuplicate = (citation: Citation,citationIndex:string) => {
 };
 
 export function parseAnswer(answer: AskResponse): ParsedAnswer {
-    // let answerText = answer.answer;
-    // const citationLinks = answerText.match(/\[(doc\d\d?\d?)]/g);
+    let answerText = answer.answer;
+    const citationLinks = answerText.match(/\[(doc\d\d?\d?)]/g);
+    console.log("citationLinks::",citationLinks);
+    const lengthDocN = "[doc".length;
 
-    // const lengthDocN = "[doc".length;
+    filteredCitations = [] as Citation[];
+    let citationReindex = 0;
+    citationLinks?.forEach(link => {
+        // Replacing the links/citations with number
+        let citationIndex = link.slice(lengthDocN, link.length - 1);
+        let citation = cloneDeep(answer.citations[Number(citationIndex) - 1]) as Citation;
 
-    // filteredCitations = [] as Citation[];
-    // let citationReindex = 0;
-    // citationLinks?.forEach(link => {
-    //     // Replacing the links/citations with number
-    //     let citationIndex = link.slice(lengthDocN, link.length - 1);
-    //     let citation = cloneDeep(answer.citations[Number(citationIndex) - 1]) as Citation;
+        if (citation !== undefined && !isDuplicate(citation, citationIndex)) {
+          answerText = answerText.replaceAll(link, ` ^${++citationReindex}^ `);
+          citation.id = citationIndex; // original doc index to de-dupe
+          citation.reindex_id = citationReindex.toString(); // reindex from 1 for display
+          filteredCitations.push(citation);
+        }else{
+            // Replacing duplicate citation with original index
+            let matchingCitation = filteredCitations.find((ct) => citation?.chunk_id == ct?.chunk_id);
+            if (matchingCitation) {
+                answerText= answerText.replaceAll(link, ` ^${matchingCitation.reindex_id}^ `)
+            }
+        }
+    })
 
-    //     if (citation !== undefined && !isDuplicate(citation, citationIndex)) {
-    //       answerText = answerText.replaceAll(link, ` ^${++citationReindex}^ `);
-    //       citation.id = citationIndex; // original doc index to de-dupe
-    //       citation.reindex_id = citationReindex.toString(); // reindex from 1 for display
-    //       filteredCitations.push(citation);
-    //     }else{
-    //         // Replacing duplicate citation with original index
-    //         let matchingCitation = filteredCitations.find((ct) => citation?.chunk_id == ct?.chunk_id);
-    //         if (matchingCitation) {
-    //             answerText= answerText.replaceAll(link, ` ^${matchingCitation.reindex_id}^ `)
-    //         }
-    //     }
-    // })
-
-
+    console.log(" answer.citations::",  answer.citations)
+    console.log("answerText::", answerText)
+    console.log("answer.answer::", answer.answer)
     return {
         citations: answer.citations,
-        markdownFormatText: answer.answer
+        markdownFormatText:  answerText
     };
 }
