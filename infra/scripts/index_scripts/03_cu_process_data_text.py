@@ -38,7 +38,9 @@ openai_api_key  =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-KEY")
 openai_api_base =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-ENDPOINT")
 openai_api_version = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-PREVIEW-API-VERSION") 
 deployment =  get_secrets_from_kv(key_vault_name,"AZURE-OPEN-AI-DEPLOYMENT-MODEL")  #"gpt-4o-mini"
-
+print("search_endpoint: ",search_endpoint)
+print("deployment: ",deployment)
+print("managed_identity_client_id: ",managed_identity_client_id)
 
 # Function: Get Embeddings 
 def get_embeddings(text: str,openai_api_base,openai_api_version,openai_api_key):
@@ -107,10 +109,13 @@ account_name =  get_secrets_from_kv(key_vault_name, "ADLS-ACCOUNT-NAME")
 account_url = f"https://{account_name}.dfs.core.windows.net"
 
 credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
+print("credential: ",credential)
+print("account_url: ",account_url)
 service_client = DataLakeServiceClient(account_url, credential=credential,api_version='2023-01-03') 
 
 file_system_client = service_client.get_file_system_client(file_system_client_name)  
 directory_name = directory
+print("directory_name: ",directory_name)
 paths = file_system_client.get_paths(path=directory_name)
 print(paths)
 
@@ -126,7 +131,7 @@ index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_cre
 driver = "{ODBC Driver 18 for SQL Server}"
 server =  get_secrets_from_kv(key_vault_name,"SQLDB-SERVER")
 database = get_secrets_from_kv(key_vault_name,"SQLDB-DATABASE")
-
+print("server: ",server)
 credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
 token_bytes = credential.get_token(
@@ -186,7 +191,7 @@ AZURE_AI_API_VERSION = "2024-12-01-preview"
 
 credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-
+print("token_provider: ",token_provider)
 client = AzureContentUnderstandingClient(
     endpoint=AZURE_AI_ENDPOINT,
     api_version=AZURE_AI_API_VERSION,
