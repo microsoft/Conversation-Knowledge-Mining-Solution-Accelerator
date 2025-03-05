@@ -20,6 +20,9 @@ managed_identity_client_id = 'mici_to-be-replaced'
 file_system_client_name = "data"
 directory = 'call_transcripts'
 audio_directory = 'audiodata'
+print("file_system_client_name: ",managed_identity_client_id)
+print("directory: ",directory)
+print("audio_directory: ",audio_directory)
 
 def get_secrets_from_kv(kv_name, secret_name):
     # Set the name of the Azure Key Vault  
