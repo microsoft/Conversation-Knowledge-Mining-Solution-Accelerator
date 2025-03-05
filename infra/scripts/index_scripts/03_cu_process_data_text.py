@@ -24,26 +24,26 @@ print("file_system_client_name: ",managed_identity_client_id)
 print("directory: ",directory)
 print("audio_directory: ",audio_directory)
 
-# def get_secrets_from_kv(kv_name, secret_name):
-#     # Set the name of the Azure Key Vault  
-#     key_vault_name = kv_name 
-#     credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
+def get_secrets_from_kv(kv_name, secret_name):
+    # Set the name of the Azure Key Vault  
+    key_vault_name = kv_name 
+    credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
-#     # Create a secret client object using the credential and Key Vault name  
-#     secret_client =  SecretClient(vault_url=f"https://{key_vault_name}.vault.azure.net/", credential=credential)  
-#     return(secret_client.get_secret(secret_name).value)
+    # Create a secret client object using the credential and Key Vault name  
+    secret_client =  SecretClient(vault_url=f"https://{key_vault_name}.vault.azure.net/", credential=credential)  
+    return(secret_client.get_secret(secret_name).value)
 
 
-# search_endpoint = get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-ENDPOINT")
-# search_key =  get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-KEY")
+search_endpoint = get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-ENDPOINT")
+search_key =  get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-KEY")
 
-# openai_api_key  =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-KEY")
-# openai_api_base =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-ENDPOINT")
-# openai_api_version = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-PREVIEW-API-VERSION") 
-# deployment =  get_secrets_from_kv(key_vault_name,"AZURE-OPEN-AI-DEPLOYMENT-MODEL")  #"gpt-4o-mini"
-# print("search_endpoint: ",search_endpoint)
-# print("deployment: ",deployment)
-# print("managed_identity_client_id: ",managed_identity_client_id)
+openai_api_key  =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-KEY")
+openai_api_base =  get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-ENDPOINT")
+openai_api_version = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-PREVIEW-API-VERSION") 
+deployment =  get_secrets_from_kv(key_vault_name,"AZURE-OPEN-AI-DEPLOYMENT-MODEL")  #"gpt-4o-mini"
+print("search_endpoint: ",search_endpoint)
+print("deployment: ",deployment)
+print("managed_identity_client_id: ",managed_identity_client_id)
 
 # # Function: Get Embeddings 
 # def get_embeddings(text: str,openai_api_base,openai_api_version,openai_api_key):
