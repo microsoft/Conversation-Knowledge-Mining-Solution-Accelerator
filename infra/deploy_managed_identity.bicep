@@ -36,19 +36,6 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource aiDeveloperRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '64702f94-c441-49e6-a78b-ef80e0188fee'
-}
-
-resource aiDeveloperAccessProj 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, managedIdentity.id, aiDeveloperRoleDefinition.id)
-  properties: {
-    principalId: managedIdentity.properties.principalId
-    roleDefinitionId: aiDeveloperRoleDefinition.id
-    principalType: 'ServicePrincipal' 
-  }
-}
-
 resource managedIdentityChartsfn 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${solutionName}-charts-fn-mi'
   location: solutionLocation

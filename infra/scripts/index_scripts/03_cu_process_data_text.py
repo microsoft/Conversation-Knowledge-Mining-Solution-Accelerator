@@ -99,16 +99,14 @@ def chunk_data(text):
 
 from azure.search.documents import SearchClient
 from azure.storage.filedatalake import (
-    DataLakeServiceClient,
-    DataLakeDirectoryClient,
-    FileSystemClient
+    DataLakeServiceClient
 )
 
 account_name =  get_secrets_from_kv(key_vault_name, "ADLS-ACCOUNT-NAME")
 
 account_url = f"https://{account_name}.dfs.core.windows.net"
 
-credential = DefaultAzureCredential()
+credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 service_client = DataLakeServiceClient(account_url, credential=credential,api_version='2023-01-03') 
 
 file_system_client = service_client.get_file_system_client(file_system_client_name)  
@@ -119,20 +117,7 @@ print(paths)
 index_name = "call_transcripts_index"
 
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import (
-    SimpleField,
-    SearchFieldDataType,
-    SearchableField,
-    SearchField,
-    VectorSearch,
-    HnswAlgorithmConfiguration,
-    VectorSearchProfile,
-    SemanticConfiguration,
-    SemanticPrioritizedFields,
-    SemanticField,
-    SemanticSearch,
-    SearchIndex
-)
+
 search_credential = AzureKeyCredential(search_key)
 
 search_client = SearchClient(search_endpoint, index_name, search_credential)
@@ -199,7 +184,7 @@ AZURE_AI_ENDPOINT = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-ENDPOINT
 AZURE_OPENAI_CU_KEY = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-KEY")
 AZURE_AI_API_VERSION = "2024-12-01-preview" 
 
-credential = DefaultAzureCredential()
+credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 
 client = AzureContentUnderstandingClient(
