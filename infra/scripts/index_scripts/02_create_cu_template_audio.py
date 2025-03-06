@@ -47,7 +47,7 @@ client = AzureContentUnderstandingClient(
 )
 
 
-ANALYZER_ID = "ckm-audio-1"
+ANALYZER_ID = "ckm-audio-10"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_audio.json'
 
 print("Analyzer ID", ANALYZER_ID)
