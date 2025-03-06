@@ -50,6 +50,7 @@ client = AzureContentUnderstandingClient(
 ANALYZER_ID = "ckm-audio-1"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_audio.json'
 
+print("Analyzer ID", ANALYZER_ID)
 
 # Create analyzer
 response = client.begin_create_analyzer(ANALYZER_ID, analyzer_template_path=ANALYZER_TEMPLATE_FILE)
