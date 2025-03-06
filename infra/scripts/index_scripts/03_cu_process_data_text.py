@@ -235,6 +235,7 @@ counter = 0
 from datetime import datetime, timedelta
 print("paths:", paths)
 for path in paths:
+    print("path+++++++++++++++++++:", path)
     file_client = file_system_client.get_file_client(path.name)
     data_file = file_client.download_file()
     data = data_file.readall()
@@ -278,9 +279,9 @@ for path in paths:
         result = prepare_search_doc(content, document_id)
         docs.append(result)
         counter += 1
-    except:
+    except Exception as e:
+        print("Exception========:", e)
         pass
-    print("docs:", docs)
     if docs != [] and counter % 10 == 0:
         result = search_client.upload_documents(documents=docs)
         docs = []
