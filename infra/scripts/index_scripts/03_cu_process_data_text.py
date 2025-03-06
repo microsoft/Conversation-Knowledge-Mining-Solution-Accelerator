@@ -409,29 +409,29 @@ sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 cursor.executemany(sql, data_list)
 conn.commit()
 print("sample_processed_data_key_phrases.json----------")
-# for row in data:
-#     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["?"] * len(row))  
-#     values = tuple(row.values())  
+# # for row in data:
+# #     columns = ", ".join(row.keys()) 
+# #     placeholders = ", ".join(["?"] * len(row))  
+# #     values = tuple(row.values())  
 
-#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-#     cursor.execute(sql, values)
+# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# #     cursor.execute(sql, values)
 
+# # conn.commit()
+# # print(f"Imported {len(data)} records into {import_table}.")
+
+# ##########################################################
+
+# sql_stmt = 'SELECT distinct topic FROM processed_data'
+# cursor.execute(sql_stmt)
+
+# rows = [tuple(row) for row in cursor.fetchall()]
+# column_names = [i[0] for i in cursor.description]
+# df = pd.DataFrame(rows, columns=column_names)
+
+# cursor.execute('DROP TABLE IF EXISTS km_mined_topics')
 # conn.commit()
-# print(f"Imported {len(data)} records into {import_table}.")
-
-##########################################################
-
-sql_stmt = 'SELECT distinct topic FROM processed_data'
-cursor.execute(sql_stmt)
-
-rows = [tuple(row) for row in cursor.fetchall()]
-column_names = [i[0] for i in cursor.description]
-df = pd.DataFrame(rows, columns=column_names)
-
-cursor.execute('DROP TABLE IF EXISTS km_mined_topics')
-conn.commit()
-print("SELECT distinct topic FROM processed_data----------")
+# print("SELECT distinct topic FROM processed_data----------")
 # # write topics to the database table 
 # create_mined_topics_sql = """CREATE TABLE km_mined_topics (
 #                 label varchar(255) NOT NULL PRIMARY KEY,
