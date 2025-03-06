@@ -283,15 +283,15 @@ try:
         except Exception as e:
             print("Exception========:", e)
             pass
-        if docs != [] and counter % 10 == 0:
-            result = search_client.upload_documents(documents=docs)
-            docs = []
-            print(f' {str(counter)} uploaded')
-    print("docs2:")
-    # upload the last batch
-    if docs != []:
-        print("docs3:")
-        search_client.upload_documents(documents=docs)
+    #     if docs != [] and counter % 10 == 0:
+    #         result = search_client.upload_documents(documents=docs)
+    #         docs = []
+    #         print(f' {str(counter)} uploaded')
+    # print("docs2:")
+    # # upload the last batch
+    # if docs != []:
+    #     print("docs3:")
+    #     search_client.upload_documents(documents=docs)
     print("upload_documents completed")
 except Exception as ex:
     print("Exception========:", ex)   
