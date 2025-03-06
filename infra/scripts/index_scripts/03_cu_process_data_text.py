@@ -382,56 +382,56 @@ sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 cursor.executemany(sql, data_list)
 conn.commit()
 print("sample_processed_data.json----------")
-# # for row in data:
-# #     columns = ", ".join(row.keys()) 
-# #     placeholders = ", ".join(["?"] * len(row))  
-# #     values = tuple(row.values())  
+# for row in data:
+#     columns = ", ".join(row.keys()) 
+#     placeholders = ", ".join(["?"] * len(row))  
+#     values = tuple(row.values())  
 
-# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-# #     cursor.execute(sql, values) 
-# # conn.commit()
-# # print(f"Imported {len(data)} records into {import_table}.")
-
-
-# # load key phrases sample data to database
-# sample_processed_data_file = 'sample_processed_data_key_phrases.json'
-# import_table = 'processed_data_key_phrases'
-# with open(sample_processed_data_file, "r") as f:
-#     data = json.load(f)
-
-# data_list = [tuple(record.values()) for record in data]
-# columns = ", ".join(data[0].keys())  # Extract column names from first record
-# placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
-
-# sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-
-# # Bulk insert using executemany()
-# cursor.executemany(sql, data_list)
+#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+#     cursor.execute(sql, values) 
 # conn.commit()
+# print(f"Imported {len(data)} records into {import_table}.")
 
-# # for row in data:
-# #     columns = ", ".join(row.keys()) 
-# #     placeholders = ", ".join(["?"] * len(row))  
-# #     values = tuple(row.values())  
 
-# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-# #     cursor.execute(sql, values)
+# load key phrases sample data to database
+sample_processed_data_file = 'sample_processed_data_key_phrases.json'
+import_table = 'processed_data_key_phrases'
+with open(sample_processed_data_file, "r") as f:
+    data = json.load(f)
 
-# # conn.commit()
-# # print(f"Imported {len(data)} records into {import_table}.")
+data_list = [tuple(record.values()) for record in data]
+columns = ", ".join(data[0].keys())  # Extract column names from first record
+placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
 
-# ##########################################################
+sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 
-# sql_stmt = 'SELECT distinct topic FROM processed_data'
-# cursor.execute(sql_stmt)
+# Bulk insert using executemany()
+cursor.executemany(sql, data_list)
+conn.commit()
+print("sample_processed_data_key_phrases.json----------")
+# for row in data:
+#     columns = ", ".join(row.keys()) 
+#     placeholders = ", ".join(["?"] * len(row))  
+#     values = tuple(row.values())  
 
-# rows = [tuple(row) for row in cursor.fetchall()]
-# column_names = [i[0] for i in cursor.description]
-# df = pd.DataFrame(rows, columns=column_names)
+#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+#     cursor.execute(sql, values)
 
-# cursor.execute('DROP TABLE IF EXISTS km_mined_topics')
 # conn.commit()
+# print(f"Imported {len(data)} records into {import_table}.")
 
+##########################################################
+
+sql_stmt = 'SELECT distinct topic FROM processed_data'
+cursor.execute(sql_stmt)
+
+rows = [tuple(row) for row in cursor.fetchall()]
+column_names = [i[0] for i in cursor.description]
+df = pd.DataFrame(rows, columns=column_names)
+
+cursor.execute('DROP TABLE IF EXISTS km_mined_topics')
+conn.commit()
+print("SELECT distinct topic FROM processed_data----------")
 # # write topics to the database table 
 # create_mined_topics_sql = """CREATE TABLE km_mined_topics (
 #                 label varchar(255) NOT NULL PRIMARY KEY,
