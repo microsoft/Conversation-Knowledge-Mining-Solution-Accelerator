@@ -186,7 +186,7 @@ create_processed_data_sql = """CREATE TABLE processed_data_key_phrases (
                     );"""
 cursor.execute(create_processed_data_sql)
 conn.commit()
-print("processed_data_key_phrases table created")
+
 
 AZURE_AI_ENDPOINT = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-ENDPOINT")
 AZURE_OPENAI_CU_KEY = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-KEY")
@@ -228,92 +228,24 @@ print("AzureContentUnderstandingClient client created")
 #                 "contentVector": v_contentVector
 #             }
 #     return result
-# try:        
-#     conversationIds = []
-#     docs = []
-#     counter = 0
-#     from datetime import datetime, timedelta
-#     print("paths:", paths)
-#     for path in paths:
-#         print("path+++++++++++++++++++:", path)
-#         file_client = file_system_client.get_file_client(path.name)
-#         data_file = file_client.download_file()
-#         data = data_file.readall()
-#         print("data:")
-#         try:
-#             #Analyzer file
-#             response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-#             result = client.poll_result(response)
-            
-#             file_name = path.name.split('/')[-1].replace("%3A", "_")
-#             start_time = file_name.replace(".json", "")[-19:]
-            
-#             timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
-#             start_timestamp = datetime.strptime(start_time, timestamp_format)
-
-#             conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-#             conversationIds.append(conversation_id)
-
-#             duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
-#             end_timestamp = str(start_timestamp + timedelta(seconds=duration))
-#             end_timestamp = end_timestamp.split(".")[0]
-#             start_timestamp = str(start_timestamp).split(".")[0]
-
-#             summary = result['result']['contents'][0]['fields']['summary']['valueString']
-#             satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
-#             sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
-#             topic = result['result']['contents'][0]['fields']['topic']['valueString']
-#             key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
-#             complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
-#             content = result['result']['contents'][0]['fields']['content']['valueString']
-
-#             cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
-#             conn.commit()
-            
-#             # keyPhrases = key_phrases.split(',')
-#             # for keyPhrase in keyPhrases:
-#             #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
-
-#             document_id = conversation_id
-
-#             result = prepare_search_doc(content, document_id)
-#             docs.append(result)
-#             counter += 1
-#             print("data1:")
-#         except Exception as e:
-#             print("Exception========:", e)
-#             pass
-#     #     if docs != [] and counter % 10 == 0:
-#     #         result = search_client.upload_documents(documents=docs)
-#     #         docs = []
-#     #         print(f' {str(counter)} uploaded')
-#     # print("docs2:")
-#     # # upload the last batch
-#     # if docs != []:
-#     #     print("docs3:")
-#     #     search_client.upload_documents(documents=docs)
-#     print("upload_documents completed")
-# except Exception as ex:
-#     print("Exception========:", ex)   
-# ANALYZER_ID = "ckm-audio"
-
-# directory_name = audio_directory
-# paths = file_system_client.get_paths(path=directory_name)
-
+        
+# conversationIds = []
 # docs = []
 # counter = 0
-# # process and upload audio files to search index
+# from datetime import datetime, timedelta
+
 # for path in paths:
 #     file_client = file_system_client.get_file_client(path.name)
 #     data_file = file_client.download_file()
 #     data = data_file.readall()
+   
 #     try:
-#         # # Analyzer file
+#         #Analyzer file
 #         response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
 #         result = client.poll_result(response)
-
-#         file_name = path.name.split('/')[-1]
-#         start_time = file_name.replace(".wav", "")[-19:]
+        
+#         file_name = path.name.split('/')[-1].replace("%3A", "_")
+#         start_time = file_name.replace(".json", "")[-19:]
         
 #         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
 #         start_timestamp = datetime.strptime(start_time, timestamp_format)
@@ -324,6 +256,7 @@ print("AzureContentUnderstandingClient client created")
 #         duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
 #         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
 #         end_timestamp = end_timestamp.split(".")[0]
+#         start_timestamp = str(start_timestamp).split(".")[0]
 
 #         summary = result['result']['contents'][0]['fields']['summary']['valueString']
 #         satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
@@ -332,10 +265,10 @@ print("AzureContentUnderstandingClient client created")
 #         key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
 #         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
 #         content = result['result']['contents'][0]['fields']['content']['valueString']
-#         # print(topic)
+
 #         cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
 #         conn.commit()
-    
+        
 #         # keyPhrases = key_phrases.split(',')
 #         # for keyPhrase in keyPhrases:
 #         #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
@@ -353,78 +286,141 @@ print("AzureContentUnderstandingClient client created")
 #         docs = []
 #         print(f' {str(counter)} uploaded')
 
-
 # # upload the last batch
 # if docs != []:
 #     search_client.upload_documents(documents=docs)
 
+   
+# # ANALYZER_ID = "ckm-audio"
 
-##########################################################
-# load sample data to search index
-sample_import_file = 'sample_search_index_data.json'
+# # directory_name = audio_directory
+# # paths = file_system_client.get_paths(path=directory_name)
 
-with open(sample_import_file, 'r') as file:
-    documents = json.load(file)
-batch = [{"@search.action": "upload", **doc} for doc in documents]
-search_client.upload_documents(documents=batch)
-# print(f'Successfully uploaded sample index data')   
+# # docs = []
+# # counter = 0
+# # # process and upload audio files to search index
+# # for path in paths:
+# #     file_client = file_system_client.get_file_client(path.name)
+# #     data_file = file_client.download_file()
+# #     data = data_file.readall()
+# #     try:
+# #         # # Analyzer file
+# #         response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+# #         result = client.poll_result(response)
 
-# load sample data to database
-sample_processed_data_file = 'sample_processed_data.json'
-import_table = 'processed_data'
-with open(sample_processed_data_file, "r") as f:
-    data = json.load(f)
+# #         file_name = path.name.split('/')[-1]
+# #         start_time = file_name.replace(".wav", "")[-19:]
+        
+# #         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
+# #         start_timestamp = datetime.strptime(start_time, timestamp_format)
 
-# Convert data to list of tuples for pyodbc
-data_list = [tuple(record.values()) for record in data]
-columns = ", ".join(data[0].keys())  # Extract column names from first record
-placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+# #         conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+# #         conversationIds.append(conversation_id)
 
-sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# #         duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
+# #         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
+# #         end_timestamp = end_timestamp.split(".")[0]
 
-# Bulk insert using executemany()
-cursor.executemany(sql, data_list)
-conn.commit()
+# #         summary = result['result']['contents'][0]['fields']['summary']['valueString']
+# #         satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
+# #         sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
+# #         topic = result['result']['contents'][0]['fields']['topic']['valueString']
+# #         key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
+# #         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
+# #         content = result['result']['contents'][0]['fields']['content']['valueString']
+# #         # print(topic)
+# #         cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
+# #         conn.commit()
+    
+# #         # keyPhrases = key_phrases.split(',')
+# #         # for keyPhrase in keyPhrases:
+# #         #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
 
-# for row in data:
-#     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["?"] * len(row))  
-#     values = tuple(row.values())  
+# #         document_id = conversation_id
 
-#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-#     cursor.execute(sql, values) 
+# #         result = prepare_search_doc(content, document_id)
+# #         docs.append(result)
+# #         counter += 1
+# #     except:
+# #         pass
+
+# #     if docs != [] and counter % 10 == 0:
+# #         result = search_client.upload_documents(documents=docs)
+# #         docs = []
+# #         print(f' {str(counter)} uploaded')
+
+
+# # # upload the last batch
+# # if docs != []:
+# #     search_client.upload_documents(documents=docs)
+
+
+# ##########################################################
+# # load sample data to search index
+# sample_import_file = 'sample_search_index_data.json'
+
+# with open(sample_import_file, 'r') as file:
+#     documents = json.load(file)
+# batch = [{"@search.action": "upload", **doc} for doc in documents]
+# search_client.upload_documents(documents=batch)
+# # print(f'Successfully uploaded sample index data')   
+
+# # load sample data to database
+# sample_processed_data_file = 'sample_processed_data.json'
+# import_table = 'processed_data'
+# with open(sample_processed_data_file, "r") as f:
+#     data = json.load(f)
+
+# # Convert data to list of tuples for pyodbc
+# data_list = [tuple(record.values()) for record in data]
+# columns = ", ".join(data[0].keys())  # Extract column names from first record
+# placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+
+# sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+
+# # Bulk insert using executemany()
+# cursor.executemany(sql, data_list)
 # conn.commit()
-# print(f"Imported {len(data)} records into {import_table}.")
+
+# # for row in data:
+# #     columns = ", ".join(row.keys()) 
+# #     placeholders = ", ".join(["?"] * len(row))  
+# #     values = tuple(row.values())  
+
+# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# #     cursor.execute(sql, values) 
+# # conn.commit()
+# # print(f"Imported {len(data)} records into {import_table}.")
 
 
-# load key phrases sample data to database
-sample_processed_data_file = 'sample_processed_data_key_phrases.json'
-import_table = 'processed_data_key_phrases'
-with open(sample_processed_data_file, "r") as f:
-    data = json.load(f)
+# # load key phrases sample data to database
+# sample_processed_data_file = 'sample_processed_data_key_phrases.json'
+# import_table = 'processed_data_key_phrases'
+# with open(sample_processed_data_file, "r") as f:
+#     data = json.load(f)
 
-data_list = [tuple(record.values()) for record in data]
-columns = ", ".join(data[0].keys())  # Extract column names from first record
-placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+# data_list = [tuple(record.values()) for record in data]
+# columns = ", ".join(data[0].keys())  # Extract column names from first record
+# placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
 
-sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 
-# Bulk insert using executemany()
-cursor.executemany(sql, data_list)
-conn.commit()
-print("upload_documents completed---------")
-# for row in data:
-#     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["?"] * len(row))  
-#     values = tuple(row.values())  
-
-#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-#     cursor.execute(sql, values)
-
+# # Bulk insert using executemany()
+# cursor.executemany(sql, data_list)
 # conn.commit()
-# print(f"Imported {len(data)} records into {import_table}.")
 
-##########################################################
+# # for row in data:
+# #     columns = ", ".join(row.keys()) 
+# #     placeholders = ", ".join(["?"] * len(row))  
+# #     values = tuple(row.values())  
+
+# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# #     cursor.execute(sql, values)
+
+# # conn.commit()
+# # print(f"Imported {len(data)} records into {import_table}.")
+
+# ##########################################################
 
 # sql_stmt = 'SELECT distinct topic FROM processed_data'
 # cursor.execute(sql_stmt)
