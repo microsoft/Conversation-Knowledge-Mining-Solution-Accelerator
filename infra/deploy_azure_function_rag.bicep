@@ -21,6 +21,9 @@ param sqlDbPwd string
 // param managedIdentityObjectId string
 param imageTag string
 param storageAccountName string
+param userassignedIdentityId string
+param userassignedIdentityClientId string
+
 var functionAppName = '${solutionName}-rag-fn'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-rag-function:${imageTag}'
 var environmentName = '${solutionName}-rag-fn-env'
@@ -62,7 +65,10 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
   location: solutionLocation
   kind: 'functionapp,linux,container,azurecontainerapps'
   identity: {
-    type: 'SystemAssigned'
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${userassignedIdentityId}': {}
+    }
   }
   properties: {
     siteConfig: {
@@ -126,6 +132,10 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'AZURE_AI_SEARCH_INDEX'
           value: azureSearchIndex
+        }
+        {
+          name: 'SQLDB_USER_MID'
+          value: userassignedIdentityClientId
         }
       ]
       linuxFxVersion: dockerImage

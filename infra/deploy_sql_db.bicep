@@ -4,7 +4,9 @@
 param solutionName string
 param solutionLocation string
 param keyVaultName string
-// param managedIdentityObjectId string
+param managedIdentityId string
+param managedIdentityObjectId string
+param managedIdentityName string
 
 // @description('The name of the SQL logical server.')
 // param serverName string = '${ solutionName }-sql-server'
@@ -27,6 +29,9 @@ var sqlDBName = '${ solutionName }-sql-db'
 var location = solutionLocation
 var administratorLogin = 'sqladmin'
 var administratorLoginPassword = 'TestPassword_1234'
+
+param users array = [
+]
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
@@ -78,6 +83,31 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
     zoneRedundant: false
   }
 }
+
+resource SQLServerName_ActiveDirectory 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = {
+  parent: sqlServer
+  name: 'ActiveDirectory'
+  properties: {
+    login: managedIdentityName
+    sid: managedIdentityObjectId
+    tenantId: subscription().tenantId
+    administratorType: 'ActiveDirectory'
+  }
+}
+
+module sqluser 'create-sql-user-and-role.bicep' = [for user in users: {
+  name: 'sqluser-${guid(location, user.principalId, user.principalName, sqlDBName, sqlServer.name)}'
+  params: {
+    managedIdentityId: managedIdentityId
+    principalId: user.principalId
+    principalName: user.principalName
+    sqlDatabaseName: sqlDBName
+    location: location
+    sqlServerName: sqlServer.name
+    databaseRoles: user.databaseRoles
+  }
+  dependsOn: [ sqlDB, SQLServerName_ActiveDirectory ]
+}]
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   name: keyVaultName

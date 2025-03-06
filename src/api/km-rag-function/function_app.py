@@ -30,10 +30,11 @@ def get_db_connection():
     database = os.environ.get("SQLDB_DATABASE")
     username = os.environ.get("SQLDB_USERNAME")
     password = os.environ.get("SQLDB_PASSWORD")
+    mid_id = os.environ.get("SQLDB_USER_MID")
 
     # Attempt connection using Username & Password
     try:
-        credential = DefaultAzureCredential()
+        credential = DefaultAzureCredential(managed_identity_client_id=mid_id)
 
         token_bytes = credential.get_token(
             "https://database.windows.net/.default"

@@ -145,6 +145,21 @@ module sqlDBModule 'deploy_sql_db.bicep' = {
     solutionName: solutionPrefix
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
+    managedIdentityName: managedIdentityModule.outputs.managedIdentityOutput.name
+    managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
+    managedIdentityId: managedIdentityModule.outputs.managedIdentityOutput.id
+    users: [
+      {
+        principalId: managedIdentityModule.outputs.managedIdentityChartsOutput.clientId  // Replace with actual Principal ID
+        principalName: managedIdentityModule.outputs.managedIdentityChartsOutput.name    // Replace with actual user email or name
+        databaseRoles: ['db_datareader', 'db_datawriter']
+      }
+      {
+        principalId: managedIdentityModule.outputs.managedIdentityRagOutput.clientId  // Replace with actual Principal ID
+        principalName: managedIdentityModule.outputs.managedIdentityRagOutput.name    // Replace with actual user email or name
+        databaseRoles: ['db_datareader']
+      }
+    ]
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -156,28 +171,18 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
 }
 
 //========== Deployment script to upload sample data ========== //
-module uploadFiles 'deploy_upload_files_script.bicep' = {
+module uploadFiles 'deploy_upload_files_and_index_scripts_script.bicep' = {
   name : 'deploy_upload_files_script'
   params:{
-    solutionLocation: solutionLocation
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
     baseUrl: baseUrl
     storageAccountName: storageAccount.outputs.storageName
     containerName: storageAccount.outputs.storageContainer
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.id
-  }
-  // dependsOn:[storageAccount,keyVault]
-}
-
-//========== Deployment script to process and index data ========== //
-module createIndex 'deploy_index_scripts.bicep' = {
-  name : 'deploy_index_scripts'
-  params:{
-    solutionLocation: solutionLocation
-    identity:managedIdentityModule.outputs.managedIdentityOutput.id
-    baseUrl:baseUrl
+    managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
     keyVaultName:aifoundry.outputs.keyvaultName
   }
-  dependsOn:[keyVault,sqlDBModule,uploadFiles]
 }
 
 //========== Azure functions module ========== //
@@ -193,6 +198,8 @@ module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
     sqlDbPwd:keyVault.getSecret('SQLDB-PASSWORD')
     // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
     storageAccountName:aifoundry.outputs.storageAccountName
+    userassignedIdentityId: managedIdentityModule.outputs.managedIdentityChartsOutput.id
+    userassignedIdentityClientId: managedIdentityModule.outputs.managedIdentityChartsOutput.clientId
   }
   dependsOn:[keyVault]
 }
@@ -219,6 +226,8 @@ module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
     aiProjectName:aifoundry.outputs.aiProjectName
     // managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
     storageAccountName:aifoundry.outputs.storageAccountName
+    userassignedIdentityId: managedIdentityModule.outputs.managedIdentityRagOutput.id
+    userassignedIdentityClientId: managedIdentityModule.outputs.managedIdentityRagOutput.clientId
   }
   dependsOn:[keyVault]
 }

@@ -228,7 +228,9 @@ def process_rag_response(rag_response, query):
         Do not include tooltip callbacks in JSON.
         Always make sure that the generated json can be rendered in chart.js.
         Always remove any extra trailing commas.
-        Verify and refine that JSON should not have any syntax errors like extra closing brackets."""
+        Verify and refine that JSON should not have any syntax errors like extra closing brackets.
+        Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
+        Ensure bars and data points are evenly spaced and not squished or cropped at **100%** resolution by maintaining appropriate **barPercentage** and **categoryPercentage** values."""
         user_prompt = f"""Generate chart data for -
         {query}
         {rag_response}

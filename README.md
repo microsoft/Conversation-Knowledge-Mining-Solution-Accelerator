@@ -65,17 +65,17 @@ Here are some example regions where the services are available: East US, East US
 
 When you start the deployment, most parameters will have **default values**, but you can update the following settings:  
 
-| **Setting** | **Description** |  **Default value** |
-|------------|----------------|  ------------|
-| **Azure Region** | The region where resources will be created. | East US| 
-| **Environment Name** | A **3-20 character alphanumeric value** used to prefix resources. |  kmtemplate |
-| **Content Understanding Location** | Select from a drop-down list of values. |  West US |
-| **Secondary Location** | A **less busy** region for **Azure SQL and CosmosDB**, useful in case of availability constraints. |  eastus2 |
-| **Deployment Type** | Select from a drop-down list. |  GlobalStandard |
+| **Setting** | **Description** | **Default value** |
+|------------|----------------|------------|
+| **Azure Region** | The region where resources will be created. | eastus | 
+| **Environment Name** | A **3-20 character alphanumeric value** used to prefix resources. | kmtemplate |
+| **Content Understanding Location** | Select from a drop-down list of values. | westus |
+| **Secondary Location** | A **less busy** region for **Azure SQL and CosmosDB**, useful in case of availability constraints. | eastus2 |
+| **Deployment Type** | Select from a drop-down list. | GlobalStandard |
 | **GPT Model** | Choose from **gpt-4, gpt-4o, gpt-4o-mini** | gpt-4o-mini |  
 | **GPT Model Deployment Capacity** | Configure capacity for **GPT models**. | 30k |
-| **Embedding Model** | Default: **text-embedding-ada-002**. |  text-embedding-ada-002 |
-| **Embedding Model Capacity** | Set the capacity for **embedding models**. |  80k |
+| **Embedding Model** | Default: **text-embedding-ada-002**. | text-embedding-ada-002 |
+| **Embedding Model Capacity** | Set the capacity for **embedding models**. | 80k |
 
 
 ### [Optional] Quota Recommendations  
@@ -202,18 +202,13 @@ To change the azd parameters from the default values, follow the steps [here](./
 Additional Steps
 </h2>
 
-1. **Add Azure Function Users to Database** 
-
-    Follow the steps in [Add Database Users](./docs/AddDatabaseUsers.md)
-
-2. **Add App Authentication**
+1. **Add App Authentication**
    
     Follow steps in [App Authentication](./docs/AppAuthentication.md) to configure authenitcation in app service.
 
     Note: Authentication changes can take up to 10 minutes 
 
-3. **Deleting Resources After a Failed Deployment**
-
+2. **Deleting Resources After a Failed Deployment**
      Follow steps in [Delete Resource Group](./docs/DeleteResourceGroup.md) If your deployment fails and you need to clean up the resources.
 
 ## Sample Questions
