@@ -203,93 +203,93 @@ client = AzureContentUnderstandingClient(
     )
 print("AzureContentUnderstandingClient client created")
 
-# ANALYZER_ID = "ckm-json"
+ANALYZER_ID = "ckm-json"
 
-# def prepare_search_doc(content, document_id): 
-#     chunks = chunk_data(content)
-#     chunk_num = 0
-#     for chunk in chunks:
-#         chunk_num += 1
-#         chunk_id = document_id + '_' + str(chunk_num).zfill(2)
+def prepare_search_doc(content, document_id): 
+    chunks = chunk_data(content)
+    chunk_num = 0
+    for chunk in chunks:
+        chunk_num += 1
+        chunk_id = document_id + '_' + str(chunk_num).zfill(2)
         
-#         try:
-#             v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
-#         except:
-#             time.sleep(30)
-#             try: 
-#                 v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
-#             except: 
-#                 v_contentVector = []
-#         result = {
-#                 "id": chunk_id,
-#                 "chunk_id": chunk_id,
-#                 "content": chunk,
-#                 "sourceurl": path.name.split('/')[-1],
-#                 "contentVector": v_contentVector
-#             }
-#     return result
+        try:
+            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+        except:
+            time.sleep(30)
+            try: 
+                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+            except: 
+                v_contentVector = []
+        result = {
+                "id": chunk_id,
+                "chunk_id": chunk_id,
+                "content": chunk,
+                "sourceurl": path.name.split('/')[-1],
+                "contentVector": v_contentVector
+            }
+    return result
         
-# conversationIds = []
-# docs = []
-# counter = 0
-# from datetime import datetime, timedelta
-
-# for path in paths:
-#     file_client = file_system_client.get_file_client(path.name)
-#     data_file = file_client.download_file()
-#     data = data_file.readall()
-   
-#     try:
-#         #Analyzer file
-#         response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-#         result = client.poll_result(response)
+conversationIds = []
+docs = []
+counter = 0
+from datetime import datetime, timedelta
+print("paths:", paths)
+for path in paths:
+    file_client = file_system_client.get_file_client(path.name)
+    data_file = file_client.download_file()
+    data = data_file.readall()
+    print("data:", data)
+    try:
+        #Analyzer file
+        response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+        result = client.poll_result(response)
         
-#         file_name = path.name.split('/')[-1].replace("%3A", "_")
-#         start_time = file_name.replace(".json", "")[-19:]
+        file_name = path.name.split('/')[-1].replace("%3A", "_")
+        start_time = file_name.replace(".json", "")[-19:]
         
-#         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
-#         start_timestamp = datetime.strptime(start_time, timestamp_format)
+        timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
+        start_timestamp = datetime.strptime(start_time, timestamp_format)
 
-#         conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-#         conversationIds.append(conversation_id)
+        conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+        conversationIds.append(conversation_id)
 
-#         duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
-#         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
-#         end_timestamp = end_timestamp.split(".")[0]
-#         start_timestamp = str(start_timestamp).split(".")[0]
+        duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
+        end_timestamp = str(start_timestamp + timedelta(seconds=duration))
+        end_timestamp = end_timestamp.split(".")[0]
+        start_timestamp = str(start_timestamp).split(".")[0]
 
-#         summary = result['result']['contents'][0]['fields']['summary']['valueString']
-#         satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
-#         sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
-#         topic = result['result']['contents'][0]['fields']['topic']['valueString']
-#         key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
-#         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
-#         content = result['result']['contents'][0]['fields']['content']['valueString']
+        summary = result['result']['contents'][0]['fields']['summary']['valueString']
+        satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
+        sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
+        topic = result['result']['contents'][0]['fields']['topic']['valueString']
+        key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
+        complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
+        content = result['result']['contents'][0]['fields']['content']['valueString']
 
-#         cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
-#         conn.commit()
+        cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
+        conn.commit()
         
-#         # keyPhrases = key_phrases.split(',')
-#         # for keyPhrase in keyPhrases:
-#         #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
+        # keyPhrases = key_phrases.split(',')
+        # for keyPhrase in keyPhrases:
+        #     cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment) VALUES (?,?,?)", (conversation_id, keyPhrase, sentiment))
 
-#         document_id = conversation_id
+        document_id = conversation_id
 
-#         result = prepare_search_doc(content, document_id)
-#         docs.append(result)
-#         counter += 1
-#     except:
-#         pass
-
-#     if docs != [] and counter % 10 == 0:
-#         result = search_client.upload_documents(documents=docs)
-#         docs = []
-#         print(f' {str(counter)} uploaded')
-
-# # upload the last batch
-# if docs != []:
-#     search_client.upload_documents(documents=docs)
-
+        result = prepare_search_doc(content, document_id)
+        docs.append(result)
+        counter += 1
+    except:
+        pass
+    print("docs:", docs)
+    if docs != [] and counter % 10 == 0:
+        result = search_client.upload_documents(documents=docs)
+        docs = []
+        print(f' {str(counter)} uploaded')
+print("docs1:", docs)
+# upload the last batch
+if docs != []:
+    search_client.upload_documents(documents=docs)
+print("upload_documents completed")
    
 # # ANALYZER_ID = "ckm-audio"
 
