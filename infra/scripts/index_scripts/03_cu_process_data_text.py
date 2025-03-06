@@ -363,7 +363,7 @@ with open(sample_import_file, 'r') as file:
     documents = json.load(file)
 batch = [{"@search.action": "upload", **doc} for doc in documents]
 search_client.upload_documents(documents=batch)
-# print(f'Successfully uploaded sample index data')   
+print(f'Successfully uploaded sample index data')   
 
 # load sample data to database
 sample_processed_data_file = 'sample_processed_data.json'
