@@ -382,33 +382,33 @@ sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 cursor.executemany(sql, data_list)
 conn.commit()
 print("sample_processed_data.json----------")
-# for row in data:
-#     columns = ", ".join(row.keys()) 
-#     placeholders = ", ".join(["?"] * len(row))  
-#     values = tuple(row.values())  
+# # for row in data:
+# #     columns = ", ".join(row.keys()) 
+# #     placeholders = ", ".join(["?"] * len(row))  
+# #     values = tuple(row.values())  
 
-#     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-#     cursor.execute(sql, values) 
+# #     sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+# #     cursor.execute(sql, values) 
+# # conn.commit()
+# # print(f"Imported {len(data)} records into {import_table}.")
+
+
+# # load key phrases sample data to database
+# sample_processed_data_file = 'sample_processed_data_key_phrases.json'
+# import_table = 'processed_data_key_phrases'
+# with open(sample_processed_data_file, "r") as f:
+#     data = json.load(f)
+
+# data_list = [tuple(record.values()) for record in data]
+# columns = ", ".join(data[0].keys())  # Extract column names from first record
+# placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
+
+# sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
+
+# # Bulk insert using executemany()
+# cursor.executemany(sql, data_list)
 # conn.commit()
-# print(f"Imported {len(data)} records into {import_table}.")
-
-
-# load key phrases sample data to database
-sample_processed_data_file = 'sample_processed_data_key_phrases.json'
-import_table = 'processed_data_key_phrases'
-with open(sample_processed_data_file, "r") as f:
-    data = json.load(f)
-
-data_list = [tuple(record.values()) for record in data]
-columns = ", ".join(data[0].keys())  # Extract column names from first record
-placeholders = ", ".join(["?"] * len(data[0]))  # Create placeholders for values
-
-sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
-
-# Bulk insert using executemany()
-cursor.executemany(sql, data_list)
-conn.commit()
-print("sample_processed_data_key_phrases.json----------")
+# print("sample_processed_data_key_phrases.json----------")
 # # for row in data:
 # #     columns = ", ".join(row.keys()) 
 # #     placeholders = ", ".join(["?"] * len(row))  
