@@ -239,7 +239,7 @@ for path in paths:
     file_client = file_system_client.get_file_client(path.name)
     data_file = file_client.download_file()
     data = data_file.readall()
-    print("data:", data)
+    print("data:")
     try:
         #Analyzer file
         response = client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
@@ -279,6 +279,7 @@ for path in paths:
         result = prepare_search_doc(content, document_id)
         docs.append(result)
         counter += 1
+        print("data1:")
     except Exception as e:
         print("Exception========:", e)
         pass
@@ -286,9 +287,10 @@ for path in paths:
         result = search_client.upload_documents(documents=docs)
         docs = []
         print(f' {str(counter)} uploaded')
-print("docs1:", docs)
+print("docs2:")
 # upload the last batch
 if docs != []:
+    print("docs3:")
     search_client.upload_documents(documents=docs)
 print("upload_documents completed")
    
