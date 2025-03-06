@@ -408,6 +408,17 @@ sql = f"INSERT INTO {import_table} ({columns}) VALUES ({placeholders})"
 # Bulk insert using executemany()
 cursor.executemany(sql, data_list)
 conn.commit()
+
+# Get the count of inserted records
+inserted_count = len(data_list)
+
+# Get the total count of records in the table
+cursor.execute(f"SELECT COUNT(*) FROM {import_table}")
+total_count = cursor.fetchone()[0]
+
+print(f"Inserted {inserted_count} records into {import_table}.")
+print(f"Total records in {import_table}: {total_count}.")
+
 print("sample_processed_data_key_phrases.json----------")
 # # for row in data:
 # #     columns = ", ".join(row.keys()) 
