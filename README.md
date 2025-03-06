@@ -28,7 +28,7 @@ An analyst managing large volumes of conversational data needs a solution to vis
  
 This solution empowers analysts with tools to ask questions and receive real-time, contextualized responses. It streamlines problem-solving, enhances collaboration, and fosters innovation by making data-driven insights accessible and shareable.
 
-The sample data used in this repository is synthetic and generated using Azure Open AI service. The data is intended for use as sample data only.
+The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
 
 ### Solution architecture
 ![image](./docs/Images/ReadMe/ckm-sol-arch.png)
@@ -39,14 +39,14 @@ The sample data used in this repository is synthetic and generated using Azure O
 QUICK DEPLOY
 </h2>
 
-| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | **┃** | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | **┃** | [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2FConversation-Knowledge-Mining-Solution-Accelerator%2Fmain%2Finfra%2Fmain.json) |
-|---|---|---|---|---|
+| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2FConversation-Knowledge-Mining-Solution-Accelerator%2Fmain%2Finfra%2Fmain.json) |
+|---|---|---|
         
 
 
 ### **Prerequisites**
 
-To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in   
+To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in  [Azure Account Set Up](./docs/AzureAccountSetUp.md) 
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available:  
 
@@ -58,10 +58,10 @@ Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/g
 - GPT Model Capacity
 - [Azure Semantic Search](./docs/AzureSemanticSearchRegion.md)  
 
-Here are some example regions where the services are available: East US, Australia East, Canada Central, West Europe 
+Here are some example regions where the services are available: East US, East US2, Australia East, UK South, France Central.
 
 
-#### **Configurable Deployment Settings**  
+### **Configurable Deployment Settings**  
 
 When you start the deployment, most parameters will have **default values**, but you can update the following settings:  
 
@@ -77,9 +77,8 @@ When you start the deployment, most parameters will have **default values**, but
 | **Embedding Model** | Default: **text-embedding-ada-002**. | text-embedding-ada-002 |
 | **Embedding Model Capacity** | Set the capacity for **embedding models**. | 80k |
 
----
 
-### **[Optional] Quota Recommendations**  
+### [Optional] Quota Recommendations  
 By default, the **GPT model capacity** in deployment is set to **30k tokens**.  
 > **We recommend increasing the capacity to 100k tokens for optimal performance.** 
 
@@ -88,15 +87,14 @@ To adjust quota settings, follow these [steps](./docs/AzureGPTQuotaSettings.md)
 
 **⚠️ Warning:**  **Insufficient quota can cause deployment errors.** Please ensure you have the recommended capacity or request for additional capacity before deploying this solution. 
 
-----
 
-### **Options**
+### Deployment Options
 Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
 
 <details>
   <summary><b>Deploy in GitHub Codespaces</b></summary>
 
-### GitHub Codpespaces
+### GitHub Codespaces
 
 You can run this solution using GitHub Codespaces. The button will open a web-based VS Code instance in your browser:
 
@@ -196,10 +194,10 @@ To change the azd parameters from the default values, follow the steps [here](./
     * If you get an error or timeout with deployment, changing the location can help, as there may be availability constraints for the resources.
 
 5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service and get the app URL from `Default domain`.
-  
-6. You can now proceed to run the [development server](#development-server) to test the app locally, or if you are done trying out the app, you can delete the resources by running `azd down`.
 
-<br/>
+6. You can now delete the resources by running `azd down`, if you are done trying out the application. 
+<!-- 6. You can now proceed to run the [development server](#development-server) to test the app locally, or if you are done trying out the app, you can delete the resources by running `azd down`. -->
+
 <h2>
 Additional Steps
 </h2>
@@ -224,15 +222,14 @@ To help you get started, here are some **Sample Questions** you can ask in the a
 - When customers call in about unexpected charges, what types of charges are they seeing?
 
 These questions serve as a great starting point to explore insights from the data.
-</br>
+
 <h2>
-</br>
 Responsible AI Transparency FAQ 
 </h2>
 
 Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
 
-<br/>
+
 <h2>
 Supporting documentation
 </h2>
@@ -273,11 +270,11 @@ You may want to consider additional security measures, such as:
 * Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/azure/security-center/defender-for-cloud).
 * Protecting the Azure Container Apps instance with a [firewall](https://learn.microsoft.com/azure/container-apps/waf-app-gateway) and/or [Virtual Network](https://learn.microsoft.com/azure/container-apps/networking?tabs=workload-profiles-env%2Cazure-cli).
 
-### How to customize 
+<!-- ### How to customize 
 
 If you'd like to customize the solution accelerator, here are some ways you might do that:
 - Ingest your own [audio conversation files](./docs/ConversationalDataFormat.md) by uploading them into the storage account and run the process data scripts.
-- You can also scale the solution and process large volumes of data by deploying this to Microsoft Fabric by following the steps in [Fabric_deployment.md](./docs/Fabric_deployment.md)
+- You can also scale the solution and process large volumes of data by deploying this to Microsoft Fabric by following the steps in [Fabric_deployment.md](./docs/Fabric_deployment.md) -->
 
 ### Additional resources
 
@@ -290,15 +287,10 @@ If you'd like to customize the solution accelerator, here are some ways you migh
 - [Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/)
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/)
-- [Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/)
+<!-- - [Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/) -->
 
 <!-- - [Speech service documentation - Tutorials, API Reference - Azure AI services - Azure AI services | Microsoft Learn](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/) -->
 
-<br/>
-
----
-
-<br/>
 
 
 ## Disclaimers

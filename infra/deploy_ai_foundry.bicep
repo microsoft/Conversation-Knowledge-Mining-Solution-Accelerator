@@ -173,7 +173,7 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-09-01' =
 
 var storageNameCleaned = replace(storageName, '-', '')
 
-resource aiServices 'Microsoft.CognitiveServices/accounts@2021-10-01' = {
+resource aiServices 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {
   name: aiServicesName
   location: location
   sku: {
@@ -181,6 +181,7 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2021-10-01' = {
   }
   kind: 'AIServices'
   properties: {
+    customSubDomainName: aiServicesName
     apiProperties: {
       statisticsEnabled: false
     }
@@ -433,30 +434,30 @@ resource aiHubProject 'Microsoft.MachineLearningServices/workspaces@2024-01-01-p
   }
 }
 
-var phiModelRegions = ['East US', 'East US 2', 'North Central US', 'South Central US', 'Sweden Central', 'West US', 'West US 3', 'eastus','eastus2','northcentralus','southcentralus','swedencentral','westus','westus3']
+// var phiModelRegions = ['East US', 'East US 2', 'North Central US', 'South Central US', 'Sweden Central', 'West US', 'West US 3', 'eastus','eastus2','northcentralus','southcentralus','swedencentral','westus','westus3']
   
-var isInPhiList = contains(phiModelRegions, location)
+// var isInPhiList = contains(phiModelRegions, location)
 
-var serverlessModelName = 'Phi-4' //'Phi-3-medium-4k-instruct'
-var phiserverlessName = '${solutionName}-${serverlessModelName}'
-resource phiserverless 'Microsoft.MachineLearningServices/workspaces/serverlessEndpoints@2024-10-01' = if (isInPhiList) {
-  parent: aiHubProject
-  location: location
-  name: phiserverlessName
-  properties: {
-    authMode: 'Key'
-    contentSafety: {
-      contentSafetyStatus: 'Enabled'
-    }
-    modelSettings: {
-      modelId: 'azureml://registries/azureml/models/${serverlessModelName}'
-    }
-  }
-  sku: {
-    name: 'Consumption'
-    tier: 'Free'
-  }
-}
+// var serverlessModelName = 'Phi-4' //'Phi-3-medium-4k-instruct'
+// var phiserverlessName = '${solutionName}-${serverlessModelName}'
+// resource phiserverless 'Microsoft.MachineLearningServices/workspaces/serverlessEndpoints@2024-10-01' = if (isInPhiList) {
+//   parent: aiHubProject
+//   location: location
+//   name: phiserverlessName
+//   properties: {
+//     authMode: 'Key'
+//     contentSafety: {
+//       contentSafetyStatus: 'Enabled'
+//     }
+//     modelSettings: {
+//       modelId: 'azureml://registries/azureml/models/${serverlessModelName}'
+//     }
+//   }
+//   sku: {
+//     name: 'Consumption'
+//     tier: 'Free'
+//   }
+// }
 
 resource tenantIdEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
   parent: keyVault
@@ -494,8 +495,9 @@ resource azureOpenAIInferenceEndpoint 'Microsoft.KeyVault/vaults/secrets@2021-11
   parent: keyVault
   name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
   properties: {
-    value: phiserverless != null ? phiserverless.properties.inferenceEndpoint.uri : ''
+    // value: phiserverless != null ? phiserverless.properties.inferenceEndpoint.uri : ''
     // value: phiserverless.properties.inferenceEndpoint.uri
+    value:''
   }
 }
 
@@ -503,8 +505,9 @@ resource azureOpenAIInferenceKey 'Microsoft.KeyVault/vaults/secrets@2021-11-01-p
   parent: keyVault
   name: 'AZURE-OPENAI-INFERENCE-KEY'
   properties: {
-    value: phiserverless != null ? listKeys(phiserverless.id, '2024-10-01').primaryKey : ''
+    //value: phiserverless != null ? listKeys(phiserverless.id, '2024-10-01').primaryKey : ''
     // listKeys(phiserverless.id, '2024-10-01').primaryKey
+    value:''
   }
 }
 
@@ -659,7 +662,7 @@ output aiServicesTarget string = aiServices.properties.endpoint //aiServices_m.p
 output aiServicesName string = aiServicesName //aiServicesName_m
 output aiServicesId string = aiServices.id //aiServices_m.id
 
-output aiInfereceEndpoint string = phiserverless.properties.inferenceEndpoint.uri
+//output aiInfereceEndpoint string = phiserverless.properties.inferenceEndpoint.uri
 
 output aiSearchName string = aiSearchName
 output aiSearchId string = aiSearch.id

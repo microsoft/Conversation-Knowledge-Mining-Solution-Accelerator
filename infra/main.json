@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "18268444993934003213"
+      "templateHash": "15019674909906266952"
     }
   },
   "parameters": {
@@ -404,7 +404,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "16384204150506022957"
+              "templateHash": "14779324320329290860"
             }
           },
           "parameters": {
@@ -480,26 +480,7 @@
               }
             ],
             "containerRegistryNameCleaned": "[replace(variables('containerRegistryName'), '-', '')]",
-            "storageNameCleaned": "[replace(variables('storageName'), '-', '')]",
-            "phiModelRegions": [
-              "East US",
-              "East US 2",
-              "North Central US",
-              "South Central US",
-              "Sweden Central",
-              "West US",
-              "West US 3",
-              "eastus",
-              "eastus2",
-              "northcentralus",
-              "southcentralus",
-              "swedencentral",
-              "westus",
-              "westus3"
-            ],
-            "isInPhiList": "[contains(variables('phiModelRegions'), variables('location'))]",
-            "serverlessModelName": "Phi-4",
-            "phiserverlessName": "[format('{0}-{1}', parameters('solutionName'), variables('serverlessModelName'))]"
+            "storageNameCleaned": "[replace(variables('storageName'), '-', '')]"
           },
           "resources": [
             {
@@ -508,11 +489,11 @@
               "name": "[format('{0}/{1}', variables('aiHubName'), format('{0}-connection-AzureOpenAI', variables('aiHubName')))]",
               "properties": {
                 "category": "AIServices",
-                "target": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').endpoint]",
+                "target": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').endpoint]",
                 "authType": "ApiKey",
                 "isSharedToAll": true,
                 "credentials": {
-                  "key": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').key1]"
+                  "key": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').key1]"
                 },
                 "metadata": {
                   "ApiType": "Azure",
@@ -614,7 +595,7 @@
             },
             {
               "type": "Microsoft.CognitiveServices/accounts",
-              "apiVersion": "2021-10-01",
+              "apiVersion": "2024-04-01-preview",
               "name": "[variables('aiServicesName')]",
               "location": "[variables('location')]",
               "sku": {
@@ -622,6 +603,7 @@
               },
               "kind": "AIServices",
               "properties": {
+                "customSubDomainName": "[variables('aiServicesName')]",
                 "apiProperties": {
                   "statisticsEnabled": false
                 }
@@ -797,29 +779,6 @@
               ]
             },
             {
-              "condition": "[variables('isInPhiList')]",
-              "type": "Microsoft.MachineLearningServices/workspaces/serverlessEndpoints",
-              "apiVersion": "2024-10-01",
-              "name": "[format('{0}/{1}', variables('aiProjectName'), variables('phiserverlessName'))]",
-              "location": "[variables('location')]",
-              "properties": {
-                "authMode": "Key",
-                "contentSafety": {
-                  "contentSafetyStatus": "Enabled"
-                },
-                "modelSettings": {
-                  "modelId": "[format('azureml://registries/azureml/models/{0}', variables('serverlessModelName'))]"
-                }
-              },
-              "sku": {
-                "name": "Consumption",
-                "tier": "Free"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.MachineLearningServices/workspaces', variables('aiProjectName'))]"
-              ]
-            },
-            {
               "type": "Microsoft.KeyVault/vaults/secrets",
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'TENANT-ID')]",
@@ -832,29 +791,23 @@
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'AZURE-OPENAI-INFERENCE-ENDPOINT')]",
               "properties": {
-                "value": "[if(not(equals(reference(resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName')), '2024-10-01', 'full'), null())), reference(resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName')), '2024-10-01').inferenceEndpoint.uri, '')]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName'))]"
-              ]
+                "value": ""
+              }
             },
             {
               "type": "Microsoft.KeyVault/vaults/secrets",
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'AZURE-OPENAI-INFERENCE-KEY')]",
               "properties": {
-                "value": "[if(not(equals(reference(resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName')), '2024-10-01', 'full'), null())), listKeys(resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName')), '2024-10-01').primaryKey, '')]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName'))]"
-              ]
+                "value": ""
+              }
             },
             {
               "type": "Microsoft.KeyVault/vaults/secrets",
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'AZURE-OPENAI-KEY')]",
               "properties": {
-                "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').key1]"
+                "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').key1]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
@@ -881,7 +834,7 @@
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'AZURE-OPENAI-ENDPOINT')]",
               "properties": {
-                "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').endpoint]"
+                "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').endpoint]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
@@ -974,7 +927,7 @@
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'COG-SERVICES-ENDPOINT')]",
               "properties": {
-                "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').endpoint]"
+                "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').endpoint]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
@@ -985,7 +938,7 @@
               "apiVersion": "2021-11-01-preview",
               "name": "[format('{0}/{1}', parameters('keyVaultName'), 'COG-SERVICES-KEY')]",
               "properties": {
-                "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').key1]"
+                "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').key1]"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
@@ -1035,7 +988,7 @@
             },
             "aiServicesTarget": {
               "type": "string",
-              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2021-10-01').endpoint]"
+              "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), '2024-04-01-preview').endpoint]"
             },
             "aiServicesName": {
               "type": "string",
@@ -1044,10 +997,6 @@
             "aiServicesId": {
               "type": "string",
               "value": "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
-            },
-            "aiInfereceEndpoint": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces/serverlessEndpoints', variables('aiProjectName'), variables('phiserverlessName')), '2024-10-01').inferenceEndpoint.uri]"
             },
             "aiSearchName": {
               "type": "string",

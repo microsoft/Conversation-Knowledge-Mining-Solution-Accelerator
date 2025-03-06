@@ -8,7 +8,7 @@ updates:
    commit-message:
      prefix: "build"
    target-branch: "dependabotchanges"
-   open-pull-requests-limit: 30
+   open-pull-requests-limit: 100
 
  - package-ecosystem: "pip"
    directory: "/App"
@@ -17,7 +17,7 @@ updates:
    commit-message:
      prefix: "build"
    target-branch: "dependabotchanges"
-   open-pull-requests-limit: 60
+   open-pull-requests-limit: 100
 
  - package-ecosystem: "npm"
    directory: "/App/frontend"
@@ -26,7 +26,7 @@ updates:
    commit-message:
      prefix: "build"
    target-branch: "dependabotchanges"
-   open-pull-requests-limit: 60
+   open-pull-requests-limit: 100
    registries:
      - npm_public_registry  # Only use public npm registry
 
