@@ -66,6 +66,9 @@ param embeddingDeploymentCapacity int = 80
 
 param imageTag string = 'latest'
 
+@description('Flag to enable VNet integration')
+param enableVNetIntegration bool
+
 var uniqueId = toLower(uniqueString(subscription().id, environmentName, resourceGroup().location))
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
 var resourceGroupLocation = resourceGroup().location
@@ -81,6 +84,15 @@ module managedIdentityModule 'deploy_managed_identity.bicep' = {
   params: {
     solutionName: solutionPrefix
     solutionLocation: solutionLocation
+  }
+  scope: resourceGroup(resourceGroup().name)
+}
+//=========VNet and Subnet module ========== //
+module vnetAndSubnet 'deploy_vnetandsubnet.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_vnetandsubnet'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -201,6 +213,8 @@ module azureFunctionsCharts 'deploy_azure_function_charts.bicep' = {
     storageAccountName:aifoundry.outputs.storageAccountName
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityChartsOutput.id
     userassignedIdentityClientId: managedIdentityModule.outputs.managedIdentityChartsOutput.clientId
+    FnChartsSubnetId: enableVNetIntegration ? vnetAndSubnet.outputs.subnet2Id : ''
+    enabledVNetIntegration: enableVNetIntegration
   }
   dependsOn:[keyVault]
 }
@@ -229,6 +243,8 @@ module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
     storageAccountName:aifoundry.outputs.storageAccountName
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityRagOutput.id
     userassignedIdentityClientId: managedIdentityModule.outputs.managedIdentityRagOutput.clientId
+    FnRagSubnetId: enableVNetIntegration ? vnetAndSubnet.outputs.subnet3Id : ''
+    enabledVNetIntegration: enableVNetIntegration
   }
   dependsOn:[keyVault]
 }

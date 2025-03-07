@@ -23,7 +23,9 @@ param imageTag string
 param storageAccountName string
 param userassignedIdentityId string
 param userassignedIdentityClientId string
+param enabledVNetIntegration bool
 
+param FnRagSubnetId string
 var functionAppName = '${solutionName}-rag-fn'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-rag-function:${imageTag}'
 var environmentName = '${solutionName}-rag-fn-env'
@@ -47,6 +49,10 @@ resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
         name: 'Consumption'
       }
     ]
+    //include vnetConfiguration if enabledVNetIntegration is true
+    vnetConfiguration: enabledVNetIntegration ? {
+      infrastructureSubnetId: FnRagSubnetId
+    } : null
     peerAuthentication: {
       mtls: {
         enabled: false

@@ -11,6 +11,9 @@ param imageTag string
 param storageAccountName string
 param userassignedIdentityId string
 param userassignedIdentityClientId string
+param FnChartsSubnetId string
+param enabledVNetIntegration bool
+
 var functionAppName = '${solutionName}-charts-fn'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-charts-function:${imageTag}'
 var environmentName = '${solutionName}-charts-fn-env'
@@ -34,6 +37,10 @@ resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
         name: 'Consumption'
       }
     ]
+    //include vnetConfiguration if enabledVNetIntegration is true
+    vnetConfiguration: enabledVNetIntegration ? {
+      infrastructureSubnetId: FnChartsSubnetId
+    } : null
     peerAuthentication: {
       mtls: {
         enabled: false
