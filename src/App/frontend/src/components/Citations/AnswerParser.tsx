@@ -8,53 +8,61 @@ type ParsedAnswer = {
     markdownFormatText: string;
 };
 
-let filteredCitations = [] as Citation[];
-
-// Define a function to check if a citation with the same Chunk_Id already exists in filteredCitations
-const isDuplicate = (citation: Citation,citationIndex:string) => {
-    console.log("citation::",citation);
-    console.log("citationIndex 16::",citationIndex);
-    console.log("filteredCitations 17::",filteredCitations);
-    console.log("filteredCitations.some((c) => c.chunk_id === citation.chunk_id)::", filteredCitations.some((c) => c.chunk_id === citation.chunk_id))
-    return filteredCitations.some((c) => c.chunk_id === citation.chunk_id) ;
-};
-
-export function parseAnswer(answer: AskResponse): ParsedAnswer {
+const answerTextFormatting = (answer : AskResponse)=> {
     let answerText = answer.answer;
-    const citationLinks = answerText.match(/\[(doc\d\d?\d?)]/g);
-    console.log("citationLinks::",citationLinks);
+    const docCitations = answerText.match(/\[(doc\d\d?\d?)]/g);
+    // console.log("docCitations::",docCitations);
     const lengthDocN = "[doc".length;
-
-    filteredCitations = [] as Citation[];
-    let citationReindex = 0;
-    citationLinks?.forEach(link => {
+    let citationIndexMapping:any ={}
+    // ['[doc4]', '[doc5]', '[doc1]','[doc4]']
+    //{4: 0, 5:1,1:2,}
+    let citationCount = 0;
+    docCitations?.forEach(link => {
         // Replacing the links/citations with number
         let citationIndex = link.slice(lengthDocN, link.length - 1);
-        console.log("citationIndex::",citationIndex);
-        let citation = cloneDeep(answer.citations[Number(citationIndex) - 1]) as Citation;
-        console.log("citation::",citation);
-        if (citation !== undefined ) { //&& !isDuplicate(citation, citationIndex)
-            console.log("inside::");
-          answerText = answerText.replaceAll(link, ` ^${++citationReindex}^ `);
-          citation.id = citationIndex; // original doc index to de-dupe
-          citation.reindex_id = citationReindex.toString(); // reindex from 1 for display
-          console.log("citationReindex::",citationReindex);
-          filteredCitations.push(citation);
-        
-        }else{
-            // Replacing duplicate citation with original index
-            let matchingCitation = filteredCitations.find((ct) => citation?.chunk_id == ct?.chunk_id);
-            if (matchingCitation) {
-                answerText= answerText.replaceAll(link, ` ^${matchingCitation.reindex_id}^ `)
-            }
+        // console.log("citationIndex::",citationIndex);
+        if(citationIndexMapping[citationIndex] === undefined){
+            citationIndexMapping[citationIndex] = citationCount
+            citationCount++;
         }
+        let citation = cloneDeep(answer.citations[Number(citationIndexMapping[citationIndex])]) as Citation;
+        // console.log("citation::",citation);
+        if (citation !== undefined ) { 
+            // console.log("inside::");
+          answerText = answerText.replaceAll(link, ` ^${++citationIndexMapping[citationIndex]}^ `);
+        }
+       
     })
 
-    console.log(" answer.citations::",  answer.citations)
-    console.log("answerText::", answerText)
-    console.log("answer.answer::", answer.answer)
+    // console.log(" answer.citations::",  answer.citations)
+    // console.log("answerText::", answerText)
+    // console.log("answer.answer::", answer.answer)
+
+    return answerText
+}
+
+const UniqueCitationResponse = (answer: AskResponse)=>{
+    let citations = answer.citations;
+    let citationIndexMapping:any = {}
+    let uniqueCitations: Citation[] =[];
+    citations.forEach(citation => {
+        // Replacing the links/citations with number
+        if(!citation.url){
+            uniqueCitations.push(citation)
+        }else if(citationIndexMapping[citation.url] === undefined){
+            citationIndexMapping[citation.url] = 1
+            uniqueCitations.push(citation)
+        }
+    })
+    return uniqueCitations;
+}
+
+export function parseAnswer(answer: AskResponse): ParsedAnswer {
+
+    let answerText = answerTextFormatting(answer)
+    let uniqueCitation = UniqueCitationResponse(answer)
     return {
-        citations: answer.citations,
+        citations: uniqueCitation, //answer.citations,
         markdownFormatText:  answerText
     };
 }
