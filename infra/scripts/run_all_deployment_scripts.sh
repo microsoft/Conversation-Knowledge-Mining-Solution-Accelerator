@@ -49,26 +49,4 @@ curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUr
 chmod +x /scripts/create-sql-user-and-role.ps1
 
 # Execute SQL scripts for users and roles
-# Parse sqlUsers JSON
-sqlUsersJson=$(echo "$sqlUsers" | jq -c '.')
-
-# Loop through users and assign roles dynamically
-userCount=$(echo "$sqlUsersJson" | jq '. | length')
-for i in $(seq 0 $((userCount - 1))); do
-    principalId=$(echo "$sqlUsersJson" | jq -r ".[$i].principalId")
-    principalName=$(echo "$sqlUsersJson" | jq -r ".[$i].principalName")
-    
-    # Loop through roles for each user
-    roleCount=$(echo "$sqlUsersJson" | jq ".[$i].databaseRoles | length")
-    for j in $(seq 0 $((roleCount - 1))); do
-        databaseRole=$(echo "$sqlUsersJson" | jq -r ".[$i].databaseRoles[$j]")
-
-        pwsh -File /scripts/create-sql-user-and-role.ps1 \
-            -SqlServerName "${sqlServerName}" \
-            -SqlDatabaseName "${sqlDbName}" \
-            -ClientId "${principalId}" \
-            -DisplayName "${principalName}" \
-            -ManagedIdentityClientId "${managedIdentityClientId}" \
-            -DatabaseRole "${databaseRole}"
-    done
-done
+echo "Raw sqlUsers input: $sqlUsers"
