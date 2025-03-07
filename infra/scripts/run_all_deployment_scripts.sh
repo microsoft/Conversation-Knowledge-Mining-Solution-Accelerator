@@ -10,6 +10,7 @@ createSqlUserAndRoleScriptsUrl="$7"
 keyVaultName="$8"
 sqlServerName="$9"
 sqlDbName="$10"
+sqlUsers="$11"
 
 set -e  # Exit script on any error
 
