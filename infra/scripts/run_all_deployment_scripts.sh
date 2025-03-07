@@ -49,4 +49,5 @@ curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUr
 chmod +x /scripts/create-sql-user-and-role.ps1
 
 # Execute SQL scripts for users and roles
-echo "Raw sqlUsers input: $sqlUsers"
+echo "Raw sqlUsers input:"
+echo ${sqlUsers}
