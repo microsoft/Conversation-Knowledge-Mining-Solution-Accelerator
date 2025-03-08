@@ -14,6 +14,18 @@ sqlServerName="${9}"
 sqlDbName="${10}"
 sqlUsers="${11}"
 
+echo "storageAccountName=${storageAccountName}"
+echo "containerName=${containerName}"
+echo "baseUrl=${baseUrl}"
+echo "managedIdentityClientId=${managedIdentityClientId}"
+echo "setupCopyKbFiles=${setupCopyKbFiles}"
+echo "setupCreateIndexScriptsUrl=${setupCreateIndexScriptsUrl}"
+echo "createSqlUserAndRoleScriptsUrl=${createSqlUserAndRoleScriptsUrl}"
+echo "keyVaultName=${keyVaultName}"
+echo "sqlServerName=${sqlServerName}"
+echo "sqlDbName=${sqlDbName}"
+echo "sqlUsers=$(echo "${sqlUsers}" | jq .)"
+
 mkdir -p /scripts
 apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev
 pip install --upgrade azure-cli
