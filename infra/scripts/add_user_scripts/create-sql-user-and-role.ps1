@@ -29,7 +29,7 @@ Param(
     [string] $SqlServerName,
     [string] $SqlDatabaseName,
     [array] $SqlUsers,
-    [string] $ManagedIdentityClientId,
+    [string] $ManagedIdentityClientId
 )
 
 function Resolve-Module($moduleName) {
