@@ -50,6 +50,7 @@ chmod +x /scripts/create-sql-user-and-role.ps1
 
 
 # Convert JSON string to proper array elements
+sqlUsers=$(echo "${sqlUsers}" | sed 's/{/{"/g; s/:/":"/g; s/,/","/g; s/}"/}"/g; s/]"/]"/g; s/\["/["/g; s/"\]/"]/g' | sed 's/"\[/\[/g; s/\]"/\]/g')
 sqlUsersJson=$(echo "${sqlUsers}" | jq -c '.')
 
 echo "sqlUsers parsed: ${sqlUsersJson}"
