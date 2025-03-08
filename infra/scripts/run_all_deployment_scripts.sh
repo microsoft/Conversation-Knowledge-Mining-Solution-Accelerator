@@ -48,32 +48,12 @@ sh -x /scripts/run_create_index_scripts.sh ${baseUrl} ${keyVaultName} ${managedI
 curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUrl}
 chmod +x /scripts/create-sql-user-and-role.ps1
 
+# Convert space-separated string back into an array
+IFS=' ' read -r -a sqlUsers <<< "$sqlUsersString"
 
-# Convert JSON string to proper array elements
-sqlUsers=$(echo "${sqlUsers}" | sed -E 's/([a-zA-Z_]+)/"\1"/g' | sed 's/:"/":/g')
-sqlUsersJson=$(echo "${sqlUsers}" | jq -c '.')
-
-echo "sqlUsers parsed: ${sqlUsersJson}"
-
-# Loop through the users
-for row in $(echo "${sqlUsersJson}" | jq -c '.[]'); do
-    principalId=$(echo "${row}" | jq -r '.principalId')
-    principalName=$(echo "${row}" | jq -r '.principalName')
-
-    echo "Processing User: ${principalName} with ID: ${principalId}"
-
-    # Loop through database roles
-    for role in $(echo "${row}" | jq -r '.databaseRoles[]'); do
-        echo "Assigning Role: ${role} to ${principalName}"
-
-        pwsh -File /scripts/create-sql-user-and-role.ps1 \
-            -SqlServerName "${sqlServerName}" \
-            -SqlDatabaseName "${sqlDbName}" \
-            -ClientId "${principalId}" \
-            -DisplayName "${principalName}" \
-            -ManagedIdentityClientId "${managedIdentityClientId}" \
-            -DatabaseRole "${role}"
-    done
+echo "SQL Users:"
+for user in "${sqlUsers[@]}"; do
+  echo "$user"
 done
 
 # echo "sqlUsers:"

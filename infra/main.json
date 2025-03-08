@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "2387379038756425360"
+      "templateHash": "4192664248611330553"
     }
   },
   "parameters": {
@@ -1707,7 +1707,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "12100902137219113409"
+              "templateHash": "16806946155735688335"
             }
           },
           "parameters": {
@@ -1778,6 +1778,10 @@
             "sqlUsers": {
               "type": "array",
               "defaultValue": []
+            },
+            "sqlUsersString": {
+              "type": "string",
+              "defaultValue": "[join(parameters('sqlUsers'), ' ')]"
             }
           },
           "resources": [
@@ -1821,7 +1825,7 @@
                       "command": [
                         "/bin/sh",
                         "-c",
-                        "[format('mkdir -p /scripts && apk add --no-cache curl && curl -s -o /scripts/run_all_deployment_scripts.sh {0} && chmod +x /scripts/run_all_deployment_scripts.sh && echo {1} && sh -x /scripts/run_all_deployment_scripts.sh {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} && echo \"Container app setup completed successfully.\"', parameters('run_all_deployment_scripts'), json(string(parameters('sqlUsers'))), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCopyKbFiles'), parameters('setupCreateIndexScriptsUrl'), parameters('createSqlUserAndRoleScriptsUrl'), parameters('keyVaultName'), parameters('sqlServerName'), parameters('sqlDbName'), json(string(parameters('sqlUsers'))))]"
+                        "[format('mkdir -p /scripts && apk add --no-cache curl && curl -s -o /scripts/run_all_deployment_scripts.sh {0} && chmod +x /scripts/run_all_deployment_scripts.sh && sh -x /scripts/run_all_deployment_scripts.sh {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} && echo \"Container app setup completed successfully.\"', parameters('run_all_deployment_scripts'), parameters('storageAccountName'), parameters('containerName'), parameters('baseUrl'), parameters('managedIdentityClientId'), parameters('setupCopyKbFiles'), parameters('setupCreateIndexScriptsUrl'), parameters('createSqlUserAndRoleScriptsUrl'), parameters('keyVaultName'), parameters('sqlServerName'), parameters('sqlDbName'), parameters('sqlUsersString'))]"
                       ],
                       "env": [
                         {
