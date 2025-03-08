@@ -48,19 +48,5 @@ sh -x /scripts/run_create_index_scripts.sh ${baseUrl} ${keyVaultName} ${managedI
 curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUrl}
 chmod +x /scripts/create-sql-user-and-role.ps1
 
-# Convert space-separated string back into an array
-IFS=' ' read -r -a sqlUsers <<< "$sqlUsersString"
-
-echo "SQL Users:"
-for user in "${sqlUsers[@]}"; do
-  echo "$user"
-done
-
-# echo "sqlUsers:"
-# echo ${sqlUsers}
-# echo ${sqlUsers[0]}
-# echo ${sqlUsers[1]}
 # # Execute SQL scripts for users and roles
-#  pwsh -File /scripts/create-sql-user-and-role.ps1 -SqlServerName ${sqlServerName} -SqlDatabaseName ${sqlDbName} -ClientId ${sqlUsers[0].principalId} -DisplayName ${sqlUsers[0].principalName} -ManagedIdentityClientId ${managedIdentityClientId} -DatabaseRole ${sqlUsers[0].databaseRoles[0]}
-#  pwsh -File /scripts/create-sql-user-and-role.ps1 -SqlServerName ${sqlServerName} -SqlDatabaseName ${sqlDbName} -ClientId ${sqlUsers[0].principalId} -DisplayName ${sqlUsers[0].principalName} -ManagedIdentityClientId ${managedIdentityClientId} -DatabaseRole ${sqlUsers[0].databaseRoles[1]}
-#  pwsh -File /scripts/create-sql-user-and-role.ps1 -SqlServerName ${sqlServerName} -SqlDatabaseName ${sqlDbName} -ClientId ${sqlUsers[1].principalId} -DisplayName ${sqlUsers[1].principalName} -ManagedIdentityClientId ${managedIdentityClientId} -DatabaseRole ${sqlUsers[1].databaseRoles[0]}
+pwsh -File /scripts/create-sql-user-and-role.ps1 -SqlServerName ${sqlServerName} -SqlDatabaseName ${sqlDbName} -SqlUsers ${sqlUsers} -ManagedIdentityClientId ${managedIdentityClientId}

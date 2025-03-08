@@ -15,26 +15,21 @@
 .PARAMETER SqlDatabaseName
     The name of the Azure SQL Database where the user will be created.
 
-.PARAMETER ClientId
-    The Client (Principal) ID (GUID) of the identity to be added.
-
-.PARAMETER DisplayName
-    The Object (Principal) display name of the identity to be added.
+.PARAMETER SqlUsers
+    An array of objects containing:
+      - principalId: The Client (Principal) ID (GUID) of the identity.
+      - principalName: The display name of the identity.
+      - databaseRoles: An array of roles to be assigned (e.g., ['db_datareader', 'db_datawriter']).
 
 .PARAMETER ManagedIdentityClientId
     The Client ID of the managed identity that will authenticate to the SQL database.
-
-.PARAMETER DatabaseRole
-    The database role that should be assigned to the user (e.g., db_datareader, db_datawriter, db_owner).
 #>
 
 Param(
     [string] $SqlServerName,
     [string] $SqlDatabaseName,
-    [string] $ClientId,
-    [string] $DisplayName,
+    [array] $SqlUsers,
     [string] $ManagedIdentityClientId,
-    [string] $DatabaseRole
 )
 
 function Resolve-Module($moduleName) {
@@ -58,20 +53,41 @@ function Resolve-Module($moduleName) {
 Resolve-Module -moduleName Az.Resources
 Resolve-Module -moduleName SqlServer
 
-$sql = @"
-DECLARE @username nvarchar(max) = N'$($DisplayName)';
-DECLARE @clientId uniqueidentifier = '$($ClientId)';
-DECLARE @sid NVARCHAR(max) = CONVERT(VARCHAR(max), CONVERT(VARBINARY(16), @clientId), 1);
-DECLARE @cmd NVARCHAR(max) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';
-IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = @username)
-BEGIN
-    EXEC(@cmd)
-END
-EXEC sp_addrolemember '$($DatabaseRole)', @username;
-"@
-
-Write-Output "`nSQL:`n$($sql)`n`n"
-
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
-Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
+
+# Iterate through each user in the $SqlUsers array
+foreach ($user in $SqlUsers) {
+    $principalId = $user.principalId
+    $principalName = $user.principalName
+    $databaseRoles = $user.databaseRoles
+
+    Write-Output "`nProcessing user: $principalName (Principal ID: $principalId) with roles: $($databaseRoles -join ', ')"
+
+    # Construct SQL for user creation and role assignment
+    $sql = @"
+    DECLARE @username NVARCHAR(MAX) = N'$principalName';
+    DECLARE @clientId UNIQUEIDENTIFIER = '$principalId';
+    DECLARE @sid NVARCHAR(MAX) = CONVERT(VARCHAR(MAX), CONVERT(VARBINARY(16), @clientId), 1);
+    DECLARE @cmd NVARCHAR(MAX) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';
+    IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = @username)
+    BEGIN
+        EXEC(@cmd)
+    END
+    "@
+
+    # Execute user creation SQL
+    Write-Output "`nExecuting user creation SQL:`n$sql"
+    Invoke-SqlCmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
+
+    # Assign roles to the user
+    foreach ($role in $databaseRoles) {
+        $roleSql = "EXEC sp_addrolemember '$role', [$principalName];"
+        Write-Output "`nAssigning role $role to user $principalName"
+        Invoke-SqlCmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $token -Query $roleSql -ErrorAction 'Stop'
+    }
+
+    Write-Output "`nUser $principalName setup completed successfully."
+}
+
+Write-Output "`nAll users processed successfully."
