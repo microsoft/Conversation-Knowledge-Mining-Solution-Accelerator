@@ -14,17 +14,17 @@ sqlServerName="${9}"
 sqlDbName="${10}"
 sqlUsers="${11}"
 
-echo "storageAccountName=${storageAccountName}"
-echo "containerName=${containerName}"
-echo "baseUrl=${baseUrl}"
-echo "managedIdentityClientId=${managedIdentityClientId}"
-echo "setupCopyKbFiles=${setupCopyKbFiles}"
-echo "setupCreateIndexScriptsUrl=${setupCreateIndexScriptsUrl}"
-echo "createSqlUserAndRoleScriptsUrl=${createSqlUserAndRoleScriptsUrl}"
-echo "keyVaultName=${keyVaultName}"
-echo "sqlServerName=${sqlServerName}"
-echo "sqlDbName=${sqlDbName}"
-echo "sqlUsers=$(echo "${sqlUsers}" | jq .)"
+echo ${storageAccountName}
+echo ${containerName}
+echo ${baseUrl}
+echo ${managedIdentityClientId}
+echo ${setupCopyKbFiles}
+echo ${setupCreateIndexScriptsUrl}
+echo ${createSqlUserAndRoleScriptsUrl}
+echo ${keyVaultName}
+echo ${sqlServerName}
+echo ${sqlDbName}
+echo ${sqlUsers}
 
 mkdir -p /scripts
 apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev
@@ -47,32 +47,32 @@ ln -s /opt/microsoft/powershell/7/pwsh /usr/bin/pwsh
 download_and_execute() {
     local url=$1
     local script_path=$2
-    curl -s -o "${script_path}" "${url}"
-    chmod +x "${script_path}"
-    sh -x "${script_path}" "${@:3}"
+    curl -s -o ${script_path} ${url}
+    chmod +x ${script_path}
+    sh -x ${script_path} ${@:3}
 }
 
 # Copy KB files
-download_and_execute "${setupCopyKbFiles}" "/scripts/copy_kb_files.sh" "${storageAccountName}" "${containerName}" "${baseUrl}" "${managedIdentityClientId}"
+download_and_execute ${setupCopyKbFiles} "/scripts/copy_kb_files.sh" ${storageAccountName} ${containerName} ${baseUrl} ${managedIdentityClientId}
 # Create Index Scripts
-download_and_execute "${setupCreateIndexScriptsUrl}" "/scripts/run_create_index_scripts.sh" "${baseUrl}" "${keyVaultName}" "${managedIdentityClientId}"
+download_and_execute ${setupCreateIndexScriptsUrl} "/scripts/run_create_index_scripts.sh" ${baseUrl} ${keyVaultName} ${managedIdentityClientId}
 
 # Download SQL script
-curl -s -o /scripts/create-sql-user-and-role.ps1 "${createSqlUserAndRoleScriptsUrl}"
+curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUrl}
 chmod +x /scripts/create-sql-user-and-role.ps1
 
 # Execute SQL scripts for users and roles
-for user in $(echo "${sqlUsers}" | jq -c '.[]'); do
-    principalId=$(echo "${user}" | jq -r '.principalId')
-    principalName=$(echo "${user}" | jq -r '.principalName')
+for user in $(echo ${sqlUsers} | jq -c '.[]'); do
+    principalId=$(echo ${user} | jq -r '.principalId')
+    principalName=$(echo ${user} | jq -r '.principalName')
     
-    for role in $(echo "${user}" | jq -c '.databaseRoles[]'); do
+    for role in $(echo ${user} | jq -c '.databaseRoles[]'); do
         pwsh -File /scripts/create-sql-user-and-role.ps1 \
-            -SqlServerName "${sqlServerName}" \
-            -SqlDatabaseName "${sqlDbName}" \
-            -ClientId "${principalId}" \
-            -DisplayName "${principalName}" \
-            -ManagedIdentityClientId "${managedIdentityClientId}" \
-            -DatabaseRole "${role}"
+            -SqlServerName ${sqlServerName} \
+            -SqlDatabaseName ${sqlDbName} \
+            -ClientId ${principalId} \
+            -DisplayName ${principalName} \
+            -ManagedIdentityClientId ${managedIdentityClientId} \
+            -DatabaseRole ${role}
     done
 done
