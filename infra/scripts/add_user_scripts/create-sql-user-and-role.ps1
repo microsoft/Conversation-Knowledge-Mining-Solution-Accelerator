@@ -55,12 +55,10 @@ Resolve-Module -moduleName SqlServer
 
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
-
-if ($SqlUsers -is [string]) {
-    Write-Output "`nSQLUsersString:`n$($SqlUsers)`n`n"
-    $SqlUsers = $SqlUsers | ConvertFrom-Json
-}
+$SqlUsers1 = $SqlUsers | ConvertFrom-Json
+$SqlUsers = $SqlUsers | ConvertFrom-Json
 Write-Output "`nSQLUsers:`n$($SqlUsers)`n`n"
+Write-Output "`nSQLUsers1:`n$($SqlUsers1)`n`n"
 
 # Iterate through each user in the $SqlUsers array
 foreach ($user in $SqlUsers) {
