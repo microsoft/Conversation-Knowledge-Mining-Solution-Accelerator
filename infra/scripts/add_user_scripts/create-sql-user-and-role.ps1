@@ -56,20 +56,14 @@ Resolve-Module -moduleName SqlServer
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
 
-if ($SqlUsers -isnot [System.Collections.IEnumerable]) {
-    $SqlUsers = @($SqlUsers)
+if ($SqlUsers -is [string]) {
+    Write-Output "`nSQLUsersString:`n$($SqlUsers)`n`n"
+    $SqlUsers = $SqlUsers | ConvertFrom-Json
 }
-
-Write-Output "`nSQLUsers as JSON:`n$($SqlUsers | ConvertTo-Json -Depth 10)`n"
-
 Write-Output "`nSQLUsers:`n$($SqlUsers)`n`n"
 
 # Iterate through each user in the $SqlUsers array
 foreach ($user in $SqlUsers) {
-    Write-Output "`nRaw User Object:`n$($user | ConvertTo-Json -Depth 10)`n"
-    if ($user -isnot [PSCustomObject]) {
-        $user = [PSCustomObject]$user
-    }
     $principalId = $user.principalId
     $principalName = $user.principalName
     $databaseRoles = $user.databaseRoles
