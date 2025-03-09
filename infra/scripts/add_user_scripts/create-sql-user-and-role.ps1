@@ -56,11 +56,16 @@ Resolve-Module -moduleName SqlServer
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
 
+Write-Output "`nSQLUser:`n$($SqlUsers)`n`n"
+
 # Iterate through each user in the $SqlUsers array
 foreach ($user in $SqlUsers) {
     $principalId = $user.principalId
     $principalName = $user.principalName
     $databaseRoles = $user.databaseRoles
+    Write-Output "`nSQLUserprincipalId:`n$($principalId)`n`n"
+    Write-Output "`nSQLUserprincipalName:`n$($principalName)`n`n"
+    Write-Output "`nSQLUserdatabaseRoles:`n$($databaseRoles)`n`n"
 
     Write-Output "`nProcessing user: $principalName (Principal ID: $principalId) with roles: $($databaseRoles -join ', ')"
 
@@ -78,7 +83,6 @@ foreach ($user in $SqlUsers) {
 
     Write-Output "`nSQL:`n$($sql)`n`n"
 
-    $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
     Invoke-SqlCmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
 
     # Assign roles to the user
