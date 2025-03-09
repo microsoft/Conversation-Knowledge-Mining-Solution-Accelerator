@@ -65,7 +65,8 @@ foreach ($user in $SqlUsers) {
     Write-Output "`nProcessing user: $principalName (Principal ID: $principalId) with roles: $($databaseRoles -join ', ')"
 
     # Construct SQL for user creation and role assignment
-    $sql = @"DECLARE @username NVARCHAR(MAX) = N'$principalName';
+    $sql = @"
+    DECLARE @username NVARCHAR(MAX) = N'$principalName';
     DECLARE @clientId UNIQUEIDENTIFIER = '$principalId';
     DECLARE @sid NVARCHAR(MAX) = CONVERT(VARCHAR(MAX), CONVERT(VARBINARY(16), @clientId), 1);
     DECLARE @cmd NVARCHAR(MAX) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';
