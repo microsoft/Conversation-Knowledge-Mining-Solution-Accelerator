@@ -66,17 +66,19 @@ foreach ($user in $SqlUsers) {
 
     # Construct SQL for user creation and role assignment
     $sql = @"
-    DECLARE @username NVARCHAR(MAX) = N'$principalName';
-    DECLARE @clientId UNIQUEIDENTIFIER = '$principalId';
-    DECLARE @sid NVARCHAR(MAX) = CONVERT(VARCHAR(MAX), CONVERT(VARBINARY(16), @clientId), 1);
-    DECLARE @cmd NVARCHAR(MAX) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';
+    DECLARE @username nvarchar(max) = N'$($principalName)';
+    DECLARE @clientId uniqueidentifier = '$($principalId)';
+    DECLARE @sid NVARCHAR(max) = CONVERT(VARCHAR(max), CONVERT(VARBINARY(16), @clientId), 1);
+    DECLARE @cmd NVARCHAR(max) = N'CREATE USER [' + @username + '] WITH SID = ' + @sid + ', TYPE = E;';
     IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = @username)
     BEGIN
         EXEC(@cmd)
-    END"@
+    END
+    "@
 
-    # Execute user creation SQL
-    Write-Output "`nExecuting user creation SQL:`n$sql"
+    Write-Output "`nSQL:`n$($sql)`n`n"
+
+    $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
     Invoke-SqlCmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
 
     # Assign roles to the user
