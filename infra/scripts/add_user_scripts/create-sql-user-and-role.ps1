@@ -56,10 +56,14 @@ Resolve-Module -moduleName SqlServer
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
 
-Write-Output "`nSQLUser:`n$($SqlUsers)`n`n"
+Write-Output "`nSQLUsers:`n$($SqlUsers)`n`n"
 
 # Iterate through each user in the $SqlUsers array
 foreach ($user in $SqlUsers) {
+    Write-Output "`nSQLUser:`n$($user)`n`n"
+    if ($user -isnot [PSCustomObject]) {
+        $user = [PSCustomObject]$user
+    }
     $principalId = $user.principalId
     $principalName = $user.principalName
     $databaseRoles = $user.databaseRoles
