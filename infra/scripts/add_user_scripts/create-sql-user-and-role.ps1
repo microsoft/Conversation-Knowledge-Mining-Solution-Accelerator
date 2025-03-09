@@ -74,7 +74,7 @@ foreach ($user in $SqlUsers) {
     BEGIN
         EXEC(@cmd)
     END
-    "@
+"@
 
     Write-Output "`nSQL:`n$($sql)`n`n"
 
