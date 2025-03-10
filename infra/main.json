@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.33.93.31351",
-      "templateHash": "6137238321359558361"
+      "templateHash": "6378375412064971488"
     }
   },
   "parameters": {
@@ -1984,7 +1984,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.33.93.31351",
-              "templateHash": "11421360177429904471"
+              "templateHash": "12618706959352834870"
             }
           },
           "parameters": {
@@ -2128,10 +2128,6 @@
                     {
                       "name": "AZURE_AI_PROJECT_CONN_STRING",
                       "value": "[parameters('azureAiProjectConnString')]"
-                    },
-                    {
-                      "name": "OPENAI_API_VERSION",
-                      "value": "[parameters('azureOpenAIApiVersion')]"
                     },
                     {
                       "name": "AZURE_OPEN_AI_DEPLOYMENT_MODEL",

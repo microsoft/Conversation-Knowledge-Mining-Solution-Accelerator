@@ -108,10 +108,6 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
           value: azureAiProjectConnString
         }
         {
-          name: 'OPENAI_API_VERSION'
-          value: azureOpenAIApiVersion
-        }
-        {
           name: 'AZURE_OPEN_AI_DEPLOYMENT_MODEL'
           value: azureOpenAIDeploymentModel
         }

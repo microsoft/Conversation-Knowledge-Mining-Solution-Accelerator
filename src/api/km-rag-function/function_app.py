@@ -154,8 +154,7 @@ class ChatWithDataPlugin:
 
         client = openai.AzureOpenAI(
             azure_endpoint= endpoint, #f"{endpoint}/openai/deployments/{deployment}/extensions", 
-            api_key=apikey, 
-            api_version="2024-02-01"
+            api_key=apikey
         )
 
         query = question
@@ -260,7 +259,6 @@ async def stream_openai_text(req: Request) -> StreamingResponse:
     '''
     endpoint = os.environ.get("AZURE_OPEN_AI_ENDPOINT")
     api_key = os.environ.get("AZURE_OPEN_AI_API_KEY")
-    api_version = os.environ.get("OPENAI_API_VERSION")
     deployment = os.environ.get("AZURE_OPEN_AI_DEPLOYMENT_MODEL")
 
     agent = await AzureAssistantAgent.create(
@@ -268,7 +266,6 @@ async def stream_openai_text(req: Request) -> StreamingResponse:
         api_key=api_key,
         deployment_name=deployment,
         endpoint=endpoint,
-        api_version=api_version,
     )
 
     thread_id = await agent.create_thread()
