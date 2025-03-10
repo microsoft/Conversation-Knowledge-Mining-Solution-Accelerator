@@ -1,3 +1,5 @@
+
+import { cloneDeep } from "lodash-es";
 import { AskResponse, Citation } from "../../types/AppTypes";
 
 
@@ -6,43 +8,66 @@ type ParsedAnswer = {
     markdownFormatText: string;
 };
 
-let filteredCitations = [] as Citation[];
+const answerTextFormatting = (answer : AskResponse)=> {
+    let answerText = answer.answer;
+    const docCitations = answerText.match(/\[(doc\d\d?\d?)]/g);
+    // console.log("docCitations::",docCitations);
+    const lengthDocN = "[doc".length;
+    let citationIndexMapping:any ={}
+    // ['[doc4]', '[doc5]', '[doc1]','[doc4]']
+    //{4: 0, 5:1,1:2,}
+    let citationCount = 0;
+    docCitations?.forEach(link => {
+        // Replacing the links/citations with number
+        let citationIndex = link.slice(lengthDocN, link.length - 1);
+        // console.log("citationIndex::",citationIndex);
+        if(citationIndexMapping[citationIndex] === undefined){
+            citationIndexMapping[citationIndex] = citationCount
+            citationCount++;
+        }
+        let citation = cloneDeep(answer.citations[Number(citationIndexMapping[citationIndex])]) as Citation;
+        // console.log("citation::",citation);
+        if (citation !== undefined ) { 
+            // console.log("inside::");
+          answerText = answerText.replaceAll(link, ` ^${++citationIndexMapping[citationIndex]}^ `);
+        }
+       
+    })
 
-// Define a function to check if a citation with the same Chunk_Id already exists in filteredCitations
-const isDuplicate = (citation: Citation,citationIndex:string) => {
-    return filteredCitations.some((c) => c.chunk_id === citation.chunk_id) ;
-};
+    // console.log(" answer.citations::",  answer.citations)
+    // console.log("answerText::", answerText)
+    // console.log("answer.answer::", answer.answer)
+
+    return answerText
+}
+
+const UniqueCitationResponse = (answer: AskResponse)=>{
+    let citations = answer.citations;
+    let citationIndexMapping:any = {}
+    let uniqueCitations: Citation[] =[];
+    citations.forEach(citation => {
+        // Replacing the links/citations with number
+        if(!citation.url){
+            uniqueCitations.push(citation)
+        }else if(citationIndexMapping[citation.url] === undefined){
+            citationIndexMapping[citation.url] = 1
+            uniqueCitations.push(citation)
+        }
+    })
+    return uniqueCitations;
+}
 
 export function parseAnswer(answer: AskResponse): ParsedAnswer {
-    // let answerText = answer.answer;
-    // const citationLinks = answerText.match(/\[(doc\d\d?\d?)]/g);
 
-    // const lengthDocN = "[doc".length;
-
-    // filteredCitations = [] as Citation[];
-    // let citationReindex = 0;
-    // citationLinks?.forEach(link => {
-    //     // Replacing the links/citations with number
-    //     let citationIndex = link.slice(lengthDocN, link.length - 1);
-    //     let citation = cloneDeep(answer.citations[Number(citationIndex) - 1]) as Citation;
-
-    //     if (citation !== undefined && !isDuplicate(citation, citationIndex)) {
-    //       answerText = answerText.replaceAll(link, ` ^${++citationReindex}^ `);
-    //       citation.id = citationIndex; // original doc index to de-dupe
-    //       citation.reindex_id = citationReindex.toString(); // reindex from 1 for display
-    //       filteredCitations.push(citation);
-    //     }else{
-    //         // Replacing duplicate citation with original index
-    //         let matchingCitation = filteredCitations.find((ct) => citation?.chunk_id == ct?.chunk_id);
-    //         if (matchingCitation) {
-    //             answerText= answerText.replaceAll(link, ` ^${matchingCitation.reindex_id}^ `)
-    //         }
-    //     }
-    // })
-
-
+    let answerText = answerTextFormatting(answer)
+    let uniqueCitation = UniqueCitationResponse(answer)
     return {
-        citations: answer.citations,
-        markdownFormatText: answer.answer
+        citations: uniqueCitation, //answer.citations,
+        markdownFormatText:  answerText
     };
 }
+// 3,4,1,3
+// [3,4,1]
+// 3,3,4,4,3,1,4,1
+//3,1,4,4,3,1,4,1
+// []

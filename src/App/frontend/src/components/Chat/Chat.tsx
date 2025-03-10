@@ -28,6 +28,7 @@ import { ChatAdd24Regular } from "@fluentui/react-icons";
 import { generateUUIDv4 } from "../../configs/Utils";
 import ChatChart from "../ChatChart/ChatChart";
 import Citations from "../Citations/Citations";
+import { parseAnswer } from "../Citations/AnswerParser";
 
 type ChatProps = {
   onHandlePanelStates: (name: string) => void;
@@ -783,11 +784,18 @@ const Chat: React.FC<ChatProps> = ({
                   );
                 }
                 if (typeof msg.content === "string") {
+                  const parsedAnswer = parseAnswer({
+                    answer: msg.content as string,
+                    citations:
+                      msg.role === "assistant"
+                        ? parseCitationFromMessage(msg.citations)
+                        : [],
+                  });
                   return (
                     <div className="assistant-message">
-                      <ReactMarkdown
+                     <ReactMarkdown
                         remarkPlugins={[remarkGfm, supersub]}
-                        children={msg.content}
+                        children={parsedAnswer.markdownFormatText}
                       />
                      {/* Citation Loader: Show only while citations are fetching */}
                       {isLastAssistantMessage && generatingResponse ? (
