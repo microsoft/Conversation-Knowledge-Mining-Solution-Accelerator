@@ -49,8 +49,6 @@ curl -s -o /scripts/create-sql-user-and-role.ps1 ${createSqlUserAndRoleScriptsUr
 chmod +x /scripts/create-sql-user-and-role.ps1
 
 echo $sqlUsers
-$sqlUsers = $sqlUsers | ConvertFrom-Json
-echo $sqlUsers
 echo "sqlUsers====================="
 # # Execute SQL scripts for users and roles
 pwsh -File /scripts/create-sql-user-and-role.ps1 -SqlServerName ${sqlServerName} -SqlDatabaseName ${sqlDbName} -SqlUsers ${sqlUsers} -ManagedIdentityClientId ${managedIdentityClientId}
