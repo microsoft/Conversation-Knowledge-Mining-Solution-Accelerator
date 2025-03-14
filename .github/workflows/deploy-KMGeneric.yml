@@ -112,7 +112,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="westus" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }}
+            --parameters environmentName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }}
      
             
       - name: Extract AI Services and Key Vault Names

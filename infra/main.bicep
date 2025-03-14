@@ -8,8 +8,7 @@ param environmentName string
 
 @minLength(1)
 @description('Location for the Content Understanding service deployment:')
-@allowed(['westus'
-'swedencentral' 
+@allowed(['swedencentral' 
 'australiaeast'
 ])
 
@@ -44,7 +43,7 @@ param gptModelName string = 'gpt-4o-mini'
 // @minLength(1)
 // @description('Version of the GPT model to deploy:')
 // param gptModelVersion string = '2024-02-15-preview' //'2024-08-06'
-var gptModelVersion = '2024-02-15-preview'
+var azureOpenAIApiVersion = '2024-02-15-preview'
 
 @minValue(10)
 @description('Capacity of the GPT deployment:')
@@ -118,7 +117,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     cuLocation: contentUnderstandingLocation
     deploymentType: deploymentType
     gptModelName: gptModelName
-    gptModelVersion: gptModelVersion
+    azureOpenAIApiVersion: azureOpenAIApiVersion
     gptDeploymentCapacity: gptDeploymentCapacity
     embeddingModel: embeddingModel
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
@@ -170,8 +169,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
 }
 
 //========== Deployment script to upload sample data ========== //
-module uploadFiles 'deploy_upload_files_create_index_and_sqluser_script.bicep' = {
-  name : 'deploy_upload_files_create_index_and_sqluser_script'
+module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
+  name : 'deploy_post_deployment_scripts'
   params:{
     solutionName: solutionPrefix
     solutionLocation: secondaryLocation
@@ -181,6 +180,7 @@ module uploadFiles 'deploy_upload_files_create_index_and_sqluser_script.bicep' =
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.id
     managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
     keyVaultName:aifoundry.outputs.keyvaultName
+    logAnalyticsWorkspaceResourceName: aifoundry.outputs.logAnalyticsWorkspaceResourceName
     sqlServerName: sqlDBModule.outputs.sqlServerName
     sqlDbName: sqlDBModule.outputs.sqlDbName
     sqlUsers: [
@@ -231,7 +231,7 @@ module azureragFunctionsRag 'deploy_azure_function_rag.bicep' = {
     azureOpenAIDeploymentModel:gptModelName
     azureSearchAdminKey:keyVault.getSecret('AZURE-SEARCH-KEY')
     azureSearchServiceEndpoint:aifoundry.outputs.aiSearchTarget
-    azureOpenAIApiVersion: gptModelVersion //'2024-02-15-preview'
+    azureOpenAIApiVersion: azureOpenAIApiVersion
     azureAiProjectConnString:keyVault.getSecret('AZURE-AI-PROJECT-CONN-STRING')
     azureSearchIndex:'call_transcripts_index'
     sqlServerName:sqlDBModule.outputs.sqlServerName
@@ -270,7 +270,7 @@ module appserviceModule 'deploy_app_service.bicep' = {
     AzureOpenAIEndpoint:aifoundry.outputs.aiServicesTarget
     AzureOpenAIModel: gptModelName //'gpt-4o-mini'
     AzureOpenAIKey:keyVault.getSecret('AZURE-OPENAI-KEY')
-    azureOpenAIApiVersion: gptModelVersion //'2024-02-15-preview'
+    azureOpenAIApiVersion: azureOpenAIApiVersion
     AZURE_OPENAI_RESOURCE:aifoundry.outputs.aiServicesName
     CHARTS_URL:azureFunctionURL.outputs.functionURLsOutput.charts_function_url
     FILTERS_URL:azureFunctionURL.outputs.functionURLsOutput.filters_function_url

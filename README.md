@@ -11,7 +11,7 @@ User story
 
 This solution accelerator enables customers with large amounts of conversational data to improve decision-making by leveraging intelligence to uncover insights, relationships, and patterns from customer interactions. It empowers users to gain valuable knowledge and drive targeted business impact. 
 
-It leverages Azure AI Foundry, AI Content Understanding, Azure OpenAI, and Azure AI Search to transform large volumes of conversational data into actionable insights through topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat experiences.
+It leverages Azure AI Foundry, Azure AI Content Understanding, Azure OpenAI Service, and Azure AI Search to transform large volumes of conversational data into actionable insights through topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat experiences.
 
 
 ### Technical key features
@@ -51,7 +51,7 @@ To deploy this solution accelerator, ensure you have access to an [Azure subscri
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available:  
 
 - Azure AI Foundry 
-- Azure OpenAI Services 
+- Azure OpenAI Service 
 - Azure AI Search
 - Azure AI Content Understanding
 - Embedding Deployment Capacity  
@@ -69,8 +69,8 @@ When you start the deployment, most parameters will have **default values**, but
 |------------|----------------|------------|
 | **Azure Region** | The region where resources will be created. | eastus | 
 | **Environment Name** | A **3-20 character alphanumeric value** used to generate a unique ID to prefix the resources. | kmtemplate |
-| **Content Understanding Location** | Select from a drop-down list of values. | westus |
-| **Secondary Location** | A **less busy** region for **Azure SQL and CosmosDB**, useful in case of availability constraints. | eastus2 |
+| **Azure AI Content Understanding Location** | Select from a drop-down list of values. | swedencentral |
+| **Secondary Location** | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2 |
 | **Deployment Type** | Select from a drop-down list. | GlobalStandard |
 | **GPT Model** | Choose from **gpt-4, gpt-4o, gpt-4o-mini** | gpt-4o-mini |  
 | **GPT Model Deployment Capacity** | Configure capacity for **GPT models**. | 30k |

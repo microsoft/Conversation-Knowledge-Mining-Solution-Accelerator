@@ -5,7 +5,7 @@ param keyVaultName string
 param cuLocation string
 param deploymentType string
 param gptModelName string
-param gptModelVersion string
+param azureOpenAIApiVersion string
 param gptDeploymentCapacity int
 param embeddingModel string
 param embeddingDeploymentCapacity int
@@ -559,7 +559,7 @@ resource azureOpenAIApiVersionEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-0
   parent: keyVault
   name: 'AZURE-OPENAI-PREVIEW-API-VERSION'
   properties: {
-    value: gptModelVersion  //'2024-02-15-preview'
+    value: azureOpenAIApiVersion  //'2024-02-15-preview'
   }
 }
 
@@ -699,4 +699,5 @@ output aiSearchService string = aiSearch.name
 output aiProjectName string = aiHubProject.name
 
 output applicationInsightsId string = applicationInsights.id
+output logAnalyticsWorkspaceResourceName string = logAnalytics.name
 output storageAccountName string = storageNameCleaned

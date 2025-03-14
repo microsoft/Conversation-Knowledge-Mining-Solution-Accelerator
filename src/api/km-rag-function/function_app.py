@@ -67,24 +67,45 @@ class ChatWithDataPlugin:
     @kernel_function(name="Greeting", description="Respond to any greeting or general questions")
     def greeting(self, input: Annotated[str, "the question"]) -> Annotated[str, "The output is a string"]:
         query = input
-
         deployment = os.environ.get("AZURE_OPEN_AI_DEPLOYMENT_MODEL")
-        project_connection_string=os.environ.get("AZURE_AI_PROJECT_CONN_STRING")
-        project = AIProjectClient.from_connection_string(
-            conn_str=project_connection_string,
-            credential=DefaultAzureCredential()
-        )
-        client = project.inference.get_chat_completions_client()
+        use_ai_project_client = os.environ.get("USE_AI_PROJECT_CLIENT", "False").lower() == "true"
 
         try:
-            completion = client.complete(
-                model=deployment,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant to repond to any greeting or general questions."},
-                    {"role": "user", "content": query},
-                ],
-                temperature=0,
-            )
+            if use_ai_project_client:
+                project_connection_string = os.environ.get("AZURE_AI_PROJECT_CONN_STRING")
+                project = AIProjectClient.from_connection_string(
+                    conn_str=project_connection_string,
+                    credential=DefaultAzureCredential()
+                )
+                client = project.inference.get_chat_completions_client()
+                
+                completion = client.complete(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant to respond to any greeting or general questions."},
+                        {"role": "user", "content": query},
+                    ],
+                    temperature=0,
+                )
+            else:
+                endpoint = os.environ.get("AZURE_OPEN_AI_ENDPOINT")
+                api_key = os.environ.get("AZURE_OPEN_AI_API_KEY")
+                api_version = os.environ.get("OPENAI_API_VERSION")
+
+                client = openai.AzureOpenAI(
+                    azure_endpoint=endpoint,
+                    api_key=api_key,
+                    api_version=api_version
+                )
+
+                completion = client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant to respond to any greeting or general questions."},
+                        {"role": "user", "content": query},
+                    ],
+                    temperature=0,
+                )
             answer = completion.choices[0].message.content
         except Exception as e:
             answer = str(e) # 'Information from database could not be retrieved. Please try again later.'
@@ -96,44 +117,65 @@ class ChatWithDataPlugin:
         self,
         input: Annotated[str, "the question"]
         ):
-        
         query = input
-
-        deployment=os.environ.get("AZURE_OPEN_AI_DEPLOYMENT_MODEL")
-        project_connection_string=os.environ.get("AZURE_AI_PROJECT_CONN_STRING")
-        project = AIProjectClient.from_connection_string(
-            conn_str=project_connection_string,
-            credential=DefaultAzureCredential()
-        )
-        client = project.inference.get_chat_completions_client()
-
+        deployment = os.environ.get("AZURE_OPEN_AI_DEPLOYMENT_MODEL")
+        use_ai_project_client = os.environ.get("USE_AI_PROJECT_CLIENT", "False").lower() == "true"
+        
         sql_prompt = f'''A valid T-SQL query to find {query} for tables and columns provided below:
-        1. Table: km_processed_data
-        Columns: ConversationId,EndTime,StartTime,Content,summary,satisfied,sentiment,topic,keyphrases,complaint
-        2. Table: processed_data_key_phrases
-        Columns: ConversationId,key_phrase,sentiment
-        Use ConversationId as the primary key as the primary key in tables for queries but not for any other operations.
-        Only return the generated sql query. do not return anything else.''' 
+                1. Table: km_processed_data
+                Columns: ConversationId,EndTime,StartTime,Content,summary,satisfied,sentiment,topic,keyphrases,complaint
+                2. Table: processed_data_key_phrases
+                Columns: ConversationId,key_phrase,sentiment
+                Use ConversationId as the primary key as the primary key in tables for queries but not for any other operations.
+                Only return the generated sql query. do not return anything else.'''
+        
         try:
+            if use_ai_project_client:
+                project_connection_string=os.environ.get("AZURE_AI_PROJECT_CONN_STRING")
+                project = AIProjectClient.from_connection_string(
+                    conn_str=project_connection_string,
+                    credential=DefaultAzureCredential()
+                )
+                client = project.inference.get_chat_completions_client()
 
-            completion = client.complete(
-                model=deployment,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": sql_prompt},
-                ],
-                temperature=0,
-            )
-            sql_query = completion.choices[0].message.content
-            sql_query = sql_query.replace("```sql",'').replace("```",'')
+                completion = client.complete(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": sql_prompt},
+                    ],
+                    temperature=0,
+                )
+                sql_query = completion.choices[0].message.content
+                sql_query = sql_query.replace("```sql",'').replace("```",'')
+            else:
+                endpoint = os.environ.get("AZURE_OPEN_AI_ENDPOINT")
+                api_key = os.environ.get("AZURE_OPEN_AI_API_KEY")
+                api_version = os.environ.get("OPENAI_API_VERSION")
 
-            conn = get_db_connection()
+                client = openai.AzureOpenAI(
+                    azure_endpoint=endpoint,
+                    api_key=api_key,
+                    api_version=api_version
+                )
 
-            cursor = conn.cursor()
-            cursor.execute(sql_query)
-            answer = ''
-            for row in cursor.fetchall():
-                answer += str(row)
+                completion = client.chat.completions.create(
+                    model=deployment,
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": sql_prompt},
+                    ],
+                    temperature=0,
+                )
+                sql_query = completion.choices[0].message.content
+                sql_query = sql_query.replace("```sql",'').replace("```",'')
+            
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql_query)
+                    answer = ''
+                    for row in cursor.fetchall():
+                        answer += str(row)
         except Exception as e:
             answer = str(e) # 'Information from database could not be retrieved. Please try again later.'
         return answer
