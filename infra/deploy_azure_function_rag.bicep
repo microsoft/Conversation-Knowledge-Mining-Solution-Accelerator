@@ -52,6 +52,7 @@ resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
     //include vnetConfiguration if enabledVNetIntegration is true
     vnetConfiguration: enabledVNetIntegration ? {
       infrastructureSubnetId: FnRagSubnetId
+      internal : true
     } : null
     peerAuthentication: {
       mtls: {
@@ -174,5 +175,7 @@ resource aiDeveloperAccessProj 'Microsoft.Authorization/roleAssignments@2022-04-
     principalId: azurefn.identity.principalId
   }
 }
+
+output containetAppEnvName string = environmentName
 
 

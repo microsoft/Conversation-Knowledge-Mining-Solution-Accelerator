@@ -65,6 +65,10 @@ param AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
 param imageTag string
 param applicationInsightsId string
+
+@description('Flag to enable VNet integration')
+param enableVNetIntegration bool = false
+param subnetId string
 // var WebAppImageName = 'DOCKER|byoaiacontainer.azurecr.io/byoaia-app:latest'
 
 // var WebAppImageName = 'DOCKER|ncwaappcontainerreg1.azurecr.io/ncqaappimage:v1.0.0'
@@ -226,8 +230,11 @@ resource Website 'Microsoft.Web/sites@2020-06-01' = {
         }
       ]
       linuxFxVersion: WebAppImageName
+      vnetRouteAllEnabled: enableVNetIntegration
     }
+    virtualNetworkSubnetId: enableVNetIntegration ? subnetId : null
   }
+
   resource basicPublishingCredentialsPoliciesFtp 'basicPublishingCredentialsPolicies' = {
     name: 'ftp'
     properties: {

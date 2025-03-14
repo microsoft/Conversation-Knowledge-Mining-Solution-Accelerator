@@ -40,6 +40,7 @@ resource managedenv 'Microsoft.App/managedEnvironments@2024-03-01' = {
     //include vnetConfiguration if enabledVNetIntegration is true
     vnetConfiguration: enabledVNetIntegration ? {
       infrastructureSubnetId: FnChartsSubnetId
+      internal : true
     } : null
     peerAuthentication: {
       mtls: {
@@ -107,3 +108,4 @@ resource azurefn 'Microsoft.Web/sites@2023-12-01' = {
 }
 
 
+output containetAppEnvName string = environmentName

@@ -84,6 +84,14 @@ resource subnet4 'Microsoft.Network/virtualNetworks/subnets@2021-02-01' = {
   name: subnet4Name
   properties: {
     addressPrefix: addressPrefixSubnet4
+    delegations: [
+      {
+        name: 'delegation'
+        properties: {
+          serviceName: 'Microsoft.Web/serverFarms'
+        }
+      }
+    ]
   }
   dependsOn: [
     subnet3

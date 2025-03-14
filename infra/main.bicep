@@ -64,7 +64,7 @@ param embeddingModel string = 'text-embedding-ada-002'
 @description('Capacity of the Embedding Model deployment')
 param embeddingDeploymentCapacity int = 80
 
-param imageTag string = 'latest'
+param imageTag string = 'dev'
 
 @description('Flag to enable VNet integration')
 param enableVNetIntegration bool
@@ -75,7 +75,7 @@ var resourceGroupLocation = resourceGroup().location
 // var resourceGroupName = resourceGroup().name
 
 var solutionLocation = resourceGroupLocation
-var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
+var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/psl-ab-sfichanges/'
 
 
 // ========== Managed Identity ========== //
@@ -283,9 +283,81 @@ module appserviceModule 'deploy_app_service.bicep' = {
     AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: cosmosDBModule.outputs.cosmosContainerName
     AZURE_COSMOSDB_DATABASE: cosmosDBModule.outputs.cosmosDatabaseName
     AZURE_COSMOSDB_ENABLE_FEEDBACK:'True'
+    enableVNetIntegration: enableVNetIntegration
+    subnetId: enableVNetIntegration? vnetAndSubnet.outputs.subnet4Id : ''
   }
   scope: resourceGroup(resourceGroup().name)
   dependsOn:[sqlDBModule]
 }
 
 output WEB_APP_URL string = appserviceModule.outputs.webAppUrl
+
+module privateEndpointSQLServer 'deploy_private_endpoint_sql.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_private_endpoint_sqlserver'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
+    sqlServerName: replace(sqlDBModule.outputs.sqlServerName, '.database.windows.net', '') // Remove the .database.windows.net suffix
+    vnetId: vnetAndSubnet.outputs.vnetId
+    subnetId: vnetAndSubnet.outputs.subnet1Id
+  }
+}
+module privateEndpointCosmosDB 'deploy_private_endpoint_cosmos.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_private_endpoint_cosmosdb'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
+    cosmosDBAccountName: cosmosDBModule.outputs.cosmosAccountName
+    vnetId: vnetAndSubnet.outputs.vnetId
+    subnetId: vnetAndSubnet.outputs.subnet1Id
+  }
+}
+module privateEndpointStorageAccount 'deploy_private_endpoint_storage.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_private_endpoint_storageaccount'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
+    storageAccountName: storageAccount.outputs.storageName
+    storageAccountHubName: aifoundry.outputs.storageAccountName
+    vnetId: vnetAndSubnet.outputs.vnetId
+    subnetId: vnetAndSubnet.outputs.subnet1Id
+  }
+}
+
+module privateEndpointKeyVault 'deploy_private_endpoint_kv.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_private_endpoint_keyvault'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
+    keyVaultName: kvault.outputs.keyvaultName
+    vnetId: vnetAndSubnet.outputs.vnetId
+    subnetId: vnetAndSubnet.outputs.subnet1Id
+  }
+}
+
+module privateEndpointContainerAppEnv 'deploy_private_endpoint_containerappenv.bicep' = if(enableVNetIntegration) {
+  name: 'deploy_private_endpoint_containerappenv'
+  params: {
+    solutionName: solutionPrefix
+    solutionLocation: resourceGroupLocation
+    vnetId: vnetAndSubnet.outputs.vnetId
+    subnetId: vnetAndSubnet.outputs.subnet1Id
+    containerAppChartsName:azureFunctionsCharts.outputs.containetAppEnvName
+    containerAppRagName:azureragFunctionsRag.outputs.containetAppEnvName
+  }
+}
+
+module disablePublicNetworkAccess 'disablepublicnetworkaccess.bicep' = if(enableVNetIntegration) {
+  name: 'disable_public_network_access'
+  params: {
+    solutionLocation: resourceGroupLocation
+    sqlServerName: replace(sqlDBModule.outputs.sqlServerName, '.database.windows.net', '')
+    cosmosDBAccountName: cosmosDBModule.outputs.cosmosAccountName
+    storageAccountName: storageAccount.outputs.storageName
+    storageAccountHubName: aifoundry.outputs.storageAccountName
+    keyVaultName: kvault.outputs.keyvaultName
+  } 
+  dependsOn: [
+    appserviceModule
+  ]
+}
