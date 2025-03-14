@@ -23,7 +23,7 @@ param imageTag string
 param storageAccountName string
 param userassignedIdentityId string
 param userassignedIdentityClientId string
-param enabledVNetIntegration bool
+param enabledVNetIntegration bool = false
 
 param FnRagSubnetId string
 var functionAppName = '${solutionName}-rag-fn'

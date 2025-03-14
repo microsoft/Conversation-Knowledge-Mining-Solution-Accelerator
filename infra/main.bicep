@@ -66,7 +66,7 @@ param embeddingDeploymentCapacity int = 80
 param imageTag string = 'dev'
 
 @description('Flag to enable VNet integration')
-param enableVNetIntegration bool
+param enableVNetIntegration bool = false
 
 var uniqueId = toLower(uniqueString(subscription().id, environmentName, resourceGroup().location))
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
@@ -347,7 +347,7 @@ module privateEndpointContainerAppEnv 'deploy_private_endpoint_containerappenv.b
   }
 }
 
-module disablePublicNetworkAccess 'disablepublicnetworkaccess.bicep' = if(enableVNetIntegration) {
+module disablePublicNetworkAccess 'disable_public_network_access.bicep' = if(enableVNetIntegration) {
   name: 'disable_public_network_access'
   params: {
     solutionLocation: resourceGroupLocation

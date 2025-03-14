@@ -1,9 +1,9 @@
-param solutionLocation string = 'eastus2'
-param sqlServerName string = 'km4bpxf4ybvyr2-sql-server'
-param cosmosDBAccountName string = 'km4bpxf4ybvyr2-cosmos'
-param storageAccountName string = 'km4bpxf4ybvyr2storage'
-param storageAccountHubName string = 'km4bpxf4ybvyr2-kv'
-param keyVaultName string = 'km4bpxf4ybvyr2-kv'
+param solutionLocation string
+param sqlServerName string
+param cosmosDBAccountName string
+param storageAccountName string
+param storageAccountHubName string
+param keyVaultName string
 
 // Disable public access after Private Endpoints are created
 resource disableSqlPublicAccess 'Microsoft.Sql/servers@2023-08-01-preview' = {

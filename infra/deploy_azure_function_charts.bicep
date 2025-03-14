@@ -12,7 +12,7 @@ param storageAccountName string
 param userassignedIdentityId string
 param userassignedIdentityClientId string
 param FnChartsSubnetId string
-param enabledVNetIntegration bool
+param enabledVNetIntegration bool = false
 
 var functionAppName = '${solutionName}-charts-fn'
 var dockerImage = 'DOCKER|kmcontainerreg.azurecr.io/km-charts-function:${imageTag}'
