@@ -50,10 +50,10 @@ echo "✅ Azure subscription set successfully."
 AZURE_TENANT_ID=$(az account show --query tenantId --output tsv)
 echo "✅ Using Tenant ID: $AZURE_TENANT_ID"
 
-# 🔐 Authenticate using Service Principal
-echo "🔐 Logging in with Service Principal..."
-if ! az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"; then
-   echo "❌ Error: Failed to login using Service Principal."
+# 🔐 Logging in using Managed Identity (Recommended for Azure Cloud Shell, VM, or AKS)
+echo "🔐 Logging in using Managed Identity..."
+if ! az login --identity; then
+   echo "❌ Error: Failed to login using Managed Identity."
    exit 1
 fi
 
