@@ -134,13 +134,26 @@ for REGION in "${REGIONS[@]}"; do
     fi
 done
 
-# Determine final result
+# Determine final result and display in table format
 if [ ${#VALID_REGIONS[@]} -eq 0 ]; then
     echo "----------------------------------------"
     echo "❌ No region with sufficient quota found for all models. Blocking deployment."
+    echo "----------------------------------------"
     exit 0
 else
     echo "----------------------------------------"
-    echo "✅ Suggested Regions: ${VALID_REGIONS[*]}"
+    echo "✅ Suggested Regions with Sufficient Quota"
+    echo "----------------------------------------"
+    printf "| %-5s | %-20s |\n" "No." "Region"
+    echo "----------------------------------------"
+    
+    INDEX=1
+    for REGION in "${VALID_REGIONS[@]}"; do
+        printf "| %-5s | %-20s |\n" "$INDEX" "$REGION"
+        INDEX=$((INDEX + 1))
+    done
+    
+    echo "----------------------------------------"
     exit 0
 fi
+
