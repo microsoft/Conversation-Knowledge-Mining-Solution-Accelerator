@@ -136,9 +136,11 @@ done
 
 # Determine final result
 if [ ${#VALID_REGIONS[@]} -eq 0 ]; then
+    echo "----------------------------------------"
     echo "❌ No region with sufficient quota found for all models. Blocking deployment."
     exit 0
 else
+    echo "----------------------------------------"
     echo "✅ Suggested Regions: ${VALID_REGIONS[*]}"
     exit 0
 fi
