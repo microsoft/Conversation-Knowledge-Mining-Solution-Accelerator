@@ -28,11 +28,15 @@ done
 
 echo "🔄 Using Models: ${MODEL_NAMES[*]} with respective Capacities: ${CAPACITIES[*]}"
 
-# Authenticate using Managed Identity
-echo "Authentication using Managed Identity..."
-if ! az login --use-device-code; then
-   echo "❌ Error: Failed to login using Managed Identity."
-   exit 1
+# 🔄 Check if running inside Azure Cloud Shell
+if [ -n "$ACC_CLOUD" ]; then
+    echo "✅ Running inside Azure Cloud Shell. Skipping login."
+else
+    echo "🔐 Logging in with Service Principal..."
+    if ! az login --service-principal --username "$AZURE_CLIENT_ID" --password "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"; then
+       echo "❌ Error: Failed to login using Service Principal."
+       exit 1
+    fi
 fi
 
 # Fetch the default subscription ID dynamically
