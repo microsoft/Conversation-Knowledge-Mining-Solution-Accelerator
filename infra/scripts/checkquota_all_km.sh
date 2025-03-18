@@ -61,6 +61,8 @@ for REGION in "${REGIONS[@]}"; do
     # Fetch quota information
     QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json)
 
+    echo "🔍 Quota Info: $QUOTA_INFO"
+
     if [ -z "$QUOTA_INFO" ]; then
         echo "⚠️ WARNING: Failed to retrieve quota for region $REGION."
         continue
