@@ -62,6 +62,8 @@ echo "-------------------------------------------------------------------------"
 
 for REGION in "${REGIONS[@]}"; do
     QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json)
+    echo "🔹 Raw Quota Data for $REGION:"
+    echo "$QUOTA_INFO"
     if [ -z "$QUOTA_INFO" ]; then
         for MODEL in "${MODEL_NAMES[@]}"; do
             printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "$REGION" "OpenAI.Standard.$MODEL" "N/A" "N/A" "N/A"
