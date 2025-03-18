@@ -61,43 +61,28 @@ for REGION in "${REGIONS[@]}"; do
     # Fetch quota information
     QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json)
 
-    echo "🔍 Quota Info: $QUOTA_INFO"
-
     if [ -z "$QUOTA_INFO" ]; then
         echo "⚠️ WARNING: Failed to retrieve quota for region $REGION."
         continue
     fi
 
-     for index in "${!MODEL_NAMES[@]}"; do
-        MODEL_NAME="${MODEL_NAMES[$index]}"
-        REQUIRED_CAPACITY="${CAPACITIES[$index]}"
-        
-        echo "🔍 Checking model: $MODEL_NAME with required capacity: $REQUIRED_CAPACITY"
+    for MODEL_NAME in "${MODEL_NAMES[@]}"; do
+        MODEL_KEY="OpenAI.Standard.$MODEL_NAME"
 
         # Extract model quota information
-        MODEL_INFO=$(echo "$QUOTA_INFO" | awk -v model="\"value\": \"OpenAI.Standard.$MODEL_NAME\"" '
-            BEGIN { RS="},"; FS="," }
-            $0 ~ model { print $0 }
-        ')
+        MODEL_INFO=$(echo "$QUOTA_INFO" | jq -c ".[] | select(.name.value == \"$MODEL_KEY\")")
 
         if [ -z "$MODEL_INFO" ]; then
-            echo "⚠️ WARNING: No quota information found for model: OpenAI.Standard.$MODEL_NAME in $REGION. Skipping."
-            BOTH_MODELS_AVAILABLE=false
-            break  # If any model is not available, no need to check further for this region
+            echo "⚠️ WARNING: No quota information found for model: $MODEL_KEY in $REGION. Skipping."
+            continue
         fi
 
-        CURRENT_VALUE=$(echo "$MODEL_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
-        LIMIT=$(echo "$MODEL_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
+        CURRENT_VALUE=$(echo "$MODEL_INFO" | jq -r ".currentValue" | awk '{print int($1)}')
+        LIMIT=$(echo "$MODEL_INFO" | jq -r ".limit" | awk '{print int($1)}')
 
         CURRENT_VALUE=${CURRENT_VALUE:-0}
         LIMIT=${LIMIT:-0}
-
-        CURRENT_VALUE=$(echo "$CURRENT_VALUE" | cut -d'.' -f1)
-        LIMIT=$(echo "$LIMIT" | cut -d'.' -f1)
-
         AVAILABLE=$((LIMIT - CURRENT_VALUE))
-
-        echo "✅ Model: OpenAI.Standard.$MODEL_NAME | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE"
 
         printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_KEY" "$CURRENT_VALUE" "$LIMIT" "$AVAILABLE"
     done
