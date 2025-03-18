@@ -50,10 +50,9 @@ fi
 
 echo "✅ Retrieved Azure regions. Checking availability..."
 
-# Print table header
-echo "-----------------------------------------------------------------------"
-printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "Region" "Model" "Used" "Limit" "Available"
-echo "-----------------------------------------------------------------------"
+# Store results in an array for sorting
+AVAILABLE_MODELS=()
+NO_QUOTA_MODELS=()
 
 for REGION in "${REGIONS[@]}"; do
     echo "🔍 Checking region: $REGION"
@@ -73,7 +72,7 @@ for REGION in "${REGIONS[@]}"; do
         MODEL_INFO=$(echo "$QUOTA_INFO" | jq -c ".[] | select(.name.value == \"$MODEL_KEY\")")
 
         if [ -z "$MODEL_INFO" ]; then
-            echo "⚠️ WARNING: No quota information found for model: $MODEL_KEY in $REGION. Skipping."
+            NO_QUOTA_MODELS+=("$REGION|$MODEL_KEY|N/A|N/A|N/A")
             continue
         fi
 
@@ -84,8 +83,14 @@ for REGION in "${REGIONS[@]}"; do
         LIMIT=${LIMIT:-0}
         AVAILABLE=$((LIMIT - CURRENT_VALUE))
 
-        printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_KEY" "$CURRENT_VALUE" "$LIMIT" "$AVAILABLE"
+        AVAILABLE_MODELS+=("$AVAILABLE|$REGION|$MODEL_KEY|$CURRENT_VALUE|$LIMIT|$AVAILABLE")
     done
 done
 
+# Print table header
 echo "-----------------------------------------------------------------------"
+printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "Region" "Model" "Used" "Limit" "Available"
+echo "-----------------------------------------------------------------------"
+
+# Sort and print available models
+IFS=$'\n' SORTED_MODELS=($(sort -nr <<<"${AVAILABLE_MODELS[*]}"))
