@@ -69,26 +69,18 @@ for REGION in "${REGIONS[@]}"; do
     for MODEL_NAME in "${MODEL_NAMES[@]}"; do
         MODEL_KEY="OpenAI.Standard.$MODEL_NAME"
 
-        # Extract quota details
-        CURRENT_VALUE=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .currentValue // "N/A"')
-        LIMIT=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .limit // "N/A"')
+        CURRENT_VALUE=$(echo "$MODEL_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
+        LIMIT=$(echo "$MODEL_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
 
-        # Debugging log
-        echo "🔎 Model: $MODEL_KEY, Used: $CURRENT_VALUE, Limit: $LIMIT"
+        CURRENT_VALUE=${CURRENT_VALUE:-0}
+        LIMIT=${LIMIT:-0}
 
-        # Convert to integers if possible
-        if [[ "$CURRENT_VALUE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-            CURRENT_VALUE=$(printf "%.0f" "$CURRENT_VALUE")
-        fi
-        if [[ "$LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-            LIMIT=$(printf "%.0f" "$LIMIT")
-        fi
+        CURRENT_VALUE=$(echo "$CURRENT_VALUE" | cut -d'.' -f1)
+        LIMIT=$(echo "$LIMIT" | cut -d'.' -f1)
 
-        if [[ "$CURRENT_VALUE" == "N/A" || "$LIMIT" == "N/A" ]]; then
-            AVAILABLE="N/A"
-        else
-            AVAILABLE=$((LIMIT - CURRENT_VALUE))
-        fi
+        AVAILABLE=$((LIMIT - CURRENT_VALUE))
+
+        echo "✅ Model: OpenAI.Standard.$MODEL_NAME | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE"
 
         printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_KEY" "$CURRENT_VALUE" "$LIMIT" "$AVAILABLE"
     done
