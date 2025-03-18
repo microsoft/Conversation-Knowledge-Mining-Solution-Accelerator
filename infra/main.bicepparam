@@ -8,4 +8,4 @@ param gptModelName = readEnvironmentVariable('AZURE_ENV_MODEL_NAME', 'gpt-4o-min
 param gptDeploymentCapacity = int(readEnvironmentVariable('AZURE_ENV_MODEL_CAPACITY', '30'))
 param embeddingModel = readEnvironmentVariable('AZURE_ENV_EMBEDDING_MODEL_NAME', 'text-embedding-ada-002')
 param embeddingDeploymentCapacity = int(readEnvironmentVariable('AZURE_ENV_EMBEDDING_MODEL_CAPACITY', '80'))
-param enableVNetIntegration = bool(readEnvironmentVariable('AZURE_ENV_VNET_INTEGRATION', 'false'))
+param enableVNetIntegration = bool(readEnvironmentVariable('AZURE_ENV_VNET_INTEGRATION', 'true'))
