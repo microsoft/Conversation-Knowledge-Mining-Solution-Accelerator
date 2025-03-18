@@ -1,35 +1,17 @@
 #!/bin/bash
 
 # Parameters
-IFS=',' read -r -a MODEL_CAPACITY_PAIRS <<< "$1"  # Split the comma-separated model and capacity pairs into an array
+IFS=',' read -r -a MODEL_NAMES <<< "$1"  # List of model names (comma-separated)
 USER_REGION="$2"
 
-if [ ${#MODEL_CAPACITY_PAIRS[@]} -lt 1 ]; then
-    echo "❌ ERROR: At least one model and capacity pair must be provided."
+if [ ${#MODEL_NAMES[@]} -lt 1 ]; then
+    echo "❌ ERROR: At least one model must be provided as an argument."
     exit 1
 fi
 
-# Extract model names and required capacities into arrays
-declare -a MODEL_NAMES
-declare -a CAPACITIES
+echo "🔄 Using Models: ${MODEL_NAMES[*]}"
 
-for PAIR in "${MODEL_CAPACITY_PAIRS[@]}"; do
-    MODEL_NAME=$(echo "$PAIR" | cut -d':' -f1)
-    CAPACITY=$(echo "$PAIR" | cut -d':' -f2)
-
-    if [ -z "$MODEL_NAME" ] || [ -z "$CAPACITY" ]; then
-        echo "❌ ERROR: Invalid model and capacity pair '$PAIR'."
-        exit 1
-    fi
-
-    MODEL_NAMES+=("$MODEL_NAME")
-    CAPACITIES+=("$CAPACITY")
-done
-
-echo "🔄 Using Models: ${MODEL_NAMES[*]} with Capacities: ${CAPACITIES[*]}"
-
-# Fetch available Azure subscriptions
-echo "🔄 Fetching Azure subscriptions..."
+echo "🔄 Fetching available Azure subscriptions..."
 SUBSCRIPTIONS=$(az account list --query "[?state=='Enabled'].{Name:name, ID:id}" --output tsv)
 SUB_COUNT=$(echo "$SUBSCRIPTIONS" | wc -l)
 
@@ -43,12 +25,13 @@ else
     while true; do
         echo "Enter the number of the subscription to use:"
         read SUB_INDEX
+
         if [[ "$SUB_INDEX" =~ ^[0-9]+$ ]] && [ "$SUB_INDEX" -ge 1 ] && [ "$SUB_INDEX" -le "$SUB_COUNT" ]; then
             AZURE_SUBSCRIPTION_ID=$(echo "$SUBSCRIPTIONS" | awk -v idx="$SUB_INDEX" 'NR==idx {print $2}')
             echo "✅ Selected Subscription: $AZURE_SUBSCRIPTION_ID"
             break
         else
-            echo "❌ Invalid selection. Please enter a valid number."
+            echo "❌ Invalid selection. Please enter a valid number from the list."
         fi
     done
 fi
@@ -57,55 +40,56 @@ fi
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 echo "🎯 Active Subscription: $(az account show --query '[name, id]' --output table)"
 
-# List of regions
+# List of regions to check
 DEFAULT_REGIONS=("eastus" "uksouth" "eastus2" "northcentralus" "swedencentral" "westus" "westus2" "southcentralus" "canadacentral")
+
 if [ -n "$USER_REGION" ]; then
     REGIONS=("$USER_REGION" "${DEFAULT_REGIONS[@]}")
 else
     REGIONS=("${DEFAULT_REGIONS[@]}")
 fi
 
-echo "✅ Checking quota availability in regions..."
+echo "✅ Retrieved Azure regions. Checking availability..."
 
-# Table Header
-echo "-------------------------------------------------------------------------------------------------"
-printf "| %-15s | %-40s | %-10s | %-10s | %-10s |\n" "Region" "Model" "Used" "Limit" "Available"
-echo "-------------------------------------------------------------------------------------------------"
+# Print table header
+echo "-----------------------------------------------------------------------"
+printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "Region" "Model" "Used" "Limit" "Available"
+echo "-----------------------------------------------------------------------"
 
 for REGION in "${REGIONS[@]}"; do
     echo "🔍 Checking region: $REGION"
-    
+
     # Fetch quota information
     QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json)
 
     if [ -z "$QUOTA_INFO" ]; then
-        echo "⚠️ WARNING: Failed to retrieve quota for region $REGION. Skipping."
+        echo "⚠️ WARNING: Failed to retrieve quota for region $REGION."
         continue
     fi
 
-    for index in "${!MODEL_NAMES[@]}"; do
-        MODEL_NAME="${MODEL_NAMES[$index]}"
-        REQUIRED_CAPACITY="${CAPACITIES[$index]}"
+    for MODEL_NAME in "${MODEL_NAMES[@]}"; do
+        MODEL_KEY="OpenAI.Standard.$MODEL_NAME"
 
-        # Extract quota information from JSON
-        MODEL_INFO=$(echo "$QUOTA_INFO" | jq -c ".[] | select(.name.value | contains(\"$MODEL_NAME\"))")
+        # Extract quota details
+        CURRENT_VALUE=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .currentValue // "N/A"')
+        LIMIT=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .limit // "N/A"')
 
-        if [ -z "$MODEL_INFO" ]; then
-            printf "| %-15s | %-40s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_NAME" "N/A" "N/A" "N/A"
-            continue
+        # Convert to integers if possible
+        if [[ "$CURRENT_VALUE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            CURRENT_VALUE=$(printf "%.0f" "$CURRENT_VALUE")
+        fi
+        if [[ "$LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            LIMIT=$(printf "%.0f" "$LIMIT")
         fi
 
-        CURRENT_VALUE=$(echo "$MODEL_INFO" | jq -r '.currentValue // "0"')
-        LIMIT=$(echo "$MODEL_INFO" | jq -r '.limit // "0"')
+        if [[ "$CURRENT_VALUE" == "N/A" || "$LIMIT" == "N/A" ]]; then
+            AVAILABLE="N/A"
+        else
+            AVAILABLE=$((LIMIT - CURRENT_VALUE))
+        fi
 
-        # Convert floating point to integer
-        CURRENT_VALUE=${CURRENT_VALUE%%.*}
-        LIMIT=${LIMIT%%.*}
-
-        AVAILABLE=$((LIMIT - CURRENT_VALUE))
-
-        printf "| %-15s | %-40s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_NAME" "$CURRENT_VALUE" "$LIMIT" "$AVAILABLE"
+        printf "| %-15s | %-35s | %-10s | %-10s | %-10s |\n" "$REGION" "$MODEL_KEY" "$CURRENT_VALUE" "$LIMIT" "$AVAILABLE"
     done
 done
 
-echo "-------------------------------------------------------------------------------------------------"
+echo "-----------------------------------------------------------------------"
