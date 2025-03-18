@@ -68,11 +68,26 @@ for REGION in "${REGIONS[@]}"; do
         continue
     fi
 
-    for MODEL_NAME in "${MODEL_NAMES[@]}"; do
-        MODEL_KEY="OpenAI.Standard.$MODEL_NAME"
+     for index in "${!MODEL_NAMES[@]}"; do
+        MODEL_NAME="${MODEL_NAMES[$index]}"
+        REQUIRED_CAPACITY="${CAPACITIES[$index]}"
+        
+        echo "🔍 Checking model: $MODEL_NAME with required capacity: $REQUIRED_CAPACITY"
 
-        CURRENT_VALUE=$(echo "$QUOTA_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
-        LIMIT=$(echo "$QUOTA_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
+        # Extract model quota information
+        MODEL_INFO=$(echo "$QUOTA_INFO" | awk -v model="\"value\": \"OpenAI.Standard.$MODEL_NAME\"" '
+            BEGIN { RS="},"; FS="," }
+            $0 ~ model { print $0 }
+        ')
+
+        if [ -z "$MODEL_INFO" ]; then
+            echo "⚠️ WARNING: No quota information found for model: OpenAI.Standard.$MODEL_NAME in $REGION. Skipping."
+            BOTH_MODELS_AVAILABLE=false
+            break  # If any model is not available, no need to check further for this region
+        fi
+
+        CURRENT_VALUE=$(echo "$MODEL_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
+        LIMIT=$(echo "$MODEL_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
 
         CURRENT_VALUE=${CURRENT_VALUE:-0}
         LIMIT=${LIMIT:-0}
