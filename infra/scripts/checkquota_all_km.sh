@@ -69,8 +69,8 @@ for REGION in "${REGIONS[@]}"; do
     for MODEL_NAME in "${MODEL_NAMES[@]}"; do
         MODEL_KEY="OpenAI.Standard.$MODEL_NAME"
 
-        CURRENT_VALUE=$(echo "$MODEL_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
-        LIMIT=$(echo "$MODEL_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
+        CURRENT_VALUE=$(echo "$QUOTA_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
+        LIMIT=$(echo "$QUOTA_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
 
         CURRENT_VALUE=${CURRENT_VALUE:-0}
         LIMIT=${LIMIT:-0}
