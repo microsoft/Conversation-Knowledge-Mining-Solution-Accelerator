@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Parameters
-IFS=',' read -r -a MODEL_NAMES <<< "$1"  # List of model names (comma-separated)
+IFS=',' read -r -a MODEL_NAMES <<< "$1"
 USER_REGION="$2"
 
 if [ ${#MODEL_NAMES[@]} -lt 1 ]; then
@@ -36,7 +36,6 @@ else
     done
 fi
 
-# Set the selected subscription
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 echo "🎯 Active Subscription: $(az account show --query '[name, id]' --output table)"
 
@@ -73,6 +72,9 @@ for REGION in "${REGIONS[@]}"; do
         # Extract quota details
         CURRENT_VALUE=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .currentValue // "N/A"')
         LIMIT=$(echo "$QUOTA_INFO" | jq -r --arg MODEL "$MODEL_KEY" '.[] | select(.name.value==$MODEL) | .limit // "N/A"')
+
+        # Debugging log
+        echo "🔎 Model: $MODEL_KEY, Used: $CURRENT_VALUE, Limit: $LIMIT"
 
         # Convert to integers if possible
         if [[ "$CURRENT_VALUE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
