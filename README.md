@@ -39,6 +39,39 @@ The sample data used in this repository is synthetic and generated using Azure O
 QUICK DEPLOY
 </h2>
 
+### Check Quota Availability Before Deployment
+
+Before deploying the accelerator, check the quota availability for the model to ensure sufficient capacity.
+
+#### **If using Azure Portal and Cloud Shell**
+
+1. Navigate to the [Azure Portal](https://portal.azure.com).
+2. Click on **Azure Cloud Shell** in the top right navigation menu.
+3. Run the following commands:
+
+    ```sh
+    curl -L -o quota_check.sh "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/infra/scripts/quota_check.sh"
+    chmod +x quota_check.sh
+    ./quota_check.sh
+    ```
+#### **If using VS Code or Codespaces**
+
+1. Run the script:
+
+    ```sh
+    ./quota_check.sh <model_name:capacity> [<model_region>]
+    ```
+
+   If you see this error:  _bash: az: command not found_
+
+   ```sh
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+   az login
+   ```
+Then, rerun the script.
+
+If sufficient quota is available, proceed with the deployment.
+
 | [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2FConversation-Knowledge-Mining-Solution-Accelerator%2Fmain%2Finfra%2Fmain.json) |
 |---|---|---|
         
