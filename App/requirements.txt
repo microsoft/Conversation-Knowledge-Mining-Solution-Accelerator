@@ -16,4 +16,4 @@ azure-identity
 azure-mgmt-resource
 aiohttp
 fastapi==0.115.6
-httpx==0.28.0
+httpx==0.28.1
