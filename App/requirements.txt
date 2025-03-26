@@ -3,7 +3,7 @@ Quart==0.19.4
 quart-cors==0.7.0
 Quart-Session==3.0.0
 gunicorn==20.1.0
-uvicorn==0.24.0
+uvicorn==0.34.0
 numpy
 pandas
 python-dotenv==1.0.1
