@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.44.8038",
-      "templateHash": "13730134018880843517"
+      "templateHash": "6953011515641525948"
     }
   },
   "parameters": {
@@ -92,7 +92,7 @@
     },
     "imageTag": {
       "type": "string",
-      "defaultValue": "latest_migra"
+      "defaultValue": "migra"
     }
   },
   "variables": {
@@ -101,7 +101,7 @@
     "solutionPrefix": "[format('km{0}', padLeft(take(variables('uniqueId'), 12), 12, '0'))]",
     "resourceGroupLocation": "[resourceGroup().location]",
     "solutionLocation": "[variables('resourceGroupLocation')]",
-    "baseUrl": "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/"
+    "baseUrl": "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/psl-pk-dev-api-migration/"
   },
   "resources": [
     {
