@@ -24,7 +24,7 @@ If you'd like to customize the solution accelerator, here are some ways you migh
         7.  Click Publish
     7.  Retrieve Workspace ID from URL, refer to documentation additional assistance ([here](https://learn.microsoft.com/en-us/fabric/admin/portal-workspace#identify-your-workspace-id))
 
-    ***Note: Wait until the Environment is finished publishing prior to proceeding witht the next steps.
+    ***Note: Wait until the Environment is finished publishing prior to proceeding with the next steps.
 
 4.  **Deploy Fabric resources and artifacts**
     1.   Navigate to ([Azure Portal](https://portal.azure.com/))
@@ -40,7 +40,7 @@ If you'd like to customize the solution accelerator, here are some ways you migh
               3.   solutionprefix_param - prefix used to append to lakehouse upon creation
 5.  **Add App Authentication**
    
-    Follow steps in [App Authentication](./docs/AppAuthentication.md) to configure authenitcation in app service.
+    Follow steps in [App Authentication](./docs/AppAuthentication.md) to configure authentication in app service.
 
 ### Upload additional files
 
