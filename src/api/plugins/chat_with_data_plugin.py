@@ -190,6 +190,6 @@ class ChatWithDataPlugin:
                 finally:
                     await thread.delete() if thread else None
                     await client.agents.delete_agent(agent.id)
-        except BaseException as e:
+        except BaseException:
             answer = 'Details could not be retrieved. Please try again later.'
         return answer

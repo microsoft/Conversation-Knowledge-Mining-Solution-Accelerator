@@ -10,7 +10,6 @@ from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
 from azure.identity.aio import DefaultAzureCredential
 
-from semantic_kernel import Kernel
 from semantic_kernel.agents import AzureAIAgent, AzureAIAgentThread
 from semantic_kernel.exceptions.agent_exceptions import AgentInvokeException
 
@@ -128,7 +127,7 @@ class ChatService:
                     thread: AzureAIAgentThread = None
                     thread_id = thread_cache.get(conversation_id, None)
                     if thread_id:
-                        thread = AzureAIAgentThread(client=agent.client,thread_id=thread_id)
+                        thread = AzureAIAgentThread(client=agent.client, thread_id=thread_id)
 
                     # Use an async generator without await
                     async for response in agent.invoke_stream(messages=query, thread=thread):

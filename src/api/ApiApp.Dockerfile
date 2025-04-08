@@ -1,13 +1,15 @@
 FROM python:3.11-alpine
 
 # Install system dependencies required for building and running the application
-RUN apk add --no-cache --virtual .build-deps \  
-    build-base \  
-    libffi-dev \  
-    openssl-dev \  
+RUN apk add --no-cache --virtual .build-deps \
+    build-base \
+    libffi-dev \
+    openssl-dev \
     curl \
-    unixodbc-dev \  
-    libpq
+    unixodbc-dev \
+    libpq \
+    opus-dev \
+    libvpx-dev
 
 # Download and install Microsoft ODBC Driver and MSSQL tools
 RUN curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk \
@@ -23,7 +25,7 @@ WORKDIR /app
 COPY ./requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt && rm -rf /root/.cache  
+RUN pip install --no-cache-dir -r requirements.txt && rm -rf /root/.cache
 
 # Copy the backend application code into the container
 COPY ./ .
