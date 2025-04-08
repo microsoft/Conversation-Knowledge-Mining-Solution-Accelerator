@@ -1,12 +1,16 @@
 from typing import Annotated
 
-import openai
-from semantic_kernel.functions.kernel_function_decorator import kernel_function
-from azure.identity import DefaultAzureCredential
 from azure.ai.projects import AIProjectClient
+from azure.ai.projects.models import AzureAISearchTool, ConnectionType
+from azure.identity.aio import DefaultAzureCredential
 
 from common.config.config import Config
 from common.database.sqldb_service import execute_sql_query
+
+from semantic_kernel.agents import AzureAIAgent, AzureAIAgentThread
+from semantic_kernel.functions.kernel_function_decorator import kernel_function
+
+import openai
 
 
 class ChatWithDataPlugin:
@@ -22,12 +26,14 @@ class ChatWithDataPlugin:
         self.use_ai_project_client = config.use_ai_project_client
         self.azure_ai_project_conn_string = config.azure_ai_project_conn_string
 
-    @kernel_function(name="Greeting",
-                     description="Respond to any greeting or general questions")
-    def greeting(self,
-                 input: Annotated[str,
-                                  "the question"]) -> Annotated[str,
-                                                                "The output is a string"]:
+    @kernel_function(
+        name="Greeting",
+        description="Respond to any greeting or general questions"
+    )
+    async def greeting(
+        self,
+        input: Annotated[str, "the question"]
+    ) -> Annotated[str, "The output is a string"]:
         query = input
 
         try:
@@ -69,11 +75,13 @@ class ChatWithDataPlugin:
             answer = str(e)
         return answer
 
-    @kernel_function(name="ChatWithSQLDatabase",
-                     description="Given a query, get details from the database")
-    def get_SQL_Response(
-            self,
-            input: Annotated[str, "the question"]
+    @kernel_function(
+        name="ChatWithSQLDatabase",
+        description="Given a query, get details from the database"
+    )
+    async def get_SQL_Response(
+        self,
+        input: Annotated[str, "the question"]
     ):
         query = input
 
@@ -120,7 +128,6 @@ class ChatWithDataPlugin:
                 )
                 sql_query = completion.choices[0].message.content
                 sql_query = sql_query.replace("```sql", '').replace("```", '')
-
             answer = execute_sql_query(sql_query)
 
         except Exception as e:
@@ -129,78 +136,60 @@ class ChatWithDataPlugin:
         print(answer)
         return answer
 
-    @kernel_function(name="ChatWithCallTranscripts",
-                     description="given a query, get answers from search index")
-    def get_answers_from_calltranscripts(
-            self,
-            question: Annotated[str, "the question"]
+    @kernel_function(
+        name="ChatWithCallTranscripts",
+        description="given a query, get answers from search index"
+    )
+    async def get_answers_from_calltranscripts(
+        self,
+        question: Annotated[str, "the question"]
     ):
-        client = openai.AzureOpenAI(
-            azure_endpoint=self.azure_openai_endpoint,
-            api_key=self.azure_openai_api_key,
-            api_version=self.azure_openai_api_version
-        )
-
-        query = question
-        system_message = '''You are an assistant who provides an analyst with helpful information about data.
-        You have access to the call transcripts, call data, topics, sentiments, and key phrases.
-        You can use this information to answer questions.
-        If you cannot answer the question, always return - I cannot answer this question from the data available. Please rephrase or add more details.'''
-        answer = ''
         try:
-            completion = client.chat.completions.create(
-                model=self.azure_openai_deployment_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_message
-                    },
-                    {
-                        "role": "user",
-                        "content": query
-                    }
-                ],
-                seed=42,
-                temperature=0,
-                max_tokens=800,
-                extra_body={
-                    "data_sources": [
-                        {
-                            "type": "azure_search",
-                            "parameters": {
-                                "endpoint": self.azure_ai_search_endpoint,
-                                "index_name": self.azure_ai_search_index,
-                                "semantic_configuration": "my-semantic-config",
-                                "query_type": "vector_simple_hybrid",  # "vector_semantic_hybrid"
-                                "fields_mapping": {
-                                    "content_fields_separator": "\n",
-                                    "content_fields": ["content"],
-                                    "filepath_field": "chunk_id",
-                                    "title_field": "sourceurl",  # null,
-                                    "url_field": "sourceurl",
-                                    "vector_fields": ["contentVector"]
-                                },
-                                "in_scope": "true",
-                                "role_information": system_message,
-                                # "vector_filter_mode": "preFilter", #VectorFilterMode.PRE_FILTER,
-                                # "filter": f"client_id eq '{ClientId}'", #"", #null,
-                                "strictness": 3,
-                                "top_n_documents": 5,
-                                "authentication": {
-                                    "type": "api_key",
-                                    "key": self.azure_ai_search_api_key
-                                },
-                                "embedding_dependency": {
-                                    "type": "deployment_name",
-                                    "deployment_name": "text-embedding-ada-002"
-                                },
+            async with (
+                DefaultAzureCredential() as creds,
+                AzureAIAgent.create_client(
+                    credential=creds,
+                    conn_str=self.azure_ai_project_conn_string,
+                ) as client,
+            ):
+                conn_list = await client.connections.list()
 
-                            }
-                        }
-                    ]
-                }
-            )
-            answer = completion.choices[0]
-        except BaseException:
+                ai_search_conn_id = ""
+                for conn in conn_list:
+                    if conn.connection_type == ConnectionType.AZURE_AI_SEARCH and conn.authentication_type == "ApiKey":
+                        ai_search_conn_id = conn.id
+                        break
+
+                ai_search = AzureAISearchTool(index_connection_id=ai_search_conn_id, index_name=self.azure_ai_search_index)
+
+                system_message = '''You are an assistant who provides an analyst with helpful information about data.
+                You have access to the call transcripts, call data, topics, sentiments, and key phrases.
+                You can use this information to answer questions.
+                If you cannot answer the question, always return - I cannot answer this question from the data available. Please rephrase or add more details.'''
+
+                # Create agent definition
+                agent_definition = await client.agents.create_agent(
+                    model=self.azure_openai_deployment_model,
+                    instructions=system_message,
+                    tools=ai_search.definitions,
+                    tool_resources=ai_search.resources,
+                    headers={"x-ms-enable-preview": "true"},
+                )
+
+                # Create the AzureAI Agent
+                agent = AzureAIAgent(
+                    client=client,
+                    definition=agent_definition,
+                )
+
+                thread: AzureAIAgentThread = None
+
+                try:
+                    async for response in agent.invoke(messages=question, thread=thread):
+                        answer = response
+                finally:
+                    await thread.delete() if thread else None
+                    await client.agents.delete_agent(agent.id)
+        except BaseException as e:
             answer = 'Details could not be retrieved. Please try again later.'
         return answer
