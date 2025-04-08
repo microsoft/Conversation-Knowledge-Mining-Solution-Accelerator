@@ -197,6 +197,7 @@ module backend_docker 'deploy_backend_docker.bicep'= {
     solutionName: solutionPrefix
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
     keyVaultName:aifoundry.outputs.keyvaultName
+    aiProjectName: aifoundry.outputs.aiProjectName
     appSettings:{
         AZURE_OPEN_AI_DEPLOYMENT_MODEL:gptModelName
         AZURE_OPEN_AI_ENDPOINT:aifoundry.outputs.aiServicesTarget

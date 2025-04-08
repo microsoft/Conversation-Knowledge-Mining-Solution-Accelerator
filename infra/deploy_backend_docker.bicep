@@ -6,6 +6,7 @@ param appSettings object = {}
 param appServicePlanId string
 param userassignedIdentityId string
 param keyVaultName string
+param aiProjectName string
 
 var imageName = 'DOCKER|kmcontainerreg.azurecr.io/km-api:${imageTag}'
 var name = '${solutionName}-api'
@@ -128,6 +129,23 @@ resource keyVaultSecretsOfficerRoleAssignment 'Microsoft.Authorization/roleAssig
     roleDefinitionId: keyVaultSecretsOfficerRoleDefinition.id
     principalId: appService.outputs.identityPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+resource aiHubProject 'Microsoft.MachineLearningServices/workspaces@2024-01-01-preview' existing = {
+  name: aiProjectName
+}
+
+resource aiDeveloper 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '64702f94-c441-49e6-a78b-ef80e0188fee'
+}
+
+resource aiDeveloperAccessProj 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appService.name, aiHubProject.id, aiDeveloper.id)
+  scope: aiHubProject
+  properties: {
+    roleDefinitionId: aiDeveloper.id
+    principalId: appService.outputs.identityPrincipalId
   }
 }
 
