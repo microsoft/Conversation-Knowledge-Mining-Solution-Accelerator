@@ -205,7 +205,7 @@ const Chart = (props: ChartProps) => {
     setAppliedFetch(false);
   };
 
-  const renderChart = (chart: ChartConfigItem, heightInPixes: number) => {
+  const renderChart = (chart: ChartConfigItem, heightInPixels: number) => {
     const getColorForLabel = (label: string): string => {
       switch (label) {
         case "positive":
@@ -228,7 +228,7 @@ const Chart = (props: ChartProps) => {
             value={chart.data?.[0]?.value || "0"}
             description={chart.data?.[0]?.name || ""}
             unit_of_measurement={chart.data?.[0]?.unit_of_measurement || ""}
-            containerHeight={heightInPixes}
+            containerHeight={heightInPixels}
           />
         ) : (
           <NoData />
@@ -242,7 +242,7 @@ const Chart = (props: ChartProps) => {
               value: parseInt(item.value) || 0,
               color: getColorForLabel(item.name.toLowerCase()),
             }))}
-            containerHeight={heightInPixes}
+            containerHeight={heightInPixels}
             widthInPixels={document?.getElementById(chart?.domId)!?.clientWidth}
             containerID={chart?.domId}
           />
@@ -250,7 +250,7 @@ const Chart = (props: ChartProps) => {
           <div
             className="outerNoDataContainer"
             style={{
-              height: `calc(${heightInPixes}px - 40px)`,
+              height: `calc(${heightInPixels}px - 40px)`,
             }}
           >
             <NoData />
@@ -264,14 +264,14 @@ const Chart = (props: ChartProps) => {
               category: item.name,
               value: parseFloat(item.value),
             }))}
-            containerHeight={heightInPixes}
+            containerHeight={heightInPixels}
             containerID={chart?.domId}
           />
         ) : (
           <div
             className="outerNoDataContainer"
             style={{
-              height: `calc(${heightInPixes}px - 40px)`,
+              height: `calc(${heightInPixels}px - 40px)`,
             }}
           >
             <NoData />
@@ -287,13 +287,13 @@ const Chart = (props: ChartProps) => {
               call_frequency: item.call_frequency,
               average_sentiment: item.average_sentiment,
             }))}
-            containerHeight={heightInPixes}
+            containerHeight={heightInPixels}
           />
         ) : (
           <div
             className="outerNoDataContainer"
             style={{
-              height: `calc(${heightInPixes}px - 40px)`,
+              height: `calc(${heightInPixels}px - 40px)`,
             }}
           >
             <NoData />
@@ -311,13 +311,13 @@ const Chart = (props: ChartProps) => {
               })),
             }}
             widthInPixels={document?.getElementById(chart?.domId)!?.clientWidth}
-            containerHeight={heightInPixes}
+            containerHeight={heightInPixels}
           />
         ) : (
           <div
             className="outerNoDataContainer"
             style={{
-              height: `calc(${heightInPixes}px - 40px)`,
+              height: `calc(${heightInPixels}px - 40px)`,
             }}
           >
             <NoData />
@@ -376,11 +376,11 @@ const Chart = (props: ChartProps) => {
               [...chartsList],
               widgetsGapInPercentage
             );
-            let heightInPixes = 240;
+            let heightInPixels = 240;
             if (gridStyles.gridTemplateRows) {
               if (!isNaN(parseInt(gridStyles.gridTemplateRows))) {
                 const heightInVH = parseInt(gridStyles.gridTemplateRows);
-                heightInPixes = getHeightInPixels(heightInVH);
+                heightInPixels = getHeightInPixels(heightInVH);
               }
             }
             return (
@@ -404,7 +404,7 @@ const Chart = (props: ChartProps) => {
                       <Subtitle2 className="chart-title">
                         {chart.title}
                       </Subtitle2>
-                      {renderChart(chart, heightInPixes)}
+                      {renderChart(chart, heightInPixels)}
                     </div>
                   ))}
               </div>

@@ -56,7 +56,7 @@
       "keyPhrases": {
         "type": "string",
         "method": "generate",
-        "description": "Identify the top 10 key phrases as comma seperated string excluding people names"
+        "description": "Identify the top 10 key phrases as comma separated string excluding people names"
       },
       "complaint": {
         "type": "string",

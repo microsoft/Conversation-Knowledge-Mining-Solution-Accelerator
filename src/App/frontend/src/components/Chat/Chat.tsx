@@ -354,7 +354,7 @@ const Chat: React.FC<ChatProps> = ({
       }
       saveToDB(updatedMessages, conversationId, 'graph');
     } catch (e) {
-      console.log("Catched with an error while chat and save", e);
+      console.log("Caught with an error while chat and save", e);
       if (abortController.signal.aborted) {
         if (streamMessage.content) {
           updatedMessages = [
@@ -644,7 +644,7 @@ const Chat: React.FC<ChatProps> = ({
       }
       saveToDB(updatedMessages, conversationId, isChatReq);
     } catch (e) {
-      console.log("Catched with an error while chat and save", e);
+      console.log("Caught with an error while chat and save", e);
       if (abortController.signal.aborted) {
         if (streamMessage.content) {
           updatedMessages = [

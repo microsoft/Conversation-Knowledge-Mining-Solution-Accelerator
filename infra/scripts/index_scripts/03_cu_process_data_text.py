@@ -456,7 +456,7 @@ def call_gpt4(topics_str1, client):
         If the input data is insufficient for reliable topic modeling, indicate that more data is needed rather than making assumptions. 
         Ensure that the topics and labels are accurate, relevant, and easy to understand.
 
-        Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attriubtes in json.
+        Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
     # Phi-3 model client
@@ -574,7 +574,7 @@ mined_topics =  ", ".join(mined_topics_list)
 def get_mined_topic_mapping(input_text, list_of_topics):
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
-                ALLWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
+                ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
 
     # Phi-3 model client
     # response = client.complete(
