@@ -23,6 +23,3 @@ semantic-kernel[azure]==1.26.1
 openai==1.61.0
 pyodbc==5.2.0
 pandas==2.2.3
-Quart==0.19.4
-quart-cors==0.7.0
-Quart-Session==3.0.0
