@@ -77,7 +77,7 @@ class ChatWithDataPlugin:
 
     @kernel_function(
         name="ChatWithSQLDatabase",
-        description="Given a query, get details from the database"
+        description="Retrieve quantified results from the SQL database based on a given query."
     )
     async def get_SQL_Response(
         self,
@@ -138,7 +138,7 @@ class ChatWithDataPlugin:
 
     @kernel_function(
         name="ChatWithCallTranscripts",
-        description="given a query, get answers from search index"
+        description="Retrieve detailed descriptive answers or summaries from the search index based on a given query."
     )
     async def get_answers_from_calltranscripts(
         self,
