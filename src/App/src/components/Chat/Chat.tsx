@@ -134,10 +134,8 @@ const Chat: React.FC<ChatProps> = ({
   const parseCitationFromMessage = (message : any) => {
 
       try {
-        message = '{'+ message 
-        const toolMessage = JSON.parse(message as string) as ToolMessageContent;
-        
-        return toolMessage.citations;
+        const toolMessage = JSON.parse(message as string);
+        return toolMessage;
       } catch {
         console.log("ERROR WHIEL PARSING TOOL CONTENT");
       }
@@ -494,33 +492,10 @@ const Chat: React.FC<ChatProps> = ({
                   } else if (isChartQuery(userMessage)) {
                     runningText = runningText + textValue;
                   } else if (typeof parsed === "object" && !hasError) {
-                    const responseContent  = parsed?.choices?.[0]?.messages?.[0]?.content;
-                     
-                    const answerKey = `"answer":`;
-                    const answerStartIndex  = responseContent.indexOf(answerKey);
-
-                    if (answerStartIndex  !== -1) {
-                      answerTextStart  =responseContent .indexOf(`"answer":`) +9;
-                    } 
-                 
-                    const citationsKey = `"citations":`;
-                    const citationsStartIndex = responseContent.indexOf(citationsKey);
-
-                    if(citationsStartIndex > answerTextStart ){
-                      answerText = responseContent .substring(answerTextStart, citationsStartIndex).trim();
-                      citationString = responseContent .substring(citationsStartIndex).trim();
-                    }else{
-                      answerText = responseContent .substring(answerTextStart).trim();
-                    }
-
-                      answerText = answerText.replace(/^"+|"+$|,$/g, '');// first ""
-                      answerText = answerText.replace(/[",]+$/, ''); // last ",
-                      answerText = answerText.replace(/\\n/g, "  \n");
-                    
-                    
+                    const answerText  = parsed?.answer
+                    const citationString = parsed?.citations;
                     streamMessage.content = answerText || "";
-                    streamMessage.role =
-                      parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT;
+                    streamMessage.role = ASSISTANT;
 
                     streamMessage.citations = citationString;
                     dispatch({

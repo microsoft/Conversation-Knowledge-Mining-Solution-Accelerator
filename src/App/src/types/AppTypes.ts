@@ -150,6 +150,8 @@ export type ParsedChunk = {
   model: string;
   created: number;
   object: string;
+  answer: string;
+  citations: string;
   choices: [
     {
       messages: [

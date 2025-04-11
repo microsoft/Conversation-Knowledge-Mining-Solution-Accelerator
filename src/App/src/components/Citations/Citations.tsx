@@ -48,7 +48,7 @@ const Citations = ({ answer, index }: Props) => {
                 maxWidth: "100%",
             }}
         >
-            {parsedAnswer.citations.map((citation, idx) => {
+            {parsedAnswer?.citations.map((citation, idx) => {
                 return (
                     <span
                         role="button"

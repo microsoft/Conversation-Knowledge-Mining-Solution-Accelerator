@@ -112,6 +112,8 @@ def format_stream_response(chatCompletionChunk, history_metadata, apim_request_i
         "model": chatCompletionChunk.model,
         "created": chatCompletionChunk.created,
         "object": chatCompletionChunk.object,
+        "answer": chatCompletionChunk.answer,
+        "citations": chatCompletionChunk.citations,
         "choices": [{"messages": []}],
         "history_metadata": history_metadata,
         "apim-request-id": apim_request_id,
