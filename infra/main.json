@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.34.44.8038",
-      "templateHash": "12675504960294079442"
+      "templateHash": "4722009347381731325"
     }
   },
   "parameters": {
@@ -1964,11 +1964,32 @@
           "solutionName": {
             "value": "[variables('solutionPrefix')]"
           },
+          "azureOpenAIKey": {
+            "reference": {
+              "keyVault": {
+                "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.KeyVault/vaults', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.keyvaultName.value)]"
+              },
+              "secretName": "AZURE-OPENAI-KEY"
+            }
+          },
+          "azureAiProjectConnString": {
+            "reference": {
+              "keyVault": {
+                "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.KeyVault/vaults', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.keyvaultName.value)]"
+              },
+              "secretName": "AZURE-AI-PROJECT-CONN-STRING"
+            }
+          },
+          "azureSearchAdminKey": {
+            "reference": {
+              "keyVault": {
+                "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.KeyVault/vaults', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.keyvaultName.value)]"
+              },
+              "secretName": "AZURE-SEARCH-KEY"
+            }
+          },
           "userassignedIdentityId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityBackendAppOutput.value.id]"
-          },
-          "keyVaultName": {
-            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.keyvaultName.value]"
           },
           "aiProjectName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiProjectName.value]"
@@ -1979,7 +2000,6 @@
               "AZURE_OPEN_AI_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiServicesTarget.value]",
               "AZURE_OPENAI_API_VERSION": "[variables('azureOpenAIApiVersion')]",
               "AZURE_OPENAI_RESOURCE": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiServicesName.value]",
-              "AZURE_OPENAI_API_KEY": "AZURE-OPENAI-KEY",
               "AZURE_KEY_VAULT_URL": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_keyvault'), '2022-09-01').outputs.keyvaultUri.value]",
               "USE_CHAT_HISTORY_ENABLED": "True",
               "AZURE_COSMOSDB_ACCOUNT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_cosmos_db'), '2022-09-01').outputs.cosmosAccountName.value]",
@@ -1993,9 +2013,7 @@
               "OPENAI_API_VERSION": "[variables('azureOpenAIApiVersion')]",
               "AZURE_AI_SEARCH_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiSearchTarget.value]",
               "AZURE_AI_SEARCH_INDEX": "call_transcripts_index",
-              "AZURE_AI_SEARCH_API_KEY": "AZURE-SEARCH-KEY",
               "USE_AI_PROJECT_CLIENT": "False",
-              "AZURE_AI_PROJECT_CONN_STRING": "AZURE-AI-PROJECT-CONN-STRING",
               "DISPLAY_CHART_DEFAULT": "True"
             }
           }
@@ -2007,7 +2025,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.34.44.8038",
-              "templateHash": "10123721156645783951"
+              "templateHash": "14001159014642291962"
             }
           },
           "parameters": {
@@ -2027,10 +2045,16 @@
             "appServicePlanId": {
               "type": "string"
             },
-            "userassignedIdentityId": {
-              "type": "string"
+            "azureOpenAIKey": {
+              "type": "securestring"
             },
-            "keyVaultName": {
+            "azureAiProjectConnString": {
+              "type": "securestring"
+            },
+            "azureSearchAdminKey": {
+              "type": "securestring"
+            },
+            "userassignedIdentityId": {
               "type": "string"
             },
             "aiProjectName": {
@@ -2040,8 +2064,7 @@
           "variables": {
             "imageName": "[format('DOCKER|kmcontainerreg.azurecr.io/km-api:{0}', parameters('imageTag'))]",
             "name": "[format('{0}-api', parameters('solutionName'))]",
-            "reactAppLayoutConfig": "{\r\n  \"appConfig\": {\r\n    \"THREE_COLUMN\": {\r\n      \"DASHBOARD\": 50,\r\n      \"CHAT\": 33,\r\n      \"CHATHISTORY\": 17\r\n    },\r\n    \"TWO_COLUMN\": {\r\n      \"DASHBOARD_CHAT\": {\r\n        \"DASHBOARD\": 65,\r\n        \"CHAT\": 35\r\n      },\r\n      \"CHAT_CHATHISTORY\": {\r\n        \"CHAT\": 80,\r\n        \"CHATHISTORY\": 20\r\n      }\r\n    }\r\n  },\r\n  \"charts\": [\r\n    {\r\n      \"id\": \"SATISFIED\",\r\n      \"name\": \"Satisfied\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\r\n    },\r\n    {\r\n      \"id\": \"TOTAL_CALLS\",\r\n      \"name\": \"Total Calls\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME\",\r\n      \"name\": \"Average Handling Time\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"SENTIMENT\",\r\n      \"name\": \"Topics Overview\",\r\n      \"type\": \"donutchart\",\r\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\r\n      \"name\": \"Average Handling Time By Topic\",\r\n      \"type\": \"bar\",\r\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\r\n    },\r\n    {\r\n      \"id\": \"TOPICS\",\r\n      \"name\": \"Trending Topics\",\r\n      \"type\": \"table\",\r\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\r\n    },\r\n    {\r\n      \"id\": \"KEY_PHRASES\",\r\n      \"name\": \"Key Phrases\",\r\n      \"type\": \"wordcloud\",\r\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\r\n    }\r\n  ]\r\n}",
-            "keyVaultSecretsOfficerId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7"
+            "reactAppLayoutConfig": "{\r\n  \"appConfig\": {\r\n    \"THREE_COLUMN\": {\r\n      \"DASHBOARD\": 50,\r\n      \"CHAT\": 33,\r\n      \"CHATHISTORY\": 17\r\n    },\r\n    \"TWO_COLUMN\": {\r\n      \"DASHBOARD_CHAT\": {\r\n        \"DASHBOARD\": 65,\r\n        \"CHAT\": 35\r\n      },\r\n      \"CHAT_CHATHISTORY\": {\r\n        \"CHAT\": 80,\r\n        \"CHATHISTORY\": 20\r\n      }\r\n    }\r\n  },\r\n  \"charts\": [\r\n    {\r\n      \"id\": \"SATISFIED\",\r\n      \"name\": \"Satisfied\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\r\n    },\r\n    {\r\n      \"id\": \"TOTAL_CALLS\",\r\n      \"name\": \"Total Calls\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME\",\r\n      \"name\": \"Average Handling Time\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"SENTIMENT\",\r\n      \"name\": \"Topics Overview\",\r\n      \"type\": \"donutchart\",\r\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\r\n      \"name\": \"Average Handling Time By Topic\",\r\n      \"type\": \"bar\",\r\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\r\n    },\r\n    {\r\n      \"id\": \"TOPICS\",\r\n      \"name\": \"Trending Topics\",\r\n      \"type\": \"table\",\r\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\r\n    },\r\n    {\r\n      \"id\": \"KEY_PHRASES\",\r\n      \"name\": \"Key Phrases\",\r\n      \"type\": \"wordcloud\",\r\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\r\n    }\r\n  ]\r\n}"
           },
           "resources": [
             {
@@ -2052,20 +2075,6 @@
                 "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', variables('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
                 "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', parameters('appSettings').AZURE_COSMOSDB_ACCOUNT, '00000000-0000-0000-0000-000000000002')]",
                 "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('appSettings').AZURE_COSMOSDB_ACCOUNT)]"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', variables('name')))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.KeyVault/vaults/{0}', parameters('keyVaultName'))]",
-              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsOfficerId')))]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsOfficerId'))]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', variables('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
-                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', variables('name')))]"
@@ -2107,7 +2116,7 @@
                     "value": "[parameters('userassignedIdentityId')]"
                   },
                   "appSettings": {
-                    "value": "[union(parameters('appSettings'), createObject('APPINSIGHTS_INSTRUMENTATIONKEY', reference(parameters('applicationInsightsId'), '2015-05-01').InstrumentationKey, 'REACT_APP_LAYOUT_CONFIG', variables('reactAppLayoutConfig')))]"
+                    "value": "[union(parameters('appSettings'), createObject('AZURE_OPENAI_API_KEY', parameters('azureOpenAIKey'), 'AZURE_AI_SEARCH_API_KEY', parameters('azureSearchAdminKey'), 'AZURE_AI_PROJECT_CONN_STRING', parameters('azureAiProjectConnString'), 'APPINSIGHTS_INSTRUMENTATIONKEY', reference(parameters('applicationInsightsId'), '2015-05-01').InstrumentationKey, 'REACT_APP_LAYOUT_CONFIG', variables('reactAppLayoutConfig')))]"
                   }
                 },
                 "template": {

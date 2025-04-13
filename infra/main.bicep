@@ -195,15 +195,16 @@ module backend_docker 'deploy_backend_docker.bicep'= {
     appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
     solutionName: solutionPrefix
+    azureOpenAIKey:keyVault.getSecret('AZURE-OPENAI-KEY')
+    azureAiProjectConnString:keyVault.getSecret('AZURE-AI-PROJECT-CONN-STRING')
+    azureSearchAdminKey:keyVault.getSecret('AZURE-SEARCH-KEY')
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
-    keyVaultName:aifoundry.outputs.keyvaultName
     aiProjectName: aifoundry.outputs.aiProjectName
     appSettings:{
         AZURE_OPEN_AI_DEPLOYMENT_MODEL:gptModelName
         AZURE_OPEN_AI_ENDPOINT:aifoundry.outputs.aiServicesTarget
         AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
         AZURE_OPENAI_RESOURCE:aifoundry.outputs.aiServicesName
-        AZURE_OPENAI_API_KEY:'AZURE-OPENAI-KEY'
         AZURE_KEY_VAULT_URL: kvault.outputs.keyvaultUri
         USE_CHAT_HISTORY_ENABLED:'True'
         AZURE_COSMOSDB_ACCOUNT: cosmosDBModule.outputs.cosmosAccountName
@@ -218,9 +219,7 @@ module backend_docker 'deploy_backend_docker.bicep'= {
         OPENAI_API_VERSION: azureOpenAIApiVersion
         AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
         AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
-        AZURE_AI_SEARCH_API_KEY:'AZURE-SEARCH-KEY'
         USE_AI_PROJECT_CLIENT:'False'
-        AZURE_AI_PROJECT_CONN_STRING:'AZURE-AI-PROJECT-CONN-STRING'
         DISPLAY_CHART_DEFAULT:'True'
       }
   }
