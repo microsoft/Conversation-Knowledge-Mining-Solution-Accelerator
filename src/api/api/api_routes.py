@@ -4,6 +4,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from api.models.input_models import ChartFilters
+from services.chart_service import ChartService
 from services.chat_service import ChatService
 
 router = APIRouter()
