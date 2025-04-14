@@ -99,7 +99,11 @@ class ChatService:
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers) as response:
                 if response.status == 200:
-                    return await response.json()
+                    response_json = await response.json()
+                    return {
+                        "id": response_json.get("id", "Unknown"),
+                        "content": response_json.get("content", "No content available"),
+                    }
                 else:
                     return {"content": f"Failed to fetch content. HTTP Status: {response.status}", "id": "Unknown"}
 
