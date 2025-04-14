@@ -5,7 +5,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
-from services.chart_service import ChartService
 
 router = APIRouter()
 
@@ -94,3 +93,27 @@ async def get_chart_config():
     if chart_config:
         return JSONResponse(content={"isChartDisplayDefault": chart_config})
     return JSONResponse(content={"error": "DISPLAY_CHART_DEFAULT flag not found in environment variables"}, status_code=400)
+
+
+@router.post("/fetch-azure-search-content")
+async def fetch_azure_search_content_endpoint(request: Request):
+    """
+    API endpoint to fetch content from a given URL using the Azure AI Search API key.
+    Expects a JSON payload with a 'url' field.
+    """
+    try:
+        # Parse the request JSON
+        request_json = await request.json()
+        url = request_json.get("url")
+
+        if not url:
+            return JSONResponse(content={"error": "URL is required"}, status_code=400)
+
+        # Call the fetch_azure_search_content method
+        chat_service = ChatService()
+        content = await chat_service.fetch_azure_search_content(url)
+
+        return JSONResponse(content={"content": content})
+    except Exception as e:
+        logger.exception("Error in fetch_azure_search_content_endpoint")
+        return JSONResponse(content={"error": f"Failed to fetch URL content: {str(e)}"}, status_code=500)

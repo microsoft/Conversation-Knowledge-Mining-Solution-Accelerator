@@ -91,8 +91,8 @@ class ChatService:
             logger.error(f"Error processing RAG response: {e}")
             return {"error": "Chart could not be generated from this data. Please ask a different question."}
         
-    async def fetch_url_content(self, url):
-        """Fetch content from the given URL using the API key."""
+    async def fetch_azure_search_content(self, url):
+        """Fetch content from the given URL using the Azure AI Search API key."""
         headers = {
             "api-key": self.azure_ai_search_api_key,
         }
@@ -180,16 +180,8 @@ class ChatService:
                         assistant_content += str(response)
                     elif isinstance(response, list) and all(isinstance(item, StreamingAnnotationContent) for item in response):
                         for item in response:
-                            # print("Footnote item:", flush=True)
-                            # print(item, flush=True)
-                            # fetched_data = await self.fetch_url_content(item.url + ',sourceurl')
-                            # citation = {
-                            #     "content": fetched_data.get("content", ""),
-                            #     "url": fetched_data.get("sourceurl", ""),
-                            #     "title": fetched_data.get("sourceurl", "Unknown Title"),
-                            # }
                             citation = {
-                                "content": item.quote,
+                                "content": "",
                                 "url": item.url,
                                 "title": item.quote,
                             }
