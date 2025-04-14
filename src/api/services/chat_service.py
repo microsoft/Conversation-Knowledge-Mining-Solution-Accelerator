@@ -189,7 +189,10 @@ class ChatService:
                                 "url": item.url,
                                 "title": item.quote,
                             }
-                            citations.append(citation)
+                            if citation not in citations:
+                                citations.append(citation)
+
+                        citations = sorted(citations, key=lambda x: x["title"])
 
                     chat_completion_chunk = {
                         "id": str(uuid.uuid4()),
