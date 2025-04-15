@@ -189,26 +189,30 @@ class ChatService:
                                 "url": item.url,
                                 "title": item.quote,
                             }
-                            citations.append(citation)
+                            if citation not in citations:
+                                citations.append(citation)
 
-                    chat_completion_chunk = {
-                        "id": str(uuid.uuid4()),
-                        "model": "rag-model",
-                        "created": int(time.time()),
-                        "object": "extensions.chat.completion.chunk",
-                        "answer": assistant_content,
-                        "citations": json.dumps(citations),
-                        "choices": [
-                            {
-                                "messages": [],
-                                "delta": {},
-                            }
-                        ],
-                        "history_metadata": history_metadata,
-                        "apim-request-id": "",
-                    }
+                        citations = sorted(citations, key=lambda x: x["title"])
+                        
+                    if assistant_content:
+                        chat_completion_chunk = {
+                            "id": str(uuid.uuid4()),
+                            "model": "rag-model",
+                            "created": int(time.time()),
+                            "object": "extensions.chat.completion.chunk",
+                            "answer": assistant_content,
+                            "citations": json.dumps(citations),
+                            "choices": [
+                                {
+                                    "messages": [],
+                                    "delta": {},
+                                }
+                            ],
+                            "history_metadata": history_metadata,
+                            "apim-request-id": "",
+                        }
 
-                    yield json.dumps(chat_completion_chunk) + "\n\n"
+                        yield json.dumps(chat_completion_chunk) + "\n\n"
 
             except AgentInvokeException as e:
                 error_message = str(e)
