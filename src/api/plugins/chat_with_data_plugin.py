@@ -129,7 +129,7 @@ class ChatWithDataPlugin:
                 sql_query = completion.choices[0].message.content
                 sql_query = sql_query.replace("```sql", '').replace("```", '')
             answer = execute_sql_query(sql_query)
-
+            answer = answer[:2000] if len(answer) > 2000 else answer
         except Exception as e:
             # 'Information from database could not be retrieved. Please try again later.'
             answer = str(e)
