@@ -3,49 +3,13 @@ import logging
 import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
-from services.chart_service import ChartService
 
 router = APIRouter()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-@router.get("/fetchChartData")
-async def fetch_chart_data():
-    try:
-        chart_service = ChartService()
-        response = chart_service.fetch_chart_data()
-        return JSONResponse(content=response)
-    except Exception as e:
-        logger.exception("Error in fetch_chart_data: %s", str(e))
-        return JSONResponse(content={"error": "Failed to fetch chart data due to an internal error."}, status_code=500)
-
-
-@router.post("/fetchChartDataWithFilters")
-async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
-    try:
-        logger.info(f"Received filters: {chart_filters}")
-        chart_service = ChartService()
-        response = await chart_service.fetch_chart_data_with_filters(chart_filters)
-        return JSONResponse(content=response)
-    except Exception as e:
-        logger.exception("Error in fetch_chart_data_with_filters: %s", str(e))
-        return JSONResponse(content={"error": "Failed to fetch chart data due to an internal error."}, status_code=500)
-
-
-@router.get("/fetchFilterData")
-async def fetch_filter_data():
-    try:
-        chart_service = ChartService()
-        response = chart_service.fetch_filter_data()
-        return JSONResponse(content=response)
-    except Exception as e:
-        logger.exception("Error in fetch_filter_data: %s", str(e))
-        return JSONResponse(content={"error": "Failed to fetch filter data due to an internal error."}, status_code=500)
 
 
 @router.post("/chat")
