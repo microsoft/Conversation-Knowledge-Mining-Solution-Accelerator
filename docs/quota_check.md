@@ -8,12 +8,6 @@ Before deploying the accelerator, **ensure sufficient quota availability** for t
 azd auth login
 ```
 
-
-### Login if you have not done so already
-```
-azd auth login
-```
-
 ### 📌 Default Models & Capacities:
 ```
 gpt-4o:30, gpt-4o-mini:30, gpt-4:30, text-embedding-ada-002:80
