@@ -642,7 +642,10 @@ const Chat: React.FC<ChatProps> = ({
           ];
         }
       }
-      saveToDB(updatedMessages, conversationId, isChatReq);
+
+      if (!updatedMessages.find((msg: any) => msg.role === "error")) {
+        saveToDB(updatedMessages, conversationId, isChatReq);
+      }
     } catch (e) {
       console.log("Catched with an error while chat and save", e);
       if (abortController.signal.aborted) {
