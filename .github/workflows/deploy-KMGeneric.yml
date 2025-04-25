@@ -79,9 +79,9 @@ jobs:
         id: generate_rg_name
         run: |
           echo "Generating a unique resource group name..."
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          COMMON_PART="ci-KMGeneric"
-          UNIQUE_RG_NAME="${COMMON_PART}${TIMESTAMP}"
+          ACCL_NAME="ci-KMGeneric"  # Account name as specified
+          SHORT_UUID=$(uuidgen | cut -d'-' -f1)
+          UNIQUE_RG_NAME="arg-${ACCL_NAME}-${SHORT_UUID}"
           echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
           echo "Generated Resource_GROUP_PREFIX: ${UNIQUE_RG_NAME}"
 
@@ -103,7 +103,7 @@ jobs:
 
       - name: Determine Tag Name Based on Branch
         id: determine_tag
-        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_migrated' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
 
       - name: Deploy Bicep Template
         id: deploy
@@ -120,10 +120,10 @@ jobs:
         run: |
               echo "Fetching AI Services and Key Vault names before deletion..."
               
-              # # Get Key Vault name
-              # KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
-              # echo "Detected Key Vault: $KEYVAULT_NAME"
-              # echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
+              # Get Key Vault name
+              KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
+              echo "Detected Key Vault: $KEYVAULT_NAME"
+              echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
           
               # Get AI Services names and convert them into a space-separated string
               AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
