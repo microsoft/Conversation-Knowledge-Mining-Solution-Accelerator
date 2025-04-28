@@ -20,10 +20,15 @@ from common.config.config import Config
 from helpers.utils import format_stream_response
 
 from plugins.chat_with_data_plugin import ChatWithDataPlugin
+from services.memory_service import MemoryService
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Constants
 HOST_NAME = "CKM"
 HOST_INSTRUCTIONS = "Answer questions about call center operations"
+MEMORY_INDEX_NAME = "memory-vector"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +48,7 @@ class ChatService:
         self.azure_ai_project_conn_string = config.azure_ai_project_conn_string
         self.azure_ai_search_index = config.azure_ai_search_index
         self.azure_ai_search_api_key = config.azure_ai_search_api_key
+        self.memory_service = MemoryService()  # Initialize memory service
 
     def process_rag_response(self, rag_response, query):
         """
@@ -121,7 +127,13 @@ class ChatService:
                     conn_str=self.azure_ai_project_conn_string,
                 ) as client:
                     AGENT_NAME = "agent"
-                    AGENT_INSTRUCTIONS = '''You are a helpful assistant.'''
+                    AGENT_INSTRUCTIONS = '''You are a helpful assistant.
+                    You have three tools available to you:
+                    1. Azure AI Search: You can use this tool to search for memories in the knowledge base.
+                    3. Chat with Data: You can use this tool to chat with data and get answers to questions.
+                    
+                    Use the Azure AI Search tool whenever a user asks about something that might have been stored in memory.
+                    '''
 
                     conn_list = await client.connections.list()
 
@@ -131,15 +143,21 @@ class ChatService:
                             ai_search_conn_id = conn.id
                             break
 
-                    ai_search = AzureAISearchTool(index_connection_id=ai_search_conn_id, index_name=self.azure_ai_search_index)
+                    # Create tool for memory search
+                    ai_search = AzureAISearchTool(index_connection_id=ai_search_conn_id, index_name=MEMORY_INDEX_NAME)
+
+                    # Combine tools and their resources
+                    tools = ai_search.definitions
+                    
+                    tool_resources = ai_search.resources
 
                     # Create agent definition
                     agent_definition = await client.agents.create_agent(
                         model=self.azure_openai_deployment_name,
                         name=AGENT_NAME,
                         instructions=AGENT_INSTRUCTIONS,
-                        tools=ai_search.definitions,
-                        tool_resources=ai_search.resources,
+                        tools=tools,
+                        tool_resources=tool_resources,
                         headers={"x-ms-enable-preview": "true"},
                     )
 
@@ -167,16 +185,73 @@ class ChatService:
             logger.error(f"Error in stream_openai_text: {e}", exc_info=True)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error streaming OpenAI text")
 
-    async def stream_chat_request(self, request_body, conversation_id, query):
+    async def stream_chat_request(self, conversation_id, query):
         """
         Handles streaming chat requests.
         """
-        history_metadata = request_body.get("history_metadata", {})
-
+        # history_metadata = request_body.get("history_metadata", {})
+        
+        # Check if this is a memory save request
+        is_memory_request = self.memory_service.is_memory_save_request(query)
+        
         async def generate():
             try:
+                # If this is a memory save request, handle it
+                if is_memory_request == 'True':
+                    logger.info(f"Detected memory save request: {query}")
+                    
+                    # Extract content to save
+                    content_to_save = query
+                    
+                    if content_to_save:
+                        # Store the memory
+                        memory_result = await self.memory_service.store_memory(conversation_id, content_to_save)
+                        
+                        if memory_result["success"]:
+                            # Return success message
+                            memory_response = {
+                                "id": str(uuid.uuid4()),
+                                "model": "rag-model",
+                                "created": int(time.time()),
+                                "object": "extensions.chat.completion.chunk",
+                                "answer": "Memory updated.",
+                                "citations": json.dumps([]),
+                                "choices": [
+                                    {
+                                        "messages": [],
+                                        "delta": {},
+                                    }
+                                ],
+                                # "history_metadata": history_metadata,
+                                "apim-request-id": "",
+                            }
+                            yield json.dumps(memory_response) + "\n\n"
+                            return
+                        else:
+                            # Return error message
+                            error_response = {
+                                "id": str(uuid.uuid4()),
+                                "model": "rag-model",
+                                "created": int(time.time()),
+                                "object": "extensions.chat.completion.chunk",
+                                "answer": f"Failed to save memory: {memory_result['message']}",
+                                "citations": json.dumps([]),
+                                "choices": [
+                                    {
+                                        "messages": [],
+                                        "delta": {},
+                                    }
+                                ],
+                                # "history_metadata": history_metadata,
+                                "apim-request-id": "",
+                            }
+                            yield json.dumps(error_response) + "\n\n"
+                            return
+                
+                # If not a memory request, proceed with normal chat flow
                 assistant_content = ""
                 citations = []
+                
                 # Call the OpenAI streaming method
                 async for response in self.stream_openai_text(conversation_id, query):
                     # Extract the content from the response
@@ -208,7 +283,7 @@ class ChatService:
                                     "delta": {},
                                 }
                             ],
-                            "history_metadata": history_metadata,
+                            # "history_metadata": history_metadata,
                             "apim-request-id": "",
                         }
 
@@ -257,3 +332,28 @@ class ChatService:
             "created": int(time.time()),
             "object": chart_data,
         }
+
+import asyncio
+
+async def test_stream_chat():
+    new_chat = ChatService()
+    # Get the generator function
+    generator = await new_chat.stream_chat_request(query="My name is Marlene and I am the CTO of the company. Can you save this to memory", conversation_id="12345")
+    # Execute the generator
+    async for chunk in generator:
+        try:
+            # Parse the JSON to extract just the answer
+            data = json.loads(chunk)
+            if "answer" in data:
+                # Print only the answer text without the JSON structure
+                print(data["answer"], end="", flush=True)
+            elif "error" in data:
+                # Print any error messages
+                print(f"\nError: {data['error']}")
+        except json.JSONDecodeError:
+            # If it's not valid JSON, print it as is
+            print(chunk)
+
+# Run the test function
+if __name__ == "__main__":
+    asyncio.run(test_stream_chat())
