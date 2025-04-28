@@ -1,5 +1,6 @@
-openai==1.57.0
-Quart==0.20.0
+openai==1.70.0
+Quart==0.19.4
+
 quart-cors==0.7.0
 Quart-Session==3.0.0
 gunicorn==23.0.0
@@ -15,5 +16,5 @@ azure-cosmos
 azure-identity
 azure-mgmt-resource
 aiohttp
-fastapi==0.115.6
-httpx==0.28.1
+fastapi==0.115.12
+httpx==0.28.0
