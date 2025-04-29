@@ -195,7 +195,7 @@ class MemoryService:
             # Create a search index client
             search_index_client = SearchIndexClient(
                 endpoint=self.azure_ai_search_endpoint,
-                credential=AzureKeyCredential()
+                credential=AzureKeyCredential(self.azure_ai_search_api_key)
             )
             
             # Check if index exists
@@ -219,7 +219,7 @@ class MemoryService:
             # Continue execution even if index creation fails
             # The application will attempt to use the index if it exists
     
-    async def store_memory(self, conversation_id: str, content: str) -> Dict[str, Any]:
+    async def store_memory(self, thread_id: str, content: str) -> Dict[str, Any]:
         """
         Stores content in memory using Azure AI Search.
         
@@ -232,7 +232,7 @@ class MemoryService:
         """
         try:
             # Create a unique ID for this memory
-            memory_id = f"{conversation_id}-{hashlib.md5(content.encode()).hexdigest()}"
+            memory_id = f"{thread_id}-{hashlib.md5(content.encode()).hexdigest()}"
             
             # Create a search client
             search_client = SearchClient(
@@ -254,7 +254,7 @@ class MemoryService:
             # Create the memory document
             document = {
                 "id": memory_id,
-                "thread_id": conversation_id,
+                "thread_id": thread_id,
                 "role": "user",
                 "content": content,
                 "contentVector": embeddings,
@@ -278,3 +278,101 @@ class MemoryService:
                 "error": str(e),
                 "message": "Failed to save memory."
             }
+        
+    async def retrieve_all_memories(self) -> Dict[str, Any]:
+        """
+        Retrieves all stored memories from Azure AI Search.
+        
+        Returns:
+            Dict: A dictionary containing the success status and either a list of memories or an error message.
+        """
+        try:
+            # Create a search client for the memory index
+            search_client = SearchClient(
+                endpoint=self.azure_ai_search_endpoint,
+                index_name=self.memory_index_name,
+                credential=AzureKeyCredential(self.azure_ai_search_api_key)
+            )
+            
+            # Search for all documents with "*" wildcard
+            result = search_client.search(search_text="*", top=1000, include_total_count=True)
+            
+            total_count = result.get_count()
+            
+            if total_count == 0:
+                return {
+                    "success": True,
+                    "memories": [],
+                    "message": "No memories found."
+                }
+            
+            # Process and format the results
+            memories = []
+            for document in result:
+                memories.append({
+                    "id": document["id"],
+                    "thread_id": document["thread_id"],
+                    "content": document["content"]
+                })
+            
+            # Format the memories as bullet points
+            formatted_text = "\n".join([f"• Memory: {mem['content']}" for mem in memories])
+            
+            return {
+                "success": True,
+                "memories": memories,
+                "formatted_text": formatted_text,
+                "message": f"Successfully retrieved {total_count} memories."
+            }
+            
+        except Exception as e:
+            logger.error(f"Error retrieving memories: {str(e)}", exc_info=True)
+            return {
+                "success": False,
+                "memories": None,
+                "message": f"Failed to retrieve memories: {str(e)}"
+            }
+            
+    def is_memory_retrieval_request(self, query: str) -> bool:
+        """
+        Detects if the user's query is a request to retrieve all memories.
+        """
+        # Simple pattern matching for memory retrieval requests
+        memory_patterns = [
+            r"show\s+(?:all|my)\s+memories",
+            r"list\s+(?:all|my)\s+memories",
+            r"retrieve\s+(?:all|my)\s+memories",
+            r"get\s+(?:all|my)\s+memories",
+            r"what\s+(?:have|did)\s+(?:I|you)\s+(?:stored|saved|memorized)",
+            r"what's\s+in\s+(?:your|my)\s+memory",
+        ]
+
+        client = openai.AzureOpenAI(
+                azure_endpoint=self.azure_openai_endpoint,
+                api_key=self.azure_openai_api_key,
+                api_version=self.azure_openai_api_version,
+            )
+        
+        system_prompt = f"""
+        You are an assistant helping to see if the user's query is a request to retrieve all memories.
+        If the user is asking to retrieve all memories respond with the bool True. If not repsond with False. 
+        Only respond with the bool and nothing else. Here are some examples of what the user might say:
+        {memory_patterns}
+        """
+        user_prompt = f"{query}"
+        logger.info(f">>> assesing if: {query} is memory retrieval request")
+
+        completion = client.chat.completions.create(
+            model=self.azure_openai_deployment_name,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0,
+        )
+
+        result = completion.choices[0].message.content
+        
+        logger.info(f">>> returning list of memories")
+        
+        return result
