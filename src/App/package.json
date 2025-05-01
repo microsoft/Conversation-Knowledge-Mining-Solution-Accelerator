@@ -10,7 +10,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@fluentui/react-icons": "^2.0.292",
     "@fluentui/react-components": "^9.61.6",
-    "@testing-library/react": "^16.2.0",
+    "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/d3": "^7.4.3",
     "@types/jest": "^27.5.2",
