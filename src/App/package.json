@@ -6,7 +6,7 @@
   "dependencies": {
     "@fluentui/react": "^8.122.14",
     "@azure/msal-react": "^3.0.7",
-    "@azure/msal-browser": "^4.8.0",
+    "@azure/msal-browser": "^4.11.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@fluentui/react-icons": "^2.0.292",
     "@fluentui/react-components": "^9.61.6",
