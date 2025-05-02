@@ -19,7 +19,7 @@ jobs:
 
       # Step 2: Validate the Azure template using microsoft/template-validation-action
       - name: Validate Azure Template
-        uses: microsoft/template-validation-action@v0.3.5
+        uses: microsoft/template-validation-action@v0.4.2
         id: validation
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
