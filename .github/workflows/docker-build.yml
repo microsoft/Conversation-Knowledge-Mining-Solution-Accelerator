@@ -41,7 +41,7 @@ jobs:
         id: date
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
         
-      - name: Check Output ACR Login Server
+      - name: Output ACR Login Server
         run: |
           echo "ACR Login Server: ${{ secrets.ACR_LOGIN_SERVER }}"
 
@@ -67,8 +67,8 @@ jobs:
           file: ./src/App/WebApp.Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}
+             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
 
       - name: Build and Push Docker Image for api
         uses: docker/build-push-action@v6
@@ -77,5 +77,5 @@ jobs:
           file: ./src/api/ApiApp.Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-api:${{ steps.determine_tag.outputs.tagname }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
+             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}
+             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
