@@ -41,7 +41,7 @@ jobs:
         id: date
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
         
-      - name: Output ACR Login Server
+      - name: Check Output ACR Login Server
         run: |
           echo "ACR Login Server: ${{ secrets.ACR_LOGIN_SERVER }}"
 
