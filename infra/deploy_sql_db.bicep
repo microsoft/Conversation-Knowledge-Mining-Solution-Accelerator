@@ -7,8 +7,8 @@ param keyVaultName string
 param managedIdentityObjectId string
 param managedIdentityName string
 
-var serverName = '${ solutionName }-sql-server'
-var sqlDBName = '${ solutionName }-sql-db'
+var serverName = '${solutionName }-sql-server'
+var sqlDBName = '${solutionName }-sql-db'
 var location = solutionLocation
 var administratorLogin = 'sqladmin'
 var administratorLoginPassword = 'TestPassword_1234'
@@ -16,19 +16,20 @@ var administratorLoginPassword = 'TestPassword_1234'
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
   location: location
-  kind:'v12.0'
+  kind: 'v12.0'
   properties: {
-      publicNetworkAccess: 'Enabled'
-      version: '12.0'
-      restrictOutboundNetworkAccess: 'Disabled'
-      administrators: {
-        login: managedIdentityName
-        sid: managedIdentityObjectId
-        tenantId: subscription().tenantId
-        administratorType: 'ActiveDirectory'
-        azureADOnlyAuthentication: true
-      }
+    publicNetworkAccess: 'Enabled'
+    version: '12.0'
+    restrictOutboundNetworkAccess: 'Disabled'
+    minimalTlsVersion: '1.2' // Enforce TLS 1.2 to comply with Azure policy
+    administrators: {
+      login: managedIdentityName
+      sid: managedIdentityObjectId
+      tenantId: subscription().tenantId
+      administratorType: 'ActiveDirectory'
+      azureADOnlyAuthentication: true
     }
+  }
 }
 
 resource firewallRule 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
@@ -59,11 +60,11 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
     family: 'Gen5'
     capacity: 2
   }
-  kind:'v12.0,user,vcore,serverless'
+  kind: 'v12.0,user,vcore,serverless'
   properties: {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
-    autoPauseDelay:60
-    minCapacity:1
+    autoPauseDelay: 60
+    minCapacity: 1
     readScale: 'Disabled'
     zoneRedundant: false
   }
@@ -77,7 +78,7 @@ resource sqldbServerEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview'
   parent: keyVault
   name: 'SQLDB-SERVER'
   properties: {
-    value: '${serverName}.database.windows.net'
+    value: '${serverName}${environment().suffixes.sqlServerHostname}'
   }
 }
 
