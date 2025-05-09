@@ -4,8 +4,6 @@ Before deploying the accelerator, **ensure sufficient quota availability** for t
 Use one of the following scripts based on your needs:  
 
 - **`quota_check_params.sh`** → If you **know the model and capacity** required.  
-- **`quota_check_all_regions.sh`** → If you **want to check available capacity across all regions** for supported models.  
-
 ---
 ## **If using Azure Portal and Cloud Shell**
 
@@ -20,14 +18,6 @@ Use one of the following scripts based on your needs:
     chmod +x quota_check_params.sh
     ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
     ```
-
-   **To check available quota across all regions for supported models:**  
-
-    ```sh
-    curl -L -o quota_check_all_regions.sh "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/infra/scripts/quota_check_all_regions.sh"
-    chmod +x quota_check_all_regions.sh
-    ./quota_check_all_regions.sh
-    ```
     
 ## **If using VS Code or Codespaces**
 
@@ -39,11 +29,6 @@ Use one of the following scripts based on your needs:
     ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
     ```
 
-   **To check available quota across all regions for supported models:**  
-
-    ```sh
-    ./quota_check_all_regions.sh
-    ```
 2. If you see the error `_bash: az: command not found_`, install Azure CLI:  
 
     ```sh

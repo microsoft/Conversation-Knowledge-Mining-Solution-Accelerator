@@ -1,5 +1,5 @@
 # How To Create Azure AI Service
-1. Navigate to https://aka.ms/CognitiveServicesAIServices .
+1. Navigate to https://portal.azure.com/#create/Microsoft.CognitiveServicesAIServices .
 2. Select your Azure subscription.
 3. Select the available Resource group.
 4. Choose the region which support Content Understanding service from below tables.
