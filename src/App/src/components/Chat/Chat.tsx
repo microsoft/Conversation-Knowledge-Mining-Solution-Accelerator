@@ -642,7 +642,7 @@ const Chat: React.FC<ChatProps> = ({
           ];
         }
       }
-      if (!updatedMessages.find((msg: any) => msg.role=== "error")) {
+      if (updatedMessages[updatedMessages.length-1]?.role !== "error") {
         saveToDB(updatedMessages, conversationId, isChatReq);
       }
     } catch (e) {
