@@ -1,8 +1,8 @@
 @minLength(3)
 @maxLength(15)
 @description('Solution Name')
-param solutionName string
-param solutionLocation string
+param solutionName string = 'pslab2'
+param solutionLocation string ='eastus2'
 
 var vnetName = '${solutionName}-VNet'
 var addressPrefixVnet = '10.0.0.0/16'

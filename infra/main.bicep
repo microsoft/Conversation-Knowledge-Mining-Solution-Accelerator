@@ -76,7 +76,6 @@ var resourceGroupLocation = resourceGroup().location
 var solutionLocation = resourceGroupLocation
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/psl-ab-sfichanges/'
 
-
 // ========== Managed Identity ========== //
 module managedIdentityModule 'deploy_managed_identity.bicep' = {
   name: 'deploy_managed_identity'
@@ -145,6 +144,7 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
     solutionName: solutionPrefix
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
+    enableVNetIntegration: enableVNetIntegration
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -302,7 +302,7 @@ module privateEndpointSQLServer 'deploy_private_endpoint_sql.bicep' = if(enableV
     subnetId: vnetAndSubnet.outputs.subnet1Id
   }
 }
-module privateEndpointCosmosDB 'deploy_private_endpoint_cosmos.bicep' = if(enableVNetIntegration) {
+module privateEndpointCosmosDB 'deploy_avm_privateendpoint_cosmos.bicep' = if(enableVNetIntegration) {
   name: 'deploy_private_endpoint_cosmosdb'
   params: {
     solutionName: solutionPrefix
@@ -352,7 +352,6 @@ module disablePublicNetworkAccess 'disable_public_network_access.bicep' = if(ena
   params: {
     solutionLocation: resourceGroupLocation
     sqlServerName: replace(sqlDBModule.outputs.sqlServerName, '.database.windows.net', '')
-    cosmosDBAccountName: cosmosDBModule.outputs.cosmosAccountName
     storageAccountName: storageAccount.outputs.storageName
     storageAccountHubName: aifoundry.outputs.storageAccountName
     keyVaultName: kvault.outputs.keyvaultName

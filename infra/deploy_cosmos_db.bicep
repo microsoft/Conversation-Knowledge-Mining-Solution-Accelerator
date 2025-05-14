@@ -4,6 +4,7 @@
 param solutionName string
 param solutionLocation string
 param keyVaultName string
+param enableVNetIntegration bool = false
 
 var accountName = '${ solutionName }-cosmos'
 var databaseName = 'db_conversation_history'
@@ -36,6 +37,7 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' = {
         isZoneRedundant: false
       }
     ]
+    publicNetworkAccess: enableVNetIntegration? 'Disabled': 'Enabled'
     databaseAccountOfferType: 'Standard'
     enableAutomaticFailover: false
     enableMultipleWriteLocations: false

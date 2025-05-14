@@ -1,6 +1,5 @@
 param solutionLocation string
 param sqlServerName string
-param cosmosDBAccountName string
 param storageAccountName string
 param storageAccountHubName string
 param keyVaultName string
@@ -14,21 +13,21 @@ resource disableSqlPublicAccess 'Microsoft.Sql/servers@2023-08-01-preview' = {
   location: solutionLocation
 }
 
-resource disableCosmosPublicAccess 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' = {
-  name: cosmosDBAccountName
-  location:solutionLocation
-  properties: {
-    publicNetworkAccess: 'Disabled'
-    databaseAccountOfferType: 'Standard'
-    locations: [
-      {
-        locationName: solutionLocation
-        failoverPriority: 0
-        isZoneRedundant: false
-      }
-    ]
-  }
-}
+// resource disableCosmosPublicAccess 'Microsoft.DocumentDB/databaseAccounts@2022-08-15' = {
+//   name: cosmosDBAccountName
+//   location:solutionLocation
+//   properties: {
+//     publicNetworkAccess: 'Disabled'
+//     databaseAccountOfferType: 'Standard'
+//     locations: [
+//       {
+//         locationName: solutionLocation
+//         failoverPriority: 0
+//         isZoneRedundant: false
+//       }
+//     ]
+//   }
+// }
 
 resource disableStoragePublicAccess 'Microsoft.Storage/storageAccounts@2021-06-01' = {
   name: storageAccountName
