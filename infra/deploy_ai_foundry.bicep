@@ -721,3 +721,4 @@ output azureOpenAIKeyName string = azureOpenAIApiKeyEntry.name
 
 output azureProjectConnString string = '${split(aiHubProject.properties.discoveryUrl, '/')[2]};${subscription().subscriptionId};${resourceGroup().name};${aiHubProject.name}'
 output azureProjectName string = aiHubProject.name
+output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
