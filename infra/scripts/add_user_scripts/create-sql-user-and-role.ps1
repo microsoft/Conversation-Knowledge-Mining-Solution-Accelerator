@@ -71,7 +71,9 @@ EXEC sp_addrolemember '$($DatabaseRole)', @username;
 "@
 
 Write-Output "`nSQL:`n$($sql)`n`n"
-
+write-output "Creating user $($DisplayName) with ClientId $($ClientId) in database $($SqlDatabaseName) on server $($SqlServerName) and assigning to role $($DatabaseRole)"
+write-output "Using managed identity $($ManagedIdentityClientId) to authenticate to SQL database"
 Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
+Write-Output "`nAccess Token:`n$($token)`n`n"
 Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
