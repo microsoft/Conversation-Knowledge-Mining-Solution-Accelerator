@@ -83,10 +83,6 @@ try {
     Write-Output "Token length: $($token.Length)"
     Write-Output "`nAccess Token:`n$($token)`n`n"
 
-    $aadAdmin = Get-AzSqlServerActiveDirectoryAdministrator -ResourceGroupName "rg-psl-pk-test" -ServerName $SqlServerName
-    Write-Output $aadAdmin
-    Write-Output "Active Directory administrator for SQL server $($SqlServerName) retrieved successfully."
-
     Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
     Write-Output "SQL command executed successfully."
 }
