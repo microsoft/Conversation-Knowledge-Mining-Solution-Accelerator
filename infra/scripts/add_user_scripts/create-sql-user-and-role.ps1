@@ -102,7 +102,7 @@ try {
     Write-Output "Access token converted to plain text"
     Write-Output "Token Plain: $($plainText)"
 
-    Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $plaintext  -Query $sql -ErrorAction 'Stop'
+    Invoke-Sqlcmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $plaintext -Query $sql -ErrorAction 'Stop'
     Write-Output "SQL command executed successfully."
 }
 catch {
