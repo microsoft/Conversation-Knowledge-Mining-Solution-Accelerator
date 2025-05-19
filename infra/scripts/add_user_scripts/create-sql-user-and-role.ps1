@@ -83,6 +83,11 @@ try {
     Write-Output "Token length: $($token.Length)"
     Write-Output "`nAccess Token:`n$($token)`n`n"
 
+    $plainToken = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($token.Token)
+    )
+    Write-Output $plainToken
+
     Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
     Write-Output "SQL command executed successfully."
 }
