@@ -84,12 +84,20 @@ try {
     Write-Output "`nAccess Token:`n$($token)`n`n"
 
     $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($token)
+    Write-Output "SecureString converted to BSTR"
+    Write-Output $ssPtr
     try {
+        Write-Output "Attempting to convert BSTR to plain text"
         $plaintext = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
+        Write-Output "BSTR converted to plain text"
+        Write-Output $plaintext
         # Perform operations with the contents of $plaintext in this section.
     } finally {
+        Write-Output "Attempting to free BSTR memory"
         # The following line ensures that sensitive data is not left in memory.
         $plainText = [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+        Write-Output "BSTR memory freed"
+        Write-Output $plainText
     }
     Write-Output "Access token converted to plain text"
     Write-Output "Token Plain: $($plainText)"
