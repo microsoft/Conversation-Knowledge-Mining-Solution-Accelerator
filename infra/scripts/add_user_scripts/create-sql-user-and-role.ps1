@@ -83,11 +83,18 @@ try {
     Write-Output "Token length: $($token.Length)"
     Write-Output "`nAccess Token:`n$($token)`n`n"
 
-    # Print PowerShell version
-    Write-Output "PowerShell version:"
-    Write-Output $PSVersionTable.PSVersion
+    $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($token)
+    try {
+        $plaintext = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
+        # Perform operations with the contents of $plaintext in this section.
+    } finally {
+        # The following line ensures that sensitive data is not left in memory.
+        $plainText = [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+    }
+    Write-Output "Access token converted to plain text"
+    Write-Output "Plain text: $($plainText)`n`n"
 
-    Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $token -Query $sql -ErrorAction 'Stop'
+    Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $plainText -Query $sql -ErrorAction 'Stop'
     Write-Output "SQL command executed successfully."
 }
 catch {
