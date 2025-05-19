@@ -25,12 +25,6 @@ END
 EXEC sp_addrolemember '$DatabaseRole', @username;
 "
 
-# Create heredoc for the SQL query
-SQL_QUERY_FINAL=$(cat <<EOF
-$SQL_QUERY
-EOF
-)
-
 echo "Running on Linux or macOS, will use access token"
 mkdir -p usersql
 # Get an access token for the Azure SQL Database
