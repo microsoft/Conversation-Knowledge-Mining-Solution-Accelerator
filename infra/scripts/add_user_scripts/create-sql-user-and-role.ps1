@@ -78,7 +78,7 @@ try {
     Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
     Write-Output "Connected to Azure with managed identity $($ManagedIdentityClientId)"
 
-    $token = (Get-AzAccessToken -ResourceUrl https://database.windows.net/).Token
+    $token = (Get-AzAccessToken -AsSecureString -ResourceUrl https://database.windows.net/).Token
     Write-Output "Access token obtained for SQL database"
     Write-Output "Token length: $($token.Length)"
     Write-Output "`nAccess Token:`n$($token)`n`n"
