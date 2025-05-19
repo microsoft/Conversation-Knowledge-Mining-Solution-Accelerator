@@ -95,14 +95,14 @@ try {
     } finally {
         Write-Output "Attempting to free BSTR memory"
         # The following line ensures that sensitive data is not left in memory.
-        $plainText = [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
+        $plainText1 = [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)
         Write-Output "BSTR memory freed"
         Write-Output $plainText
     }
     Write-Output "Access token converted to plain text"
     Write-Output "Token Plain: $($plainText)"
 
-    Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -Query $sql -ErrorAction 'Stop'
+    Invoke-SqlCmd -ServerInstance "$SqlServerName" -Database $SqlDatabaseName -AccessToken $plaintext  -Query $sql -ErrorAction 'Stop'
     Write-Output "SQL command executed successfully."
 }
 catch {
