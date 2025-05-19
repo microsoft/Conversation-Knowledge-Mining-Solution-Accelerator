@@ -83,6 +83,7 @@ try {
     Write-Output "Token length: $($token.Length)"
     Write-Output "`nAccess Token:`n$($token)`n`n"
 
+    Write-Output "Executing SQL command Token..."
     $tokenObject = Get-AzAccessToken -ResourceUrl https://database.windows.net/
     $token = $tokenObject.Token
     Write-Output "Access token obtained for SQL database"
