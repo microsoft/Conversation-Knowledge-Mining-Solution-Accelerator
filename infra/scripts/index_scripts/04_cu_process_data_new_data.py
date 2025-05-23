@@ -8,14 +8,13 @@ import pandas as pd
 
 import re
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import base64
 import pyodbc
 import struct
 
 key_vault_name = 'kv_to-be-replaced'
-managed_identity_client_id = 'mici_to-be-replaced'
 
 file_system_client_name = "data"
 directory = 'call_transcripts'
@@ -24,7 +23,6 @@ audio_directory = 'new_audiodata'
 def get_secrets_from_kv(kv_name, secret_name):
     # Set the name of the Azure Key Vault  
     key_vault_name = kv_name 
-    # credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
     credential = DefaultAzureCredential()
 
     # Create a secret client object using the credential and Key Vault name  
@@ -107,7 +105,6 @@ account_name =  get_secrets_from_kv(key_vault_name, "ADLS-ACCOUNT-NAME")
 
 account_url = f"https://{account_name}.dfs.core.windows.net"
 
-# credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 credential = DefaultAzureCredential()
 service_client = DataLakeServiceClient(account_url, credential=credential,api_version='2023-01-03') 
 
@@ -206,7 +203,6 @@ driver = "{ODBC Driver 17 for SQL Server}"
 server =  get_secrets_from_kv(key_vault_name,"SQLDB-SERVER")
 database = get_secrets_from_kv(key_vault_name,"SQLDB-DATABASE")
 
-# credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 credential = DefaultAzureCredential()
 
 token_bytes = credential.get_token(
@@ -264,7 +260,6 @@ AZURE_AI_ENDPOINT = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-ENDPOINT
 AZURE_OPENAI_CU_KEY = get_secrets_from_kv(key_vault_name,"AZURE-OPENAI-CU-KEY")
 AZURE_AI_API_VERSION = "2024-12-01-preview" 
 
-# credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 credential = DefaultAzureCredential()
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 
@@ -275,32 +270,32 @@ client = AzureContentUnderstandingClient(
     token_provider=token_provider
     )
 
-
+print("Connected to the content understanding client")
 # ANALYZER_ID = "ckm-json"
 
-# def prepare_search_doc(content, document_id): 
-#     chunks = chunk_data(content)
-#     chunk_num = 0
-#     for chunk in chunks:
-#         chunk_num += 1
-#         chunk_id = document_id + '_' + str(chunk_num).zfill(2)
+def prepare_search_doc(content, document_id): 
+    chunks = chunk_data(content)
+    chunk_num = 0
+    for chunk in chunks:
+        chunk_num += 1
+        chunk_id = document_id + '_' + str(chunk_num).zfill(2)
         
-#         try:
-#             v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
-#         except:
-#             time.sleep(30)
-#             try: 
-#                 v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
-#             except: 
-#                 v_contentVector = []
-#         result = {
-#                 "id": chunk_id,
-#                 "chunk_id": chunk_id,
-#                 "content": chunk,
-#                 "sourceurl": path.name.split('/')[-1],
-#                 "contentVector": v_contentVector
-#             }
-#     return result
+        try:
+            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+        except:
+            time.sleep(30)
+            try: 
+                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version,openai_api_key)
+            except: 
+                v_contentVector = []
+        result = {
+                "id": chunk_id,
+                "chunk_id": chunk_id,
+                "content": chunk,
+                "sourceurl": path.name.split('/')[-1],
+                "contentVector": v_contentVector
+            }
+    return result
         
 # conversationIds = []
 # docs = []
@@ -368,7 +363,7 @@ ANALYZER_ID = "ckm-audio"
 
 directory_name = audio_directory
 paths = file_system_client.get_paths(path=directory_name)
-
+print("Processing audio files")
 conversationIds = []
 docs = []
 counter = 0
@@ -394,6 +389,7 @@ for path in paths:
         duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
         end_timestamp = end_timestamp.split(".")[0]
+        start_timestamp = str(start_timestamp).split(".")[0]
 
         summary = result['result']['contents'][0]['fields']['summary']['valueString']
         satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
@@ -415,7 +411,9 @@ for path in paths:
         result = prepare_search_doc(content, document_id)
         docs.append(result)
         counter += 1
-    except:
+        print(f"Processed file {path.name} successfully.")
+    except Exception as e:
+        print(f"Error processing file {path.name}: {e}")
         pass
 
     if docs != [] and counter % 10 == 0:
@@ -667,6 +665,8 @@ placeholders = ", ".join(["?"] * len(columns))  # Generate `?` placeholders for 
 # Insert statement
 insert_sql = f"INSERT INTO {import_table} ({columns_str}) VALUES ({placeholders})"
 
+print("Inserting data into km_processed_data table...")
+print("Data count:", len(data_list))
 # Bulk insert using executemany()
 cursor.executemany(insert_sql, data_list)
 
@@ -708,6 +708,7 @@ for idx, row in df.iterrows():
         key_phrase = key_phrase.strip()
         cursor.execute(f"INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)", (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
 conn.commit()
+print("Inserted data into processed_data_key_phrases table")
 
 # to adjust the dates to current date
 # Get today's date
@@ -726,5 +727,6 @@ cursor.execute(f"UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD
 cursor.execute(f"UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference))
 
 conn.commit()
+print("Updated StartTime and EndTime in processed_data, km_processed_data, and processed_data_key_phrases tables")
 cursor.close()
 conn.close()
