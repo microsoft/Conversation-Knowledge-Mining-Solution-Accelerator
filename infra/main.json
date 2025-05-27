@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.35.1.17967",
-      "templateHash": "15074305105133532037"
+      "templateHash": "1829885336090201834"
     }
   },
   "parameters": {
@@ -583,9 +583,7 @@
           "cuLocation": {
             "value": "[parameters('contentUnderstandingLocation')]"
           },
-          "deploymentType": {
-            "value": "[parameters('deploymentType')]"
-          },
+          "deploymentType": "[if(equals(parameters('gptModelName'), 'gpt-4'), createObject('value', 'Standard'), createObject('value', parameters('deploymentType')))]",
           "gptModelName": {
             "value": "[parameters('gptModelName')]"
           },
@@ -3143,7 +3141,7 @@
     },
     "AZURE_OPEN_AI_MODEL_DEPLOYMENT_TYPE": {
       "type": "string",
-      "value": "[parameters('deploymentType')]"
+      "value": "[if(equals(parameters('gptModelName'), 'gpt-4'), 'Standard', parameters('deploymentType'))]"
     },
     "AZURE_OPENAI_EMBEDDING_MODEL": {
       "type": "string",

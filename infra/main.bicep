@@ -100,7 +100,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     cuLocation: contentUnderstandingLocation
-    deploymentType: deploymentType
+    deploymentType: gptModelName == 'gpt-4' ? 'Standard' : deploymentType
     gptModelName: gptModelName
     azureOpenAIApiVersion: azureOpenAIApiVersion
     gptDeploymentCapacity: gptDeploymentCapacity
@@ -263,7 +263,7 @@ output AZURE_OPEN_AI_DEPLOYMENT_MODEL string = gptModelName
 output AZURE_OPEN_AI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
 output AZURE_OPEN_AI_ENDPOINT string = aifoundry.outputs.aiServicesTarget
 output AZURE_OPENAI_API_KEY string = ''
-output AZURE_OPEN_AI_MODEL_DEPLOYMENT_TYPE string = deploymentType
+output AZURE_OPEN_AI_MODEL_DEPLOYMENT_TYPE string = gptModelName == 'gpt-4' ? 'Standard' : deploymentType
 output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
 output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
 output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
