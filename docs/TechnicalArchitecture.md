@@ -2,7 +2,8 @@
 
 This section outlines the components and interactions that power the conversational insights platform. The architecture ingests call transcripts and audio files, applies AI services for enrichment and structuring, and surfaces insights via an interactive web experience.
 
-![image](./images/readme/solution-architecture.png)
+|![image](./Images/ReadMe/solution-architecture.png)|
+|---|
 
 ### Call Audio Files / Call Transcripts  
 Raw audio and text-based transcripts are the primary input into the system. These files are uploaded and stored for downstream processing.
