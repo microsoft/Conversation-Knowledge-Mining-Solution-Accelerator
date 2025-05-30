@@ -46,3 +46,8 @@ Change the Embedding Deployment Capacity (choose a number based on available emb
 ```shell
 azd env set AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY 80
 ```
+
+Set the Log Analytics Workspace Id if you need to reuse the existing workspace which is already existing
+```shell
+azd env set AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID '<Existing Log Analytics Workspace Id>'
+```

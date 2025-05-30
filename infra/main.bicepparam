@@ -9,3 +9,4 @@ param gptModelName = readEnvironmentVariable('AZURE_OPEN_AI_DEPLOYMENT_MODEL', '
 param gptDeploymentCapacity = int(readEnvironmentVariable('AZURE_OPEN_AI_DEPLOYMENT_MODEL_CAPACITY', '30'))
 param embeddingModel = readEnvironmentVariable('AZURE_OPENAI_EMBEDDING_MODEL', 'text-embedding-ada-002')
 param embeddingDeploymentCapacity = int(readEnvironmentVariable('AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY', '80'))
+param existingLogAnalyticsWorkspaceId = readEnvironmentVariable('AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID', '')

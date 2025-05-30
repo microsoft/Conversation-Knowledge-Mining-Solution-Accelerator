@@ -6,6 +6,9 @@ var abbrs = loadJsonContent('./abbreviations.json')
 @description('A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
 param environmentName string
 
+@description('Optional: Existing Log Analytics Workspace Resource ID')
+param existingLogAnalyticsWorkspaceId string = ''
+
 @minLength(1)
 @description('Location for the Content Understanding service deployment:')
 @allowed(['swedencentral', 'australiaeast'])
@@ -107,6 +110,8 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     embeddingModel: embeddingModel
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
+    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -168,6 +173,7 @@ module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
     managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
     keyVaultName:aifoundry.outputs.keyvaultName
     logAnalyticsWorkspaceResourceName: aifoundry.outputs.logAnalyticsWorkspaceResourceName
+    logAnalyticsWorkspaceResourceGroup: aifoundry.outputs.logAnalyticsWorkspaceResourceGroup
     sqlServerName: sqlDBModule.outputs.sqlServerName
     sqlDbName: sqlDBModule.outputs.sqlDbName
     sqlUsers: [

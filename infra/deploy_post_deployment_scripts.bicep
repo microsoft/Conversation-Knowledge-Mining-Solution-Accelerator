@@ -17,11 +17,12 @@ param sqlDbName string
 param sqlUsers array = [
 ]
 param logAnalyticsWorkspaceResourceName string
+param logAnalyticsWorkspaceResourceGroup string
 var resourceGroupName = resourceGroup().name
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2020-10-01' existing = {
   name: logAnalyticsWorkspaceResourceName
-  scope: resourceGroup()
+  scope: resourceGroup(logAnalyticsWorkspaceResourceGroup)
 }
 
 resource containerAppEnv 'Microsoft.App/managedEnvironments@2022-03-01' = {
