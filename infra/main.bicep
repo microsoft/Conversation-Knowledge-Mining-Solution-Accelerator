@@ -28,18 +28,12 @@ param secondaryLocation string
 ])
 param deploymentType string = 'GlobalStandard'
 
-@minLength(1)
 @description('Name of the GPT model to deploy:')
-@allowed([
-  'gpt-4o-mini'
-  'gpt-4o'
-  'gpt-4'
-])
 param gptModelName string = 'gpt-4o-mini'
 
-// @minLength(1)
-// @description('Version of the GPT model to deploy:')
-// param gptModelVersion string = '2024-02-15-preview' //'2024-08-06'
+@description('Version of the GPT model to deploy:')
+param gptModelVersion string = '2024-02-15-preview'
+
 var azureOpenAIApiVersion = '2024-02-15-preview'
 
 @minValue(10)
@@ -102,6 +96,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     cuLocation: contentUnderstandingLocation
     deploymentType: deploymentType
     gptModelName: gptModelName
+    gptModelVersion: gptModelVersion
     azureOpenAIApiVersion: azureOpenAIApiVersion
     gptDeploymentCapacity: gptDeploymentCapacity
     embeddingModel: embeddingModel

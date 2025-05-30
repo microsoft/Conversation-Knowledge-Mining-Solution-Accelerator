@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.35.1.17967",
-      "templateHash": "15074305105133532037"
+      "templateHash": "11123654867356883175"
     }
   },
   "parameters": {
@@ -53,14 +53,15 @@
     "gptModelName": {
       "type": "string",
       "defaultValue": "gpt-4o-mini",
-      "allowedValues": [
-        "gpt-4o-mini",
-        "gpt-4o",
-        "gpt-4"
-      ],
-      "minLength": 1,
       "metadata": {
         "description": "Name of the GPT model to deploy:"
+      }
+    },
+    "gptModelVersion": {
+      "type": "string",
+      "defaultValue": "2024-02-15-preview",
+      "metadata": {
+        "description": "Version of the GPT model to deploy:"
       }
     },
     "gptDeploymentCapacity": {
@@ -589,6 +590,9 @@
           "gptModelName": {
             "value": "[parameters('gptModelName')]"
           },
+          "gptModelVersion": {
+            "value": "[parameters('gptModelVersion')]"
+          },
           "azureOpenAIApiVersion": {
             "value": "[variables('azureOpenAIApiVersion')]"
           },
@@ -612,7 +616,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.35.1.17967",
-              "templateHash": "5794496619234186044"
+              "templateHash": "796973952642771216"
             }
           },
           "parameters": {
@@ -632,6 +636,9 @@
               "type": "string"
             },
             "gptModelName": {
+              "type": "string"
+            },
+            "gptModelVersion": {
               "type": "string"
             },
             "azureOpenAIApiVersion": {
@@ -903,6 +910,7 @@
                   "name": "[parameters('deploymentType')]",
                   "capacity": "[parameters('gptDeploymentCapacity')]"
                 },
+                "version": "[parameters('gptModelVersion')]",
                 "raiPolicyName": "Microsoft.Default"
               },
               {

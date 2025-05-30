@@ -5,6 +5,7 @@ param keyVaultName string
 param cuLocation string
 param deploymentType string
 param gptModelName string
+param gptModelVersion string
 param azureOpenAIApiVersion string
 param gptDeploymentCapacity int
 param embeddingModel string
@@ -58,6 +59,7 @@ var aiModelDeployments = [
       name: deploymentType
       capacity: gptDeploymentCapacity
     }
+    version: gptModelVersion
     raiPolicyName: 'Microsoft.Default'
   }
   {
