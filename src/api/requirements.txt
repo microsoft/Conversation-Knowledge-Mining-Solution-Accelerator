@@ -19,6 +19,6 @@ azure-cosmos==4.9.0
 
 # Additional utilities
 semantic-kernel[azure]==1.28.0
-openai==1.78.1
+openai==1.82.1
 pyodbc==5.2.0
 pandas==2.2.3
