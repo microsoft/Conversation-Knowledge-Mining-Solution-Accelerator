@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.36.1.42791",
-      "templateHash": "14571116812938220669"
+      "templateHash": "2363441728169448979"
     }
   },
   "parameters": {
@@ -70,6 +70,10 @@
       "metadata": {
         "description": "Version of the GPT model to deploy:"
       }
+    },
+    "azureOpenAIApiVersion": {
+      "type": "string",
+      "defaultValue": "2025-01-01-preview"
     },
     "gptDeploymentCapacity": {
       "type": "int",
@@ -336,7 +340,6 @@
       }
     },
     "abbrs": "[variables('$fxv#0')]",
-    "azureOpenAIApiVersion": "2025-01-01-preview",
     "solutionLocation": "[if(empty(parameters('AZURE_LOCATION')), resourceGroup().location, parameters('AZURE_LOCATION'))]",
     "uniqueId": "[toLower(uniqueString(subscription().id, parameters('environmentName'), variables('solutionLocation')))]",
     "solutionPrefix": "[format('km{0}', padLeft(take(variables('uniqueId'), 12), 12, '0'))]",
@@ -601,7 +604,7 @@
             "value": "[parameters('gptModelVersion')]"
           },
           "azureOpenAIApiVersion": {
-            "value": "[variables('azureOpenAIApiVersion')]"
+            "value": "[parameters('azureOpenAIApiVersion')]"
           },
           "gptDeploymentCapacity": {
             "value": "[parameters('gptDeploymentCapacity')]"
@@ -2492,7 +2495,7 @@
             "value": {
               "AZURE_OPEN_AI_DEPLOYMENT_MODEL": "[parameters('gptModelName')]",
               "AZURE_OPEN_AI_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiServicesTarget.value]",
-              "AZURE_OPENAI_API_VERSION": "[variables('azureOpenAIApiVersion')]",
+              "AZURE_OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
               "AZURE_OPENAI_RESOURCE": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiServicesName.value]",
               "AZURE_AI_AGENT_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.projectEndpoint.value]",
               "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME": "[parameters('gptModelName')]",
@@ -2505,7 +2508,7 @@
               "SQLDB_SERVER": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db'), '2022-09-01').outputs.sqlServerName.value]",
               "SQLDB_USERNAME": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_sql_db'), '2022-09-01').outputs.sqlDbUser.value]",
               "SQLDB_USER_MID": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_managed_identity'), '2022-09-01').outputs.managedIdentityBackendAppOutput.value.clientId]",
-              "OPENAI_API_VERSION": "[variables('azureOpenAIApiVersion')]",
+              "OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
               "AZURE_AI_SEARCH_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiSearchTarget.value]",
               "AZURE_AI_SEARCH_API_KEY": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/AZURE-SEARCH-KEY/)', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_keyvault'), '2022-09-01').outputs.keyvaultUri.value)]",
               "AZURE_AI_SEARCH_INDEX": "call_transcripts_index",
@@ -3240,7 +3243,7 @@
     },
     "AZURE_OPENAI_API_VERSION": {
       "type": "string",
-      "value": "[variables('azureOpenAIApiVersion')]"
+      "value": "[parameters('azureOpenAIApiVersion')]"
     },
     "AZURE_OPENAI_RESOURCE": {
       "type": "string",
@@ -3248,7 +3251,7 @@
     },
     "OPENAI_API_VERSION": {
       "type": "string",
-      "value": "[variables('azureOpenAIApiVersion')]"
+      "value": "[parameters('azureOpenAIApiVersion')]"
     },
     "REACT_APP_LAYOUT_CONFIG": {
       "type": "string",

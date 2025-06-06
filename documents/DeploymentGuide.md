@@ -103,20 +103,24 @@ Consider the following settings during your deployment to modify specific settin
 <details>
   <summary><b>Configurable Deployment Settings</b></summary>
 
-When you start the deployment, most parameters will have **default values**, but you can update the following settings:
+When you start the deployment, most parameters will have **default values**, but you can update the following settings [here](../documents/CustomizingAzdParameters.md):
 
-| **Setting** | **Description** | **Default value** |
-|------------|----------------|------------|
-| **Azure Region** | The region where resources will be created. | eastus | 
-| **Environment Name** | A **3-20 character alphanumeric value** used to generate a unique ID to prefix the resources. | kmtemplate |
-| **Azure AI Content Understanding Location** | Select from a drop-down list of values. | swedencentral |
-| **Secondary Location** | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2 |
-| **Deployment Type** | Select from a drop-down list. | GlobalStandard |
-| **GPT Model** | Choose from **gpt-4, gpt-4o, gpt-4o-mini** | gpt-4o-mini |  
-| **GPT Model Deployment Capacity** | Configure capacity for **GPT models**. | 30k |
-| **Embedding Model** | Default: **text-embedding-ada-002**. | text-embedding-ada-002 |
-| **Embedding Model Capacity** | Set the capacity for **embedding models**. | 80k |
-| **Existing Log analytics workspace** | To reuse the existing Log analytics workspace Id. |  |
+| **Setting**                                 | **Description**                                                                                           | **Default value**      |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------- |
+| **Azure Region**                            | The region where resources will be created.                                                               | *(empty)*              |
+| **Environment Name**                        | A **3–20 character alphanumeric value** used to generate a unique ID to prefix the resources.             | env\_name              |
+| **Azure AI Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
+| **Secondary Location**                      | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2                |
+| **Deployment Type**                         | Select from a drop-down list (allowed: `Standard`, `GlobalStandard`).                                     | GlobalStandard         |
+| **GPT Model**                               | Choose from **gpt-4, gpt-4o, gpt-4o-mini**.                                                               | gpt-4o-mini            |
+| **GPT Model Version**                       | The version of the selected GPT model.                                                                    | 2024-07-18             |
+| **OpenAI API Version**                      | The Azure OpenAI API version to use.                                                                      | 2025-01-01-preview     |
+| **GPT Model Deployment Capacity**           | Configure capacity for **GPT models** (in thousands).                                                     | 30k                    |
+| **Embedding Model**                         | Default: **text-embedding-ada-002**.                                                                      | text-embedding-ada-002 |
+| **Embedding Model Capacity**                | Set the capacity for **embedding models** (in thousands).                                                 | 80k                    |
+| **Image Tag**                               | Docker image tag to deploy. Common values: `latest`, `dev`, `hotfix`.                  | latest\_migrated       |
+| **Existing Log Analytics Workspace**        | To reuse an existing Log Analytics Workspace ID.                                                          | *(empty)*              |
+
 
 
 </details>
