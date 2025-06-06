@@ -92,7 +92,7 @@ jobs:
       - name: Run Backend Tests with Coverage
         if: env.skip_backend_tests == 'false'
         run: |
-          pytest --cov=. --cov-report=term-missing --cov-report=xml
+          pytest --cov=. --cov-report=term-missing --cov-report=xml ./src/tests/api
 
       - name: Skip Backend Tests
         if: env.skip_backend_tests == 'true'

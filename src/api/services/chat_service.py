@@ -12,8 +12,9 @@ from fastapi import HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from semantic_kernel.agents import AzureAIAgentThread
-from azure.ai.projects.models import TruncationObject
+from azure.ai.agents.models import TruncationObject
 from semantic_kernel.exceptions.agent_exceptions import AgentException
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from common.config.config import Config
 from helpers.utils import format_stream_response
@@ -71,10 +72,8 @@ class ChatService:
     def __init__(self, request : Request):
         config = Config()
         self.azure_openai_endpoint = config.azure_openai_endpoint
-        self.azure_openai_api_key = config.azure_openai_api_key
         self.azure_openai_api_version = config.azure_openai_api_version
         self.azure_openai_deployment_name = config.azure_openai_deployment_model
-        self.azure_ai_project_conn_string = config.azure_ai_project_conn_string
         self.agent = request.app.state.agent
 
         if ChatService.thread_cache is None:
@@ -85,9 +84,12 @@ class ChatService:
         Parses the RAG response dynamically to extract chart data for Chart.js.
         """
         try:
+            token_provider = get_bearer_token_provider(
+                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+            )
             client = openai.AzureOpenAI(
                 azure_endpoint=self.azure_openai_endpoint,
-                api_key=self.azure_openai_api_key,
+                azure_ad_token_provider=token_provider,
                 api_version=self.azure_openai_api_version,
             )
 

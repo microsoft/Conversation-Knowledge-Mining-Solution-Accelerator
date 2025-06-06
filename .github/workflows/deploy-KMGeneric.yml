@@ -103,7 +103,7 @@ jobs:
 
       - name: Determine Tag Name Based on Branch
         id: determine_tag
-        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_migrated' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
 
       - name: Deploy Bicep Template
         id: deploy

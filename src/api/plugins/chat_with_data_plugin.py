@@ -2,7 +2,7 @@ from typing import Annotated
 
 import openai
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from azure.ai.projects import AIProjectClient
 
 from common.config.config import Config
@@ -14,7 +14,6 @@ class ChatWithDataPlugin:
         config = Config()
         self.azure_openai_deployment_model = config.azure_openai_deployment_model
         self.azure_openai_endpoint = config.azure_openai_endpoint
-        self.azure_openai_api_key = config.azure_openai_api_key
         self.azure_openai_api_version = config.azure_openai_api_version
         self.azure_ai_search_endpoint = config.azure_ai_search_endpoint
         self.azure_ai_search_api_key = config.azure_ai_search_api_key
@@ -45,9 +44,12 @@ class ChatWithDataPlugin:
                     temperature=0,
                 )
             else:
+                token_provider = get_bearer_token_provider(
+                    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+                )
                 client = openai.AzureOpenAI(
                     azure_endpoint=self.azure_openai_endpoint,
-                    api_key=self.azure_openai_api_key,
+                    azure_ad_token_provider=token_provider,
                     api_version=self.azure_openai_api_version
                 )
 
@@ -100,9 +102,12 @@ class ChatWithDataPlugin:
                 sql_query = completion.choices[0].message.content
                 sql_query = sql_query.replace("```sql", '').replace("```", '')
             else:
+                token_provider = get_bearer_token_provider(
+                    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+                )
                 client = openai.AzureOpenAI(
                     azure_endpoint=self.azure_openai_endpoint,
-                    api_key=self.azure_openai_api_key,
+                    azure_ad_token_provider=token_provider,
                     api_version=self.azure_openai_api_version
                 )
 
@@ -130,9 +135,12 @@ class ChatWithDataPlugin:
             self,
             question: Annotated[str, "the question"]
     ):
+        token_provider = get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
         client = openai.AzureOpenAI(
             azure_endpoint=self.azure_openai_endpoint,
-            api_key=self.azure_openai_api_key,
+            azure_ad_token_provider=token_provider,
             api_version=self.azure_openai_api_version
         )
 
@@ -176,7 +184,6 @@ class ChatWithDataPlugin:
                                     "vector_fields": ["contentVector"]
                                 },
                                 "in_scope": "true",
-                                "role_information": system_message,
                                 # "vector_filter_mode": "preFilter", #VectorFilterMode.PRE_FILTER,
                                 # "filter": f"client_id eq '{ClientId}'", #"", #null,
                                 "strictness": 3,

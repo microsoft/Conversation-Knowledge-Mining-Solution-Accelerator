@@ -14,7 +14,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import uvicorn
 
-from common.config.config import Config
 from agents.agent_factory import AgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
@@ -30,8 +29,7 @@ async def lifespan(fastapi_app: FastAPI):
     On startup, initializes the Azure AI agent using the configuration and attaches it to the app state.
     On shutdown, deletes the agent instance and performs any necessary cleanup.
     """
-    config = Config()
-    fastapi_app.state.agent = await AgentFactory.get_instance(config=config)
+    fastapi_app.state.agent = await AgentFactory.get_instance()
     yield
     await AgentFactory.delete_instance()
     fastapi_app.state.agent = None

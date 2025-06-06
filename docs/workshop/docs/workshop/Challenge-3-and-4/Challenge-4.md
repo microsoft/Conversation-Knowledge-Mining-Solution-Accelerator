@@ -2,8 +2,9 @@
 
 1. Open the [knowledge_mining_api notebook](./knowledge_mining_api.ipynb) from the Challenge-3-and-4 folder
 2. Run the first cell to import the requirements  
-3. The second cell defines a class that is used to define the plugin for the Azure AI Project Client. This contains the various functions that power different behaviors such as greeting, query Azure SQL database and query Azure AI Search. Run cell 2 to see the results when a user says Hello. The next result will show when a user asks a question and runs the Azure SQL query function. Finally we will see two more results when the user asks questions that runs the Azure AI Search function. 
-4. Finally, you could update the `user_inputs` in cell 2 to try out more questions. 
+3. Run the second cell to define a function to connect to the Azure SQL database.
+4. The third cell defines a class that is used to define the plugin for the Azure AI Agent. This contains the various functions that power different behaviors such as greeting, query Azure SQL database and query Azure AI Search. Run cell 3 and 4 to see the results when a user says Hello. The next result will show when a user asks a question and runs the Azure SQL query function. Finally we will see a result when the user asks questions that runs the Azure AI Search function. 
+5. Finally, you could update the `user_inputs` in cell 3 to try out more questions. 
 
 ```shell
 user_inputs = [

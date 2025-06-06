@@ -1,27 +1,27 @@
 # Base packages
-cachetools
-python-dotenv
-fastapi
+cachetools==6.0.0
+python-dotenv==1.1.0
+fastapi==0.115.12
 uvicorn[standard]
 pydantic[email]
 
 # Azure SDK Core
-azure-core
-requests
-aiohttp
+azure-core==1.34.0
+requests==2.32.3
+aiohttp==3.12.9
 
 # Azure Services
-azure-identity==1.21.0
-azure-search-documents==11.6.0b11
-azure-ai-projects==1.0.0b8
+azure-identity==1.23.0
+azure-search-documents==11.6.0b12
+azure-ai-projects==1.0.0b11
 azure-ai-inference==1.0.0b9
 azure-cosmos==4.9.0
 
 # Additional utilities
-semantic-kernel[azure]==1.28.0
-openai==1.74.0
+semantic-kernel[azure]==1.32.2
+openai==1.84.0
 pyodbc==5.2.0
-pandas==2.2.3
+pandas==2.3.0
 
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-http

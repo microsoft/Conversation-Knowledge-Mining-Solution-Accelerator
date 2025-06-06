@@ -1,19 +1,17 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch, call
 import json
-import uuid
 import time
-import asyncio
-import types
-from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi import HTTPException, status
 from semantic_kernel.exceptions.agent_exceptions import AgentException as RealAgentException
+
 
 
 # ---- Patch imports before importing the service under test ----
 @patch("common.config.config.Config")
 @patch("semantic_kernel.agents.AzureAIAgentThread")
-@patch("azure.ai.projects.models.TruncationObject")
+@patch("azure.ai.agents.models.TruncationObject")
 @patch("semantic_kernel.exceptions.agent_exceptions.AgentException")
 @patch("openai.AzureOpenAI")
 @patch("helpers.utils.format_stream_response")
@@ -23,7 +21,6 @@ def patched_imports(mock_format_stream, mock_openai, mock_agent_exception, mock_
     # Configure mock Config
     mock_config_instance = MagicMock()
     mock_config_instance.azure_openai_endpoint = "https://test.openai.azure.com"
-    mock_config_instance.azure_openai_api_key = "test_key"
     mock_config_instance.azure_openai_api_version = "2024-02-15-preview"
     mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
     mock_config_instance.azure_ai_project_conn_string = "test_conn_string"
@@ -50,7 +47,7 @@ def patched_imports(mock_format_stream, mock_openai, mock_agent_exception, mock_
 # ---- Import service under test with patches ----
 with patch("common.config.config.Config") as mock_config, \
      patch("semantic_kernel.agents.AzureAIAgentThread") as mock_thread, \
-     patch("azure.ai.projects.models.TruncationObject") as mock_truncation, \
+     patch("azure.ai.agents.models.TruncationObject") as mock_truncation, \
      patch("semantic_kernel.exceptions.agent_exceptions.AgentException", new=RealAgentException) as mock_agent_exception, \
      patch("openai.AzureOpenAI") as mock_openai, \
      patch("helpers.utils.format_stream_response") as mock_format_stream:
@@ -58,7 +55,6 @@ with patch("common.config.config.Config") as mock_config, \
     # Configure mock Config
     mock_config_instance = MagicMock()
     mock_config_instance.azure_openai_endpoint = "https://test.openai.azure.com"
-    mock_config_instance.azure_openai_api_key = "test_key"
     mock_config_instance.azure_openai_api_version = "2024-02-15-preview"
     mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
     mock_config_instance.azure_ai_project_conn_string = "test_conn_string"
@@ -161,7 +157,6 @@ class TestChatService:
         # Configure mock Config
         mock_config_instance = MagicMock()
         mock_config_instance.azure_openai_endpoint = "https://test.openai.azure.com"
-        mock_config_instance.azure_openai_api_key = "test_key"
         mock_config_instance.azure_openai_api_version = "2024-02-15-preview"
         mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
         mock_config_instance.azure_ai_project_conn_string = "test_conn_string"
@@ -173,10 +168,8 @@ class TestChatService:
         service = ChatService(mock_request)
         
         assert service.azure_openai_endpoint == "https://test.openai.azure.com"
-        assert service.azure_openai_api_key == "test_key"
         assert service.azure_openai_api_version == "2024-02-15-preview"
         assert service.azure_openai_deployment_name == "gpt-4o-mini"
-        assert service.azure_ai_project_conn_string == "test_conn_string"
         assert service.agent == mock_request.app.state.agent
         assert ChatService.thread_cache is not None
     

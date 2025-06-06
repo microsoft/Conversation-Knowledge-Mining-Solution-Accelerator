@@ -4,6 +4,7 @@ import uuid
 import logging
 import openai
 from common.config.config import Config
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -16,9 +17,12 @@ def process_rag_response(rag_response, query):
     """
     try:
         config = Config()
+        token_provider = get_bearer_token_provider(
+            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        )
         client = openai.AzureOpenAI(
             azure_endpoint=config.azure_openai_endpoint,
-            api_key=config.azure_openai_api_key,
+            azure_ad_token_provider=token_provider,
             api_version=config.azure_openai_api_version,
         )
         system_prompt = """You are an assistant that helps generate valid chart data to be shown using chart.js with version 4.4.4 compatible.

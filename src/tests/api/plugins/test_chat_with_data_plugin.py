@@ -8,7 +8,6 @@ def mock_config():
     config_mock = MagicMock()
     config_mock.azure_openai_deployment_model = "gpt-4"
     config_mock.azure_openai_endpoint = "https://test-openai.azure.com/"
-    config_mock.azure_openai_api_key = "test-api-key"
     config_mock.azure_openai_api_version = "2024-02-15-preview"
     config_mock.azure_ai_search_endpoint = "https://search.test.azure.com/"
     config_mock.azure_ai_search_api_key = "search-api-key"
@@ -26,25 +25,29 @@ def chat_plugin(mock_config):
 
 
 class TestChatWithDataPlugin:
-    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.get_bearer_token_provider")
     @patch("plugins.chat_with_data_plugin.openai.AzureOpenAI")
-    async def test_greeting(self, mock_azure_openai, chat_plugin):
-        # Setup mock
+    @pytest.mark.asyncio
+    async def test_greeting(self, mock_azure_openai, mock_token_provider, chat_plugin):
+        # Setup mock token provider
+        mock_token_provider.return_value = lambda: "fake_token"
+        
+        # Setup mock client and completion response
         mock_client = MagicMock()
-        mock_azure_openai.return_value = mock_client
         mock_completion = MagicMock()
         mock_completion.choices = [MagicMock()]
         mock_completion.choices[0].message.content = "Hello, how can I help you?"
         mock_client.chat.completions.create.return_value = mock_completion
-        
+        mock_azure_openai.return_value = mock_client
+
         # Call the method
         result = await chat_plugin.greeting("Hello")
-        
+
         # Assertions
         assert result == "Hello, how can I help you?"
         mock_azure_openai.assert_called_once_with(
             azure_endpoint="https://test-openai.azure.com/",
-            api_key="test-api-key",
+            azure_ad_token_provider=mock_token_provider.return_value,
             api_version="2024-02-15-preview"
         )
         mock_client.chat.completions.create.assert_called_once()
@@ -103,10 +106,13 @@ class TestChatWithDataPlugin:
         assert result == "Details could not be retrieved. Please try again later."
 
     @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.get_bearer_token_provider")
     @patch("plugins.chat_with_data_plugin.execute_sql_query")
     @patch("plugins.chat_with_data_plugin.openai.AzureOpenAI")
-    async def test_get_SQL_Response(self, mock_azure_openai, mock_execute_sql, chat_plugin):
+    async def test_get_SQL_Response(self, mock_azure_openai, mock_execute_sql, mock_token_provider, chat_plugin):
+
         # Setup mocks
+        mock_token_provider.return_value = lambda: "fake_token"
         mock_client = MagicMock()
         mock_azure_openai.return_value = mock_client
         mock_completion = MagicMock()
@@ -123,7 +129,7 @@ class TestChatWithDataPlugin:
         assert result == "Query results data"
         mock_azure_openai.assert_called_once_with(
             azure_endpoint="https://test-openai.azure.com/",
-            api_key="test-api-key",
+            azure_ad_token_provider=mock_token_provider.return_value,
             api_version="2024-02-15-preview"
         )
         mock_client.chat.completions.create.assert_called_once()
@@ -175,9 +181,11 @@ class TestChatWithDataPlugin:
         mock_execute_sql.assert_not_called()
 
     @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.get_bearer_token_provider")
     @patch("plugins.chat_with_data_plugin.openai.AzureOpenAI")
-    async def test_get_answers_from_calltranscripts(self, mock_azure_openai, chat_plugin):
+    async def test_get_answers_from_calltranscripts(self, mock_azure_openai, mock_token_provider, chat_plugin):
         # Setup mock
+        mock_token_provider.return_value = lambda: "fake_token"
         mock_client = MagicMock()
         mock_azure_openai.return_value = mock_client
         mock_completion = MagicMock()
@@ -193,7 +201,7 @@ class TestChatWithDataPlugin:
         assert result.message.content == "Answer about transcripts"
         mock_azure_openai.assert_called_once_with(
             azure_endpoint="https://test-openai.azure.com/",
-            api_key="test-api-key",
+            azure_ad_token_provider=mock_token_provider.return_value,
             api_version="2024-02-15-preview"
         )
         mock_client.chat.completions.create.assert_called_once()

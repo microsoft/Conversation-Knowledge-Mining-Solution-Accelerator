@@ -7,10 +7,12 @@ and supports plugin integration.
 """
 
 import asyncio
-from semantic_kernel.agents import AzureAIAgent, AzureAIAgentThread
+from semantic_kernel.agents import AzureAIAgent, AzureAIAgentThread, AzureAIAgentSettings
 from plugins.chat_with_data_plugin import ChatWithDataPlugin
 from azure.identity.aio import DefaultAzureCredential
 from services.chat_service import ChatService
+from dotenv import load_dotenv
+load_dotenv()
 
 
 class AgentFactory:
@@ -21,17 +23,15 @@ class AgentFactory:
     _lock = asyncio.Lock()
 
     @classmethod
-    async def get_instance(cls, config):
+    async def get_instance(cls):
         """
         Get or create the singleton AzureAIAgent instance.
         """
         async with cls._lock:
             if cls._instance is None:
+                ai_agent_settings = AzureAIAgentSettings()
                 creds = DefaultAzureCredential()
-                client = AzureAIAgent.create_client(
-                    credential=creds,
-                    conn_str=config.azure_ai_project_conn_string
-                )
+                client = AzureAIAgent.create_client(credential=creds, endpoint=ai_agent_settings.endpoint)
 
                 agent_name = "ConversationKnowledgeAgent"
                 agent_instructions = '''You are a helpful assistant.
@@ -45,7 +45,7 @@ class AgentFactory:
                 '''
 
                 agent_definition = await client.agents.create_agent(
-                    model=config.azure_openai_deployment_model,
+                    model=ai_agent_settings.model_deployment_name,
                     name=agent_name,
                     instructions=agent_instructions
                 )

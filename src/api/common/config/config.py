@@ -28,6 +28,7 @@ class Config:
         # AI Project Client configuration
         self.use_ai_project_client = os.getenv("USE_AI_PROJECT_CLIENT", "False").lower() == "true"
         self.azure_ai_project_conn_string = os.getenv("AZURE_AI_PROJECT_CONN_STRING")
+        self.ai_project_endpoint = os.getenv("AI_PROJECT_ENDPOINT")
 
         # Chat history configuration
         self.use_chat_history_enabled = os.getenv("USE_CHAT_HISTORY_ENABLED", "false").strip().lower() == "true"

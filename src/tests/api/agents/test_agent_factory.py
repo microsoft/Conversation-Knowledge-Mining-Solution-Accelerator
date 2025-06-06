@@ -12,24 +12,20 @@ def reset_agent_factory():
     AgentFactory._instance = None
 
 
-@pytest.fixture
-def config_mock():
-    return MagicMock(
-        azure_ai_project_conn_string="fake_conn_str",
-        azure_openai_deployment_model="gpt-4"
-    )
-
-
 @pytest.mark.asyncio
-@patch("agents.agent_factory.ChatWithDataPlugin", autospec=True)
+@patch("agents.agent_factory.AzureAIAgentSettings", autospec=True)
 @patch("agents.agent_factory.AzureAIAgent", autospec=True)
 @patch("agents.agent_factory.DefaultAzureCredential", autospec=True)
 async def test_get_instance_creates_new_agent(
     mock_credential,
     mock_azure_agent,
-    mock_plugin,
-    config_mock
+    mock_azure_ai_agent_settings
 ):
+    mock_settings_instance = MagicMock()
+    mock_settings_instance.endpoint = "https://fake-endpoint"
+    mock_settings_instance.model_deployment_name = "gpt-4o-mini"
+    mock_azure_ai_agent_settings.return_value = mock_settings_instance
+
     mock_client = AsyncMock()
     mock_agent_definition = MagicMock()
     mock_client.agents.create_agent.return_value = mock_agent_definition
@@ -38,21 +34,21 @@ async def test_get_instance_creates_new_agent(
     agent_instance = MagicMock()
     mock_azure_agent.return_value = agent_instance
 
-    result = await AgentFactory.get_instance(config_mock)
+    result = await AgentFactory.get_instance()
 
     assert result == agent_instance
     mock_azure_agent.create_client.assert_called_once_with(
         credential=mock_credential.return_value,
-        conn_str="fake_conn_str"
+        endpoint="https://fake-endpoint"
     )
     mock_client.agents.create_agent.assert_awaited_once()
     mock_azure_agent.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_get_instance_returns_existing_instance(config_mock):
+async def test_get_instance_returns_existing_instance():
     AgentFactory._instance = MagicMock()
-    result = await AgentFactory.get_instance(config_mock)
+    result = await AgentFactory.get_instance()
     assert result == AgentFactory._instance
 
 
