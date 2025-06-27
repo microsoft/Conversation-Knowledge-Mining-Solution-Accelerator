@@ -12,7 +12,7 @@ param (
 $USE_LOCAL_BUILD = if ($USE_LOCAL_BUILD -match "^(?i:true)$") { $true } else { $false }
 
 if ([string]::IsNullOrEmpty($AZURE_ENV_IMAGETAG)) {
-    $AZURE_ENV_IMAGETAG = "latest_fdp"
+    $AZURE_ENV_IMAGETAG = "latest"
 }
 
 # Validate required parameters

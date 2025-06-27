@@ -24,7 +24,6 @@ var keyvaultName = '${abbrs.security.keyVault}${solutionName}'
 var location = solutionLocation //'eastus2'
 var aiProjectName = '${abbrs.ai.aiFoundryProject}${solutionName}'
 var aiSearchName = '${abbrs.ai.aiSearch}${solutionName}'
-var aiSearchConnectionName = 'myVectorStoreProjectConnectionName-${solutionName}'
 
 var aiModelDeployments = [
   {
@@ -57,8 +56,8 @@ var existingOpenAIEndpoint = !empty(azureExistingAIProjectResourceId) ? format('
 var existingProjEndpoint = !empty(azureExistingAIProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(azureExistingAIProjectResourceId, '/')[8], split(azureExistingAIProjectResourceId, '/')[10]) : ''
 var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
 var existingAIProjectName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
-var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
-var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
+var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : ''
+var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : ''
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   name: keyVaultName
@@ -162,9 +161,6 @@ resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   sku: {
     name: 'basic'
   }
-  identity: {
-    type: 'SystemAssigned'
-  }
   properties: {
     replicaCount: 1
     partitionCount: 1
@@ -176,7 +172,10 @@ resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = {
     encryptionWithCmk: {
       enforcement: 'Unspecified'
     }
-    disableLocalAuth: true
+    disableLocalAuth: false
+    authOptions: {
+      apiKeyOnly: {}
+    }
     semanticSearch: 'free'
   }
 }
@@ -193,7 +192,7 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-pre
 }
 
 resource aiproject_aisearch_connection_new 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (empty(azureExistingAIProjectResourceId)) {
-  name: aiSearchConnectionName
+  name: 'myVectorStoreProjectConnectionName-${solutionName}'
   parent: aiProject
   properties: {
     category: 'CognitiveSearch'
@@ -217,7 +216,7 @@ module existing_AIProject_SearchConnectionModule 'deploy_aifp_aisearch_connectio
     aiSearchName: aiSearchName
     aiSearchResourceId: aiSearch.id
     aiSearchLocation: aiSearch.location
-    aiSearchConnectionName: aiSearchConnectionName
+    solutionName: solutionName
   }
 }
 
@@ -225,113 +224,23 @@ resource aiUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = 
   name: '53ca6127-db72-4b80-b1b0-d745d6d5456d'
 }
 
-resource assignFoundryRoleToMI 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (empty(azureExistingAIProjectResourceId))  {
-  name: guid(resourceGroup().id, aiServices.id, aiUser.id)
-  scope: aiServices
+resource aiUserAccessFoundry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, managedIdentityObjectId, aiUser.id)
   properties: {
     principalId: managedIdentityObjectId
     roleDefinitionId: aiUser.id
-    principalType: 'ServicePrincipal'
+    principalType: 'ServicePrincipal' 
   }
 }
 
-module assignFoundryRoleToMIExisting 'deploy_foundry_role_assignment.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
-  name: 'assignFoundryRoleToMI'
+module assignAiUserRoleToManagedIdentity 'deploy_foundry_role_assignment.bicep' = if(!empty(azureExistingAIProjectResourceId)) {
+  name: 'assignAiUserRoleToManagedIdentity'
   scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
   params: {
     roleDefinitionId: aiUser.id
-    roleAssignmentName: guid(resourceGroup().id, managedIdentityObjectId, aiUser.id, 'foundry')
+    roleAssignmentName: guid(managedIdentityObjectId, aiServices.id, aiUser.id)
     aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
-    aiProjectName: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiProjectName
-    principalId: managedIdentityObjectId
-  }
-}
-
-resource assignAiUserToAiFoundryCU 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aiServices_CU.id, aiUser.id)
-  scope: aiServices_CU
-  properties: {
-    principalId: managedIdentityObjectId
-    roleDefinitionId: aiUser.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource cognitiveServicesOpenAIUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
-}
-
-module assignOpenAIRoleToAISearch 'deploy_foundry_role_assignment.bicep' = {
-  name: 'assignOpenAIRoleToAISearch'
-  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
-  params: {
-    roleDefinitionId: cognitiveServicesOpenAIUser.id
-    roleAssignmentName: guid(resourceGroup().id, aiSearch.id, cognitiveServicesOpenAIUser.id, 'openai-foundry')
-    aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
-    aiProjectName: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiProjectName
-    principalId: aiSearch.identity.principalId
-  }
-}
-
-resource searchIndexDataReader 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
-}
-
-resource assignSearchIndexDataReaderToAiProject 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (empty(azureExistingAIProjectResourceId)) {
-  name: guid(resourceGroup().id, aiProject.id, searchIndexDataReader.id)
-  scope: aiSearch
-  properties: {
-    principalId: aiProject.identity.principalId
-    roleDefinitionId: searchIndexDataReader.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource assignSearchIndexDataReaderToExistingAiProject 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(azureExistingAIProjectResourceId)) {
-  name: guid(resourceGroup().id, existingAIProjectName, searchIndexDataReader.id, 'Existing')
-  scope: aiSearch
-  properties: {
-    principalId: assignOpenAIRoleToAISearch.outputs.aiProjectPrincipalId
-    roleDefinitionId: searchIndexDataReader.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource searchServiceContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
-}
-
-resource assignSearchServiceContributorToAiProject 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (empty(azureExistingAIProjectResourceId)) {
-  name: guid(resourceGroup().id, aiProject.id, searchServiceContributor.id)
-  scope: aiSearch
-  properties: {
-    principalId: aiProject.identity.principalId
-    roleDefinitionId: searchServiceContributor.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource assignSearchServiceContributorToExistingAiProject 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(azureExistingAIProjectResourceId)) {
-  name: guid(resourceGroup().id, existingAIProjectName, searchServiceContributor.id, 'Existing')
-  scope: aiSearch
-  properties: {
-    principalId: assignOpenAIRoleToAISearch.outputs.aiProjectPrincipalId
-    roleDefinitionId: searchServiceContributor.id
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource searchIndexDataContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
-}
-
-resource assignSearchIndexDataContributorToMI 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, aiProject.id, searchIndexDataContributor.id)
-  scope: aiSearch
-  properties: {
-    principalId: managedIdentityObjectId
-    roleDefinitionId: searchIndexDataContributor.id
-    principalType: 'ServicePrincipal'
+    userassignedIdentityId: managedIdentityObjectId
   }
 }
 
@@ -383,14 +292,6 @@ resource azureOpenAIEndpointEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-
   }
 }
 
-resource azureOpenAIEmbeddingDeploymentModel 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
-  parent: keyVault
-  name: 'AZURE-OPENAI-EMBEDDING-MODEL'
-  properties: {
-    value: embeddingModel
-  }
-}
-
 resource azureOpenAICUEndpointEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
   parent: keyVault
   name: 'AZURE-OPENAI-CU-ENDPOINT'
@@ -404,6 +305,14 @@ resource azureOpenAICUApiVersionEntry 'Microsoft.KeyVault/vaults/secrets@2021-11
   name: 'AZURE-OPENAI-CU-VERSION'
   properties: {
     value: '?api-version=2024-12-01-preview'
+  }
+}
+
+resource azureSearchAdminKeyEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
+  parent: keyVault
+  name: 'AZURE-SEARCH-KEY'
+  properties: {
+    value: aiSearch.listAdminKeys().primaryKey
   }
 }
 
@@ -481,7 +390,6 @@ output aiSearchId string = aiSearch.id
 output aiSearchTarget string = 'https://${aiSearch.name}.search.windows.net'
 output aiSearchService string = aiSearch.name
 output aiProjectName string = !empty(existingAIProjectName) ? existingAIProjectName : aiProject.name
-output aiSearchConnectionName string = aiSearchConnectionName
 
 output applicationInsightsId string = applicationInsights.id
 output logAnalyticsWorkspaceResourceName string = useExisting ? existingLogAnalyticsWorkspace.name : logAnalytics.name

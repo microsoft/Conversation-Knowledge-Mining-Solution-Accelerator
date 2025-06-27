@@ -1,7 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock, Mock
+from unittest.mock import patch, MagicMock, AsyncMock
 from plugins.chat_with_data_plugin import ChatWithDataPlugin
-from azure.ai.agents.models import (RunStepToolCallDetails, MessageRole)
 
 
 @pytest.fixture
@@ -208,62 +207,80 @@ class TestChatWithDataPlugin:
         assert result == "Details could not be retrieved. Please try again later."
         mock_execute_sql.assert_not_called()
 
+    @pytest.mark.asyncio
+    @patch("helpers.azure_openai_helper.Config")
+    @patch("helpers.azure_openai_helper.get_bearer_token_provider")
+    @patch("helpers.azure_openai_helper.openai.AzureOpenAI")
+    async def test_get_answers_from_calltranscripts(self, mock_azure_openai, mock_token_provider, mock_config, chat_plugin):
+        # Setup mock
+        mock_token_provider.return_value = lambda: "fake_token"
+        mock_client = MagicMock()
+        mock_azure_openai.return_value = mock_client
+        mock_config_instance = MagicMock()
+        mock_config_instance.azure_openai_endpoint = "https://test-openai.azure.com/"
+        mock_config_instance.azure_openai_api_version = "2024-02-15-preview"
+        mock_config.return_value = mock_config_instance
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock()]
+        mock_completion.choices[0].message = MagicMock()
+        mock_completion.choices[0].message.content = "Answer about transcripts"
+        mock_client.chat.completions.create.return_value = mock_completion
+        
+        # Call the method
+        result = await chat_plugin.get_answers_from_calltranscripts("Tell me about the call transcripts")
+        
+        # Assertions
+        assert result.message.content == "Answer about transcripts"
+        mock_azure_openai.assert_called_once_with(
+            azure_endpoint="https://test-openai.azure.com/",
+            azure_ad_token_provider=mock_token_provider.return_value,
+            api_version="2024-02-15-preview"
+        )
+        mock_client.chat.completions.create.assert_called_once()
+        args = mock_client.chat.completions.create.call_args[1]
+        assert args["model"] == "gpt-4"
+        assert args["temperature"] == 0
+        assert len(args["messages"]) == 2
+        assert args["messages"][0]["role"] == "system"
+        assert args["messages"][1]["role"] == "user"
+        assert args["messages"][1]["content"] == "Tell me about the call transcripts"
+        assert "data_sources" in args["extra_body"]
+        assert args["extra_body"]["data_sources"][0]["type"] == "azure_search"
 
     @pytest.mark.asyncio
-    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
-    async def test_get_answers_from_calltranscripts_success(self, mock_get_agent, chat_plugin):
-        # Use the fixture passed by pytest
-        self.chat_plugin = chat_plugin  # or just use `chat_plugin` directly
-
-        # Mock agent and client setup
-        mock_agent = MagicMock()
-        mock_agent.id = "mock-agent-id"
+    @patch("helpers.azure_openai_helper.openai.AzureOpenAI")
+    async def test_get_answers_from_calltranscripts_with_citations(self, mock_azure_openai, chat_plugin):
+        # Setup mock with citations in context
         mock_client = MagicMock()
-        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
-
-        # Mock thread creation
-        mock_thread = MagicMock()
-        mock_thread.id = "thread-id"
-        mock_client.agents.threads.create.return_value = mock_thread
-
-        # Mock run creation
-        mock_run = MagicMock()
-        mock_run.status = "succeeded"
-        mock_run.id = "run-id"
-        mock_client.agents.runs.create_and_process.return_value = mock_run
-
-        # Mock run steps
-        mock_run_step = MagicMock()
-        mock_run_step.step_details = RunStepToolCallDetails(tool_calls=[
-            {
-                "azure_ai_search": {
-                    "output": str({
-                        "metadata": {
-                            "get_urls": ["https://example.com/doc1"],
-                            "titles": ["Document Title 1"]
-                        }
-                    })
-                }
-            }
-        ])
-        mock_client.agents.run_steps.list.return_value = [mock_run_step]
-
-        # Mock agent message with answer
-        mock_agent_msg = MagicMock()
-        mock_agent_msg.role = MessageRole.AGENT
-        mock_agent_msg.text_messages = [MagicMock(text=MagicMock(value="This is a test answer with citation 【3:0†source】"))]
-        mock_client.agents.messages.list.return_value = [mock_agent_msg]
-
-        # Mock thread deletion
-        mock_client.agents.threads.delete.return_value = None
-
+        mock_azure_openai.return_value = mock_client
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock()]
+        mock_message = MagicMock()
+        mock_message.content = "Answer with citations"
+        
+        mock_context = MagicMock()
+        long_content = "This is a very long citation that should be truncated because it exceeds the 300 character limit. " * 10
+        
+        shared_citation_list = [{"content": long_content}]
+        mock_context.get.return_value = shared_citation_list
+        
+        # Make 'in' operator work for checking 'citations' in context.
+        mock_context.__contains__ = lambda _, key: key == 'citations'
+        
+        # Make the .citations attribute (used in assertions) point to the same shared list.
+        mock_context.citations = shared_citation_list
+        
+        mock_message.context = mock_context
+        mock_completion.choices[0].message = mock_message
+        mock_client.chat.completions.create.return_value = mock_completion
+        
         # Call the method
-        result = await chat_plugin.get_answers_from_calltranscripts("What is the summary?")
-
-        # Assert
-        assert isinstance(result, dict)
-        assert result["answer"] == "This is a test answer with citation [1]"
-        assert result["citations"] == [{"url": "https://example.com/doc1", "title": "Document Title 1"}]
+        result = await chat_plugin.get_answers_from_calltranscripts("Tell me about the call transcripts with citations")
+        
+        # Assertions
+        assert result.message.content == "Answer with citations"
+        assert len(result.message.context.citations[0]["content"]) <= 303  # 300 characters + "..."
+        assert result.message.context.citations[0]["content"].endswith("...")
 
     @pytest.mark.asyncio
     @patch("helpers.azure_openai_helper.openai.AzureOpenAI")

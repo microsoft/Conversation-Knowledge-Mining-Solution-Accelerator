@@ -7,16 +7,15 @@ from unittest.mock import AsyncMock, patch
 import app as app_module
 
 
+@pytest.fixture
+def mock_agent():
+    return AsyncMock()
+
+
 @pytest_asyncio.fixture
-async def test_app():
-    with patch("agents.conversation_agent_factory.ConversationAgentFactory.get_agent", new_callable=AsyncMock) as mock_convo_agent, \
-         patch("agents.search_agent_factory.SearchAgentFactory.get_agent", new_callable=AsyncMock) as mock_search_agent, \
-         patch("agents.conversation_agent_factory.ConversationAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_convo, \
-         patch("agents.search_agent_factory.SearchAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_search:
-
-        mock_convo_agent.return_value = AsyncMock(name="ConversationAgent")
-        mock_search_agent.return_value = AsyncMock(name="SearchAgent")
-
+async def test_app(mock_agent):
+    with patch("app.AgentFactory.get_instance", return_value=mock_agent), \
+         patch("app.AgentFactory.delete_instance", new_callable=AsyncMock):
         app = app_module.build_app()
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
@@ -32,27 +31,20 @@ async def test_health_check(test_app):
 
 
 @pytest.mark.asyncio
-async def test_lifespan_startup_and_shutdown():
-    mock_convo_agent = AsyncMock(name="ConversationAgent")
-    mock_search_agent = AsyncMock(name="SearchAgent")
-
-    with patch("agents.conversation_agent_factory.ConversationAgentFactory.get_agent", return_value=mock_convo_agent) as mock_get_convo, \
-         patch("agents.search_agent_factory.SearchAgentFactory.get_agent", return_value=mock_search_agent) as mock_get_search, \
-         patch("agents.conversation_agent_factory.ConversationAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_convo, \
-         patch("agents.search_agent_factory.SearchAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_search:
+async def test_lifespan_startup_and_shutdown(mock_agent):
+    with patch("app.AgentFactory.get_instance", return_value=mock_agent) as mock_get_instance, \
+         patch("app.AgentFactory.delete_instance", new_callable=AsyncMock) as mock_delete_instance:
 
         app = app_module.build_app()
 
+        # Manually trigger lifespan events
         async with app_module.lifespan(app):
-            mock_get_convo.assert_awaited_once()
-            mock_get_search.assert_awaited_once()
-            assert app.state.agent == mock_convo_agent
-            assert app.state.search_agent == mock_search_agent
+            mock_get_instance.assert_called_once()
+            assert hasattr(app.state, "agent")
+            assert app.state.agent == mock_agent
 
-        mock_delete_convo.assert_awaited_once()
-        mock_delete_search.assert_awaited_once()
+        mock_delete_instance.assert_awaited_once()
         assert app.state.agent is None
-        assert app.state.search_agent is None
 
 
 def test_build_app_sets_metadata():

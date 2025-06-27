@@ -6,22 +6,15 @@ This module provides functions for:
 - Answering questions using call transcript data from Azure AI Search.
 """
 
-import re
-from typing import Annotated, Dict, Any
-import ast
+from typing import Annotated
 
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
 from azure.ai.projects import AIProjectClient
-from azure.ai.agents.models import (
-    ListSortOrder,
-    MessageRole,
-    RunStepToolCallDetails)
 from azure.identity import DefaultAzureCredential
 
 from common.database.sqldb_service import execute_sql_query
 from common.config.config import Config
 from helpers.azure_openai_helper import get_azure_openai_client
-from agents.search_agent_factory import SearchAgentFactory
 
 
 class ChatWithDataPlugin:
@@ -31,7 +24,6 @@ class ChatWithDataPlugin:
         self.ai_project_endpoint = config.ai_project_endpoint
         self.azure_ai_search_endpoint = config.azure_ai_search_endpoint
         self.azure_ai_search_api_key = config.azure_ai_search_api_key
-        self.azure_ai_search_connection_name = config.azure_ai_search_connection_name
         self.azure_ai_search_index = config.azure_ai_search_index
         self.use_ai_project_client = config.use_ai_project_client
 
@@ -129,65 +121,79 @@ class ChatWithDataPlugin:
             answer = 'Details could not be retrieved. Please try again later.'
         return answer
 
-    @kernel_function(name="ChatWithCallTranscripts", description="Provides summaries or detailed explanations from the search index.")
+    @kernel_function(name="ChatWithCallTranscripts",
+                     description="Provides summaries or detailed explanations from the search index.")
     async def get_answers_from_calltranscripts(
             self,
             question: Annotated[str, "the question"]
     ):
-        answer: Dict[str, Any] = {"answer": "", "citations": []}
-        agent = None
+        client = get_azure_openai_client()
 
+        query = question
+        system_message = '''You are an assistant who provides an analyst with helpful information about data.
+        You have access to the call transcripts, call data, topics, sentiments, and key phrases.
+        You can use this information to answer questions.
+        If you cannot answer the question, always return - I cannot answer this question from the data available. Please rephrase or add more details.'''
+        answer = ''
         try:
-            agent_info = await SearchAgentFactory.get_agent()
-            agent = agent_info["agent"]
-            project_client = agent_info["client"]
+            completion = client.chat.completions.create(
+                model=self.azure_openai_deployment_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": system_message
+                    },
+                    {
+                        "role": "user",
+                        "content": query
+                    }
+                ],
+                seed=42,
+                temperature=0,
+                max_tokens=800,
+                extra_body={
+                    "data_sources": [
+                        {
+                            "type": "azure_search",
+                            "parameters": {
+                                "endpoint": self.azure_ai_search_endpoint,
+                                "index_name": self.azure_ai_search_index,
+                                "semantic_configuration": "my-semantic-config",
+                                "query_type": "vector_simple_hybrid",  # "vector_semantic_hybrid"
+                                "fields_mapping": {
+                                    "content_fields_separator": "\n",
+                                    "content_fields": ["content"],
+                                    "filepath_field": "chunk_id",
+                                    "title_field": "sourceurl",  # null,
+                                    "url_field": "sourceurl",
+                                    "vector_fields": ["contentVector"]
+                                },
+                                "in_scope": "true",
+                                # "vector_filter_mode": "preFilter", #VectorFilterMode.PRE_FILTER,
+                                # "filter": f"client_id eq '{ClientId}'", #"", #null,
+                                "strictness": 3,
+                                "top_n_documents": 5,
+                                "authentication": {
+                                    "type": "api_key",
+                                    "key": self.azure_ai_search_api_key
+                                },
+                                "embedding_dependency": {
+                                    "type": "deployment_name",
+                                    "deployment_name": "text-embedding-ada-002"
+                                },
 
-            thread = project_client.agents.threads.create()
-
-            project_client.agents.messages.create(
-                thread_id=thread.id,
-                role=MessageRole.USER,
-                content=question,
+                            }
+                        }
+                    ]
+                }
             )
+            answer = completion.choices[0]
 
-            run = project_client.agents.runs.create_and_process(
-                thread_id=thread.id,
-                agent_id=agent.id,
-                tool_choice={"type": "azure_ai_search"}
-            )
-
-            if run.status == "failed":
-                print(f"Run failed: {run.last_error}")
-            else:
-                def convert_citation_markers(text):
-                    def replace_marker(match):
-                        parts = match.group(1).split(":")
-                        if len(parts) == 2 and parts[1].isdigit():
-                            new_index = int(parts[1]) + 1
-                            return f"[{new_index}]"
-                        return match.group(0)
-
-                    return re.sub(r'【(\d+:\d+)†source】', replace_marker, text)
-
-                for run_step in project_client.agents.run_steps.list(thread_id=thread.id, run_id=run.id):
-                    if isinstance(run_step.step_details, RunStepToolCallDetails):
-                        for tool_call in run_step.step_details.tool_calls:
-                            output_data = tool_call['azure_ai_search']['output']
-                            tool_output = ast.literal_eval(output_data) if isinstance(output_data, str) else output_data
-                            urls = tool_output.get("metadata", {}).get("get_urls", [])
-                            titles = tool_output.get("metadata", {}).get("titles", [])
-
-                            for i, url in enumerate(urls):
-                                title = titles[i] if i < len(titles) else ""
-                                answer["citations"].append({"url": url, "title": title})
-
-                messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
-                for msg in messages:
-                    if msg.role == MessageRole.AGENT and msg.text_messages:
-                        answer["answer"] = msg.text_messages[-1].text.value
-                        answer["answer"] = convert_citation_markers(answer["answer"])
-                        break
-                project_client.agents.threads.delete(thread_id=thread.id)
-        except Exception:
-            return "Details could not be retrieved. Please try again later."
+            # Limit the content inside citations to 300 characters to minimize load
+            if hasattr(answer.message, 'context') and 'citations' in answer.message.context:
+                for citation in answer.message.context.get('citations', []):
+                    if isinstance(citation, dict) and 'content' in citation:
+                        citation['content'] = citation['content'][:300] + '...' if len(citation['content']) > 300 else citation['content']
+        except BaseException:
+            answer = 'Details could not be retrieved. Please try again later.'
         return answer

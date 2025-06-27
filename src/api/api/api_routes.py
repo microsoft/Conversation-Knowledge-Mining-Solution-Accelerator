@@ -1,10 +1,8 @@
-import asyncio
 import json
 import logging
 import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-import requests
 from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
 from services.chart_service import ChartService
@@ -12,7 +10,6 @@ from common.logging.event_utils import track_event_if_configured
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
-from azure.identity import DefaultAzureCredential
 
 router = APIRouter()
 
@@ -169,55 +166,3 @@ async def get_chart_config():
         return JSONResponse(content={"isChartDisplayDefault": chart_config})
     track_event_if_configured("ChartDisplayDefaultNotFound", {})
     return JSONResponse(content={"error": "DISPLAY_CHART_DEFAULT flag not found in environment variables"}, status_code=400)
-
-
-@router.post("/fetch-azure-search-content")
-async def fetch_azure_search_content_endpoint(request: Request):
-    """
-    API endpoint to fetch content from a given URL using the Azure AI Search API.
-    Expects a JSON payload with a 'url' field.
-    """
-    try:
-        # Parse the request JSON
-        request_json = await request.json()
-        url = request_json.get("url")
-
-        if not url:
-            return JSONResponse(content={"error": "URL is required"}, status_code=400)
-
-        # Get Azure AD token
-        credential = DefaultAzureCredential()
-        token = credential.get_token("https://search.azure.com/.default")
-        access_token = token.token
-
-        # Define blocking request call
-        def fetch_content():
-            try:
-                response = requests.get(
-                    url,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json"
-                    },
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    content = data.get("content", "")
-                    return content
-                else:
-                    return f"Error: HTTP {response.status_code}"
-            except Exception:
-                logger.exception("Exception occurred while making the HTTP request")
-                return "Error: Unable to fetch content"
-
-        content = await asyncio.to_thread(fetch_content)
-
-        return JSONResponse(content={"content": content})
-
-    except Exception:
-        logger.exception("Error in fetch_azure_search_content_endpoint")
-        return JSONResponse(
-            content={"error": "Internal server error"},
-            status_code=500
-        )
