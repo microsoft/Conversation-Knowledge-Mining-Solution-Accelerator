@@ -12,13 +12,13 @@ aiohttp
 
 # Azure Services
 azure-identity==1.23.0
-azure-search-documents==11.6.0b11
-azure-ai-projects==1.0.0b8
+azure-search-documents==11.6.0b12
+azure-ai-projects==1.0.0b12
 azure-ai-inference==1.0.0b9
 azure-cosmos==4.9.0
 
 # Additional utilities
 semantic-kernel[azure]==1.28.0
-openai==1.82.1
+openai==1.93.0
 pyodbc==5.2.0
-pandas==2.2.3
+pandas==2.3.0
