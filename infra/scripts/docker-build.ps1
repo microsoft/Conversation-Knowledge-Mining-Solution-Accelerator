@@ -1,36 +1,56 @@
-# Define script parameters
-param (
-    [string]$AZURE_SUBSCRIPTION_ID,
-    [string]$ENV_NAME,
-    [string]$AZURE_LOCATION,
-    [string]$AZURE_RESOURCE_GROUP,
-    [string]$USE_LOCAL_BUILD,
-    [string]$AZURE_ENV_IMAGETAG
-)
+# Get all environment values
+$envValues = azd env get-values --output json | ConvertFrom-Json
 
-# Convert USE_LOCAL_BUILD to Boolean
-$USE_LOCAL_BUILD = if ($USE_LOCAL_BUILD -match "^(?i:true)$") { $true } else { $false }
+# Validate and fetch required parameters from azd env if missing
+function Get-AzdEnvValueOrDefault {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$KeyName,
 
-if ([string]::IsNullOrEmpty($AZURE_ENV_IMAGETAG)) {
-    $AZURE_ENV_IMAGETAG = "latest_fdp"
+        [Parameter(Mandatory = $false)]
+        [string]$DefaultValue = "",
+
+        [Parameter(Mandatory = $false)]
+        [bool]$Required = $false
+    )
+
+    # Check if key exists
+    if ($envValues.PSObject.Properties.Name -contains $KeyName) {
+        return $envValues.$KeyName
+    }
+
+    # Key doesn't exist
+    if ($Required) {
+        Write-Error "Required environment key '$KeyName' not found in azd environment."
+        exit 1
+    } else {
+        return $DefaultValue
+    }
 }
 
-# Validate required parameters
-if (-not $AZURE_SUBSCRIPTION_ID -or -not $ENV_NAME -or -not $AZURE_LOCATION -or -not $AZURE_RESOURCE_GROUP) {
-    Write-Error "Missing required arguments. Usage: docker-build.ps1 <AZURE_SUBSCRIPTION_ID> <ENV_NAME> <AZURE_LOCATION> <AZURE_RESOURCE_GROUP> <USE_LOCAL_BUILD> <AZURE_ENV_IMAGETAG>"
-    exit 1
-}
+# Read the required details from Bicep deployment output
+$AZURE_SUBSCRIPTION_ID = Get-AzdEnvValueOrDefault -KeyName "AZURE_SUBSCRIPTION_ID" -Required $true
+$ENV_NAME = Get-AzdEnvValueOrDefault -KeyName "AZURE_ENV_NAME" -Required $true
+$WEB_APP_IDENTITY_PRINCIPAL_ID = Get-AzdEnvValueOrDefault -KeyName "FRONTEND_MANAGED_IDENTITY_PRINCIPAL_ID" -Required $true
+$API_APP_IDENTITY_PRINCIPAL_ID = Get-AzdEnvValueOrDefault -KeyName "BACKEND_MANAGED_IDENTITY_PRINCIPAL_ID" -Required $true
+$AZURE_RESOURCE_GROUP = Get-AzdEnvValueOrDefault -KeyName "AZURE_RESOURCE_GROUP" -Required $true
+$AZURE_ENV_IMAGETAG = Get-AzdEnvValueOrDefault -KeyName "AZURE_ENV_IMAGETAG" -DefaultValue "latest"
+$WEB_APP_NAME=Get-AzdEnvValueOrDefault -KeyName "FRONTEND_APP_NAME" -Required $true
+$API_APP_NAME=Get-AzdEnvValueOrDefault -KeyName "BACKEND_APP_NAME" -Required $true
 
-# Exit early if local build is not requested
-if ($USE_LOCAL_BUILD -eq $false) {
-    Write-Output "Local Build not enabled. Using prebuilt image."
-    exit 0
-}
+# Export the variables for later use
+Write-Host "Using the following parameters:"
+Write-Host "AZURE_SUBSCRIPTION_ID = $AZURE_SUBSCRIPTION_ID"
+Write-Host "ENV_NAME = $ENV_NAME"
+Write-Host "AZURE_RESOURCE_GROUP = $AZURE_RESOURCE_GROUP"
+Write-Host "AZURE_ENV_IMAGETAG = $AZURE_ENV_IMAGETAG"
+Write-Host "WEB_APP_NAME = $WEB_APP_NAME"
+Write-Host "API_APP_NAME = $API_APP_NAME"
 
-Write-Output "Local Build enabled. Starting build process."
+Write-Output "`nStarting build process..."
 
 # STEP 1: Ensure user is logged into Azure
-Write-Host "Checking Azure login status..."
+Write-Host "`nChecking Azure login status..."
 $account = az account show 2>$null | ConvertFrom-Json
 
 if (-not $account) {
@@ -51,25 +71,26 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# STEP 3: Deploy container registry
-Write-Host "Deploying container registry in location: $AZURE_LOCATION"
-$OUTPUTS = az deployment group create --resource-group $AZURE_RESOURCE_GROUP --template-file "./infra/deploy_container_registry.bicep" --parameters environmentName=$ENV_NAME --query "properties.outputs" --output json | ConvertFrom-Json
+# STEP 3: Get current script directory
+$ScriptDir = $PSScriptRoot
+
+# STEP 4: Deploy container registry
+Write-Host "`nDeploying container registry"
+$TemplateFile = Join-Path $ScriptDir "..\deploy_container_registry.bicep" | Resolve-Path
+$OUTPUTS = az deployment group create --resource-group $AZURE_RESOURCE_GROUP --template-file $TemplateFile --parameters environmentName=$ENV_NAME --query "properties.outputs" --output json | ConvertFrom-Json
 
 # Extract ACR name and endpoint
 $ACR_NAME = $OUTPUTS.createdAcrName.value
 
-Write-Host "Extracted ACR Name: $ACR_NAME"
+Write-Host "ACR Name: $ACR_NAME"
 
-# STEP 4: Login to Azure Container Registry
+# STEP 5: Login to Azure Container Registry
 Write-Host "Logging into Azure Container Registry: $ACR_NAME"
 az acr login -n $ACR_NAME
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to log in to ACR"
     exit 1
 }
-
-# STEP 5: Get current script directory
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # STEP 6: Resolve full paths to Dockerfiles and build contexts
 $WebAppDockerfilePath = Join-Path $ScriptDir "..\..\src\App\WebApp.Dockerfile" | Resolve-Path
@@ -110,4 +131,62 @@ function Build-And-Push-Image {
 Build-And-Push-Image "km-api" $ApiAppDockerfilePath $ApiAppContextPath $AZURE_ENV_IMAGETAG
 Build-And-Push-Image "km-app" $WebAppDockerfilePath $WebAppContextPath $AZURE_ENV_IMAGETAG
 
-Write-Host "`nAll Docker images built and pushed successfully with tag: $AZURE_ENV_IMAGETAG"
+Write-Host "`nAll Docker images built and pushed successfully with tag: $AZURE_ENV_IMAGETAG`n"
+
+# STEP 9: Define Function to Update Web App settings to use Managed Identity for ACR pull
+function Update-WebApp-Settings {
+    param (
+        [string]$WebAppName,
+        [string]$ResourceGroup
+    )
+
+    Write-Host "Updating Web App settings for $WebAppName"
+    $webAppConfig = az webapp config show --resource-group $ResourceGroup --name $WebAppName --query id --output tsv
+    if (-not $webAppConfig) {
+        Write-Error "Error: Web App configuration not found for $WebAppName"
+        exit 1
+    }
+    az resource update --ids $webAppConfig --set properties.acrUseManagedIdentityCreds=True --output none --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to update Web App settings for $WebAppName"
+        exit 1
+    }
+    Write-Host "Web App settings updated successfully for $WebAppName"
+}
+
+# STEP 10: Update Web App settings to use the new image
+Update-WebApp-Settings -WebAppName $WEB_APP_NAME -ResourceGroup $AZURE_RESOURCE_GROUP
+Update-WebApp-Settings -WebAppName $API_APP_NAME -ResourceGroup $AZURE_RESOURCE_GROUP
+
+# STEP 11: Define function to update Web App to use new image
+function Update-WebApp-Image {
+    param (
+        [string]$WebAppName,
+        [string]$ResourceGroup,
+        [string]$Image
+    )
+
+    Write-Host "`nUpdating Web App $WebAppName to use image: $Image"
+    az webapp config container set --name $WebAppName --resource-group $ResourceGroup --container-image-name $Image --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to update Web App $WebAppName to use image: $Image"
+        exit 1
+    }
+    Write-Host "Web App $WebAppName updated successfully to use image: $Image"
+
+    Write-Host "`nRestarting Web App $WebAppName to apply changes"
+    az webapp restart --name $WebAppName --resource-group $ResourceGroup --output none --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to restart Web App $WebAppName"
+        exit 1
+    }
+    Write-Host "Web App $WebAppName restarted successfully"
+}
+
+# STEP 12: Update Web Apps to use new images
+Update-WebApp-Image -WebAppName $WEB_APP_NAME -ResourceGroup $AZURE_RESOURCE_GROUP -Image "$ACR_NAME.azurecr.io/km-app:$AZURE_ENV_IMAGETAG"
+Update-WebApp-Image -WebAppName $API_APP_NAME -ResourceGroup $AZURE_RESOURCE_GROUP -Image "$ACR_NAME.azurecr.io/km-api:$AZURE_ENV_IMAGETAG"
+
+Write-Host "`nWeb Apps updated successfully to use new images"
+
+Write-Host "`nIt might take a few minutes for the changes to take effect.`n"

@@ -120,7 +120,6 @@ When you start the deployment, most parameters will have **default values**, but
 | **Embedding Model Capacity**                | Set the capacity for **embedding models** (in thousands).                                                 | 80k                    |
 | **Image Tag**                               | Docker image tag to deploy. Common values: `latest`, `dev`, `hotfix`.                  | latest       |
 | **Existing Log Analytics Workspace**        | To reuse an existing Log Analytics Workspace ID.                                                          | *(empty)*              |
-| **Use Local Build**                         | Boolean flag to determine if local container builds should be used.                         | false             |
 
 
 
@@ -186,6 +185,24 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 2. **Deleting Resources After a Failed Deployment**  
 
      - Follow steps in [Delete Resource Group](./DeleteResourceGroup.md) if your deployment fails and/or you need to clean up the resources.
+
+3. **Optional: Publishing Local Build Container to Azure Container Registry**
+
+   If you need to rebuild the source code and push the updated container to the deployed Azure Container Registry, follow these steps:
+
+   - **Linux/macOS**:
+     ```bash
+     cd ./infra/scripts/
+     ./docker-build.sh
+     ```
+
+   - **Windows (PowerShell)**:
+     ```powershell
+     cd .\infra\scripts\
+     .\docker-build.ps1
+     ```
+
+    This will create a new Azure Container Registry, rebuild the source code, package it into a container, and push it to the Container Registry created.
 
 ## Sample Questions
 
