@@ -80,7 +80,7 @@ var uniqueId = toLower(uniqueString(subscription().id, environmentName, solution
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.Standard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
     ]
   }
 })
