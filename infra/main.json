@@ -1834,7 +1834,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       },
                       "dependsOn": [
                         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName'))]"
@@ -1848,7 +1849,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       }
                     }
                   ],
@@ -2043,7 +2045,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       },
                       "dependsOn": [
                         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName'))]"
@@ -2057,7 +2060,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       }
                     }
                   ],
@@ -3293,7 +3297,8 @@
               "name": "[guid(format('{0}-app-module', parameters('name')), parameters('keyVaultName'), resourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6'))]",
               "properties": {
                 "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]"
+                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
+                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
@@ -3306,7 +3311,8 @@
               "name": "[guid(format('{0}-app-module', parameters('name')), parameters('aiSearchName'), resourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f'))]",
               "properties": {
                 "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]"
+                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
+                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
@@ -3320,7 +3326,8 @@
               "name": "[guid(format('{0}-app-module', parameters('name')), resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d'))]",
               "properties": {
                 "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]"
+                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
+                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
@@ -3805,7 +3812,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       },
                       "dependsOn": [
                         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiServicesName'))]"
@@ -3819,7 +3827,8 @@
                       "name": "[parameters('roleAssignmentName')]",
                       "properties": {
                         "roleDefinitionId": "[parameters('roleDefinitionId')]",
-                        "principalId": "[parameters('principalId')]"
+                        "principalId": "[parameters('principalId')]",
+                        "principalType": "ServicePrincipal"
                       }
                     }
                   ],
@@ -3955,7 +3964,8 @@
               "name": "[guid(format('{0}-app-module', parameters('name')), resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d'))]",
               "properties": {
                 "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]"
+                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
+                "principalType": "ServicePrincipal"
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
