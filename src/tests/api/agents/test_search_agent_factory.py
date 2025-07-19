@@ -57,7 +57,7 @@ async def test_create_agent_creates_new_instance(
     mock_project_client.indexes.create_or_update.assert_called_once_with(
         name="project-index-fake-connection-fake-index",
         version="1",
-        body={
+        index={
             "connectionName": "fake-connection",
             "indexName": "fake-index",
             "type": "AzureSearch",

@@ -131,8 +131,8 @@ async def fetch_filters_data():
             df.groupby("filter_name")
             .apply(lambda x: {
                 "filter_name": x.name,
-                "filter_values": x.drop(columns="filter_name").to_dict(orient="records")
-            }).to_list()
+                "filter_values": x.to_dict(orient="records")
+            }, include_groups=False).to_list()
         )
 
         filters_data = nested_json
@@ -235,7 +235,7 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         # charts pt1
         nested_json1 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records')).reset_index(
+                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index(
                 name='chart_value')
         )
         result1 = nested_json1.to_dict(orient='records')
@@ -260,7 +260,7 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         # charts pt2
         nested_json2 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records')).reset_index(
+                lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
                 name='chart_value')
         )
         result2 = nested_json2.to_dict(orient='records')
@@ -295,7 +295,7 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
 
         nested_json3 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records')).reset_index(
+                lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
                 name='chart_value')
         )
         result3 = nested_json3.to_dict(orient='records')
