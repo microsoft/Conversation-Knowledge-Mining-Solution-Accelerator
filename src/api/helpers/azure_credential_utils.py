@@ -18,7 +18,7 @@ async def get_azure_credential_async(client_id=None):
     except Exception:
         try:
             cli_credential = AioAzureCliCredential()
-            cli_credential.get_token("https://management.azure.com/.default")
+            await cli_credential.get_token("https://management.azure.com/.default")
             return cli_credential
         except Exception:
             raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")

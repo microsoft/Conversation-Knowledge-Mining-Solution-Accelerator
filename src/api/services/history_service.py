@@ -3,7 +3,7 @@ import uuid
 from typing import Optional
 from fastapi import HTTPException, status
 from openai import AsyncAzureOpenAI
-from helpers.azure_credential_utils import get_azure_credential_async
+from helpers.azure_credential_utils import get_azure_credential
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from azure.identity.aio import get_bearer_token_provider
@@ -42,7 +42,7 @@ class HistoryService:
 
         try:
             cosmos_endpoint = f"https://{self.azure_cosmosdb_account}.documents.azure.com:443/"
-            credentials = get_azure_credential_async()
+            credentials = get_azure_credential()
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
                 credential= credentials,
@@ -66,7 +66,7 @@ class HistoryService:
             ad_token_provider = None
 
             logger.debug("Using Azure AD authentication for OpenAI")
-            credentials = get_azure_credential_async()
+            credentials = get_azure_credential()
             ad_token_provider = get_bearer_token_provider(
                 credentials, "https://cognitiveservices.azure.com/.default")
 
