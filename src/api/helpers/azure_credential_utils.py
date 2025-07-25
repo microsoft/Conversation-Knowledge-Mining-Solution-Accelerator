@@ -1,6 +1,7 @@
 from azure.identity import ManagedIdentityCredential, AzureCliCredential
 from azure.identity.aio import ManagedIdentityCredential as AioManagedIdentityCredential, AzureCliCredential as AioAzureCliCredential
 
+
 async def get_azure_credential_async(client_id=None):
     """
     Returns an Azure credential asynchronously, falling back to AioAzureCliCredential if AioManagedIdentityCredential fails.
@@ -23,6 +24,7 @@ async def get_azure_credential_async(client_id=None):
         except Exception:
             raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")
 
+
 def get_azure_credential(client_id=None):
     """
     Returns an Azure credential, falling back to AzureCliCredential if ManagedIdentityCredential fails.
@@ -44,5 +46,3 @@ def get_azure_credential(client_id=None):
             return cli_credential
         except Exception:
             raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")
-
-

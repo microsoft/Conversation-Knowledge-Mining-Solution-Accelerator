@@ -45,7 +45,7 @@ class HistoryService:
             credentials = get_azure_credential()
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
-                credential= credentials,
+                credential=credentials,
                 database_name=self.azure_cosmosdb_database,
                 container_name=self.azure_cosmosdb_conversations_container,
                 enable_message_feedback=self.azure_cosmosdb_enable_feedback,
