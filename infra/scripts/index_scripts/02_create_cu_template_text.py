@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from azure.identity import ManagedIdentityCredential, AzureCliCredential, get_bearer_token_provider
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, CredentialUnavailableError, get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -19,13 +19,15 @@ def get_credential():
         mi_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
         mi_credential.get_token("https://management.azure.com/.default")
         return mi_credential
-    except Exception:
+    except Exception as mi_error:
         try:
             cli_credential = AzureCliCredential()
             cli_credential.get_token("https://management.azure.com/.default")
             return cli_credential
-        except Exception:
-            raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")
+        except Exception as cli_error:
+            raise CredentialUnavailableError(
+                f"Failed to obtain credentials. ManagedIdentityCredential error: {mi_error}. AzureCliCredential error: {cli_error}"
+            ) from cli_error
 
 # === Helper Functions ===
 def get_secret(secret_name: str, vault_name: str) -> str:

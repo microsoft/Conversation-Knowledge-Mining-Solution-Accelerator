@@ -1,4 +1,4 @@
-from azure.identity import ManagedIdentityCredential, AzureCliCredential
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, CredentialUnavailableError
 from azure.identity.aio import ManagedIdentityCredential as AioManagedIdentityCredential, AzureCliCredential as AioAzureCliCredential
 
 
@@ -16,13 +16,15 @@ async def get_azure_credential_async(client_id=None):
         mi_credential = AioManagedIdentityCredential(client_id=client_id)
         await mi_credential.get_token("https://management.azure.com/.default")
         return mi_credential
-    except Exception:
+    except Exception as mi_error:
         try:
             cli_credential = AioAzureCliCredential()
             await cli_credential.get_token("https://management.azure.com/.default")
             return cli_credential
-        except Exception:
-            raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")
+        except Exception as cli_error:
+            raise CredentialUnavailableError(
+                message=f"Failed to obtain credentials. ManagedIdentityCredential error: {mi_error}. AzureCliCredential error: {cli_error}."
+            ) from cli_error
 
 
 def get_azure_credential(client_id=None):
@@ -39,10 +41,12 @@ def get_azure_credential(client_id=None):
         mi_credential = ManagedIdentityCredential(client_id=client_id)
         mi_credential.get_token("https://management.azure.com/.default")
         return mi_credential
-    except Exception:
+    except Exception as mi_error:
         try:
             cli_credential = AzureCliCredential()
             cli_credential.get_token("https://management.azure.com/.default")
             return cli_credential
-        except Exception:
-            raise Exception("Failed to obtain credentials using ManagedIdentityCredential and AzureCliCredential.")
+        except Exception as cli_error:
+            raise CredentialUnavailableError(
+                message=f"Failed to obtain credentials. ManagedIdentityCredential error: {mi_error}. AzureCliCredential error: {cli_error}."
+            ) from cli_error
