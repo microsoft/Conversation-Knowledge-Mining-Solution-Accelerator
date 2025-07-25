@@ -76,16 +76,11 @@ async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
             {"status": "success", "filters": chart_filters.model_dump()}
         )
         # Sanitize the response to handle NaN and Infinity values
-        def sanitize(obj):
-            if isinstance(obj, dict):
-                return {k: sanitize(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [sanitize(v) for v in obj]
-            elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-                return None
-            else:
-                return obj            
-        response = sanitize(response)
+        for record in response:
+            if isinstance(record.get("chart_value"), list):
+                for item in record["chart_value"]:
+                    if isinstance(item.get("value"), float) and (math.isnan(item["value"]) or math.isinf(item["value"])):
+                        item["value"] = None
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_chart_data_with_filters: %s", str(e))
