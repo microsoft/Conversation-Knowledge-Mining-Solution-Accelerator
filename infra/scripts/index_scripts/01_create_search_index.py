@@ -1,4 +1,4 @@
-from azure.identity import ManagedIdentityCredential
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, CredentialUnavailableError
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -21,6 +21,20 @@ KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 INDEX_NAME = "call_transcripts_index"
 
+def get_credential():
+    try:
+        mi_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+        mi_credential.get_token("https://management.azure.com/.default")
+        return mi_credential
+    except Exception as mi_error:
+        try:
+            cli_credential = AzureCliCredential()
+            cli_credential.get_token("https://management.azure.com/.default")
+            return cli_credential
+        except Exception as cli_error:
+            raise CredentialUnavailableError(
+                f"Failed to obtain credentials. ManagedIdentityCredential error: {mi_error}. AzureCliCredential error: {cli_error}"
+            ) from cli_error
 
 def get_secrets_from_kv(secret_name: str) -> str:
     """
@@ -33,7 +47,7 @@ def get_secrets_from_kv(secret_name: str) -> str:
     Returns:
         str: The secret value.
     """
-    kv_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = get_credential()
     secret_client = SecretClient(
         vault_url=f"https://{KEY_VAULT_NAME}.vault.azure.net/",
         credential=kv_credential
@@ -49,7 +63,7 @@ def create_search_index():
     - Semantic search using prioritized fields
     """
     # Shared credential
-    credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    credential = get_credential()
 
     # Retrieve secrets from Key Vault
     search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")

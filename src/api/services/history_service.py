@@ -3,9 +3,10 @@ import uuid
 from typing import Optional
 from fastapi import HTTPException, status
 from openai import AsyncAzureOpenAI
+from helpers.azure_credential_utils import get_azure_credential
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from azure.identity.aio import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity.aio import get_bearer_token_provider
 from helpers.chat_helper import complete_chat_request
 
 # Configure logging
@@ -41,10 +42,10 @@ class HistoryService:
 
         try:
             cosmos_endpoint = f"https://{self.azure_cosmosdb_account}.documents.azure.com:443/"
-
+            credentials = get_azure_credential()
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
-                credential=ManagedIdentityCredential(),
+                credential=credentials,
                 database_name=self.azure_cosmosdb_database,
                 container_name=self.azure_cosmosdb_conversations_container,
                 enable_message_feedback=self.azure_cosmosdb_enable_feedback,
@@ -65,8 +66,9 @@ class HistoryService:
             ad_token_provider = None
 
             logger.debug("Using Azure AD authentication for OpenAI")
+            credentials = get_azure_credential()
             ad_token_provider = get_bearer_token_provider(
-                ManagedIdentityCredential(), "https://cognitiveservices.azure.com/.default")
+                credentials, "https://cognitiveservices.azure.com/.default")
 
             if not self.azure_openai_deployment_name:
                 raise ValueError("AZURE_OPENAI_MODEL is required")

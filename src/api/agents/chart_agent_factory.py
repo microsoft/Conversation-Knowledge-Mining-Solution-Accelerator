@@ -1,7 +1,7 @@
-from azure.identity import ManagedIdentityCredential
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
+from helpers.azure_credential_utils import get_azure_credential
 
 
 class ChartAgentFactory(BaseAgentFactory):
@@ -35,9 +35,11 @@ class ChartAgentFactory(BaseAgentFactory):
         Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
         Ensure bars and data points are evenly spaced and not squished or cropped at **100%** resolution by maintaining appropriate **barPercentage** and **categoryPercentage** values."""
 
+        credential = get_azure_credential()
+
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=ManagedIdentityCredential(),
+            credential=credential,
             api_version=config.ai_project_api_version,
         )
 

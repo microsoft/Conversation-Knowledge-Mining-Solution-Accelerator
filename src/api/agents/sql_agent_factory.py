@@ -1,7 +1,7 @@
-from azure.identity import ManagedIdentityCredential
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
+from helpers.azure_credential_utils import get_azure_credential
 
 
 class SQLAgentFactory(BaseAgentFactory):
@@ -32,9 +32,11 @@ class SQLAgentFactory(BaseAgentFactory):
         Ensure all aggregations, filters, grouping logic, and time-based calculations are precise, logically consistent, and reflect the user's intent without ambiguity.
         **Always** return a valid T-SQL query. Only return the SQL query text—no explanations.'''
 
+        credential = get_azure_credential()
+
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=ManagedIdentityCredential(),
+            credential=credential,
             api_version=config.ai_project_api_version,
         )
 

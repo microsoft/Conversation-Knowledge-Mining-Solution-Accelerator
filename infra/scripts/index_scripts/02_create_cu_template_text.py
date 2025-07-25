@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, CredentialUnavailableError, get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -14,13 +14,27 @@ AZURE_AI_API_VERSION = "2024-12-01-preview"
 ANALYZER_ID = "ckm-json"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_text.json'
 
+def get_credential():
+    try:
+        mi_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+        mi_credential.get_token("https://management.azure.com/.default")
+        return mi_credential
+    except Exception as mi_error:
+        try:
+            cli_credential = AzureCliCredential()
+            cli_credential.get_token("https://management.azure.com/.default")
+            return cli_credential
+        except Exception as cli_error:
+            raise CredentialUnavailableError(
+                f"Failed to obtain credentials. ManagedIdentityCredential error: {mi_error}. AzureCliCredential error: {cli_error}"
+            ) from cli_error
 
 # === Helper Functions ===
 def get_secret(secret_name: str, vault_name: str) -> str:
     """
     Retrieve a secret value from Azure Key Vault.
     """
-    kv_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = get_credential()
     secret_client = SecretClient(vault_url=f"https://{vault_name}.vault.azure.net/", credential=kv_credential)
     return secret_client.get_secret(secret_name).value
 
@@ -30,7 +44,7 @@ sys.path.append(str(Path.cwd().parent))
 # Get endpoint from Key Vault
 endpoint = get_secret("AZURE-OPENAI-CU-ENDPOINT", KEY_VAULT_NAME)
 
-credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+credential = get_credential()
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 client = AzureContentUnderstandingClient(
