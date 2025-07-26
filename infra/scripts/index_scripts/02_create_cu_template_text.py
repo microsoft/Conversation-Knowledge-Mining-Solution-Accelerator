@@ -33,7 +33,7 @@ endpoint = get_secret("AZURE-OPENAI-CU-ENDPOINT", KEY_VAULT_NAME)
 credential = ChainedTokenCredential(ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID), AzureCliCredential())
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(
-    ChainedTokenCredential(ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID), AzureCliCredential()),
+    credential,
     "https://cognitiveservices.azure.com/.default"
 )
 client = AzureContentUnderstandingClient(
