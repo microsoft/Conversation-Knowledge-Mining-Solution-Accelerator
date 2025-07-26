@@ -4,7 +4,7 @@ from agents.chart_agent_factory import ChartAgentFactory
 
 
 @pytest.mark.asyncio
-@patch("agents.chart_agent_factory.ManagedIdentityCredential")
+@patch("agents.chart_agent_factory.ChainedTokenCredential")
 @patch("agents.chart_agent_factory.AIProjectClient")
 async def test_create_agent_success(mock_ai_project_client_class, mock_credential_class):
     # Mock config

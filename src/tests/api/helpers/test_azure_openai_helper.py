@@ -10,7 +10,7 @@ import helpers.azure_openai_helper as azure_openai_helper
 class TestAzureOpenAIHelper:
     @patch("helpers.azure_openai_helper.openai.AzureOpenAI")
     @patch("helpers.azure_openai_helper.get_bearer_token_provider")
-    @patch("helpers.azure_openai_helper.ManagedIdentityCredential")
+    @patch("helpers.azure_openai_helper.ChainedTokenCredential")
     @patch("helpers.azure_openai_helper.Config")
     def test_get_azure_openai_client(
         self, mock_config, mock_credential, mock_token_provider, mock_azure_openai

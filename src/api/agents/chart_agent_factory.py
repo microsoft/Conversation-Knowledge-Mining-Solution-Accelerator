@@ -1,4 +1,4 @@
-from azure.identity import ManagedIdentityCredential
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, ChainedTokenCredential
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
@@ -37,7 +37,7 @@ class ChartAgentFactory(BaseAgentFactory):
 
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=ManagedIdentityCredential(),
+            credential=ChainedTokenCredential(ManagedIdentityCredential(), AzureCliCredential()),
             api_version=config.ai_project_api_version,
         )
 

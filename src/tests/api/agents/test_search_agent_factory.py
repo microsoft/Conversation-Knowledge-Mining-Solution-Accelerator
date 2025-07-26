@@ -11,7 +11,7 @@ def reset_search_agent_factory():
 
 
 @pytest.mark.asyncio
-@patch("agents.search_agent_factory.ManagedIdentityCredential", autospec=True)
+@patch("agents.search_agent_factory.ChainedTokenCredential", autospec=True)
 @patch("agents.search_agent_factory.AIProjectClient", autospec=True)
 @patch("agents.search_agent_factory.AzureAISearchTool", autospec=True)
 async def test_create_agent_creates_new_instance(

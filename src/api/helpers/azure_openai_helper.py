@@ -1,10 +1,9 @@
-
 """
 Helper functions for initializing and managing Azure OpenAI client instances.
 """
 
 import openai
-from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, ChainedTokenCredential, get_bearer_token_provider
 from common.config.config import Config
 
 
@@ -15,7 +14,7 @@ def get_azure_openai_client():
 
     config = Config()
     token_provider = get_bearer_token_provider(
-        ManagedIdentityCredential(), "https://cognitiveservices.azure.com/.default"
+        ChainedTokenCredential(ManagedIdentityCredential(), AzureCliCredential()), "https://cognitiveservices.azure.com/.default"
     )
     client = openai.AzureOpenAI(
         azure_endpoint=config.azure_openai_endpoint,

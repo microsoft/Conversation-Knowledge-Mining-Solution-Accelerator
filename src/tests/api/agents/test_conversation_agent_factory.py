@@ -15,7 +15,7 @@ def reset_conversation_agent_factory():
 @pytest.mark.asyncio
 @patch("agents.conversation_agent_factory.AzureAIAgentSettings", autospec=True)
 @patch("agents.conversation_agent_factory.AzureAIAgent", autospec=True)
-@patch("agents.conversation_agent_factory.ManagedIdentityCredential", autospec=True)
+@patch("agents.conversation_agent_factory.ChainedTokenCredential", autospec=True)
 async def test_get_agent_creates_new_instance(
     mock_credential,
     mock_azure_agent,

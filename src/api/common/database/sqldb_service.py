@@ -5,7 +5,7 @@ import pandas as pd
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
-from azure.identity.aio import ManagedIdentityCredential
+from azure.identity.aio import ManagedIdentityCredential, AzureCliCredential, ChainedTokenCredential
 import pyodbc
 
 
@@ -21,7 +21,7 @@ async def get_db_connection():
     mid_id = config.mid_id
 
     try:
-        async with ManagedIdentityCredential(client_id=mid_id) as credential:
+        async with ChainedTokenCredential(ManagedIdentityCredential(), AzureCliCredential()) as credential:
             token = await credential.get_token("https://database.windows.net/.default")
             token_bytes = token.token.encode("utf-16-LE")
             token_struct = struct.pack(
