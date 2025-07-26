@@ -25,23 +25,27 @@ echo "Fetching Key Vault and Managed Identity from resource group: $resourceGrou
 keyVaultName=$(az keyvault list --resource-group "$resourceGroupName" --query "[0].name" -o tsv)
 
 # === Retrieve the ID of the first user-assigned identity with name starting with 'id-' ===
-identityId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-')].id | [0]" -o tsv)
+managedIdentityResourceId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-')].id | [0]" -o tsv)
 
-# === Normalize identityId (necessary for compatibility in Git Bash on Windows) ===
-identityId=$(echo "$identityId" | sed -E 's|.*(/subscriptions/)|\1|')
+# === Normalize managedIdentityResourceId (necessary for compatibility in Git Bash on Windows) ===
+managedIdentityResourceId=$(echo "$managedIdentityResourceId" | sed -E 's|.*(/subscriptions/)|\1|')
 
 # === Get the location of the first SQL Server in the resource group ===
 sqlServerLocation=$(az sql server list --resource-group "$resourceGroupName" --query "[0].location" -o tsv)
 
+# === Retrieve the principal ID of the first user-assigned identity with name starting with 'id-' ===
+managedIdentityClientId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-')].clientId | [0]" -o tsv)
+
 # === Validate that all required resources were found ===
-if [[ -z "$keyVaultName" || -z "$sqlServerLocation" || -z "$identityId" || ! "$identityId" =~ ^/subscriptions/ ]]; then
-  echo "ERROR: Could not find required resources in resource group $resourceGroupName or identityId is invalid"
+if [[ -z "$keyVaultName" || -z "$sqlServerLocation" || -z "$managedIdentityResourceId" || ! "$managedIdentityResourceId" =~ ^/subscriptions/ ]]; then
+  echo "ERROR: Could not find required resources in resource group $resourceGroupName or managedIdentityResourceId is invalid"
   exit 1
 fi
 
 echo "Using SQL Server Location: $sqlServerLocation"
 echo "Using Key Vault: $keyVaultName"
-echo "Using Managed Identity: $identityId"
+echo "Using Managed Identity Resource Id: $managedIdentityResourceId"
+echo "Using Managed Identity ClientId Id: $managedIdentityClientId"
 
 # === Deploy resources using the specified Bicep template ===
 echo "Deploying Bicep template..."
@@ -50,6 +54,6 @@ echo "Deploying Bicep template..."
 MSYS_NO_PATHCONV=1 az deployment group create \
   --resource-group "$resourceGroupName" \
   --template-file "$bicepFile" \
-  --parameters solutionLocation="$sqlServerLocation" keyVaultName="$keyVaultName" identity="$identityId"
+  --parameters solutionLocation="$sqlServerLocation" keyVaultName="$keyVaultName" managedIdentityResourceId="$managedIdentityResourceId" managedIdentityClientId="$managedIdentityClientId"
 
 echo "Deployment completed."

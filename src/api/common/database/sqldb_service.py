@@ -37,7 +37,7 @@ async def get_db_connection():
                 connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
             )
 
-            logging.info("Connected using Default Azure Credential")
+            logging.info("Connected using ChainedTokenCredential")
             return conn
     except pyodbc.Error as e:
         logging.error("Failed with Default Credential: %s", str(e))
