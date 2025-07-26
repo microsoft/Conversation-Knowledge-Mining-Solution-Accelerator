@@ -21,7 +21,7 @@ async def get_db_connection():
     mid_id = config.mid_id
 
     try:
-        async with ChainedTokenCredential(ManagedIdentityCredential(), AzureCliCredential()) as credential:
+        async with ChainedTokenCredential(ManagedIdentityCredential(client_id=mid_id), AzureCliCredential()) as credential:
             token = await credential.get_token("https://database.windows.net/.default")
             token_bytes = token.token.encode("utf-16-LE")
             token_struct = struct.pack(
