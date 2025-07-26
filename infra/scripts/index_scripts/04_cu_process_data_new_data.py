@@ -302,7 +302,7 @@ print("File processing and DB/Search insertion complete - transcripts.")
 ANALYZER_ID = "ckm-audio"
 
 directory_name = AUDIO_DIRECTORY
-paths = file_system_client.get_paths(path=directory_name)
+paths = list(file_system_client.get_paths(path=directory_name))
 print("Processing audio files")
 docs = []
 counter = 0
@@ -343,8 +343,7 @@ for path in paths:
     
         document_id = conversation_id
 
-        result = prepare_search_doc(content, document_id, path.name)
-        docs.append(result)
+        docs.extend(prepare_search_doc(content, document_id, path.name))
         counter += 1
         print(f"Processed file {path.name} successfully.")
     except Exception as e:
@@ -352,7 +351,7 @@ for path in paths:
         pass
 
     if docs != [] and counter % 10 == 0:
-        result = search_client.upload_documents(documents=docs)
+        search_client.upload_documents(documents=docs)
         docs = []
         print(f' {str(counter)} uploaded')
 
