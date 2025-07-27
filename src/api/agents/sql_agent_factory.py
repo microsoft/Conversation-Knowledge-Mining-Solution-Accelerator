@@ -1,7 +1,8 @@
-from azure.identity import ManagedIdentityCredential
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
+
+from helpers.azure_credential_utils import get_azure_credential
 
 
 class SQLAgentFactory(BaseAgentFactory):
@@ -34,7 +35,7 @@ class SQLAgentFactory(BaseAgentFactory):
 
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=ManagedIdentityCredential(),
+            credential=get_azure_credential(),
             api_version=config.ai_project_api_version,
         )
 

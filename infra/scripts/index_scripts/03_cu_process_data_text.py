@@ -5,7 +5,7 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
-from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -20,9 +20,29 @@ FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
+APP_ENV = 'prod'  # Change to 'local' or 'prod' as needed
+
+def get_azure_credential(client_id=None):
+    """
+    Retrieves the appropriate Azure credential based on the application environment.
+
+    If the application is running locally, it uses Azure CLI credentials.
+    Otherwise, it uses a managed identity credential.
+
+    Args:
+        client_id (str, optional): The client ID for the managed identity. Defaults to None.
+
+    Returns:
+        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
+        The Azure credential object.
+    """
+    if APP_ENV == 'local':
+        return AzureCliCredential()
+    else:
+        return ManagedIdentityCredential(client_id=client_id)
 
 def get_secrets_from_kv(kv_name, secret_name):
-    kv_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
     secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
     return secret_client.get_secret(secret_name).value
 
@@ -40,7 +60,7 @@ print("Secrets retrieved.")
 
 # Azure DataLake setup
 account_url = f"https://{account_name}.dfs.core.windows.net"
-credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
@@ -48,7 +68,7 @@ paths = list(file_system_client.get_paths(path=directory_name))
 print("Azure DataLake setup complete.")
 
 # Azure Search setup
-search_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+search_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
@@ -65,7 +85,7 @@ print("SQL Server connection established.")
 
 
 # Content Understanding client
-cu_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+cu_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=azure_ai_endpoint,
@@ -79,7 +99,7 @@ print("Content Understanding client initialized.")
 def get_embeddings(text: str, openai_api_base, openai_api_version):
     model_id = "text-embedding-ada-002"
     token_provider = get_bearer_token_provider(
-        ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID),
+        get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
         "https://cognitiveservices.azure.com/.default"
     )
     client = AzureOpenAI(
@@ -290,7 +310,7 @@ def call_gpt4(topics_str1, client):
     return json.loads(res.replace("```json", '').replace("```", ''))
 
 token_provider = get_bearer_token_provider(
-    ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID),
+    get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
     "https://cognitiveservices.azure.com/.default"
 )
 openai_client = AzureOpenAI(

@@ -5,7 +5,7 @@ import pandas as pd
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
-from azure.identity.aio import ManagedIdentityCredential
+from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
 
 
@@ -21,32 +21,35 @@ async def get_db_connection():
     mid_id = config.mid_id
 
     try:
-        async with ManagedIdentityCredential(client_id=mid_id) as credential:
-            token = await credential.get_token("https://database.windows.net/.default")
-            token_bytes = token.token.encode("utf-16-LE")
-            token_struct = struct.pack(
-                f"<I{len(token_bytes)}s",
-                len(token_bytes),
-                token_bytes
-            )
-            SQL_COPT_SS_ACCESS_TOKEN = 1256
+        credential = await get_azure_credential_async(client_id=mid_id)
+        token = await credential.get_token("https://database.windows.net/.default")
+        token_bytes = token.token.encode("utf-16-LE")
+        token_struct = struct.pack(
+            f"<I{len(token_bytes)}s",
+            len(token_bytes),
+            token_bytes
+        )
+        SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-            # Set up the connection
-            connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-            conn = pyodbc.connect(
-                connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
-            )
+        # Set up the connection
+        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+        conn = pyodbc.connect(
+            connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+        )
 
-            logging.info("Connected using Default Azure Credential")
-            return conn
+        logging.info("Connected using Azure Credential")
+        return conn
     except pyodbc.Error as e:
-        logging.error("Failed with Default Credential: %s", str(e))
+        logging.error("Failed with Azure Credential: %s", str(e))
         conn = pyodbc.connect(
             f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
             timeout=5)
 
         logging.info("Connected using Username & Password")
         return conn
+    finally:
+        if credential:
+            await credential.close()
 
 
 async def adjust_processed_data_dates():

@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from azure.identity import ManagedIdentityCredential, get_bearer_token_provider
+from azure.identity import ManagedIdentityCredential, AzureCliCredential, get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -13,6 +13,26 @@ MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 AZURE_AI_API_VERSION = "2024-12-01-preview"
 ANALYZER_ID = "ckm-json"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_text.json'
+APP_ENV = 'prod'  # Change to 'local' or 'prod' as needed
+
+def get_azure_credential(client_id=None):
+    """
+    Retrieves the appropriate Azure credential based on the application environment.
+
+    If the application is running locally, it uses Azure CLI credentials.
+    Otherwise, it uses a managed identity credential.
+
+    Args:
+        client_id (str, optional): The client ID for the managed identity. Defaults to None.
+
+    Returns:
+        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
+        The Azure credential object.
+    """
+    if APP_ENV == 'local':
+        return AzureCliCredential()
+    else:
+        return ManagedIdentityCredential(client_id=client_id)
 
 
 # === Helper Functions ===
@@ -20,7 +40,7 @@ def get_secret(secret_name: str, vault_name: str) -> str:
     """
     Retrieve a secret value from Azure Key Vault.
     """
-    kv_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
     secret_client = SecretClient(vault_url=f"https://{vault_name}.vault.azure.net/", credential=kv_credential)
     return secret_client.get_secret(secret_name).value
 
@@ -30,7 +50,7 @@ sys.path.append(str(Path.cwd().parent))
 # Get endpoint from Key Vault
 endpoint = get_secret("AZURE-OPENAI-CU-ENDPOINT", KEY_VAULT_NAME)
 
-credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 client = AzureContentUnderstandingClient(

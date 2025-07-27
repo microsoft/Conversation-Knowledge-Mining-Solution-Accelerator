@@ -9,10 +9,10 @@ from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
 from services.chart_service import ChartService
 from common.logging.event_utils import track_event_if_configured
+from helpers.azure_credential_utils import get_azure_credential
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
-from azure.identity import ManagedIdentityCredential
 
 router = APIRouter()
 
@@ -186,7 +186,7 @@ async def fetch_azure_search_content_endpoint(request: Request):
             return JSONResponse(content={"error": "URL is required"}, status_code=400)
 
         # Get Azure AD token
-        credential = ManagedIdentityCredential()
+        credential = get_azure_credential()
         token = credential.get_token("https://search.azure.com/.default")
         access_token = token.token
 

@@ -1,9 +1,10 @@
 from semantic_kernel.agents import AzureAIAgent, AzureAIAgentThread, AzureAIAgentSettings
-from azure.identity.aio import ManagedIdentityCredential
 
 from services.chat_service import ChatService
 from plugins.chat_with_data_plugin import ChatWithDataPlugin
 from agents.agent_factory_base import BaseAgentFactory
+
+from helpers.azure_credential_utils import get_azure_credential_async
 
 
 class ConversationAgentFactory(BaseAgentFactory):
@@ -22,7 +23,7 @@ class ConversationAgentFactory(BaseAgentFactory):
             AzureAIAgent: An initialized agent ready for handling conversation threads.
         """
         ai_agent_settings = AzureAIAgentSettings()
-        creds = ManagedIdentityCredential()
+        creds = get_azure_credential_async()
         client = AzureAIAgent.create_client(credential=creds, endpoint=ai_agent_settings.endpoint)
 
         agent_name = f"KM-ConversationKnowledgeAgent-{config.solution_name}"

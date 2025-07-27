@@ -44,3 +44,4 @@ class Config:
         self.azure_cosmosdb_enable_feedback = os.getenv("AZURE_COSMOSDB_ENABLE_FEEDBACK", "false").lower() == "true"
 
         self.solution_name = os.getenv("SOLUTION_NAME", "")
+        self.app_env = os.getenv("APP_ENV", "prod").lower()

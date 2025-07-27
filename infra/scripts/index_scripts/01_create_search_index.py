@@ -1,4 +1,4 @@
-from azure.identity import ManagedIdentityCredential
+from azure.identity import ManagedIdentityCredential, AzureCliCredential
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -20,6 +20,26 @@ from azure.search.documents.indexes.models import (
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 INDEX_NAME = "call_transcripts_index"
+APP_ENV = 'prod'  # Change to 'local' or 'prod' as needed
+
+def get_azure_credential(client_id=None):
+    """
+    Retrieves the appropriate Azure credential based on the application environment.
+
+    If the application is running locally, it uses Azure CLI credentials.
+    Otherwise, it uses a managed identity credential.
+
+    Args:
+        client_id (str, optional): The client ID for the managed identity. Defaults to None.
+
+    Returns:
+        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
+        The Azure credential object.
+    """
+    if APP_ENV == 'local':
+        return AzureCliCredential()
+    else:
+        return ManagedIdentityCredential(client_id=client_id)
 
 
 def get_secrets_from_kv(secret_name: str) -> str:
@@ -33,7 +53,7 @@ def get_secrets_from_kv(secret_name: str) -> str:
     Returns:
         str: The secret value.
     """
-    kv_credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
     secret_client = SecretClient(
         vault_url=f"https://{KEY_VAULT_NAME}.vault.azure.net/",
         credential=kv_credential
@@ -49,7 +69,7 @@ def create_search_index():
     - Semantic search using prioritized fields
     """
     # Shared credential
-    credential = ManagedIdentityCredential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 
     # Retrieve secrets from Key Vault
     search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")
