@@ -18,7 +18,7 @@ async def get_azure_credential_async(client_id=None):
     """
     config = Config()
     if config.app_env == 'local':
-        return AioDefaultAzureCredential() # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
+        return AioDefaultAzureCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
     else:
         return AioManagedIdentityCredential(client_id=client_id)
 
@@ -38,6 +38,6 @@ def get_azure_credential(client_id=None):
     """
     config = Config()
     if config.app_env == 'local':
-        return DefaultAzureCredential() # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
+        return DefaultAzureCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
     else:
         return ManagedIdentityCredential(client_id=client_id)

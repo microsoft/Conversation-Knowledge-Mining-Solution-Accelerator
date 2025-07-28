@@ -3,6 +3,7 @@ from azure.ai.projects import AIProjectClient
 from agents.agent_factory_base import BaseAgentFactory
 from helpers.azure_credential_utils import get_azure_credential
 
+
 class ChartAgentFactory(BaseAgentFactory):
     """
     Factory class for creating Chart agents that generate chart.js compatible JSON
