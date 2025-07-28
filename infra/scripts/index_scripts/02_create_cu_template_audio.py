@@ -1,10 +1,11 @@
 from pathlib import Path
 import sys
 
-from azure.identity import ManagedIdentityCredential, AzureCliCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 
 from content_understanding_client import AzureContentUnderstandingClient
+from azure_credential_utils import get_azure_credential
 
 
 # === Configuration ===
@@ -13,26 +14,6 @@ MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 AZURE_AI_API_VERSION = "2024-12-01-preview"
 ANALYZER_ID = "ckm-audio"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_audio.json'
-APP_ENV = 'prod'  # Change to 'local' or 'prod' as needed
-
-def get_azure_credential(client_id=None):
-    """
-    Retrieves the appropriate Azure credential based on the application environment.
-
-    If the application is running locally, it uses Azure CLI credentials.
-    Otherwise, it uses a managed identity credential.
-
-    Args:
-        client_id (str, optional): The client ID for the managed identity. Defaults to None.
-
-    Returns:
-        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
-        The Azure credential object.
-    """
-    if APP_ENV == 'local':
-        return AzureCliCredential()
-    else:
-        return ManagedIdentityCredential(client_id=client_id)
 
 
 # === Helper Functions ===

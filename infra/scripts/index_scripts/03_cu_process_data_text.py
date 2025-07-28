@@ -5,13 +5,14 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
-from azure.identity import ManagedIdentityCredential, AzureCliCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 from openai import AzureOpenAI
 from content_understanding_client import AzureContentUnderstandingClient
+from azure_credential_utils import get_azure_credential
 
 # Constants and configuration
 KEY_VAULT_NAME = 'kv_to-be-replaced'
@@ -20,26 +21,6 @@ FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
-APP_ENV = 'prod'  # Change to 'local' or 'prod' as needed
-
-def get_azure_credential(client_id=None):
-    """
-    Retrieves the appropriate Azure credential based on the application environment.
-
-    If the application is running locally, it uses Azure CLI credentials.
-    Otherwise, it uses a managed identity credential.
-
-    Args:
-        client_id (str, optional): The client ID for the managed identity. Defaults to None.
-
-    Returns:
-        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
-        The Azure credential object.
-    """
-    if APP_ENV == 'local':
-        return AzureCliCredential()
-    else:
-        return ManagedIdentityCredential(client_id=client_id)
 
 def get_secrets_from_kv(kv_name, secret_name):
     kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
