@@ -235,11 +235,10 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         # charts pt1
         nested_json1 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
+                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index()
         )
+        nested_json1.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
         result1 = nested_json1.to_dict(orient='records')
-
         sql_stmt = f'''SELECT TOP 1 WITH TIES
                         mined_topic as name, 'TOPICS' as id, 'Trending Topics' as chart_name, 'table' as chart_type,
                         lower(sentiment) as average_sentiment,
@@ -258,12 +257,17 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         df = pd.DataFrame(rows, columns=column_names)
 
         # charts pt2
-        nested_json2 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
-        )
-        result2 = nested_json2.to_dict(orient='records')
+        if not df.empty:
+            nested_json2 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json2.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result2 = nested_json2.to_dict(orient='records')
+        else:
+            result2 = []
 
         where_clause = where_clause.replace('mined_topic', 'topic')
         sql_stmt = f'''select top 15 key_phrase as text,
@@ -293,15 +297,19 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
 
         df = df.head(15)
 
-        nested_json3 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
-        )
-        result3 = nested_json3.to_dict(orient='records')
+        if not df.empty:
+            nested_json3 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json3.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result3 = nested_json3.to_dict(orient='records')
+        else:
+            result3 = []
 
         final_result = result1 + result2 + result3
-
         return final_result
 
     finally:

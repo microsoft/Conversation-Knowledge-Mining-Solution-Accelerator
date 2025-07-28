@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import math
 import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -74,6 +75,12 @@ async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
             "FetchChartDataWithFiltersSuccess",
             {"status": "success", "filters": chart_filters.model_dump()}
         )
+        # Sanitize the response to handle NaN and Infinity values
+        for record in response:
+            if isinstance(record.get("chart_value"), list):
+                for item in record["chart_value"]:
+                    if isinstance(item.get("value"), float) and (math.isnan(item["value"]) or math.isinf(item["value"])):
+                        item["value"] = None
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_chart_data_with_filters: %s", str(e))
