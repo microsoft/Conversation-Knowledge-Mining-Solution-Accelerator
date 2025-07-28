@@ -49,7 +49,7 @@ async def get_db_connection():
         logging.info("Connected using Username & Password")
         return conn
     finally:
-        if credential:
+        if credential and hasattr(credential, "close"):
             await credential.close()
 
 
