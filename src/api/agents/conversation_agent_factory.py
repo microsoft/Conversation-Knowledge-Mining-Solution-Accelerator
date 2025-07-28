@@ -23,7 +23,7 @@ class ConversationAgentFactory(BaseAgentFactory):
             AzureAIAgent: An initialized agent ready for handling conversation threads.
         """
         ai_agent_settings = AzureAIAgentSettings()
-        creds = get_azure_credential_async()
+        creds = await get_azure_credential_async()
         client = AzureAIAgent.create_client(credential=creds, endpoint=ai_agent_settings.endpoint)
 
         agent_name = f"KM-ConversationKnowledgeAgent-{config.solution_name}"

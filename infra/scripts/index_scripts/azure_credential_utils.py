@@ -1,4 +1,4 @@
-from azure.identity import ManagedIdentityCredential, AzureCliCredential
+from azure.identity import ManagedIdentityCredential, DefaultAzureCredential
 
 APP_ENV = 'prod'  # Change to 'local' for local development
 
@@ -13,10 +13,10 @@ def get_azure_credential(client_id=None):
         client_id (str, optional): The client ID for the managed identity. Defaults to None.
 
     Returns:
-        azure.identity.AzureCliCredential or azure.identity.ManagedIdentityCredential: 
+        azure.identity.DefaultAzureCredential or azure.identity.ManagedIdentityCredential: 
         The Azure credential object.
     """
     if APP_ENV == 'local':
-        return AzureCliCredential()
+        return DefaultAzureCredential() # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
     else:
         return ManagedIdentityCredential(client_id=client_id)
