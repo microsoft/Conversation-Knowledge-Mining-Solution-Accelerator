@@ -3,7 +3,7 @@ param keyVaultName string
 param managedIdentityResourceId string
 param managedIdentityClientId string
 
-var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/psl-pk-miSFI-if/'
+var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 
 resource process_data_scripts 'Microsoft.Resources/deploymentScripts@2020-10-01' = {
   kind:'AzureCLI'
