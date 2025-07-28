@@ -14,13 +14,12 @@ def mock_env_vars():
     }
 
 class TestAzureCredentialUtils:
-    @patch.dict(os.environ, clear=True)
+    @patch.dict(os.environ, {}, clear=True)
     @patch("helpers.azure_credential_utils.DefaultAzureCredential")
     @patch("helpers.azure_credential_utils.ManagedIdentityCredential")
     def test_get_azure_credential_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_env_vars):
         """Test get_azure_credential in dev environment."""
         # Arrange
-        mock_env_vars["app_env"] = "dev"
         os.environ.update(mock_env_vars)
         mock_default_credential = MagicMock()
         mock_default_azure_credential.return_value = mock_default_credential
@@ -33,7 +32,7 @@ class TestAzureCredentialUtils:
         mock_managed_identity_credential.assert_not_called()
         assert credential == mock_default_credential
 
-    @patch.dict(os.environ, clear=True)
+    @patch.dict(os.environ, {}, clear=True)
     @patch("helpers.azure_credential_utils.DefaultAzureCredential")
     @patch("helpers.azure_credential_utils.ManagedIdentityCredential")
     def test_get_azure_credential_non_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_env_vars):
@@ -53,13 +52,12 @@ class TestAzureCredentialUtils:
         assert credential == mock_managed_credential
 
     @pytest.mark.asyncio
-    @patch.dict(os.environ, clear=True)
+    @patch.dict(os.environ, {}, clear=True)
     @patch("helpers.azure_credential_utils.AioDefaultAzureCredential")
     @patch("helpers.azure_credential_utils.AioManagedIdentityCredential")
     async def test_get_azure_credential_async_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_env_vars):
         """Test get_azure_credential_async in dev environment."""
         # Arrange
-        mock_env_vars["app_env"] = "dev"
         os.environ.update(mock_env_vars)
         mock_aio_default_credential = MagicMock()
         mock_aio_default_azure_credential.return_value = mock_aio_default_credential
@@ -73,7 +71,7 @@ class TestAzureCredentialUtils:
         assert credential == mock_aio_default_credential
 
     @pytest.mark.asyncio
-    @patch.dict(os.environ, clear=True)
+    @patch.dict(os.environ, {}, clear=True)
     @patch("helpers.azure_credential_utils.AioDefaultAzureCredential")
     @patch("helpers.azure_credential_utils.AioManagedIdentityCredential")
     async def test_get_azure_credential_async_non_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_env_vars):
