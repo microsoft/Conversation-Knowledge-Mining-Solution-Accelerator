@@ -20,6 +20,7 @@ async def get_db_connection():
     driver = config.driver
     mid_id = config.mid_id
 
+    credential = None
     try:
         credential = await get_azure_credential_async(client_id=mid_id)
         token = await credential.get_token("https://database.windows.net/.default")
