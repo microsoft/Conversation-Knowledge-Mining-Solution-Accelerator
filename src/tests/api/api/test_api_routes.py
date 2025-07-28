@@ -44,15 +44,15 @@ def test_fetch_chart_data_with_filters_basic(create_test_client):
     with patch("api.api_routes.ChartService") as MockChartService:
         mock_instance = MockChartService.return_value
         mock_instance.fetch_chart_data_with_filters = AsyncMock(return_value=[
-    {
-        "id": "TOTAL_CALLS",
-        "chart_name": "Total Calls",
-        "chart_type": "card",
-        "chart_value": [
-            {"name": "Total Calls", "value": float("nan"), "unit_of_measurement": ""}
-        ]
-    }
-])
+            {
+                "id": "TOTAL_CALLS",
+                "chart_name": "Total Calls",
+                "chart_type": "card",
+                "chart_value": [
+                    {"name": "Total Calls", "value": float("nan"), "unit_of_measurement": ""}
+                ]
+            }
+        ])
 
         client = create_test_client()
         payload = {
