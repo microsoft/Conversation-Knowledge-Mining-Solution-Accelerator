@@ -39,13 +39,16 @@ async def test_lifespan_startup_and_shutdown():
     mock_convo_agent = AsyncMock(name="ConversationAgent")
     mock_search_agent = AsyncMock(name="SearchAgent")
     mock_sql_agent = AsyncMock(name="SQLAgent")
+    mock_chart_agent = AsyncMock(name="ChartAgent")
 
     with patch("agents.conversation_agent_factory.ConversationAgentFactory.get_agent", return_value=mock_convo_agent) as mock_get_convo, \
          patch("agents.search_agent_factory.SearchAgentFactory.get_agent", return_value=mock_search_agent) as mock_get_search, \
          patch("agents.sql_agent_factory.SQLAgentFactory.get_agent", return_value=mock_sql_agent) as mock_get_sql, \
+         patch("agents.chart_agent_factory.ChartAgentFactory.get_agent", return_value=mock_chart_agent) as mock_get_chart, \
          patch("agents.conversation_agent_factory.ConversationAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_convo, \
          patch("agents.search_agent_factory.SearchAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_search, \
-         patch("agents.sql_agent_factory.SQLAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_sql:
+         patch("agents.sql_agent_factory.SQLAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_sql, \
+         patch("agents.chart_agent_factory.ChartAgentFactory.delete_agent", new_callable=AsyncMock) as mock_delete_chart:
 
         app = app_module.build_app()
 
@@ -53,18 +56,22 @@ async def test_lifespan_startup_and_shutdown():
             mock_get_convo.assert_awaited_once()
             mock_get_search.assert_awaited_once()
             mock_get_sql.assert_awaited_once()
+            mock_get_chart.assert_awaited_once()
 
             assert app.state.agent == mock_convo_agent
             assert app.state.search_agent == mock_search_agent
             assert app.state.sql_agent == mock_sql_agent
+            assert app.state.chart_agent == mock_chart_agent
 
         mock_delete_convo.assert_awaited_once()
         mock_delete_search.assert_awaited_once()
         mock_delete_sql.assert_awaited_once()
+        mock_delete_chart.assert_awaited_once()
 
         assert app.state.agent is None
         assert app.state.search_agent is None
         assert app.state.sql_agent is None
+        assert app.state.chart_agent is None
 
 
 def test_build_app_sets_metadata():

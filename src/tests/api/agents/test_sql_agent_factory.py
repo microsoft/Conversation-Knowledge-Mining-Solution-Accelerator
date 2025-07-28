@@ -12,11 +12,11 @@ def reset_sql_agent_factory():
 
 
 @pytest.mark.asyncio
-@patch("agents.sql_agent_factory.ManagedIdentityCredential", autospec=True)
 @patch("agents.sql_agent_factory.AIProjectClient", autospec=True)
+@patch("agents.sql_agent_factory.get_azure_credential")
 async def test_create_agent_creates_new_instance(
-    mock_ai_client_cls,
-    mock_credential_cls
+    mock_get_azure_credential,
+    mock_ai_client_cls
 ):
     # Mock config
     mock_config = MagicMock()
@@ -24,6 +24,9 @@ async def test_create_agent_creates_new_instance(
     mock_config.ai_project_api_version = "2025-05-01"
     mock_config.azure_openai_deployment_model = "test-model"
     mock_config.solution_name = "test-solution"
+
+    # Mock credential
+    mock_get_azure_credential.return_value = MagicMock()
 
     # Mock project client
     mock_project_client = MagicMock()
@@ -40,7 +43,7 @@ async def test_create_agent_creates_new_instance(
 
     mock_ai_client_cls.assert_called_once_with(
         endpoint="https://test-endpoint",
-        credential=mock_credential_cls.return_value,
+        credential=mock_get_azure_credential.return_value,
         api_version="2025-05-01"
     )
     mock_project_client.agents.create_agent.assert_called_once()

@@ -1,12 +1,12 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from agents.chart_agent_factory import ChartAgentFactory
 
 
 @pytest.mark.asyncio
-@patch("agents.chart_agent_factory.ManagedIdentityCredential")
 @patch("agents.chart_agent_factory.AIProjectClient")
-async def test_create_agent_success(mock_ai_project_client_class, mock_credential_class):
+@patch("agents.chart_agent_factory.get_azure_credential")
+async def test_create_agent_success(mock_get_azure_credential, mock_ai_project_client_class):
     # Mock config
     mock_config = MagicMock()
     mock_config.ai_project_endpoint = "https://example-endpoint/"
@@ -19,7 +19,7 @@ async def test_create_agent_success(mock_ai_project_client_class, mock_credentia
     mock_client = MagicMock()
     mock_client.agents.create_agent.return_value = mock_agent
     mock_ai_project_client_class.return_value = mock_client
-    mock_credential_class.return_value = MagicMock()
+    mock_get_azure_credential.return_value = MagicMock()
 
     # Call create_agent
     result = await ChartAgentFactory.create_agent(mock_config)
@@ -29,7 +29,7 @@ async def test_create_agent_success(mock_ai_project_client_class, mock_credentia
     assert result["client"] == mock_client
     mock_ai_project_client_class.assert_called_once_with(
         endpoint=mock_config.ai_project_endpoint,
-        credential=mock_credential_class.return_value,
+        credential=mock_get_azure_credential.return_value,
         api_version=mock_config.ai_project_api_version
     )
     mock_client.agents.create_agent.assert_called_once()
