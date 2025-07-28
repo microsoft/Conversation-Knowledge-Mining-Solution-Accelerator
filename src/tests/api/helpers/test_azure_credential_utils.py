@@ -11,11 +11,11 @@ class TestAzureCredentialUtils:
     @patch("helpers.azure_credential_utils.Config")
     @patch("helpers.azure_credential_utils.DefaultAzureCredential")
     @patch("helpers.azure_credential_utils.ManagedIdentityCredential")
-    def test_get_azure_credential_local_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_config):
-        """Test get_azure_credential in local environment."""
+    def test_get_azure_credential_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_config):
+        """Test get_azure_credential in dev environment."""
         # Arrange
         mock_config_instance = MagicMock()
-        mock_config_instance.app_env = "local"
+        mock_config_instance.app_env = "dev"
         mock_config.return_value = mock_config_instance
 
         mock_default_credential = MagicMock()
@@ -33,8 +33,8 @@ class TestAzureCredentialUtils:
     @patch("helpers.azure_credential_utils.Config")
     @patch("helpers.azure_credential_utils.DefaultAzureCredential")
     @patch("helpers.azure_credential_utils.ManagedIdentityCredential")
-    def test_get_azure_credential_non_local_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_config):
-        """Test get_azure_credential in non-local environment."""
+    def test_get_azure_credential_non_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_config):
+        """Test get_azure_credential in non-dev environment."""
         # Arrange
         mock_config_instance = MagicMock()
         mock_config_instance.app_env = "Prod"
@@ -56,11 +56,11 @@ class TestAzureCredentialUtils:
     @patch("helpers.azure_credential_utils.Config")
     @patch("helpers.azure_credential_utils.AioDefaultAzureCredential")
     @patch("helpers.azure_credential_utils.AioManagedIdentityCredential")
-    async def test_get_azure_credential_async_local_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_config):
-        """Test get_azure_credential_async in local environment."""
+    async def test_get_azure_credential_async_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_config):
+        """Test get_azure_credential_async in dev environment."""
         # Arrange
         mock_config_instance = MagicMock()
-        mock_config_instance.app_env = "local"
+        mock_config_instance.app_env = "dev"
         mock_config.return_value = mock_config_instance
 
         mock_aio_default_credential = MagicMock()
@@ -79,8 +79,8 @@ class TestAzureCredentialUtils:
     @patch("helpers.azure_credential_utils.Config")
     @patch("helpers.azure_credential_utils.AioDefaultAzureCredential")
     @patch("helpers.azure_credential_utils.AioManagedIdentityCredential")
-    async def test_get_azure_credential_async_non_local_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_config):
-        """Test get_azure_credential_async in non-local environment."""
+    async def test_get_azure_credential_async_non_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_config):
+        """Test get_azure_credential_async in non-dev environment."""
         # Arrange
         mock_config_instance = MagicMock()
         mock_config_instance.app_env = "Prod"

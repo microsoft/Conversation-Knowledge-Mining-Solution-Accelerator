@@ -7,7 +7,7 @@ async def get_azure_credential_async(client_id=None):
     """
     Returns an Azure credential asynchronously based on the application environment.
 
-    If the environment is 'local', it uses AioDefaultAzureCredential.
+    If the environment is 'dev', it uses AioDefaultAzureCredential.
     Otherwise, it uses AioManagedIdentityCredential.
 
     Args:
@@ -17,7 +17,7 @@ async def get_azure_credential_async(client_id=None):
         Credential object: Either AioDefaultAzureCredential or AioManagedIdentityCredential.
     """
     config = Config()
-    if config.app_env == 'local':
+    if config.app_env == 'dev':
         return AioDefaultAzureCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
     else:
         return AioManagedIdentityCredential(client_id=client_id)
@@ -27,7 +27,7 @@ def get_azure_credential(client_id=None):
     """
     Returns an Azure credential based on the application environment.
 
-    If the environment is 'local', it uses DefaultAzureCredential.
+    If the environment is 'dev', it uses DefaultAzureCredential.
     Otherwise, it uses ManagedIdentityCredential.
 
     Args:
@@ -37,7 +37,7 @@ def get_azure_credential(client_id=None):
         Credential object: Either DefaultAzureCredential or ManagedIdentityCredential.
     """
     config = Config()
-    if config.app_env == 'local':
+    if config.app_env == 'dev':
         return DefaultAzureCredential()  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development
     else:
         return ManagedIdentityCredential(client_id=client_id)
