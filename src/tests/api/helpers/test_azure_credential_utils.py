@@ -10,7 +10,7 @@ import helpers.azure_credential_utils as azure_credential_utils
 @pytest.fixture
 def mock_env_vars():
     return {
-        "app_env": "dev"
+        "APP_ENV": "dev"
     }
 
 class TestAzureCredentialUtils:
@@ -38,7 +38,7 @@ class TestAzureCredentialUtils:
     def test_get_azure_credential_non_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_env_vars):
         """Test get_azure_credential in non-dev environment."""
         # Arrange
-        mock_env_vars["app_env"] = "prod"
+        mock_env_vars["APP_ENV"] = "prod"
         os.environ.update(mock_env_vars)
         mock_managed_credential = MagicMock()
         mock_managed_identity_credential.return_value = mock_managed_credential
@@ -77,7 +77,7 @@ class TestAzureCredentialUtils:
     async def test_get_azure_credential_async_non_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_env_vars):
         """Test get_azure_credential_async in non-dev environment."""
         # Arrange
-        mock_env_vars["app_env"] = "prod"
+        mock_env_vars["APP_ENV"] = "prod"
         os.environ.update(mock_env_vars)
         mock_aio_managed_credential = MagicMock()
         mock_aio_managed_identity_credential.return_value = mock_aio_managed_credential
