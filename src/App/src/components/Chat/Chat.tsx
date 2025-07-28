@@ -558,7 +558,11 @@ const Chat: React.FC<ChatProps> = ({
           scrollChatToBottom();
         } else if (isChartQuery(userMessage)) {
           try {
-            const parsedChartResponse = JSON.parse(runningText);
+
+            const splitRunningText= runningText.split("}{")
+              let  parsedChartResponse:any = {};
+              parsedChartResponse["object"] = JSON.parse(JSON.parse("{" + splitRunningText[splitRunningText.length-1])?.choices[0]?.messages[0]?.content)?.answer;
+              
             if (
               "object" in parsedChartResponse &&
               parsedChartResponse?.object?.type &&
