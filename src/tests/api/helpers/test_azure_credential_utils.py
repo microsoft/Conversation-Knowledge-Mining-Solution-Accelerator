@@ -20,6 +20,7 @@ class TestAzureCredentialUtils:
     def test_get_azure_credential_dev_env(self, mock_managed_identity_credential, mock_default_azure_credential, mock_env_vars):
         """Test get_azure_credential in dev environment."""
         # Arrange
+        mock_env_vars["app_env"] = "dev"
         os.environ.update(mock_env_vars)
         mock_default_credential = MagicMock()
         mock_default_azure_credential.return_value = mock_default_credential
@@ -58,6 +59,7 @@ class TestAzureCredentialUtils:
     async def test_get_azure_credential_async_dev_env(self, mock_aio_managed_identity_credential, mock_aio_default_azure_credential, mock_env_vars):
         """Test get_azure_credential_async in dev environment."""
         # Arrange
+        mock_env_vars["app_env"] = "dev"
         os.environ.update(mock_env_vars)
         mock_aio_default_credential = MagicMock()
         mock_aio_default_azure_credential.return_value = mock_aio_default_credential
