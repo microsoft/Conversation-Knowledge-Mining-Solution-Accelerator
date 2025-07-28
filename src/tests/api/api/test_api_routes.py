@@ -64,15 +64,15 @@ def test_fetch_chart_data_with_filters_basic(create_test_client):
         }
         response = client.post("/fetchChartDataWithFilters", json=payload)
         expected = [
-    {
-        "id": "TOTAL_CALLS",
-        "chart_name": "Total Calls",
-        "chart_type": "card",
-        "chart_value": [
-            {"name": "Total Calls", "value": None, "unit_of_measurement": ""}
+            {
+                "id": "TOTAL_CALLS",
+                "chart_name": "Total Calls",
+                "chart_type": "card",
+                "chart_value": [
+                    {"name": "Total Calls", "value": None, "unit_of_measurement": ""}
+                ]
+            }
         ]
-    }
-]
         assert response.status_code == 200
         assert response.json() == expected
 
