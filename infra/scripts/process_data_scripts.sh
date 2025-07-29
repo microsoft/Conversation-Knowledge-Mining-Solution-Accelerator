@@ -4,6 +4,7 @@ echo "started the script"
 # Variables
 baseUrl="$1"
 keyvaultName="$2"
+managedIdentityClientId="$3"
 requirementFile="requirements.txt"
 requirementFileUrl=${baseUrl}"infra/scripts/index_scripts/requirements.txt"
 
@@ -11,6 +12,7 @@ echo "Script Started"
 
 curl --output "04_cu_process_data_new_data.py" ${baseUrl}"infra/scripts/index_scripts/04_cu_process_data_new_data.py"
 curl --output "content_understanding_client.py" ${baseUrl}"infra/scripts/index_scripts/content_understanding_client.py"
+curl --output "azure_credential_utils.py" ${baseUrl}"infra/scripts/index_scripts/azure_credential_utils.py"
 curl --output "ckm-analyzer_config_text.json" ${baseUrl}"infra/data/ckm-analyzer_config_text.json"
 curl --output "ckm-analyzer_config_audio.json" ${baseUrl}"infra/data/ckm-analyzer_config_audio.json"
 
@@ -31,6 +33,7 @@ curl --output "$requirementFile" "$requirementFileUrl"
 echo "Download completed"
 
 sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "04_cu_process_data_new_data.py"
+sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "04_cu_process_data_new_data.py"
 
 pip install -r requirements.txt
 

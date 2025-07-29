@@ -72,7 +72,7 @@ param useLocalBuild string = 'false'
 // Convert input to lowercase
 var useLocalBuildLower = toLower(useLocalBuild)
 
-var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation))
+var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation, resourceGroup().name))
 
 
 @metadata({
@@ -80,7 +80,7 @@ var uniqueId = toLower(uniqueString(subscription().id, environmentName, solution
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.Standard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
     ]
   }
 })
@@ -269,6 +269,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
       DUMMY_TEST: 'True'
       SOLUTION_NAME: solutionPrefix
+      APP_ENV: 'Prod'
     }
   }
   scope: resourceGroup(resourceGroup().name)

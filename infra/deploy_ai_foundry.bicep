@@ -41,7 +41,7 @@ var aiModelDeployments = [
     name: embeddingModel
     model: embeddingModel
     sku: {
-      name: 'Standard'
+      name: 'GlobalStandard'
       capacity: embeddingDeploymentCapacity
     }
     raiPolicyName: 'Microsoft.Default'

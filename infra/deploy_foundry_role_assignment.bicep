@@ -80,6 +80,7 @@ resource roleAssignmentToFoundryExisting 'Microsoft.Authorization/roleAssignment
   properties: {
     roleDefinitionId: roleDefinitionId
     principalId: principalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -89,6 +90,7 @@ resource roleAssignmentToFoundry 'Microsoft.Authorization/roleAssignments@2022-0
   properties: {
     roleDefinitionId: roleDefinitionId
     principalId: principalId
+    principalType: 'ServicePrincipal'
   }
 }
 

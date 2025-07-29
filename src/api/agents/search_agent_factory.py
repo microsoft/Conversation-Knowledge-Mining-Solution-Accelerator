@@ -1,8 +1,9 @@
-from azure.identity import DefaultAzureCredential
 from azure.ai.agents.models import AzureAISearchTool, AzureAISearchQueryType
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
+
+from helpers.azure_credential_utils import get_azure_credential
 
 
 class SearchAgentFactory(BaseAgentFactory):
@@ -22,7 +23,7 @@ class SearchAgentFactory(BaseAgentFactory):
         """
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=DefaultAzureCredential(exclude_interactive_browser_credential=False),
+            credential=get_azure_credential(),
             api_version=config.ai_project_api_version,
         )
 

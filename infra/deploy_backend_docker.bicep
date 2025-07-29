@@ -143,6 +143,7 @@ resource keyVaultSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@
   properties: {
     roleDefinitionId: keyVaultSecretsUser.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -160,6 +161,7 @@ resource searchIndexDataReaderAssignment 'Microsoft.Authorization/roleAssignment
   properties: {
     roleDefinitionId: searchIndexDataReader.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -203,6 +205,7 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   properties: {
     roleDefinitionId: AcrPull.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
