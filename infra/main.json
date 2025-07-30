@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.36.177.2456",
-      "templateHash": "832352662399817246"
+      "templateHash": "13989630346581833993"
     }
   },
   "parameters": {
@@ -137,7 +137,7 @@
           "type": "location",
           "usageName": [
             "OpenAI.GlobalStandard.gpt-4o-mini,150",
-            "OpenAI.Standard.text-embedding-ada-002,80"
+            "OpenAI.GlobalStandard.text-embedding-ada-002,80"
           ]
         },
         "description": "Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed."
@@ -377,7 +377,7 @@
     "abbrs": "[variables('$fxv#0')]",
     "solutionLocation": "[if(empty(parameters('AZURE_LOCATION')), resourceGroup().location, parameters('AZURE_LOCATION'))]",
     "useLocalBuildLower": "[toLower(parameters('useLocalBuild'))]",
-    "uniqueId": "[toLower(uniqueString(subscription().id, parameters('environmentName'), variables('solutionLocation')))]",
+    "uniqueId": "[toLower(uniqueString(subscription().id, parameters('environmentName'), variables('solutionLocation'), resourceGroup().name))]",
     "solutionPrefix": "[format('km{0}', padLeft(take(variables('uniqueId'), 12), 12, '0'))]",
     "containerRegistryName": "[format('{0}{1}', variables('abbrs').containers.containerRegistry, variables('solutionPrefix'))]",
     "containerRegistryNameCleaned": "[replace(variables('containerRegistryName'), '-', '')]",
@@ -681,7 +681,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.36.177.2456",
-              "templateHash": "18139801220201504120"
+              "templateHash": "16364162048483949784"
             }
           },
           "parameters": {
@@ -988,7 +988,7 @@
                 "name": "[parameters('embeddingModel')]",
                 "model": "[parameters('embeddingModel')]",
                 "sku": {
-                  "name": "Standard",
+                  "name": "GlobalStandard",
                   "capacity": "[parameters('embeddingDeploymentCapacity')]"
                 },
                 "raiPolicyName": "Microsoft.Default"
@@ -1698,7 +1698,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.36.177.2456",
-                      "templateHash": "7364575792801916457"
+                      "templateHash": "2162775944115849065"
                     }
                   },
                   "parameters": {
@@ -1909,7 +1909,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.36.177.2456",
-                      "templateHash": "7364575792801916457"
+                      "templateHash": "2162775944115849065"
                     }
                   },
                   "parameters": {
@@ -3205,7 +3205,8 @@
               "DISPLAY_CHART_DEFAULT": "False",
               "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.applicationInsightsConnectionString.value]",
               "DUMMY_TEST": "True",
-              "SOLUTION_NAME": "[variables('solutionPrefix')]"
+              "SOLUTION_NAME": "[variables('solutionPrefix')]",
+              "APP_ENV": "Prod"
             }
           }
         },
@@ -3216,7 +3217,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.36.177.2456",
-              "templateHash": "6279741508955918821"
+              "templateHash": "13824837150745689508"
             }
           },
           "parameters": {
@@ -3676,7 +3677,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.36.177.2456",
-                      "templateHash": "7364575792801916457"
+                      "templateHash": "2162775944115849065"
                     }
                   },
                   "parameters": {
@@ -3919,7 +3920,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.36.177.2456",
-              "templateHash": "12963922539753840423"
+              "templateHash": "2667250685903499862"
             }
           },
           "parameters": {
