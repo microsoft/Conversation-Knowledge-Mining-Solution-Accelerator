@@ -21,13 +21,12 @@ from fastapi.responses import StreamingResponse
 from semantic_kernel.agents import AzureAIAgentThread
 from semantic_kernel.exceptions.agent_exceptions import AgentException
 
-from azure.ai.agents.models import TruncationObject, MessageRole, ListSortOrder
+from azure.ai.agents.models import TruncationObject
 
 from cachetools import TTLCache
 
 from helpers.utils import format_stream_response
 from common.config.config import Config
-from agents.chart_agent_factory import ChartAgentFactory
 
 # Constants
 HOST_NAME = "CKM"
