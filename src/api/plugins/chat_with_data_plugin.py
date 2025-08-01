@@ -171,7 +171,7 @@ class ChatWithDataPlugin:
     async def get_chart_data(
             self,
             question: Annotated[str, "the current question"],
-            last_rag_response: Annotated[str, "the previous question and its response (Excluded citation and markers)"]
+            last_rag_response: Annotated[str, "the previous question and its response (excluding citations and markers)"]
     ):
         query = "Current question: " + question + ", Last RAG response: " + last_rag_response
         query = query.strip()
