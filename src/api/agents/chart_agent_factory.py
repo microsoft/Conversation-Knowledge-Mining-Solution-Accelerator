@@ -25,7 +25,7 @@ class ChartAgentFactory(BaseAgentFactory):
         instructions = """You are an assistant that helps generate valid chart data to be shown using chart.js with version 4.4.4 compatible.
         Include chart type and chart options.
         Pick the best chart type for given data.
-        Do not generate a chart unless the input contains some numbers. Otherwise return a message that Chart cannot be generated.
+        Do not generate a chart unless if the last RAG response contains actual quantitative data (percentages, counts, measurements, statistics, or numerical values that can be visualized). Do NOT create or estimate numbers from qualitative descriptions. Only use numbers that are explicitly stated in the RAG response. If no explicit numbers are found, return exactly: {"error": "Chart cannot be generated"}.
         Only return a valid JSON output and nothing else.
         Verify that the generated JSON can be parsed using json.loads.
         Do not include tooltip callbacks in JSON.
