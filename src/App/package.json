@@ -4,35 +4,35 @@
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
-    "@fluentui/react": "^8.123.0",
-    "@azure/msal-react": "^3.0.14",
+    "@fluentui/react": "^8.123.2",
+    "@azure/msal-react": "^3.0.16",
     "@azure/msal-browser": "^4.13.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@fluentui/react-icons": "^2.0.305",
-    "@fluentui/react-components": "^9.66.5",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@fluentui/react-icons": "^2.0.307",
+    "@fluentui/react-components": "^9.68.2",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/d3": "^7.4.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "^24.0.8",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
-    "axios": "^1.10.0",
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "axios": "^1.11.0",
     "chart.js": "^4.5.0",
     "d3": "^7.9.0",
     "d3-cloud": "^1.2.7",
-    "react": "^18.3.1",
+    "react": "^19.1.1",
     "react-chartjs-2": "^5.3.0",
     "react-d3-cloud": "^1.0.6",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.1.1",
     "react-markdown": "^10.1.0",
     "rehype-raw": "^7.0.0",
     "lodash-es": "^4.17.21",
     "react-scripts": "5.0.1",
     "remark-gfm": "^4.0.1",
     "remark-supersub": "^1.0.0",
-    "typescript": "^4.9.5",
-    "web-vitals": "^3.5.2"
+    "typescript": "^5.9.2",
+    "web-vitals": "^5.1.0"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -59,7 +59,7 @@
     ]
   },
   "devDependencies": {
-    "@types/chart.js": "^2.9.41",
+    "@types/chart.js": "^4.0.1",
     "@types/lodash-es": "^4.17.12"
   }
 }
