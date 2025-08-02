@@ -110,7 +110,6 @@ def test_fetch_chart_data_error_handling(create_test_client):
 def test_chat_endpoint_basic(create_test_client):
     with patch("api.api_routes.ChatService") as MockChatService:
         mock_instance = MockChatService.return_value
-        mock_instance.complete_chat_request = AsyncMock(return_value={"chart": "mocked"})
         mock_instance.stream_chat_request = AsyncMock(return_value=iter([b'{"message": "mocked stream"}']))
 
         client = create_test_client()
@@ -123,7 +122,7 @@ def test_chat_endpoint_basic(create_test_client):
         response = client.post("/chat", json=payload)
 
         assert response.status_code == 200
-        assert response.json() == {"chart": "mocked"}
+        assert response.json() == {"message": "mocked stream"}
 
 
 def test_get_layout_config_valid(create_test_client, monkeypatch):

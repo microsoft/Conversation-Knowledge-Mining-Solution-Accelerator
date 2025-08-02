@@ -156,3 +156,129 @@ class TestChatWithDataPlugin:
 
         # Assertions
         assert result == "Details could not be retrieved. Please try again later."
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.ChartAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_get_chart_data_success(self, mock_get_agent, chat_plugin):
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "chart-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock Chart.js compatible JSON response
+        chart_json = '{"type": "bar", "data": {"labels": ["2025-06-27", "2025-06-28"], "datasets": [{"label": "Total Calls", "data": [11, 20]}]}}'
+        mock_agent_msg = MagicMock()
+        mock_agent_msg.role = MessageRole.AGENT
+        mock_agent_msg.text_messages = [MagicMock(text=MagicMock(value=chart_json))]
+        mock_client.agents.messages.list.return_value = [mock_agent_msg]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_chart_data(
+            "Create a bar chart", 
+            "Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
+        )
+
+        # Assert
+        assert result == chart_json
+        mock_client.agents.threads.create.assert_called_once()
+        mock_client.agents.messages.create.assert_called_once_with(
+            thread_id="thread-id",
+            role=MessageRole.USER,
+            content="Current question: Create a bar chart, Last RAG response: Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
+        )
+        mock_client.agents.runs.create_and_process.assert_called_once_with(
+            thread_id="thread-id",
+            agent_id="chart-agent-id"
+        )
+        mock_client.agents.messages.list.assert_called_once_with(thread_id="thread-id", order=ListSortOrder.ASCENDING)
+        mock_client.agents.threads.delete.assert_called_once_with(thread_id="thread-id")
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.ChartAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_get_chart_data_failed_run(self, mock_get_agent, chat_plugin):
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "chart-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation with failed status
+        mock_run = MagicMock()
+        mock_run.status = "failed"
+        mock_run.last_error = "Chart generation failed"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Call the method
+        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+
+        # Assert
+        assert result == "Details could not be retrieved. Please try again later."
+        mock_client.agents.threads.create.assert_called_once()
+        mock_client.agents.messages.create.assert_called_once()
+        mock_client.agents.runs.create_and_process.assert_called_once()
+        # Should not call messages.list or threads.delete when run fails
+        mock_client.agents.messages.list.assert_not_called()
+        mock_client.agents.threads.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.ChartAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_get_chart_data_exception(self, mock_get_agent, chat_plugin):
+        # Setup mock to raise exception
+        mock_get_agent.side_effect = Exception("Chart agent error")
+
+        # Call the method
+        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+
+        # Assert
+        assert result == "Details could not be retrieved. Please try again later."
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.ChartAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_get_chart_data_empty_response(self, mock_get_agent, chat_plugin):
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "chart-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock empty messages list
+        mock_client.agents.messages.list.return_value = []
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+
+        # Assert - should return empty string when no agent messages found
+        assert result == ""
+        mock_client.agents.threads.delete.assert_called_once_with(thread_id="thread-id")

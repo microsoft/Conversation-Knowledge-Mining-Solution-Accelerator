@@ -167,12 +167,27 @@ class ChatWithDataPlugin:
             return "Details could not be retrieved. Please try again later."
         return answer
 
-    @kernel_function(name="ExtractChartData", description="Provides structured JSON data compatible with Chart.js v4.4.4 for visualizations based on queries involving charting, graphing, plotting, or data visualization, using current question and previous question with its response.")
+    @kernel_function(name="GenerateChartData", description="Generates Chart.js v4.4.4 compatible JSON data for data visualization requests using current and previous context.")
     async def get_chart_data(
             self,
             question: Annotated[str, "the current question"],
             last_rag_response: Annotated[str, "the previous question and its response (excluding citations and markers)"]
     ):
+        """
+        Generates Chart.js v4.4.4 compatible JSON data for data visualization requests.
+        
+        Uses a chart generation agent to convert structured data from previous RAG responses
+        into Chart.js compatible JSON format for rendering visualizations.
+
+        Args:
+            question (str): The current user question requesting chart generation.
+            last_rag_response (str): The previous question and its response containing 
+                numerical data (excluding citations and markers).
+
+        Returns:
+            str: Chart.js v4.4.4 compatible JSON data as a string, or an error message 
+                if chart generation fails.
+        """
         query = "Current question: " + question + ", Last RAG response: " + last_rag_response
         query = query.strip()
         print("Query for chart data:", query, flush=True)
