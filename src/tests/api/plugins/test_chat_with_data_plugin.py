@@ -186,10 +186,9 @@ class TestChatWithDataPlugin:
         # Mock thread deletion
         mock_client.agents.threads.delete.return_value = None
 
-        # Call the method
+        # Call the method with combined input
         result = await chat_plugin.get_chart_data(
-            "Create a bar chart", 
-            "Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
+            "Create a bar chart. Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
         )
 
         # Assert
@@ -198,7 +197,7 @@ class TestChatWithDataPlugin:
         mock_client.agents.messages.create.assert_called_once_with(
             thread_id="thread-id",
             role=MessageRole.USER,
-            content="Current question: Create a bar chart, Last RAG response: Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
+            content="Create a bar chart. Total calls by date: 2025-06-27: 11, 2025-06-28: 20"
         )
         mock_client.agents.runs.create_and_process.assert_called_once_with(
             thread_id="thread-id",
@@ -227,8 +226,8 @@ class TestChatWithDataPlugin:
         mock_run.last_error = "Chart generation failed"
         mock_client.agents.runs.create_and_process.return_value = mock_run
 
-        # Call the method
-        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+        # Call the method with single input parameter
+        result = await chat_plugin.get_chart_data("Create a chart with some data")
 
         # Assert
         assert result == "Details could not be retrieved. Please try again later."
@@ -245,8 +244,8 @@ class TestChatWithDataPlugin:
         # Setup mock to raise exception
         mock_get_agent.side_effect = Exception("Chart agent error")
 
-        # Call the method
-        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+        # Call the method with single input parameter
+        result = await chat_plugin.get_chart_data("Create a chart with some data")
 
         # Assert
         assert result == "Details could not be retrieved. Please try again later."
@@ -276,8 +275,8 @@ class TestChatWithDataPlugin:
         # Mock thread deletion
         mock_client.agents.threads.delete.return_value = None
 
-        # Call the method
-        result = await chat_plugin.get_chart_data("Create a chart", "Some data")
+        # Call the method with single input parameter
+        result = await chat_plugin.get_chart_data("Create a chart with some data")
 
         # Assert - should return empty string when no agent messages found
         assert result == ""
