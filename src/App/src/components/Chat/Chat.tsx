@@ -558,11 +558,23 @@ const Chat: React.FC<ChatProps> = ({
           scrollChatToBottom();
         } else if (isChartQuery(userMessage)) {
           try {
-            const parsedChartResponse = JSON.parse(runningText);
+            const splitRunningText = runningText.split("}{");
+            let parsedChartResponse: any = {};
+            parsedChartResponse= JSON.parse("{" + splitRunningText[splitRunningText.length - 1]);
+            let chartResponse : any = {};
+            try {
+              chartResponse = JSON.parse(parsedChartResponse?.choices[0]?.messages[0]?.content)
+            } catch (e) {
+              chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
+            }
+            
+            if (typeof chartResponse === 'object' && chartResponse?.answer) {
+              chartResponse = chartResponse.answer;
+            }
+            
             if (
-              "object" in parsedChartResponse &&
-              parsedChartResponse?.object?.type &&
-              parsedChartResponse?.object?.data
+              chartResponse?.type &&
+              chartResponse?.data
             ) {
               // CHART CHECKING
               try {
@@ -570,7 +582,7 @@ const Chat: React.FC<ChatProps> = ({
                   id: generateUUIDv4(),
                   role: ASSISTANT,
                   content:
-                    parsedChartResponse.object as unknown as ChartDataResponse,
+                    chartResponse as unknown as ChartDataResponse,
                   date: new Date().toISOString(),
                 };
                 updatedMessages = [
@@ -604,12 +616,12 @@ const Chat: React.FC<ChatProps> = ({
                 scrollChatToBottom();
               }
             } else if (
-              parsedChartResponse.error ||
-              parsedChartResponse?.object?.message
+              parsedChartResponse?.error ||
+              parsedChartResponse?.choices[0]?.messages[0]?.content
             ) {
               const errorMsg =
-                parsedChartResponse.error ||
-                parsedChartResponse?.object?.message;
+                parsedChartResponse?.error ||
+                parsedChartResponse?.choices[0]?.messages[0]?.content
               const errorMessage: ChatMessage = {
                 id: generateUUIDv4(),
                 role: ERROR,

@@ -115,30 +115,15 @@ async def conversation(request: Request):
     try:
         # Get the request JSON and last RAG response from the client
         request_json = await request.json()
-        last_rag_response = request_json.get("last_rag_response")
         conversation_id = request_json.get("conversation_id")
-        logger.info(f"Received last_rag_response: {last_rag_response}")
-
         query = request_json.get("messages")[-1].get("content")
-        is_chart_query = any(
-            term in query.lower()
-            for term in ["chart", "graph", "visualize", "plot"]
-        )
         chat_service = ChatService(request=request)
-        if not is_chart_query:
-            result = await chat_service.stream_chat_request(request_json, conversation_id, query)
-            track_event_if_configured(
-                "ChatStreamSuccess",
-                {"conversation_id": conversation_id, "query": query}
-            )
-            return StreamingResponse(result, media_type="application/json-lines")
-        else:
-            result = await chat_service.complete_chat_request(query, last_rag_response)
-            track_event_if_configured(
-                "ChartChatSuccess",
-                {"conversation_id": conversation_id, "query": query}
-            )
-            return JSONResponse(content=result)
+        result = await chat_service.stream_chat_request(request_json, conversation_id, query)
+        track_event_if_configured(
+            "ChatStreamSuccess",
+            {"conversation_id": conversation_id, "query": query}
+        )
+        return StreamingResponse(result, media_type="application/json-lines")
 
     except Exception as ex:
         logger.exception("Error in conversation endpoint: %s", str(ex))
