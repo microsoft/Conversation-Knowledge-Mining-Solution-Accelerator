@@ -561,7 +561,6 @@ const Chat: React.FC<ChatProps> = ({
             const splitRunningText = runningText.split("}{");
             let parsedChartResponse: any = {};
             parsedChartResponse= JSON.parse("{" + splitRunningText[splitRunningText.length - 1]);
-            // console.log("parsedChartResponse", parsedChartResponse);
             let chartResponse : any = {};
             try {
               chartResponse = JSON.parse(parsedChartResponse?.choices[0]?.messages[0]?.content)
@@ -569,14 +568,11 @@ const Chat: React.FC<ChatProps> = ({
               chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
             }
             
-         
-            // console.log("chartResponse", chartResponse);
             if (typeof chartResponse === 'object' && chartResponse?.answer) {
               chartResponse = chartResponse.answer;
             }
-            // console.log("chartResponse", chartResponse);
+            
             if (
-              // "object" in parsedChartResponse &&
               chartResponse?.type &&
               chartResponse?.data
             ) {
@@ -623,7 +619,6 @@ const Chat: React.FC<ChatProps> = ({
               parsedChartResponse?.error ||
               parsedChartResponse?.choices[0]?.messages[0]?.content
             ) {
-              console.log("parsedChartRespons 615::", parsedChartResponse);
               const errorMsg =
                 parsedChartResponse?.error ||
                 parsedChartResponse?.choices[0]?.messages[0]?.content
