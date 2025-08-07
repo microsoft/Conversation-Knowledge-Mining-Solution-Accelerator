@@ -2,43 +2,23 @@
 
 Follow the steps below to set up and run the **Conversation Knowledge Mining Solution Accelerator** locally.
 
----
+
 
 ## Prerequisites
 
 Install these tools before you start:
-
-### 1. Visual Studio Code
-- **Download:** [https://code.visualstudio.com/](https://code.visualstudio.com/)
-- **Extensions needed:**
+- [Visual Studio Code](https://code.visualstudio.com/) with the following extensions:
   - [Azure Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-node-azure-pack)
   - [Bicep](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-bicep)
   - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
+- [Python 3.11](https://www.python.org/downloads/). **Important:** Check "Add Python to PATH" during installation.
+- [PowerShell 7.0+](https://github.com/PowerShell/PowerShell#get-powershell).
+- [Node.js (LTS)](https://nodejs.org/en).
+- [Git](https://git-scm.com/downloads).
+- [Azure Developer CLI (azd) v1.15.0+](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
+- [Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
+- [jq](https://jqlang.org/download/) for JSON processing in shell script.
 
-### 2. Python 3.11
-- **Download:** [https://www.python.org/downloads/](https://www.python.org/downloads/)
-- **Important:** Check "Add Python to PATH" during installation
-
-### 3. PowerShell 7.0+
-- **Download:** [https://github.com/PowerShell/PowerShell#get-powershell](https://github.com/PowerShell/PowerShell#get-powershell)
-
-### 4. Node.js (LTS)
-- **Download:** [https://nodejs.org/en](https://nodejs.org/en)
-
-### 5. Git
-- **Download:** [https://git-scm.com/downloads](https://git-scm.com/downloads)
-
-### 6. Azure Developer CLI (azd) v1.15.0+
-- **Download:** [https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
-- **Verify:** Run `azd version` to check installation
-
-### 7. Microsoft ODBC Driver 17
-- **Download:** [https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
-
-### 8. jq
-- **Download:** [https://jqlang.github.io/jq/](https://jqlang.org/download/)
-
----
 
 ## Setup Steps
 
@@ -46,46 +26,22 @@ Install these tools before you start:
 
 Choose a location on your local machine where you want to store the project files. We recommend creating a dedicated folder for your development projects.
 
-#### Option 1: Using Command Line/Terminal
+#### Using Command Line/Terminal
 
-1. **Open your terminal or command prompt:**
-   - **Windows**: Press `Win + R`, type `pwsh` (PowerShell 7+) or `cmd`, and press Enter
-   - **macOS**: Press `Cmd + Space`, type `Terminal`, and press Enter
-   - **Linux**: Press `Ctrl + Alt + T`
-
-2. **Navigate to your desired directory:**
-   ```bash
-   # Example: Navigate to your development folder
-   cd C:\Users\YourUsername\Documents\Development
-   ```
-
-3. **Clone the repository:**
+1. **Open your terminal or command prompt. Navigate to your desired directory and Clone the repository:**
    ```bash
    git clone https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator.git
    ```
 
-4. **Navigate to the project directory:**
+2. **Navigate to the project directory:**
    ```bash
    cd Conversation-Knowledge-Mining-Solution-Accelerator
    ```
 
-5. **Open the project in Visual Studio Code:**
+3. **Open the project in Visual Studio Code:**
    ```bash
    code .
    ```
-
-#### Option 2: Using Visual Studio Code
-
-1. **Open Visual Studio Code**
-2. **Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)** to open the command palette
-3. **Type and select:** `Git: Clone`
-4. **Paste the repository URL:**
-   ```
-   https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator.git
-   ```
-5. **Choose a local folder** where you want to clone the repository
-6. **Click "Select Repository Location"**
-7. **When prompted, click "Open"** to open the cloned repository in VS Code
 
 ### Step 2: Select the Python 3.11 Interpreter in VS Code
 
@@ -98,8 +54,6 @@ Choose a location on your local machine where you want to store the project file
 3. **Choose the Python 3.11 interpreter from the list**
 
 > **Note**: If you have multiple Python versions installed, ensure you select Python 3.11.
-
----
 
 ## Local Debugging
 
@@ -121,13 +75,9 @@ If you don't have an existing environment, you must first deploy the Azure resou
 
 > **Important**: Regardless of which option you choose, ensure all required environment variables are properly configured before proceeding with local development. Refer to the [Environment Variables](#environment-variables) section below.
 
----
-
 ## Environment Variables
 
-The key environment variables are automatically configured when you run `azd up` and are located in different files `.azure/<environment-name>/`:
-
-### Backend API Environment Variables (`src/api/.env`)
+### Backend API Environment Variables (`src/api/.env`):
 
 | App Setting | Value | Note |
 |-------------|-------|------|
@@ -160,13 +110,11 @@ The key environment variables are automatically configured when you run `azd up`
 | `AZURE_AI_AGENT_ENDPOINT` |  | Endpoint for the Azure AI Agent |
 | `AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME` |  | Deployment name for the AI agent model |
 
-### Frontend App Environment Variables (`src/App/.env`)
+### Frontend App Environment Variables (`src/App/.env`):
 
 | App Setting | Value | Note |
 |-------------|-------|------|
 | `REACT_APP_API_BASE_URL` | `http://127.0.0.1:8000` | Frontend API base URL for local development |
-
----
 
 ## Manually Assign Roles
 
@@ -255,8 +203,6 @@ INNER JOIN sys.database_principals u ON drm.member_principal_id = u.principal_id
 WHERE u.name = @username;
 ```
 
----
-
 ## Develop & Run the Backend API
 
 ### Step 1: Create Virtual Environment (Recommended)
@@ -301,8 +247,6 @@ The backend API will run on `http://127.0.0.1:8000` by default.
 
 > **Note**: Make sure your virtual environment is activated before running these commands. You should see `(.venv)` in your terminal prompt when the virtual environment is active.
 
----
-
 ## Develop & Run the Frontend Locally
 
 To run the React frontend in development mode:
@@ -315,7 +259,6 @@ npm start
 
 The frontend will run on `http://localhost:3000` and automatically proxy API requests to the backend.
 
----
 
 ## Running with Automated Script
 
@@ -336,36 +279,16 @@ chmod +x start.sh
 
 ### What the Scripts Do
 
-The startup scripts perform several important tasks:
+The startup scripts automate the complete local development setup:
 
-#### Environment Configuration
-- Copies environment variables from the `.azure` deployment folder
-- Sets up API and frontend configuration files  
-- Configures local development environment
+- **Environment & Authentication**: Copies `.env` files from Azure deployment and handles Azure login
+- **Role Assignments**: Assigns required Azure permissions (SQL, Cosmos DB, Search, AI services)
+- **Dependencies**: Creates virtual environment and installs Python/npm packages
+- **Service Launch**: Starts both backend (port 8000) and frontend (port 3000) servers
 
-#### Azure Role Assignments (Automated)
-- **SQL Admin Role**: Assigns Azure SQL Server AAD admin role to the current user
-- **Cosmos DB Role**: Assigns Cosmos DB Built-in Data Contributor role for database access
-- **Search Index Reader Role**: Assigns Search Index Data Reader role for Azure AI Search access
-- **Azure AI User Role**: Assigns Azure AI User role for AI Foundry/OpenAI access
-
-#### Dependency Management
-- Creates Python virtual environment
-- Installs backend Python packages
-- Installs frontend npm packages
-
-#### Service Startup
-- Starts the Python backend API on http://127.0.0.1:8000
-- Starts the React frontend on http://localhost:3000
-
----
 
 ## Access the Application
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://127.0.0.1:8000
-- **API Health Check**: http://127.0.0.1:8000/health
-
-The frontend automatically connects to the local backend API during development, allowing you to test the full application stack locally while using the Azure-provisioned resources for AI services, search, and data storage.
-
 ---
