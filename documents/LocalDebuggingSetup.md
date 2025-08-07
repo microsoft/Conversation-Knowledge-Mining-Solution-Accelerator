@@ -134,7 +134,7 @@ If you already have an Azure environment deployed with the necessary resources, 
 
 If you don't have an existing environment, you must first deploy the Azure resources. Follow the complete deployment instructions in the [Local Environment section of the Deployment Guide](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/blob/main/documents/DeploymentGuide.md#local-environment). This will generate a `.env` file located in the `.azure` folder with all the necessary environment variables.
 
-> **Important**: Regardless of which option you choose, ensure all required environment variables are properly configured before proceeding with local development.
+> **Important**: Regardless of which option you choose, ensure all required environment variables are properly configured before proceeding with local development. Refer to the [Environment Variables](#environment-variables) section below.
 
 ---
 
