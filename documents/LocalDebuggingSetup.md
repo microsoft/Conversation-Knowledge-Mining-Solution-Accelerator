@@ -6,52 +6,37 @@ Follow the steps below to set up and run the **Conversation Knowledge Mining Sol
 
 ## Prerequisites
 
-Install the following tools on your local machine:
+Install these tools before you start:
 
-### 1. Visual Studio Code (VS Code)
+### 1. Visual Studio Code
+- **Download:** [https://code.visualstudio.com/](https://code.visualstudio.com/)
+- **Extensions needed:**
+  - [Azure Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-node-azure-pack)
+  - [Bicep](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-bicep)
+  - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
 
-- **Download and install**: [https://code.visualstudio.com/](https://code.visualstudio.com/)
+### 2. Python 3.11
+- **Download:** [https://www.python.org/downloads/](https://www.python.org/downloads/)
+- **Important:** Check "Add Python to PATH" during installation
 
-#### Install the following VS Code extensions:
+### 3. PowerShell 7.0+
+- **Download:** [https://github.com/PowerShell/PowerShell#get-powershell](https://github.com/PowerShell/PowerShell#get-powershell)
 
-- [Azure Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-node-azure-pack)
-- [Bicep](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-bicep)
-- [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
-
-### 2. PowerShell (v7.0+)
-
-- **Download and install**: [https://github.com/PowerShell/PowerShell#get-powershell](https://github.com/PowerShell/PowerShell#get-powershell)
-
-> ⚠️ **Important**: PowerShell 7.0+ is cross-platform and available for Windows, macOS, and Linux. This is different from Windows PowerShell 5.1 that comes with Windows.
-
-### 3. Python
-
-- **Download and install**: 
-  - Python 3.11: [https://www.python.org/downloads/](https://www.python.org/downloads/)
-
-> ⚠️ **Important**: During installation, make sure to check the box: **"Add Python to PATH"**
-
-### 4. Node.js (LTS Version)
-
-- **Download and install**: [https://nodejs.org/en](https://nodejs.org/en)
+### 4. Node.js (LTS)
+- **Download:** [https://nodejs.org/en](https://nodejs.org/en)
 
 ### 5. Git
+- **Download:** [https://git-scm.com/downloads](https://git-scm.com/downloads)
 
-- **Download and install**: [https://git-scm.com/downloads](https://git-scm.com/downloads)
+### 6. Azure Developer CLI (azd) v1.15.0+
+- **Download:** [https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
+- **Verify:** Run `azd version` to check installation
 
-> ⚠️ **Important**: Git is required for cloning the repository and version control operations.
+### 7. Microsoft ODBC Driver 17
+- **Download:** [https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
 
-### 6. Azure Developer CLI (azd) (v1.15.0+)
-
-- **Install instructions**: [https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd)
-
-> ⚠️ **Important**: Ensure you have version 1.15.0 or later. You can check your version with: `azd version`
-
-### 7. Microsoft ODBC Driver 17 for SQL Server
-
-- **Download and install**: [https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
-
-> ⚠️ **Important**: This driver is required for connecting to Azure SQL Database from the Python backend API.
+### 8. jq
+- **Download:** [https://jqlang.github.io/jq/](https://jqlang.org/download/)
 
 ---
 
