@@ -14,12 +14,11 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# Extract default environment name using jq (fallback to python if jq not available)
-if command -v jq >/dev/null 2>&1; then
-    DEFAULT_ENV=$(jq -r '.defaultEnvironment' "$CONFIG_FILE")
-else
-    DEFAULT_ENV=$(python -c "import json; print(json.load(open('$CONFIG_FILE'))['defaultEnvironment'])" 2>/dev/null || echo "")
-fi
+# Ensure jq is installed
+which jq || { echo "jq is not installed."; exit 1; }
+# Extract default environment name using jq
+DEFAULT_ENV=$(jq -r '.defaultEnvironment' "$CONFIG_FILE")
+echo "Extracted default environment: $DEFAULT_ENV"
 
 if [ -z "$DEFAULT_ENV" ] || [ "$DEFAULT_ENV" == "null" ]; then
     echo "Failed to extract defaultEnvironment from config.json"
