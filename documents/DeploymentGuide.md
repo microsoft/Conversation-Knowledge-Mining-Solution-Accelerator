@@ -194,6 +194,10 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 2. **Deleting Resources After a Failed Deployment**  
 
      - Follow steps in [Delete Resource Group](./DeleteResourceGroup.md) if your deployment fails and/or you need to clean up the resources.
+  
+## For local Debugging
+
+To configure your environment, navigate to the `src\api` folder to create a `.env` file based on the `.env.sample`, fill it using deployment output or the Azure Portal under "Deployments" in your resource group, and ensure APP_ENV is set to "**dev**".      
 
 ## Sample Questions
 
