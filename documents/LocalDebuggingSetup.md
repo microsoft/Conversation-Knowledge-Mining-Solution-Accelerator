@@ -131,8 +131,12 @@ To customize the accelerator or run it locally, you have two options:
 ### Option 1: Use Existing Environment
 
 If you already have an Azure environment deployed with the necessary resources, ensure you have the required `.env` files with all the necessary environment variables in the appropriate locations:
-- **Backend API environment variables**: `src/api/.env`
+- **Backend API environment variables**: `src/api/.env` - You can get these from:
+  - `.azure/<environment-name>/` folder if deployed using `azd up`
+  - Azure Portal App Service environment variables if deployed using custom deployment methods
 - **Frontend environment variables**: `src/App/.env`
+
+> **Note**: For a complete list of required environment variables and any value changes needed for local debugging, refer to the [Environment Variables](#environment-variables) section below.
 
 ### Option 2: Deploy New Environment
 
@@ -280,7 +284,7 @@ WHERE u.name = @username;
 
 ### Step 1: Create Virtual Environment (Recommended)
 
-Navigate to the root folder of the project and create the virtual environment:
+Open your terminal and navigate to the root folder of the project, then create the virtual environment:
 
 ```bash
 # Navigate to the project root folder
@@ -289,14 +293,14 @@ cd Conversation-Knowledge-Mining-Solution-Accelerator
 # Create virtual environment in the root folder
 python -m venv .venv
 
-# Activate virtual environment
+# Activate virtual environment (Windows)
 .venv\Scripts\activate
 
 # Activate virtual environment (macOS/Linux)
 source .venv/bin/activate
 ```
 
-> **Important**: The virtual environment should be created in the root folder of the project (`Conversation-Knowledge-Mining-Solution-Accelerator/`), not in the `src/api/` folder.
+> **Note**: After activation, you should see `(.venv)` in your terminal prompt indicating the virtual environment is active.
 
 ### Step 2: Install Dependencies and Run
 
