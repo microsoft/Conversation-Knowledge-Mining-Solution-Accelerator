@@ -85,7 +85,7 @@ if exist "%ENV_FILE%" (
         echo   2. Manually create %API_ENV_FILE% with required environment variables
         echo   3. Copy an existing .env file to one of the above locations
         echo.
-        echo For more information, see: documents/LocalSetup.md
+        echo For more information, see: documents/LocalDebuggingSetup.md
         exit /b 1
     )
 )
@@ -271,7 +271,7 @@ start /b python app.py --port=8000
 echo Backend started at http://127.0.0.1:8000
 
 echo Waiting for backend to initialize...
-timeout /t 90 /nobreak >nul
+timeout /t 30 /nobreak >nul
 
 echo Starting frontend server...
 cd %ROOT_DIR%\src\App

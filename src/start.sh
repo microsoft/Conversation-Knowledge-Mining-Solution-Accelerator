@@ -80,7 +80,7 @@ else
         echo "  2. Manually create $API_ENV_FILE with required environment variables"
         echo "  3. Copy an existing .env file to one of the above locations"
         echo ""
-        echo "For more information, see: documents/LocalSetup.md"
+        echo "For more information, see: documents/LocalDebuggingSetup.md"
         exit 1
     fi
 fi
@@ -335,7 +335,7 @@ python app.py --port=8000 &
 echo "Backend started at http://127.0.0.1:8000"
 
 echo "Waiting for backend to initialize..."
-sleep 90
+sleep 30
 
 echo "Starting frontend server..."
 cd "$ROOT_DIR/src/App"
