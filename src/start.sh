@@ -29,7 +29,7 @@ fi
 # Load .env file
 ENV_FILE="$AZURE_FOLDER/$DEFAULT_ENV/.env"
 API_ENV_FILE="$ROOT_DIR/src/api/.env"
-WORKSHOP_ENV_FILE="$ROOT_DIR/workshop/docs/workshop/.env"
+WORKSHOP_ENV_FILE="$ROOT_DIR/docs/workshop/docs/workshop/.env"
 
 # Check if .env file exists in .azure folder
 if [ -f "$ENV_FILE" ]; then

@@ -24,7 +24,7 @@ if not defined DEFAULT_ENV (
 REM Load .env file
 set ENV_FILE=%AZURE_FOLDER%\%DEFAULT_ENV%\.env
 set API_ENV_FILE=%ROOT_DIR%\src\api\.env
-set WORKSHOP_ENV_FILE=%ROOT_DIR%\workshop\docs\workshop\.env
+set WORKSHOP_ENV_FILE=%ROOT_DIR%\docs\workshop\docs\workshop\.env
 
 REM Check if .env file exists in .azure folder
 if exist "%ENV_FILE%" (
