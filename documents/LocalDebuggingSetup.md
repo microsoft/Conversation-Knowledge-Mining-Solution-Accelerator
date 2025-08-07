@@ -116,14 +116,6 @@ Choose a location on your local machine where you want to store the project file
 
 ---
 
-## Deploy Accelerator Locally (Optional)
-
-If you don't have an existing Azure environment set up, you'll need to deploy the Azure resources first. For complete deployment instructions, follow the steps in the [Local Environment section of the Deployment Guide](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/blob/main/documents/DeploymentGuide.md#local-environment).
-
-> **Note**: If you already have an existing Azure environment with the required resources deployed, you can skip this step and use your existing `.env` configuration files.
-
----
-
 ## Local Debugging
 
 To customize the accelerator or run it locally, you have two options:
@@ -140,7 +132,7 @@ If you already have an Azure environment deployed with the necessary resources, 
 
 ### Option 2: Deploy New Environment
 
-If you don't have an existing environment, you must first deploy the Azure resources as described in the **Deploy Accelerator Locally** section above. This will generate a `.env` file located in the `.azure` folder with all the necessary environment variables.
+If you don't have an existing environment, you must first deploy the Azure resources. Follow the complete deployment instructions in the [Local Environment section of the Deployment Guide](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/blob/main/documents/DeploymentGuide.md#local-environment). This will generate a `.env` file located in the `.azure` folder with all the necessary environment variables.
 
 > **Important**: Regardless of which option you choose, ensure all required environment variables are properly configured before proceeding with local development.
 
