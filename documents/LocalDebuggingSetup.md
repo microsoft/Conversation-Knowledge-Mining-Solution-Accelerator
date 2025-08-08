@@ -103,7 +103,37 @@ If you don't have an existing environment, you must first deploy the Azure resou
 |-------------|-------|------|
 | `REACT_APP_API_BASE_URL` | `http://127.0.0.1:8000` | Frontend API base URL for local development |
 
-## Manually Assign Roles
+## Running with Automated Script
+
+For convenience, you can use the provided startup scripts that handle environment setup and start both services:
+
+**Windows:**
+```cmd
+cd src
+.\start.cmd
+```
+
+**macOS/Linux:**
+```bash
+cd src
+chmod +x start.sh
+./start.sh
+```
+
+### What the Scripts Do
+
+The startup scripts automate the complete local development setup:
+
+- **Environment & Authentication**: Copies `.env` files from Azure deployment and handles Azure login
+- **Role Assignments**: Assigns required Azure permissions (SQL, Cosmos DB, Search, AI services)
+- **Dependencies**: Creates virtual environment and installs Python/npm packages
+- **Service Launch**: Starts both backend (port 8000) and frontend (port 3000) servers
+
+> **Note**: The script includes a 30-second wait time for the backend to initialize before starting the frontend. However, sometimes it might take more time. If you see connection errors in the frontend initially, please wait a moment for the backend to become fully ready, then reload the frontend once the backend is available.
+
+## Running Backend and Frontend Separately
+
+### Manually Assign Roles
 
 To run the accelerator locally when the solution is secured by RBAC, you need to assign roles to your principal ID. You can get your principal ID from Microsoft Entra ID.
 
@@ -134,16 +164,16 @@ az cosmosdb sql role assignment create \
   --role-definition-id "00000000-0000-0000-0000-000000000002"
 ```
 
-### Setup Azure SQL Database Access
+#### Setup Azure SQL Database Access
 
-#### Option 1: Set Yourself as SQL Server Admin (for single user scenarios)
+##### Option 1: Set Yourself as SQL Server Admin (for single user scenarios)
 
 1. Go to your SQL Server resource in Azure Portal
 2. Under **"Security"**, click **"Microsoft Entra ID"**
 3. Click **"Set admin"** and search for your user account
 4. Select your user and click **"Save"**
 
-#### Option 2: Create Database User with Specific Roles (recommended)
+##### Option 2: Create Database User with Specific Roles (recommended)
 
 1. First, ensure you have admin access to the SQL Server (Option 1 above)
 2. Connect to your Azure SQL Database using SQL Server Management Studio or the Query Editor in Azure Portal
@@ -190,9 +220,9 @@ INNER JOIN sys.database_principals u ON drm.member_principal_id = u.principal_id
 WHERE u.name = @username;
 ```
 
-## Develop & Run the Backend API
+### Develop & Run the Backend API
 
-### Step 1: Create Virtual Environment (Recommended)
+#### Step 1: Create Virtual Environment (Recommended)
 
 Open your terminal and navigate to the root folder of the project, then create the virtual environment:
 
@@ -212,7 +242,7 @@ source .venv/bin/activate
 
 > **Note**: After activation, you should see `(.venv)` in your terminal prompt indicating the virtual environment is active.
 
-### Step 2: Install Dependencies and Run
+#### Step 2: Install Dependencies and Run
 
 To develop and run the backend API locally:
 
@@ -234,7 +264,7 @@ The backend API will run on `http://127.0.0.1:8000` by default.
 
 > **Note**: Make sure your virtual environment is activated before running these commands. You should see `(.venv)` in your terminal prompt when the virtual environment is active.
 
-## Develop & Run the Frontend Locally
+### Develop & Run the Frontend Locally
 
 To run the React frontend in development mode:
 
@@ -245,35 +275,6 @@ npm start
 ```
 
 The frontend will run on `http://localhost:3000` and automatically proxy API requests to the backend.
-
-
-## Running with Automated Script
-
-For convenience, you can use the provided startup scripts that handle environment setup and start both services:
-
-**Windows:**
-```cmd
-cd src
-.\start.cmd
-```
-
-**macOS/Linux:**
-```bash
-cd src
-chmod +x start.sh
-./start.sh
-```
-
-### What the Scripts Do
-
-The startup scripts automate the complete local development setup:
-
-- **Environment & Authentication**: Copies `.env` files from Azure deployment and handles Azure login
-- **Role Assignments**: Assigns required Azure permissions (SQL, Cosmos DB, Search, AI services)
-- **Dependencies**: Creates virtual environment and installs Python/npm packages
-- **Service Launch**: Starts both backend (port 8000) and frontend (port 3000) servers
-
-> **Note**: The script includes a 30-second wait time for the backend to initialize before starting the frontend. However, sometimes it might take more time. If you see connection errors in the frontend initially, please wait a moment for the backend to become fully ready, then reload the frontend once the backend is available.
 
 ## Access the Application
 
