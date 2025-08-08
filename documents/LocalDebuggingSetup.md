@@ -267,7 +267,7 @@ For convenience, you can use the provided startup scripts that handle environmen
 **Windows:**
 ```cmd
 cd src
-start.cmd
+.\start.cmd
 ```
 
 **macOS/Linux:**
