@@ -21,7 +21,7 @@ Install these tools before you start:
 
 ## Setup Steps
 
-### Step 1: Clone the Repository
+### Clone the Repository
 
 Choose a location on your local machine where you want to store the project files. We recommend creating a dedicated folder for your development projects.
 
@@ -41,18 +41,6 @@ Choose a location on your local machine where you want to store the project file
    ```bash
    code .
    ```
-
-### Step 2: Select the Python 3.11 Interpreter in VS Code
-
-1. **Open the command palette:**  
-   - `Ctrl+Shift+P` (Windows/Linux)  
-   - `Cmd+Shift+P` (macOS)
-
-2. **Type and select:** `Python: Select Interpreter`
-
-3. **Choose the Python 3.11 interpreter from the list**
-
-> **Note**: If you have multiple Python versions installed, ensure you select Python 3.11.
 
 ## Local Debugging
 
