@@ -1,3 +1,12 @@
+### CKM V2 is Archived
+ 
+> ⚠️ **This is no longer maintained.**  
+> Please note that this project has been **retired** and is no longer being updated.
+ 
+🔗 **The latest version of this is now available at:**  [main branch URL](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator)
+ 
+We recommend updating your bookmarks and using the new repository for the most recent updates, bug fixes, and improvements.
+
 # Conversation knowledge mining solution accelerator
 
 MENU: [**USER STORY**](#user-story) \| [**SIMPLE DEPLOY**](#simple-deploy)  \| [**SUPPORTING DOCUMENTATION**](#supporting-documentation) \|
