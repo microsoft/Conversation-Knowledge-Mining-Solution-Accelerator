@@ -286,9 +286,9 @@ The startup scripts automate the complete local development setup:
 - **Dependencies**: Creates virtual environment and installs Python/npm packages
 - **Service Launch**: Starts both backend (port 8000) and frontend (port 3000) servers
 
+> **Note**: The script includes a 30-second wait time for the backend to initialize before starting the frontend. However, sometimes it might take more time. If you see connection errors in the frontend initially, please wait a moment for the backend to become fully ready, then reload the frontend once the backend is available.
 
 ## Access the Application
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://127.0.0.1:8000
----
