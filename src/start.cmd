@@ -6,25 +6,31 @@ REM Set root and config paths
 set ROOT_DIR=%cd%\..
 set AZURE_FOLDER=%ROOT_DIR%\.azure
 set CONFIG_FILE=%AZURE_FOLDER%\config.json
+set API_ENV_FILE=%ROOT_DIR%\src\api\.env
+set WORKSHOP_ENV_FILE=%ROOT_DIR%\docs\workshop\docs\workshop\.env
 
-REM Validate config.json
+REM Check if .azure folder exists first
+if not exist "%AZURE_FOLDER%" (
+    echo .azure folder not found. This is normal if Azure deployment hasn't been run yet.
+    goto :check_local_env
+)
+
+REM Check if config.json exists
 if not exist "%CONFIG_FILE%" (
-    echo config.json not found at %CONFIG_FILE%
-    exit /b 1
+    echo config.json not found in .azure folder. This is normal if Azure deployment hasn't been run yet.
+    goto :check_local_env
 )
 
 REM Extract default environment name
-for /f "delims=" %%i in ('powershell -command "(Get-Content '%CONFIG_FILE%' | ConvertFrom-Json).defaultEnvironment"') do set DEFAULT_ENV=%%i
+for /f "delims=" %%i in ('powershell -command "try { (Get-Content '%CONFIG_FILE%' | ConvertFrom-Json).defaultEnvironment } catch { '' }"') do set DEFAULT_ENV=%%i
 
 if not defined DEFAULT_ENV (
-    echo Failed to extract defaultEnvironment from config.json
-    exit /b 1
+    echo Failed to extract defaultEnvironment from config.json or config.json is invalid.
+    goto :check_local_env
 )
 
-REM Load .env file
+REM Load .env file from Azure deployment
 set ENV_FILE=%AZURE_FOLDER%\%DEFAULT_ENV%\.env
-set API_ENV_FILE=%ROOT_DIR%\src\api\.env
-set WORKSHOP_ENV_FILE=%ROOT_DIR%\docs\workshop\docs\workshop\.env
 
 REM Check if .env file exists in .azure folder
 if exist "%ENV_FILE%" (
@@ -59,37 +65,53 @@ if exist "%ENV_FILE%" (
         set ENV_FILE_FOR_ROLES=%ENV_FILE%
     )
     
-    REM Copy to workshop directory
     copy /Y "%ENV_FILE%" "%WORKSHOP_ENV_FILE%"
     if errorlevel 1 (
-        echo Failed to copy .env to workshop directory
-        exit /b 1
-    )
-    echo Azure deployment .env copied to workshop/docs/workshop
-    
-) else (
-    echo .env file not found in Azure deployment folder: %ENV_FILE%
-    
-    REM Try to use src/api .env file as fallback
-    if exist "%API_ENV_FILE%" (
-        echo Using existing .env file from src/api for configuration...
-        set ENV_FILE_FOR_ROLES=%API_ENV_FILE%
-        echo Warning: No Azure deployment .env found, using local src/api/.env
+        echo Warning: Failed to copy .env to workshop directory
     ) else (
-        echo ERROR: No .env files found in either location:
-        echo   - Azure deployment: %ENV_FILE%
-        echo   - API folder: %API_ENV_FILE%
-        echo.
-        echo Please choose one of the following options:
-        echo   1. Run 'azd up' to deploy Azure resources and generate .env files
-        echo   2. Manually create %API_ENV_FILE% with required environment variables
-        echo   3. Copy an existing .env file to one of the above locations
-        echo.
-        echo For more information, see: documents/LocalDebuggingSetup.md
-        exit /b 1
+        echo Azure deployment .env copied to workshop/docs/workshop
     )
+    
+    goto :setup_environment
 )
 
+:check_local_env
+echo Checking for local .env file in src/api...
+
+REM Try to use src/api .env file as fallback
+if exist "%API_ENV_FILE%" (
+    echo Using existing .env file from src/api for configuration...
+    set ENV_FILE_FOR_ROLES=%API_ENV_FILE%
+    echo Warning: No Azure deployment found, using local src/api/.env
+    
+    copy /Y "%API_ENV_FILE%" "%WORKSHOP_ENV_FILE%"
+    if errorlevel 1 (
+        echo Warning: Failed to copy .env to workshop directory
+    ) else (
+        echo Local .env copied to workshop/docs/workshop
+    )
+    
+    goto :setup_environment
+) else (
+    echo ERROR: No .env files found in any location.
+    echo.
+    echo The following files/folders are missing:
+    if not exist "%AZURE_FOLDER%" echo   - .azure folder (created by 'azd up')
+    if exist "%AZURE_FOLDER%" if not exist "%CONFIG_FILE%" echo   - .azure/config.json (created by 'azd up')
+    if exist "%CONFIG_FILE%" if not defined DEFAULT_ENV echo   - Valid defaultEnvironment in config.json
+    if defined DEFAULT_ENV if not exist "%ENV_FILE%" echo   - .env file in Azure deployment folder: %ENV_FILE%
+    echo   - Local .env file: %API_ENV_FILE%
+    echo.
+    echo Please choose one of the following options:
+    echo   1. Run 'azd up' to deploy Azure resources and generate .env files
+    echo   2. Manually create %API_ENV_FILE% with required environment variables
+    echo   3. Copy an existing .env file to %API_ENV_FILE%
+    echo.
+    echo For more information, see: documents/LocalDebuggingSetup.md
+    exit /b 1
+)
+
+:setup_environment
 REM Parse required variables for role assignments from the appropriate env file
 echo Reading environment variables for role assignments from: %ENV_FILE_FOR_ROLES%
 for /f "tokens=1,* delims==" %%A in ('type "%ENV_FILE_FOR_ROLES%"') do (

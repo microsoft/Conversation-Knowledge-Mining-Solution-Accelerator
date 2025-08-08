@@ -17,7 +17,6 @@ Install these tools before you start:
 - [Git](https://git-scm.com/downloads).
 - [Azure Developer CLI (azd) v1.15.0+](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
 - [Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
-- [jq](https://jqlang.org/download/) for JSON processing in shell script.
 
 
 ## Setup Steps
