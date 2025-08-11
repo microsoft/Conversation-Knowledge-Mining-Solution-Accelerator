@@ -13,9 +13,11 @@ param keyVaultName string
 param aiServicesName string
 param azureExistingAIProjectResourceId string = ''
 param aiSearchName string
+param aideploymentsLocation string
 var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
 var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
 var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
+var existingAIProjectName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
 
 var imageName = 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
 param name string 
@@ -139,6 +141,7 @@ resource keyVaultSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@
   properties: {
     roleDefinitionId: keyVaultSecretsUser.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
@@ -156,11 +159,21 @@ resource searchIndexDataReaderAssignment 'Microsoft.Authorization/roleAssignment
   properties: {
     roleDefinitionId: searchIndexDataReader.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
 resource aiUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
   name: '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+}
+
+module existing_aiServicesModule 'existing_foundry_project.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+  name: 'existing_foundry_project'
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+  params: {
+    aiServicesName: existingAIServicesName
+    aiProjectName: existingAIProjectName
+  }
 }
 
 module assignAiUserRoleToAiProject 'deploy_foundry_role_assignment.bicep' = {
@@ -171,6 +184,8 @@ module assignAiUserRoleToAiProject 'deploy_foundry_role_assignment.bicep' = {
     roleDefinitionId: aiUser.id
     roleAssignmentName: guid(appService.name, aiServices.id, aiUser.id)
     aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
+    aiProjectName: !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
+    enableSystemAssignedIdentity: false
   }
 }
 

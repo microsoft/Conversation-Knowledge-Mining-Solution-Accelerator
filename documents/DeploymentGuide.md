@@ -80,7 +80,7 @@ If you're not using one of the above options for opening the project, then you'l
 
 1. Make sure the following tools are installed:
     - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) <small>(v7.0+)</small> - available for Windows, macOS, and Linux.
-    - [Azure Developer CLI (azd)](https://aka.ms/install-azd)
+    - [Azure Developer CLI (azd)](https://aka.ms/install-azd) <small>(v1.15.0+)</small> - version
     - [Python 3.9+](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
@@ -119,7 +119,9 @@ When you start the deployment, most parameters will have **default values**, but
 | **Embedding Model**                         | Default: **text-embedding-ada-002**.                                                                      | text-embedding-ada-002 |
 | **Embedding Model Capacity**                | Set the capacity for **embedding models** (in thousands).                                                 | 80k                    |
 | **Image Tag**                               | Docker image tag to deploy. Common values: `latest`, `dev`, `hotfix`.                  | latest       |
+| **Use Local Build**                         | Boolean flag to determine if local container builds should be used.                         | false             |
 | **Existing Log Analytics Workspace**        | To reuse an existing Log Analytics Workspace ID.                                                          | *(empty)*              |
+| **Existing Azure AI Foundry Project**        | To reuse an existing Azure AI Foundry Project ID instead of creating a new one.              | *(empty)*          |
 
 
 
@@ -142,6 +144,13 @@ Depending on your subscription quota and capacity, you can [adjust quota setting
   <summary><b>Reusing an Existing Log Analytics Workspace</b></summary>
 
   Guide to get your [Existing Workspace ID](/documents/re-use-log-analytics.md)
+
+</details>
+<details>
+
+  <summary><b>Reusing an Existing Azure AI Foundry Project</b></summary>
+
+  Guide to get your [Existing Project ID](/documents/re-use-foundry-project.md)
 
 </details>
 
@@ -203,6 +212,10 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
      ```
 
     This will create a new Azure Container Registry, rebuild the source code, package it into a container, and push it to the Container Registry created.
+
+## For Local Debugging
+
+Follow steps in [Local Debugging Setup](./LocalDebuggingSetup.md) to configure your local development environment for debugging the solution.
 
 ## Sample Questions
 

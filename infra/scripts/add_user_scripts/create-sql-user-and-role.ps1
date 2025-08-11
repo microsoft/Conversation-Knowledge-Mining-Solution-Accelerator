@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 
 <#
 .SYNOPSIS
@@ -21,11 +21,8 @@
 .PARAMETER DisplayName
     The Object (Principal) display name of the identity to be added.
 
-.PARAMETER ManagedIdentityClientId
-    The Client ID of the managed identity that will authenticate to the SQL database.
-
-.PARAMETER DatabaseRole
-    The database role that should be assigned to the user (e.g., db_datareader, db_datawriter, db_owner).
+.PARAMETER DatabaseRoles
+    A comma-separated string of database roles to assign (e.g., 'db_datareader,db_datawriter')
 #>
 
 Param(
@@ -33,9 +30,11 @@ Param(
     [string] $SqlDatabaseName,
     [string] $ClientId,
     [string] $DisplayName,
-    [string] $ManagedIdentityClientId,
-    [string] $DatabaseRole
+    [string] $DatabaseRoles
 )
+
+# Using specific version of SqlServer module to avoid issues with newer versions
+$SqlServerModuleVersion = "22.3.0"
 
 function Resolve-Module($moduleName) {
     # If module is imported; say that and do nothing
@@ -44,7 +43,12 @@ function Resolve-Module($moduleName) {
     } elseif (Get-Module -ListAvailable | Where-Object { $_.Name -eq $moduleName }) {
         Import-Module $moduleName
     } elseif (Find-Module -Name $moduleName | Where-Object { $_.Name -eq $moduleName }) {
-        Install-Module $moduleName -Force -Scope CurrentUser
+        # Use specific version for SqlServer
+        if ($moduleName -eq "SqlServer") {
+            Install-Module -Name $moduleName -RequiredVersion $SqlServerModuleVersion -Force -Scope CurrentUser
+        } else {
+            Install-Module -Name $moduleName -Force
+        }
         Import-Module $moduleName
     } else {
         Write-Error "Module $moduleName not found"
@@ -58,6 +62,15 @@ function Resolve-Module($moduleName) {
 Resolve-Module -moduleName Az.Resources
 Resolve-Module -moduleName SqlServer
 
+# Split comma-separated roles into an array
+$roleArray = $DatabaseRoles -split ','
+
+$roleSql = ""
+foreach ($role in $roleArray) {
+    $trimmedRole = $role.Trim()
+    $roleSql += "EXEC sp_addrolemember N'$trimmedRole', N'$DisplayName';`n"
+}
+
 $sql = @"
 DECLARE @username nvarchar(max) = N'$($DisplayName)';
 DECLARE @clientId uniqueidentifier = '$($ClientId)';
@@ -67,17 +80,21 @@ IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = @username)
 BEGIN
     EXEC(@cmd)
 END
-EXEC sp_addrolemember '$($DatabaseRole)', @username;
+$($roleSql)
 "@
 
 Write-Output "`nSQL:`n$($sql)`n`n"
 
-Connect-AzAccount -Identity -AccountId $ManagedIdentityClientId
 $token = (Get-AzAccessToken -AsSecureString -ResourceUrl https://database.windows.net/).Token
 $ssPtr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($token)
 try {
+    $serverInstance = if ($SqlServerName -like "*.database.windows.net") {  
+        $SqlServerName  
+    } else {  
+        "$SqlServerName.database.windows.net"  
+    }
     $plaintext = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ssPtr)
-    Invoke-Sqlcmd -ServerInstance $SqlServerName -Database $SqlDatabaseName -AccessToken $plaintext -Query $sql -ErrorAction 'Stop'
+    Invoke-Sqlcmd -ServerInstance $serverInstance -Database $SqlDatabaseName -AccessToken $plaintext -Query $sql -ErrorAction 'Stop'
 } finally {
     # The following line ensures that sensitive data is not left in memory.
     $plainText = [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ssPtr)

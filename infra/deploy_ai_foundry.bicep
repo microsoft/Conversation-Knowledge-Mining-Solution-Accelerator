@@ -1,7 +1,7 @@
 // Creates Azure dependent resources for Azure AI studio
 param solutionName string
 param solutionLocation string
-param keyVaultName string
+param keyVaultName string=''
 param cuLocation string
 param deploymentType string
 param gptModelName string
@@ -10,7 +10,7 @@ param azureOpenAIApiVersion string
 param gptDeploymentCapacity int
 param embeddingModel string
 param embeddingDeploymentCapacity int
-param managedIdentityObjectId string
+param managedIdentityObjectId string=''
 param existingLogAnalyticsWorkspaceId string = ''
 param azureExistingAIProjectResourceId string = ''
 
@@ -41,7 +41,7 @@ var aiModelDeployments = [
     name: embeddingModel
     model: embeddingModel
     sku: {
-      name: 'Standard'
+      name: 'GlobalStandard'
       capacity: embeddingDeploymentCapacity
     }
     raiPolicyName: 'Microsoft.Default'
@@ -113,6 +113,15 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' = 
     }
     publicNetworkAccess: 'Enabled'
     disableLocalAuth: false //needs to be false to access keys 
+  }
+}
+
+module existing_aiServicesModule 'existing_foundry_project.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+  name: 'existing_foundry_project'
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+  params: {
+    aiServicesName: existingAIServicesName
+    aiProjectName: existingAIProjectName
   }
 }
 
@@ -225,6 +234,7 @@ resource aiUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = 
   name: '53ca6127-db72-4b80-b1b0-d745d6d5456d'
 }
 
+
 resource assignFoundryRoleToMI 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (empty(azureExistingAIProjectResourceId))  {
   name: guid(resourceGroup().id, aiServices.id, aiUser.id)
   scope: aiServices
@@ -234,16 +244,25 @@ resource assignFoundryRoleToMI 'Microsoft.Authorization/roleAssignments@2022-04-
     principalType: 'ServicePrincipal'
   }
 }
-
 module assignFoundryRoleToMIExisting 'deploy_foundry_role_assignment.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
   name: 'assignFoundryRoleToMI'
   scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
   params: {
     roleDefinitionId: aiUser.id
     roleAssignmentName: guid(resourceGroup().id, managedIdentityObjectId, aiUser.id, 'foundry')
-    aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
-    aiProjectName: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiProjectName
+    aiServicesName: existingAIServicesName
+    aiProjectName: existingAIProjectName
     principalId: managedIdentityObjectId
+    aiLocation: existing_aiServicesModule.outputs.location
+    aiKind: existing_aiServicesModule.outputs.kind
+    aiSkuName: existing_aiServicesModule.outputs.skuName
+    customSubDomainName: existing_aiServicesModule.outputs.customSubDomainName
+    publicNetworkAccess: existing_aiServicesModule.outputs.publicNetworkAccess
+    enableSystemAssignedIdentity: true
+    defaultNetworkAction: existing_aiServicesModule.outputs.defaultNetworkAction
+    vnetRules: existing_aiServicesModule.outputs.vnetRules
+    ipRules: existing_aiServicesModule.outputs.ipRules
+    aiModelDeployments: aiModelDeployments // Pass the model deployments to the module if model not already deployed
   }
 }
 
@@ -261,15 +280,26 @@ resource cognitiveServicesOpenAIUser 'Microsoft.Authorization/roleDefinitions@20
   name: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
 }
 
-module assignOpenAIRoleToAISearch 'deploy_foundry_role_assignment.bicep' = {
-  name: 'assignOpenAIRoleToAISearch'
+resource assignOpenAIRoleToAISearch 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (empty(azureExistingAIProjectResourceId))  {
+  name: guid(resourceGroup().id, aiServices.id, cognitiveServicesOpenAIUser.id)
+  scope: aiServices
+  properties: {
+    principalId: aiSearch.identity.principalId
+    roleDefinitionId: cognitiveServicesOpenAIUser.id
+    principalType: 'ServicePrincipal'
+  }
+}
+
+module assignOpenAIRoleToAISearchExisting 'deploy_foundry_role_assignment.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+  name: 'assignOpenAIRoleToAISearchExisting'
   scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
   params: {
     roleDefinitionId: cognitiveServicesOpenAIUser.id
     roleAssignmentName: guid(resourceGroup().id, aiSearch.id, cognitiveServicesOpenAIUser.id, 'openai-foundry')
-    aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
-    aiProjectName: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiProjectName
+    aiServicesName: existingAIServicesName
+    aiProjectName: existingAIProjectName
     principalId: aiSearch.identity.principalId
+    enableSystemAssignedIdentity: false
   }
 }
 
@@ -291,7 +321,7 @@ resource assignSearchIndexDataReaderToExistingAiProject 'Microsoft.Authorization
   name: guid(resourceGroup().id, existingAIProjectName, searchIndexDataReader.id, 'Existing')
   scope: aiSearch
   properties: {
-    principalId: assignOpenAIRoleToAISearch.outputs.aiProjectPrincipalId
+    principalId: assignOpenAIRoleToAISearchExisting.outputs.aiProjectPrincipalId
     roleDefinitionId: searchIndexDataReader.id
     principalType: 'ServicePrincipal'
   }
@@ -315,7 +345,7 @@ resource assignSearchServiceContributorToExistingAiProject 'Microsoft.Authorizat
   name: guid(resourceGroup().id, existingAIProjectName, searchServiceContributor.id, 'Existing')
   scope: aiSearch
   properties: {
-    principalId: assignOpenAIRoleToAISearch.outputs.aiProjectPrincipalId
+    principalId: assignOpenAIRoleToAISearchExisting.outputs.aiProjectPrincipalId
     roleDefinitionId: searchServiceContributor.id
     principalType: 'ServicePrincipal'
   }
@@ -470,7 +500,6 @@ resource azureLocatioEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview
     value: solutionLocation
   }
 }
-
 output keyvaultName string = keyvaultName
 output keyvaultId string = keyVault.id
 output aiServicesTarget string = !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiServices.properties.endpoints['OpenAI Language Model Instance API'] //aiServices_m.properties.endpoint

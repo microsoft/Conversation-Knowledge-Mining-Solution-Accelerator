@@ -66,7 +66,7 @@ param imageTag string = 'latest_fdp'
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
-var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation))
+var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation, resourceGroup().name))
 
 
 @metadata({
@@ -74,7 +74,7 @@ var uniqueId = toLower(uniqueString(subscription().id, environmentName, solution
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.Standard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
     ]
   }
 })
@@ -86,6 +86,16 @@ var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
 var acrName = 'kmcontainerreg'
 
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
+
+// ========== Resource Group Tag ========== //
+resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
+  name: 'default'
+  properties: {
+    tags: {
+      TemplateName: 'KM Generic'
+    }
+  }
+}
 
 // ========== Managed Identity ========== //
 module managedIdentityModule 'deploy_managed_identity.bicep' = {
@@ -126,7 +136,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
-    azureExistingAIProjectResourceId: azureExistingAIProjectResourceId 
+    azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
 
   }
   scope: resourceGroup(resourceGroup().name)
@@ -165,29 +175,6 @@ module sqlDBModule 'deploy_sql_db.bicep' = {
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
     managedIdentityName: managedIdentityModule.outputs.managedIdentityOutput.name
-    managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
-  }
-  scope: resourceGroup(resourceGroup().name)
-}
-
-//========== Deployment script to upload sample data ========== //
-module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
-  name : 'deploy_post_deployment_scripts'
-  params:{
-    solutionLocation: secondaryLocation
-    baseUrl: baseUrl
-    storageAccountName: storageAccount.outputs.storageName
-    containerName: storageAccount.outputs.storageContainer
-    containerAppName: '${abbrs.containers.containerApp}${solutionPrefix}'
-    environmentName: '${abbrs.containers.containerAppsEnvironment}${solutionPrefix}'
-    managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.id
-    managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
-    keyVaultName:aifoundry.outputs.keyvaultName
-    logAnalyticsWorkspaceResourceName: aifoundry.outputs.logAnalyticsWorkspaceResourceName
-    logAnalyticsWorkspaceResourceGroup: aifoundry.outputs.logAnalyticsWorkspaceResourceGroup
-    logAnalyticsWorkspaceSubscription: aifoundry.outputs.logAnalyticsWorkspaceSubscription
-    sqlServerName: sqlDBModule.outputs.sqlServerName
-    sqlDbName: sqlDBModule.outputs.sqlDbName
     sqlUsers: [
       {
         principalId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
@@ -196,6 +183,33 @@ module uploadFiles 'deploy_post_deployment_scripts.bicep' = {
       }
     ]
   }
+  scope: resourceGroup(resourceGroup().name)
+}
+
+//========== Deployment script to upload sample data ========== //
+module uploadFiles 'deploy_upload_files_script.bicep' = {
+  name : 'deploy_upload_files_script'
+  params:{
+    solutionLocation: secondaryLocation
+    baseUrl: baseUrl
+    storageAccountName: storageAccount.outputs.storageName
+    containerName: storageAccount.outputs.storageContainer
+    managedIdentityResourceId:managedIdentityModule.outputs.managedIdentityOutput.id
+    managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
+  }
+}
+
+//========== Deployment script to process and index data ========== //
+module createIndex 'deploy_index_scripts.bicep' = {
+  name : 'deploy_index_scripts'
+  params:{
+    solutionLocation: secondaryLocation
+    managedIdentityResourceId:managedIdentityModule.outputs.managedIdentityOutput.id
+    managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
+    baseUrl:baseUrl
+    keyVaultName:aifoundry.outputs.keyvaultName
+  }
+  dependsOn:[sqlDBModule,uploadFiles]
 }
 
 module hostingplan 'deploy_app_service_plan.bicep' = {
@@ -211,6 +225,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
   params: {
     name: 'api-${solutionPrefix}'
     solutionLocation: solutionLocation
+    aideploymentsLocation: aiDeploymentsLocation
     imageTag: imageTag
     acrName: acrName
     appServicePlanId: hostingplan.outputs.name
@@ -235,7 +250,6 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
       SQLDB_DATABASE: sqlDBModule.outputs.sqlDbName
       SQLDB_SERVER: sqlDBModule.outputs.sqlServerName
-      SQLDB_USERNAME: sqlDBModule.outputs.sqlDbUser
       SQLDB_USER_MID: managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
 
       AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
@@ -246,6 +260,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
       DUMMY_TEST: 'True'
       SOLUTION_NAME: solutionPrefix
+      APP_ENV: 'Prod'
     }
   }
   scope: resourceGroup(resourceGroup().name)
@@ -276,8 +291,9 @@ output AZURE_SECONDARY_LOCATION string = secondaryLocation
 output APPINSIGHTS_INSTRUMENTATIONKEY string = backend_docker.outputs.appInsightInstrumentationKey
 output AZURE_AI_PROJECT_CONN_STRING string = aifoundry.outputs.projectEndpoint
 output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
+output AZURE_AI_FOUNDRY_NAME string = aifoundry.outputs.aiServicesName
 output AZURE_AI_PROJECT_NAME string = aifoundry.outputs.aiProjectName
-output AZURE_AI_SEARCH_API_KEY string = ''
+output AZURE_AI_SEARCH_NAME string = aifoundry.outputs.aiSearchName
 output AZURE_AI_SEARCH_ENDPOINT string = aifoundry.outputs.aiSearchTarget
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 output AZURE_AI_SEARCH_CONNECTION_NAME string = aifoundry.outputs.aiSearchConnectionName
@@ -297,7 +313,6 @@ output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutCon
 output SQLDB_DATABASE string = sqlDBModule.outputs.sqlDbName
 output SQLDB_SERVER string = sqlDBModule.outputs.sqlServerName
 output SQLDB_USER_MID string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
-output SQLDB_USERNAME string = sqlDBModule.outputs.sqlDbUser
 output USE_AI_PROJECT_CLIENT string = 'False'
 output USE_CHAT_HISTORY_ENABLED string = 'True'
 output DISPLAY_CHART_DEFAULT string = 'False'
@@ -305,10 +320,11 @@ output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 output ACR_NAME string = acrName
 output AZURE_ENV_IMAGETAG string = imageTag
+output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = azureExistingAIProjectResourceId
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString
 
 output API_APP_URL string = backend_docker.outputs.appUrl
 output WEB_APP_URL string = frontend_docker.outputs.appUrl
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString
 
 output BACKEND_APP_NAME string = backend_docker.outputs.backendAppName
 output FRONTEND_APP_NAME string = frontend_docker.outputs.frontendAppName

@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Azure Container Registry
         if: ${{ (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) || (github.event_name == 'workflow_dispatch' && (github.ref_name == 'dependabotchanges'||github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) }}

@@ -11,13 +11,13 @@ def reset_search_agent_factory():
 
 
 @pytest.mark.asyncio
-@patch("agents.search_agent_factory.DefaultAzureCredential", autospec=True)
 @patch("agents.search_agent_factory.AIProjectClient", autospec=True)
 @patch("agents.search_agent_factory.AzureAISearchTool", autospec=True)
+@patch("agents.search_agent_factory.get_azure_credential")
 async def test_create_agent_creates_new_instance(
+    mock_get_azure_credential,
     mock_search_tool_cls,
-    mock_project_client_cls,
-    mock_credential_cls
+    mock_project_client_cls
 ):
     # Mock config
     mock_config = MagicMock()
@@ -48,6 +48,9 @@ async def test_create_agent_creates_new_instance(
     mock_agent = MagicMock()
     mock_project_client.agents.create_agent.return_value = mock_agent
 
+    # Mock credential
+    mock_get_azure_credential.return_value = MagicMock()
+
     # Run the factory directly
     result = await SearchAgentFactory.create_agent(mock_config)
 
@@ -57,7 +60,7 @@ async def test_create_agent_creates_new_instance(
     mock_project_client.indexes.create_or_update.assert_called_once_with(
         name="project-index-fake-connection-fake-index",
         version="1",
-        body={
+        index={
             "connectionName": "fake-connection",
             "indexName": "fake-index",
             "type": "AzureSearch",

@@ -1,13 +1,15 @@
 param solutionLocation string
 param keyVaultName string
-param managedIdentityObjectId string
 param managedIdentityName string
-
 param serverName string
 param sqlDBName string
+param sqlUsers array = []
+
 var location = solutionLocation
-var administratorLogin = 'sqladmin'
-var administratorLoginPassword = 'TestPassword_1234'
+
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  name: managedIdentityName
+}
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
@@ -17,10 +19,10 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     publicNetworkAccess: 'Enabled'
     version: '12.0'
     restrictOutboundNetworkAccess: 'Disabled'
-    minimalTlsVersion: '1.2' // Enforce TLS 1.2 to comply with Azure policy
+    minimalTlsVersion: '1.2'
     administrators: {
       login: managedIdentityName
-      sid: managedIdentityObjectId
+      sid: managedIdentity.properties.principalId
       tenantId: subscription().tenantId
       administratorType: 'ActiveDirectory'
       azureADOnlyAuthentication: true
@@ -66,6 +68,21 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   }
 }
 
+module sqluser 'create-sql-user-and-role.bicep' = [
+  for user in sqlUsers: {
+    name: 'sqluser-${guid(solutionLocation, user.principalId, user.principalName, sqlDB.name, sqlServer.name)}'
+    params: {
+      managedIdentityName: managedIdentityName
+      location: solutionLocation
+      sqlDatabaseName: sqlDB.name
+      sqlServerName: sqlServer.name
+      principalId: user.principalId
+      principalName: user.principalName
+      databaseRoles: user.databaseRoles
+    }
+  }
+]
+
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
   name: keyVaultName
 }
@@ -86,22 +103,5 @@ resource sqldbDatabaseEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-previe
   }
 }
 
-resource sqldbDatabaseUsername 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
-  parent: keyVault
-  name: 'SQLDB-USERNAME'
-  properties: {
-    value: administratorLogin
-  }
-}
-
-resource sqldbDatabasePwd 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
-  parent: keyVault
-  name: 'SQLDB-PASSWORD'
-  properties: {
-    value: administratorLoginPassword
-  }
-}
-
 output sqlServerName string = '${serverName}.database.windows.net'
 output sqlDbName string = sqlDBName
-output sqlDbUser string = administratorLogin

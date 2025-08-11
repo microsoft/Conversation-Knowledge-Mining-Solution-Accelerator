@@ -5,7 +5,7 @@ from string import Template
 
 from openai import AzureOpenAI
 import tiktoken
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import AzureCliCredential, get_bearer_token_provider
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 from pydantic import BaseModel, Field
 
@@ -158,7 +158,7 @@ class OpenAIAssistant:
         if aoai_api_key is None or aoai_api_key == "":
             print("Using Entra ID/AAD to authenticate")
             token_provider = get_bearer_token_provider(
-                DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+                AzureCliCredential(), "https://cognitiveservices.azure.com/.default"
             )
 
             self.client = AzureOpenAI(
