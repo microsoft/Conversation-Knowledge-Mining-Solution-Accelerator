@@ -21,13 +21,12 @@ from fastapi.responses import StreamingResponse
 from semantic_kernel.agents import AzureAIAgentThread
 from semantic_kernel.exceptions.agent_exceptions import AgentException
 
-from azure.ai.agents.models import TruncationObject, MessageRole, ListSortOrder
+from azure.ai.agents.models import TruncationObject
 
 from cachetools import TTLCache
 
 from helpers.utils import format_stream_response
 from common.config.config import Config
-from agents.chart_agent_factory import ChartAgentFactory
 
 # Constants
 HOST_NAME = "CKM"
@@ -85,61 +84,6 @@ class ChatService:
 
         if ChatService.thread_cache is None:
             ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0, agent=self.agent)
-
-    async def process_rag_response(self, rag_response, query):
-        """
-        Uses the ChartAgent directly (agentic call) to extract chart data for Chart.js.
-        """
-        try:
-            user_prompt = f"""Generate chart data for -
-            {query}
-            {rag_response}
-            """
-
-            agent_info = await ChartAgentFactory.get_agent()
-            agent = agent_info["agent"]
-            client = agent_info["client"]
-
-            thread = client.agents.threads.create()
-
-            client.agents.messages.create(
-                thread_id=thread.id,
-                role=MessageRole.USER,
-                content=user_prompt
-            )
-
-            run = client.agents.runs.create_and_process(
-                thread_id=thread.id,
-                agent_id=agent.id
-            )
-
-            if run.status == "failed":
-                print(f"[Chart Agent] Run failed: {run.last_error}")
-                return {"error": "Chart could not be generated due to agent failure."}
-
-            chart_json = ""
-            messages = client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
-            for msg in messages:
-                if msg.role == MessageRole.AGENT and msg.text_messages:
-                    chart_json = msg.text_messages[-1].text.value.strip()
-                    break
-
-            client.agents.threads.delete(thread_id=thread.id)
-
-            chart_json = chart_json.replace("```json", "").replace("```", "").strip()
-            chart_data = json.loads(chart_json)
-
-            if not chart_data or "error" in chart_data:
-                return {
-                    "error": chart_data.get("error", "Chart could not be generated from this data."),
-                    "hint": "Try asking a question with some numerical values, like 'sales per region' or 'calls per day'."
-                }
-
-            return chart_data
-
-        except Exception as e:
-            logger.error("Agent error in chart generation: %s", e)
-            return {"error": "Chart could not be generated from this data. Please ask a different question."}
 
     async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
         """

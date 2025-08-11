@@ -20,6 +20,7 @@ from common.database.sqldb_service import execute_sql_query
 from common.config.config import Config
 from agents.search_agent_factory import SearchAgentFactory
 from agents.sql_agent_factory import SQLAgentFactory
+from agents.chart_agent_factory import ChartAgentFactory
 
 
 class ChatWithDataPlugin:
@@ -165,3 +166,47 @@ class ChatWithDataPlugin:
         except Exception:
             return "Details could not be retrieved. Please try again later."
         return answer
+
+    @kernel_function(name="GenerateChartData", description="Generates Chart.js v4.4.4 compatible JSON data for data visualization requests using current and immediate previous context.")
+    async def get_chart_data(
+            self,
+            input: Annotated[str, "The user's data visualization request along with relevant conversation history and context needed to generate appropriate chart data"],
+    ):
+        query = input
+        query = query.strip()
+        print("Query for chart data:", query, flush=True)
+        try:
+            agent_info = await ChartAgentFactory.get_agent()
+            agent = agent_info["agent"]
+            project_client = agent_info["client"]
+
+            thread = project_client.agents.threads.create()
+
+            project_client.agents.messages.create(
+                thread_id=thread.id,
+                role=MessageRole.USER,
+                content=query,
+            )
+
+            run = project_client.agents.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=agent.id
+            )
+
+            if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
+                return "Details could not be retrieved. Please try again later."
+
+            chartdata = ""
+            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+            for msg in messages:
+                if msg.role == MessageRole.AGENT and msg.text_messages:
+                    chartdata = msg.text_messages[-1].text.value
+                    break
+            # Clean up
+            project_client.agents.threads.delete(thread_id=thread.id)
+
+        except Exception:
+            chartdata = 'Details could not be retrieved. Please try again later.'
+        print("Chart data:", chartdata, flush=True)
+        return chartdata
