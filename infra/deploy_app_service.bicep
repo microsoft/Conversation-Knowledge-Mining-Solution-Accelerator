@@ -12,7 +12,6 @@ param appSettings object = {}
 param appServicePlanId string
 param appImageName string
 param userassignedIdentityId string = ''
-param useLocalBuild string
 
 resource appService 'Microsoft.Web/sites@2020-06-01' = {
   name: solutionName
@@ -28,7 +27,6 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
   properties: {
     serverFarmId: appServicePlanId
     siteConfig: {
-      acrUseManagedIdentityCreds: useLocalBuild == 'true'
       alwaysOn: true
       ftpsState: 'Disabled'
       linuxFxVersion: appImageName
