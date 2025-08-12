@@ -23,7 +23,7 @@ get_azd_env_value_or_default() {
 
 # Required env variables
 AZURE_SUBSCRIPTION_ID=$(get_azd_env_value_or_default "AZURE_SUBSCRIPTION_ID" "" true)
-ENV_NAME=$(get_azd_env_value_or_default "AZURE_ENV_NAME" "" true)
+SOLUTION_NAME=$(get_azd_env_value_or_default "SOLUTION_NAME" "" true)
 WEB_APP_IDENTITY_PRINCIPAL_ID=$(get_azd_env_value_or_default "FRONTEND_MANAGED_IDENTITY_PRINCIPAL_ID" "" true)
 API_APP_IDENTITY_PRINCIPAL_ID=$(get_azd_env_value_or_default "BACKEND_MANAGED_IDENTITY_PRINCIPAL_ID" "" true)
 AZURE_RESOURCE_GROUP=$(get_azd_env_value_or_default "AZURE_RESOURCE_GROUP" "" true)
@@ -33,14 +33,11 @@ API_APP_NAME=$(get_azd_env_value_or_default "BACKEND_APP_NAME" "" true)
 
 echo "Using the following parameters:"
 echo "AZURE_SUBSCRIPTION_ID = $AZURE_SUBSCRIPTION_ID"
-echo "ENV_NAME = $ENV_NAME"
+echo "SOLUTION_NAME = $SOLUTION_NAME"
 echo "AZURE_RESOURCE_GROUP = $AZURE_RESOURCE_GROUP"
 echo "AZURE_ENV_IMAGETAG = $AZURE_ENV_IMAGETAG"
 echo "WEB_APP_NAME = $WEB_APP_NAME"
 echo "API_APP_NAME = $API_APP_NAME"
-
-# Ensure jq is installed
-which jq || { echo -e "\njq is not installed"; exit 1; }
 
 echo -e "\nStarting build process..."
 
@@ -72,11 +69,11 @@ echo -e "\nDeploying container registry"
 OUTPUTS=$(az deployment group create \
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --template-file "$TEMPLATE_FILE" \
-    --parameters environmentName="$ENV_NAME" acrPullPrincipalIds="['$WEB_APP_IDENTITY_PRINCIPAL_ID', '$API_APP_IDENTITY_PRINCIPAL_ID']" \
+    --parameters solutionName="$SOLUTION_NAME" acrPullPrincipalIds="['$WEB_APP_IDENTITY_PRINCIPAL_ID', '$API_APP_IDENTITY_PRINCIPAL_ID']" \
     --query "properties.outputs" \
     --output json)
 
-ACR_NAME=$(echo "$OUTPUTS" | jq -r '.createdAcrName.value')
+ACR_NAME=$(echo "$OUTPUTS" | grep -o '"createdAcrName"[^}]*"value"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/.*"value"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
 echo "ACR Name: $ACR_NAME"
 

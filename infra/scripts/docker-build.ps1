@@ -30,7 +30,7 @@ function Get-AzdEnvValueOrDefault {
 
 # Read the required details from Bicep deployment output
 $AZURE_SUBSCRIPTION_ID = Get-AzdEnvValueOrDefault -KeyName "AZURE_SUBSCRIPTION_ID" -Required $true
-$ENV_NAME = Get-AzdEnvValueOrDefault -KeyName "AZURE_ENV_NAME" -Required $true
+$SOLUTION_NAME = Get-AzdEnvValueOrDefault -KeyName "SOLUTION_NAME" -Required $true
 $WEB_APP_IDENTITY_PRINCIPAL_ID = Get-AzdEnvValueOrDefault -KeyName "FRONTEND_MANAGED_IDENTITY_PRINCIPAL_ID" -Required $true
 $API_APP_IDENTITY_PRINCIPAL_ID = Get-AzdEnvValueOrDefault -KeyName "BACKEND_MANAGED_IDENTITY_PRINCIPAL_ID" -Required $true
 $AZURE_RESOURCE_GROUP = Get-AzdEnvValueOrDefault -KeyName "AZURE_RESOURCE_GROUP" -Required $true
@@ -41,7 +41,7 @@ $API_APP_NAME=Get-AzdEnvValueOrDefault -KeyName "BACKEND_APP_NAME" -Required $tr
 # Export the variables for later use
 Write-Host "Using the following parameters:"
 Write-Host "AZURE_SUBSCRIPTION_ID = $AZURE_SUBSCRIPTION_ID"
-Write-Host "ENV_NAME = $ENV_NAME"
+Write-Host "SOLUTION_NAME = $SOLUTION_NAME"
 Write-Host "AZURE_RESOURCE_GROUP = $AZURE_RESOURCE_GROUP"
 Write-Host "AZURE_ENV_IMAGETAG = $AZURE_ENV_IMAGETAG"
 Write-Host "WEB_APP_NAME = $WEB_APP_NAME"
@@ -77,7 +77,7 @@ $ScriptDir = $PSScriptRoot
 # STEP 4: Deploy container registry
 Write-Host "`nDeploying container registry"
 $TemplateFile = Join-Path $ScriptDir "..\deploy_container_registry.bicep" | Resolve-Path
-$OUTPUTS = az deployment group create --resource-group $AZURE_RESOURCE_GROUP --template-file $TemplateFile --parameters environmentName=$ENV_NAME --query "properties.outputs" --output json | ConvertFrom-Json
+$OUTPUTS = az deployment group create --resource-group $AZURE_RESOURCE_GROUP --template-file $TemplateFile --parameters solutionName=$SOLUTION_NAME acrPullPrincipalIds="['$WEB_APP_IDENTITY_PRINCIPAL_ID', '$API_APP_IDENTITY_PRINCIPAL_ID']" --query "properties.outputs" --output json | ConvertFrom-Json
 
 # Extract ACR name and endpoint
 $ACR_NAME = $OUTPUTS.createdAcrName.value
