@@ -193,17 +193,9 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 2. **Deleting Resources After a Failed Deployment**  
 
-     - Follow steps in [Delete Resource Group](./DeleteResourceGroup.md) if your deployment fails and/or you need to clean up the resources.
-  
-## Environment configuration for local development & debugging
-> Set APP_ENV in your .env file to control Azure authentication.Set the environment variable to dev to use Azure CLI credentials, or to prod to use Managed Identity for production. **Ensure you're logged in via az login when using dev in local**.
-To configure your environment:
-- Navigate to the `src\api` folder.
-- Create a `.env` file based on the `.env.sample` file.
-- Fill in the `.env` file using deployment output or the Azure Portal under "Deployments" in your resource group.
-- Ensure that `APP_ENV` is set to "**dev**".     
+     - Follow steps in [Delete Resource Group](./DeleteResourceGroup.md) if your deployment fails and/or you need to clean up the resources.     
 
-## For Local Debugging
+## For local development & debugging
 
 Follow steps in [Local Debugging Setup](./LocalDebuggingSetup.md) to configure your local development environment for debugging the solution.
 
