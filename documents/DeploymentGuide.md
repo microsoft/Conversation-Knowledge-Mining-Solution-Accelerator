@@ -203,6 +203,24 @@ To configure your environment:
 - Fill in the `.env` file using deployment output or the Azure Portal under "Deployments" in your resource group.
 - Ensure that `APP_ENV` is set to "**dev**".     
 
+3. **Optional: Publishing Local Build Container to Azure Container Registry**
+
+   If you need to rebuild the source code and push the updated container to the deployed Azure Container Registry, follow these steps:
+
+   - **Linux/macOS**:
+     ```bash
+     cd ./infra/scripts/
+     ./docker-build.sh
+     ```
+
+   - **Windows (PowerShell)**:
+     ```powershell
+     cd .\infra\scripts\
+     .\docker-build.ps1
+     ```
+
+    This will create a new Azure Container Registry, rebuild the source code, package it into a container, and push it to the Container Registry created.
+
 ## For Local Debugging
 
 Follow steps in [Local Debugging Setup](./LocalDebuggingSetup.md) to configure your local development environment for debugging the solution.

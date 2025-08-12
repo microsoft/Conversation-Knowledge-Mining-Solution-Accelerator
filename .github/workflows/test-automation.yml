@@ -1,15 +1,6 @@
 name: Test Automation KMGeneric
 
 on:
-  push:
-    branches:
-      - main
-      - dev
-    paths:
-      - 'tests/e2e-test/**'
-
-  workflow_dispatch:
-  # NEW: Add workflow_call to make it reusable
   workflow_call:
     inputs:
       KMGENERIC_URL:

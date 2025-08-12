@@ -66,12 +66,6 @@ param imageTag string = 'latest_fdp'
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
-@description('Set this flag to true only if you are deploying from Local')
-param useLocalBuild string = 'false'
-
-// Convert input to lowercase
-var useLocalBuildLower = toLower(useLocalBuild)
-
 var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation, resourceGroup().name))
 
 
@@ -89,9 +83,7 @@ param aiDeploymentsLocation string
 
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
 
-var containerRegistryName = '${abbrs.containers.containerRegistry}${solutionPrefix}'
-var containerRegistryNameCleaned = replace(containerRegistryName, '-', '')
-var acrName = useLocalBuildLower == 'true' ? containerRegistryNameCleaned : 'kmcontainerreg'
+var acrName = 'kmcontainerreg'
 
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 
@@ -241,7 +233,6 @@ module backend_docker 'deploy_backend_docker.bicep' = {
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
     keyVaultName: kvault.outputs.keyvaultName
     aiServicesName: aifoundry.outputs.aiServicesName
-    useLocalBuild: useLocalBuildLower
     azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
     aiSearchName: aifoundry.outputs.aiSearchName 
     appSettings: {
@@ -284,7 +275,6 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
     acrName: acrName
     appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
-    useLocalBuild: useLocalBuildLower
     appSettings:{
       APP_API_BASE_URL:backend_docker.outputs.appUrl
     }
@@ -335,3 +325,8 @@ output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicat
 
 output API_APP_URL string = backend_docker.outputs.appUrl
 output WEB_APP_URL string = frontend_docker.outputs.appUrl
+
+output BACKEND_APP_NAME string = backend_docker.outputs.backendAppName
+output FRONTEND_APP_NAME string = frontend_docker.outputs.frontendAppName
+output BACKEND_MANAGED_IDENTITY_PRINCIPAL_ID string = backend_docker.outputs.backendManagedIdentityPrincipalId
+output FRONTEND_MANAGED_IDENTITY_PRINCIPAL_ID string = frontend_docker.outputs.frontendManagedIdentityPrincipalId
