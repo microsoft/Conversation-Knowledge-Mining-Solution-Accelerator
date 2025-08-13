@@ -1,9 +1,23 @@
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
+
+@description('Required. Contains KeyVault Name.')
 param keyVaultName string
+
+@description('Required. Contains Managed Identity Name.')
 param managedIdentityName string
+
+@description('Required. Contains Server Name.')
 param serverName string
+
+@description('Required. Contains SQL DB Name.')
 param sqlDBName string
+
+@description('Required. List of SQL Users.')
 param sqlUsers array = []
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
 
 var location = solutionLocation
 
@@ -28,6 +42,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
       azureADOnlyAuthentication: true
     }
   }
+  tags : tags
 }
 
 resource firewallRule 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
@@ -66,6 +81,7 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
     readScale: 'Disabled'
     zoneRedundant: false
   }
+  tags : tags
 }
 
 module sqluser 'create-sql-user-and-role.bicep' = [
@@ -93,6 +109,7 @@ resource sqldbServerEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview'
   properties: {
     value: '${serverName}${environment().suffixes.sqlServerHostname}'
   }
+  tags : tags
 }
 
 resource sqldbDatabaseEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
@@ -101,7 +118,11 @@ resource sqldbDatabaseEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-previe
   properties: {
     value: sqlDBName
   }
+  tags : tags
 }
 
+@description('Contains SQL Server Name.')
 output sqlServerName string = '${serverName}.database.windows.net'
+
+@description('Contains SQL DB Name.')
 output sqlDbName string = sqlDBName

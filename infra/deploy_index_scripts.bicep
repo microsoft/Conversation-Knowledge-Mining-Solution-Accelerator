@@ -1,10 +1,20 @@
-@description('Specifies the location for resources.')
+@description('Required. Specifies the location for resources.')
 param solutionLocation string 
 
+@description('Required. Contains the Base URL.')
 param baseUrl string
+
+@description('Required. Contains KeyVault Name.')
 param keyVaultName string
+
+@description('Required. Contains ID of ManagedIdentity.')
 param managedIdentityResourceId string
+
+@description('Required. Contains Managed Identity Client ID.')
 param managedIdentityClientId string
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
 
 resource create_index 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
   kind:'AzureCLI'
@@ -24,4 +34,5 @@ resource create_index 'Microsoft.Resources/deploymentScripts@2023-08-01' = {
     retentionInterval: 'PT1H'
     cleanupPreference:'OnSuccess'
   }
+  tags : tags
 }

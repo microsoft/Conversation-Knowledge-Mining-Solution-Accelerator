@@ -1,9 +1,19 @@
-@description('Specifies the location for resources.')
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
+
+@description('Required. Contains Base URL.')
 param baseUrl string
+
+@description('Required. Contains Managed Identity Resource ID.')
 param managedIdentityResourceId string
+
+@description('Required. Contains Managed Identity Client ID.')
 param managedIdentityClientId string
+
+@description('Required. Contains Storage Account Name.')
 param storageAccountName string
+
+@description('Required. Contains COntainer Name.')
 param containerName string
 
 resource copy_demo_Data 'Microsoft.Resources/deploymentScripts@2023-08-01' = {

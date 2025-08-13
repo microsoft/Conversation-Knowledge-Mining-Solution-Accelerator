@@ -1,27 +1,27 @@
 targetScope = 'resourceGroup'
 
-@description('The Azure region for the resource.')
+@description('Required. The Azure region for the resource.')
 param location string
 
-@description('The tags to associate with this resource.')
+@description('Required. The tags to associate with this resource.')
 param tags object = {}
 
-@description('The database roles to assign to the user.')
+@description('Required. The database roles to assign to the user.')
 param databaseRoles string[] = ['db_datareader']
 
-@description('The name of the User Assigned Managed Identity to be used.')
+@description('Required. The name of the User Assigned Managed Identity to be used.')
 param managedIdentityName string
 
-@description('The principal (or object) ID of the user to create.')
+@description('Required. The principal (or object) ID of the user to create.')
 param principalId string
 
-@description('The name of the user to create.')
+@description('Required. The name of the user to create.')
 param principalName string
 
-@description('The name of the SQL Database resource.')
+@description('Required. The name of the SQL Database resource.')
 param sqlDatabaseName string
 
-@description('The name of the SQL Server resource.')
+@description('Required. The name of the SQL Server resource.')
 param sqlServerName string
 
 @description('Do not set - unique script ID to force the script to run.')
@@ -44,7 +44,7 @@ resource createSqlUserAndRole 'Microsoft.Resources/deploymentScripts@2023-08-01'
   }
   properties: {
     forceUpdateTag: uniqueScriptId
-    azPowerShellVersion: '7.2'
+    azPowerShellVersion: '11.0'
     retentionInterval: 'PT1H'
     cleanupPreference: 'OnSuccess'
     arguments: join(

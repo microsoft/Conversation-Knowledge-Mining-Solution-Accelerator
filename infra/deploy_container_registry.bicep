@@ -1,6 +1,9 @@
 targetScope = 'resourceGroup'
 
+@description('Required. Contains Environment Name.')
 param environmentName string
+
+@description('Required. Contains Solution Location.')
 param solutionLocation string = resourceGroup().location
 
 var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation))
@@ -39,6 +42,9 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-09-01' =
   }
 }
  
+@description('Contains Created ACR Name.')
 output createdAcrName string = containerRegistryNameCleaned
+
+@description('Contains Created ACR ID')
 output createdAcrId string = containerRegistry.id
  

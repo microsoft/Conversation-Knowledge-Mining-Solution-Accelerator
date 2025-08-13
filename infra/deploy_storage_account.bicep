@@ -1,14 +1,20 @@
 // ========== Storage Account ========== //
 targetScope = 'resourceGroup'
 
-@description('Solution Location')
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
 
-@description('Name')
+@description('Required. Contains Storage Account Name.')
 param saName string 
 
+@description('Required. Contains KeyVault Name.')
 param keyVaultName string
+
+@description('Required. Contains Managed Identity Object ID.')
 param managedIdentityObjectId string
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
 
 resource storageAccounts_resource 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   name: saName
@@ -45,6 +51,7 @@ resource storageAccounts_resource 'Microsoft.Storage/storageAccounts@2022-09-01'
     }
     accessTier: 'Hot'
   }
+  tags : tags
 }
 
 resource storageAccounts_default 'Microsoft.Storage/storageAccounts/blobServices@2022-09-01' = {
@@ -114,6 +121,7 @@ resource adlsAccountNameEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-prev
   properties: {
     value: saName
   }
+  tags : tags
 }
 
 resource adlsAccountContainerEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
@@ -122,6 +130,7 @@ resource adlsAccountContainerEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01
   properties: {
     value: 'data'
   }
+  tags : tags
 }
 
 resource adlsAccountKeyEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-preview' = {
@@ -130,9 +139,13 @@ resource adlsAccountKeyEntry 'Microsoft.KeyVault/vaults/secrets@2021-11-01-previ
   properties: {
     value: storageAccountKeys.keys[0].value
   }
+  tags : tags
 }
 
+@description('Contains Storage Name.')
 output storageName string = saName
+
+@description('Contains Storage Container Name.')
 output storageContainer string = 'data'
 // output storageAccountOutput object = {
 //   id: storageAccounts_resource.id

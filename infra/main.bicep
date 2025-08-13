@@ -3,17 +3,17 @@ targetScope = 'resourceGroup'
 var abbrs = loadJsonContent('./abbreviations.json')
 @minLength(3)
 @maxLength(20)
-@description('A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
+@description('Required. A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
 param environmentName string
 
 @description('Optional: Existing Log Analytics Workspace Resource ID')
 param existingLogAnalyticsWorkspaceId string = ''
 
-@description('Use this parameter to use an existing AI project resource ID')
+@description('Optional. Use this parameter to use an existing AI project resource ID')
 param azureExistingAIProjectResourceId string = ''
 
 @minLength(1)
-@description('Location for the Content Understanding service deployment:')
+@description('Optional. Location for the Content Understanding service deployment:')
 @allowed(['swedencentral', 'australiaeast'])
 @metadata({
   azd: {
@@ -23,50 +23,54 @@ param azureExistingAIProjectResourceId string = ''
 param contentUnderstandingLocation string = 'swedencentral'
 
 @minLength(1)
-@description('Secondary location for databases creation(example:eastus2):')
+@description('Optional. Secondary location for databases creation(example:eastus2):')
 param secondaryLocation string = 'eastus2'
 
 @minLength(1)
-@description('GPT model deployment type:')
+@description('Optional. GPT model deployment type:')
 @allowed([
   'Standard'
   'GlobalStandard'
 ])
 param deploymentType string = 'GlobalStandard'
 
-@description('Name of the GPT model to deploy:')
+@description('Optional. Name of the GPT model to deploy:')
 param gptModelName string = 'gpt-4o-mini'
 
-@description('Version of the GPT model to deploy:')
+@description('Optional. Version of the GPT model to deploy:')
 param gptModelVersion string = '2024-07-18'
 
+@description('Optional. Version of the OpenAI.')
 param azureOpenAIApiVersion string = '2025-01-01-preview'
 
+@description('Optional. Version of AI Agent API.')
 param azureAiAgentApiVersion string = '2025-05-01'
 
 @minValue(10)
-@description('Capacity of the GPT deployment:')
+@description('Optional. Capacity of the GPT deployment:')
 // You can increase this, but capacity is limited per model/region, so you will get errors if you go over
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
 param gptDeploymentCapacity int = 150
 
 @minLength(1)
-@description('Name of the Text Embedding model to deploy:')
+@description('Optional. Name of the Text Embedding model to deploy:')
 @allowed([
   'text-embedding-ada-002'
 ])
 param embeddingModel string = 'text-embedding-ada-002'
 
 @minValue(10)
-@description('Capacity of the Embedding Model deployment')
+@description('Optional. Capacity of the Embedding Model deployment.')
 param embeddingDeploymentCapacity int = 80
 
+@description('Optional. Image Tag.')
 param imageTag string = 'latest_fdp'
 
+@description('Optional. Azure Location.')
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
-@description('Set this flag to true only if you are deploying from Local')
+@description('Optional. Set this flag to true only if you are deploying from Local')
 param useLocalBuild string = 'false'
 
 // Convert input to lowercase
@@ -84,7 +88,7 @@ var uniqueId = toLower(uniqueString(subscription().id, environmentName, solution
     ]
   }
 })
-@description('Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed.')
+@description('Required. Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed.')
 param aiDeploymentsLocation string
 
 var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
@@ -95,11 +99,15 @@ var acrName = useLocalBuildLower == 'true' ? containerRegistryNameCleaned : 'kmc
 
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 
+@description('Optional. The tags to apply to all deployed Azure resources.')
+param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
+
 // ========== Resource Group Tag ========== //
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
   properties: {
     tags: {
+      ... tags
       TemplateName: 'KM Generic'
     }
   }
@@ -112,6 +120,7 @@ module managedIdentityModule 'deploy_managed_identity.bicep' = {
     miName:'${abbrs.security.managedIdentity}${solutionPrefix}'
     solutionName: solutionPrefix
     solutionLocation: solutionLocation
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -123,6 +132,7 @@ module kvault 'deploy_keyvault.bicep' = {
     keyvaultName: '${abbrs.security.keyVault}${solutionPrefix}'
     solutionLocation: solutionLocation
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -145,6 +155,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
     managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
     azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
+    tags : tags
 
   }
   scope: resourceGroup(resourceGroup().name)
@@ -159,6 +170,7 @@ module storageAccount 'deploy_storage_account.bicep' = {
     solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -170,6 +182,7 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
     accountName: '${abbrs.databases.cosmosDBDatabase}${solutionPrefix}'
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -190,6 +203,7 @@ module sqlDBModule 'deploy_sql_db.bicep' = {
         databaseRoles: ['db_datareader', 'db_datawriter']
       }
     ]
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -216,6 +230,7 @@ module createIndex 'deploy_index_scripts.bicep' = {
     managedIdentityClientId:managedIdentityModule.outputs.managedIdentityOutput.clientId
     baseUrl:baseUrl
     keyVaultName:aifoundry.outputs.keyvaultName
+    tags : tags
   }
   dependsOn:[sqlDBModule,uploadFiles]
 }
@@ -225,6 +240,7 @@ module hostingplan 'deploy_app_service_plan.bicep' = {
   params: {
     solutionLocation: solutionLocation
     HostingPlanName: '${abbrs.compute.appServicePlan}${solutionPrefix}'
+    tags : tags
   }
 }
 
@@ -270,6 +286,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       DUMMY_TEST: 'True'
       SOLUTION_NAME: solutionPrefix
       APP_ENV: 'Prod'
+      tags : tags
     }
   }
   scope: resourceGroup(resourceGroup().name)
@@ -292,46 +309,129 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
-output SOLUTION_NAME string = solutionPrefix
-output RESOURCE_GROUP_NAME string = resourceGroup().name
-output RESOURCE_GROUP_LOCATION string = solutionLocation
-output ENVIRONMENT_NAME string = environmentName
-output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
-output AZURE_SECONDARY_LOCATION string = secondaryLocation
-output APPINSIGHTS_INSTRUMENTATIONKEY string = backend_docker.outputs.appInsightInstrumentationKey
-output AZURE_AI_PROJECT_CONN_STRING string = aifoundry.outputs.projectEndpoint
-output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
-output AZURE_AI_FOUNDRY_NAME string = aifoundry.outputs.aiServicesName
-output AZURE_AI_PROJECT_NAME string = aifoundry.outputs.aiProjectName
-output AZURE_AI_SEARCH_NAME string = aifoundry.outputs.aiSearchName
-output AZURE_AI_SEARCH_ENDPOINT string = aifoundry.outputs.aiSearchTarget
-output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aifoundry.outputs.aiSearchConnectionName
-output AZURE_COSMOSDB_ACCOUNT string = cosmosDBModule.outputs.cosmosAccountName
-output AZURE_COSMOSDB_CONVERSATIONS_CONTAINER string = 'conversations'
-output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
-output AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
-output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
-output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
-output AZURE_OPENAI_ENDPOINT string = aifoundry.outputs.aiServicesTarget
-output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
-output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
-output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
-output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
-output AZURE_OPENAI_RESOURCE string = aifoundry.outputs.aiServicesName
-output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutConfig
-output SQLDB_DATABASE string = sqlDBModule.outputs.sqlDbName
-output SQLDB_SERVER string = sqlDBModule.outputs.sqlServerName
-output SQLDB_USER_MID string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
-output USE_AI_PROJECT_CLIENT string = 'False'
-output USE_CHAT_HISTORY_ENABLED string = 'True'
-output DISPLAY_CHART_DEFAULT string = 'False'
-output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
-output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
-output ACR_NAME string = acrName
-output AZURE_ENV_IMAGETAG string = imageTag
-output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = azureExistingAIProjectResourceId
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString
 
+@description('Contains Solution Name.')
+output solutionName string = solutionPrefix
+
+@description('Contains Resource Group Name.')
+output resourceGroupName string = resourceGroup().name
+
+@description('Contains Resource Group Location.')
+output resourceGroupLocation string = solutionLocation
+
+@description('Contains Environment Name.')
+output environmentName string = environmentName
+
+@description('Contains Azure Content Understanding Location.')
+output azureContentUnderstandingLocation string = contentUnderstandingLocation
+
+@description('Contains Azure Secondary Location.')
+output azureSecondaryLocation string = secondaryLocation
+
+@description('Contains AppInsights Instrumentation Key.')
+output appInsightsInstrumentationKey string = backend_docker.outputs.appInsightInstrumentationKey
+
+@description('Contains AI Project Connection String.')
+output azureAiProjectConnectionString string = aifoundry.outputs.projectEndpoint
+
+@description('Contains AI Agent API Version.')
+output azureAiAgentApiVersion string = azureAiAgentApiVersion
+
+@description('Contains AI Foundry Name Name.')
+output azureAiFoundryName string = aifoundry.outputs.aiServicesName
+
+@description('Contains AI Project Name.')
+output azureAiProjectName string = aifoundry.outputs.aiProjectName
+
+@description('Contains AI Search Name.')
+output azureAiSearchName string = aifoundry.outputs.aiSearchName
+
+@description('Contains AI Search Endpoint.')
+output azureAiSearchEndpoint string = aifoundry.outputs.aiSearchTarget
+
+@description('Contains AI Search Index.')
+output azureAiSearchIndex string = 'call_transcripts_index'
+
+@description('Contains AI Search Connection Name.')
+output azureAiSearchConnectionName string = aifoundry.outputs.aiSearchConnectionName
+
+@description('Contains Azure Cosmos DB Account.')
+output azureCosmosDbAccount string = cosmosDBModule.outputs.cosmosAccountName
+
+@description('Contains Azure Cosmos DB Conversations Container.')
+output azureCosmosDbConversationsContainer string = 'conversations'
+
+@description('Contains Azure Cosmos DB Database.')
+output azureCosmosDbDatabase string = 'db_conversation_history'
+
+@description('Contains Cosmos DB Enable Feedback.')
+output azureCOSMOSDB_ENABLE_FEEDBACK string = 'True'
+
+@description('Contains OpenAI Deployment Model.')
+output azureOpenaiDeploymentModel string = gptModelName
+
+@description('Contains OpenAI Deployment Capacity.')
+output azureOpenaiDeploymentModelCapacity int = gptDeploymentCapacity
+
+@description('Contains OpenAI Endpoint.')
+output azureOpenaiENDPOINT string = aifoundry.outputs.aiServicesTarget
+
+@description('Contains OpenAI Model Deployment Type.')
+output azureOpenaiModelDeploymentType string = deploymentType
+
+@description('Contains OpenAI Embedding Model.')
+output azureOpenaiEmbeddingModel string = embeddingModel
+
+@description('Contains OpenAI Embedding Model Capacity.')
+output azureOpenaiEmbeddingModelCapacity int = embeddingDeploymentCapacity
+
+@description('Contains OpenAI API Version.')
+output azureOpenaiApiVersion string = azureOpenAIApiVersion
+
+@description('Contains OpenAI Resource.')
+output azureOenaiResource string = aifoundry.outputs.aiServicesName
+
+@description('Contains React App Layout Config.')
+output reactAppLayoutConfig string = backend_docker.outputs.reactAppLayoutConfig
+
+@description('Contains SQL Database.')
+output sqlDatabase string = sqlDBModule.outputs.sqlDbName
+
+@description('Contains SQL DB Server.')
+output sqlServer string = sqlDBModule.outputs.sqlServerName
+
+@description('Contains SQL DB User MID.')
+output sqlUserMid string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
+
+@description('Contains Use AI Project Client.')
+output useAiProjectClient string = 'False'
+
+@description('To specify whether to Enable or Disable chat history.')
+output useChatHistoryEnabled string = 'True'
+
+@description('To specify whether to Enable or Disable Display Chart.')
+output displayChartDefault string = 'False'
+
+@description('Contains AI Agent Endpoint.')
+output azureAiAgentEndpoint string = aifoundry.outputs.projectEndpoint
+
+@description('Contains Azure AI Agent Model Deployment Name.')
+output azureAiAgentModelDeploymentName string = gptModelName
+
+@description('Contains ACR Name.')
+output acrName string = acrName
+
+@description('Contains Azure Environment Image Tag.')
+output azureEnvImageTag string = imageTag
+
+@description('Contains Existing AI Project Resource ID.')
+output azureExistingAiProjectResourceId string = azureExistingAIProjectResourceId
+
+@description('Contains App Insights Connection String.')
+output applicationinsightsConnectionString string = aifoundry.outputs.applicationInsightsConnectionString
+
+@description('Contains API App URL.')
 output API_APP_URL string = backend_docker.outputs.appUrl
+
+@description('Contains Web App URL.')
 output WEB_APP_URL string = frontend_docker.outputs.appUrl

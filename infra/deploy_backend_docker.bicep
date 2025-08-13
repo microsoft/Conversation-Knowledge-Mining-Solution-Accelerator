@@ -1,20 +1,46 @@
+@description('Required. Contains the Image Tag.')
 param imageTag string
+
+@description('Required. Contains ACR Name.')
 param acrName string
+
+@description('Required. Contains Application Insights ID.')
 param applicationInsightsId string
 
-@description('Solution Location')
+@description('Required. Contains Solution Location.')
 param solutionLocation string
 
 @secure()
+@description('Required. Contains App Settings.')
 param appSettings object = {}
+
+@description('Required. Contains App Service Plan ID.')
 param appServicePlanId string
+
+@description('Required. Contains User Assigned Identity ID.')
 param userassignedIdentityId string
+
+@description('Required. Contains KeyVault Name.')
 param keyVaultName string
+
+@description('Required. Contains AI Services Name.')
 param aiServicesName string
+
+@description('Required. Contains User Local Build.')
 param useLocalBuild string
+
+@description('Optional. Contains exisitng AI Project Resource ID')
 param azureExistingAIProjectResourceId string = ''
+
+@description('Required. Contains AI Search Name')
 param aiSearchName string
+
+@description('Required. Contains AI Deployments Location.')
 param aideploymentsLocation string
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
 var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
 var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
 var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
@@ -188,6 +214,7 @@ module assignAiUserRoleToAiProject 'deploy_foundry_role_assignment.bicep' = {
     aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
     aiProjectName: !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
     enableSystemAssignedIdentity: false
+    tags : tags
   }
 }
 
@@ -209,6 +236,11 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-
   }
 }
 
+@description('Contains App URL.')
 output appUrl string = appService.outputs.appUrl
+
+@description('Contains React App Layout Config.')
 output reactAppLayoutConfig string = reactAppLayoutConfig
+
+@description('Contains AppInsight Instrumentation Key.')
 output appInsightInstrumentationKey string = reference(applicationInsightsId, '2015-05-01').InstrumentationKey

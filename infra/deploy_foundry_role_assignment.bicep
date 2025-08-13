@@ -1,18 +1,50 @@
+@description('Optional. Contains Principle ID.')
 param principalId string = ''
+
+@description('Required. Contains Role Definition ID.')
 param roleDefinitionId string
+
+@description('Optional. Contains Role Assignment Name.')
 param roleAssignmentName string = ''
+
+@description('Required. Contains AI Services Name.')
 param aiServicesName string
+
+@description('Optional. Contains AI Project Name.')
 param aiProjectName string = ''
+
+@description('Optional. Contains AI Location.')
 param aiLocation string=''
+
+@description('Optional. Contains AI Kind.')
 param aiKind string=''
+
+@description('Optional. Contains AI SKU Name.')
 param aiSkuName string=''
+
+@description('Optional. Whether to Enable or Disable System Assigned Identity.')
 param enableSystemAssignedIdentity bool = false
+
+@description('Optional. Contains Custom Sub Domain Name.')
 param customSubDomainName string = ''
+
+@description('Optional. Contains Public Network Access.')
 param publicNetworkAccess string = ''
+
+@description('Optional. Contains Default Network Action.')
 param defaultNetworkAction string = ''
+
+@description('Required. Contains VNET Rules.')
 param vnetRules array = []
+
+@description('Required. Contains IP Rules.')
 param ipRules array = []
+
+@description('Required. Contains AI Model Deployments.')
 param aiModelDeployments array = []
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
 
 resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (!enableSystemAssignedIdentity) {
   name: aiServicesName
@@ -37,8 +69,8 @@ resource aiServicesWithIdentity 'Microsoft.CognitiveServices/accounts@2025-04-01
       ipRules: ipRules
     }
     publicNetworkAccess: publicNetworkAccess
-
   }
+  tags : tags
 }
 
 @batchSize(1)
@@ -71,6 +103,7 @@ resource aiProjectWithIdentity 'Microsoft.CognitiveServices/accounts/projects@20
     type: 'SystemAssigned'
   }
   properties: {}
+  tags : tags
 }
 
 // Role Assignment to AI Services
