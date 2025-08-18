@@ -70,7 +70,7 @@ If you don't have an existing environment, you must first deploy the Azure resou
 |-------------|-------|------|
 | `SOLUTION_NAME` |  | Prefix used to uniquely identify resources in the deployment |
 | `RESOURCE_GROUP_NAME` |  | Name of the Azure Resource Group |
-| `APP_ENV` | `dev` | Environment type (dev for local debugging, prod for deployment) |
+| `APP_ENV` | `dev` | Set APP_ENV in your .env file to control Azure authentication. Set the environment variable to dev to use Azure CLI credentials, or to prod to use Managed Identity for production. Ensure you're logged in via az login when using dev in local. |
 | `APPINSIGHTS_INSTRUMENTATIONKEY` |  | Instrumentation Key for Azure Application Insights |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` |  | Connection string for Application Insights |
 | `AZURE_AI_PROJECT_CONN_STRING` |  | Connection string for the Azure AI project |

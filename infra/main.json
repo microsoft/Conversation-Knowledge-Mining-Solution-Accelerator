@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "1973444615729178681"
+      "templateHash": "16849165040526217807"
     }
   },
   "parameters": {
@@ -122,13 +122,6 @@
     "AZURE_LOCATION": {
       "type": "string",
       "defaultValue": ""
-    },
-    "useLocalBuild": {
-      "type": "string",
-      "defaultValue": "false",
-      "metadata": {
-        "description": "Set this flag to true only if you are deploying from Local"
-      }
     },
     "aiDeploymentsLocation": {
       "type": "string",
@@ -376,12 +369,9 @@
     },
     "abbrs": "[variables('$fxv#0')]",
     "solutionLocation": "[if(empty(parameters('AZURE_LOCATION')), resourceGroup().location, parameters('AZURE_LOCATION'))]",
-    "useLocalBuildLower": "[toLower(parameters('useLocalBuild'))]",
     "uniqueId": "[toLower(uniqueString(subscription().id, parameters('environmentName'), variables('solutionLocation'), resourceGroup().name))]",
     "solutionPrefix": "[format('km{0}', padLeft(take(variables('uniqueId'), 12), 12, '0'))]",
-    "containerRegistryName": "[format('{0}{1}', variables('abbrs').containers.containerRegistry, variables('solutionPrefix'))]",
-    "containerRegistryNameCleaned": "[replace(variables('containerRegistryName'), '-', '')]",
-    "acrName": "[if(equals(variables('useLocalBuildLower'), 'true'), variables('containerRegistryNameCleaned'), 'kmcontainerreg')]",
+    "acrName": "kmcontainerreg",
     "baseUrl": "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/"
   },
   "resources": [
@@ -3148,9 +3138,6 @@
           "solutionLocation": {
             "value": "[variables('solutionLocation')]"
           },
-          "aideploymentsLocation": {
-            "value": "[parameters('aiDeploymentsLocation')]"
-          },
           "imageTag": {
             "value": "[parameters('imageTag')]"
           },
@@ -3171,9 +3158,6 @@
           },
           "aiServicesName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.aiServicesName.value]"
-          },
-          "useLocalBuild": {
-            "value": "[variables('useLocalBuildLower')]"
           },
           "azureExistingAIProjectResourceId": {
             "value": "[parameters('azureExistingAIProjectResourceId')]"
@@ -3217,7 +3201,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "3928259108769110466"
+              "templateHash": "7971217241203578722"
             }
           },
           "parameters": {
@@ -3252,17 +3236,11 @@
             "aiServicesName": {
               "type": "string"
             },
-            "useLocalBuild": {
-              "type": "string"
-            },
             "azureExistingAIProjectResourceId": {
               "type": "string",
               "defaultValue": ""
             },
             "aiSearchName": {
-              "type": "string"
-            },
-            "aideploymentsLocation": {
               "type": "string"
             },
             "name": {
@@ -3320,21 +3298,6 @@
               ]
             },
             {
-              "condition": "[equals(parameters('useLocalBuild'), 'true')]",
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', parameters('acrName'))]",
-              "name": "[guid(format('{0}-app-module', parameters('name')), resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d'))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
-              ]
-            },
-            {
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2022-09-01",
               "name": "[format('{0}-app-module', parameters('name'))]",
@@ -3359,9 +3322,6 @@
                   "userassignedIdentityId": {
                     "value": "[parameters('userassignedIdentityId')]"
                   },
-                  "useLocalBuild": {
-                    "value": "[parameters('useLocalBuild')]"
-                  },
                   "appSettings": {
                     "value": "[union(parameters('appSettings'), createObject('APPINSIGHTS_INSTRUMENTATIONKEY', reference(parameters('applicationInsightsId'), '2015-05-01').InstrumentationKey, 'REACT_APP_LAYOUT_CONFIG', variables('reactAppLayoutConfig')))]"
                   }
@@ -3373,7 +3333,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.37.4.10188",
-                      "templateHash": "3987406605431680589"
+                      "templateHash": "3401191210177836889"
                     }
                   },
                   "parameters": {
@@ -3402,9 +3362,6 @@
                     "userassignedIdentityId": {
                       "type": "string",
                       "defaultValue": ""
-                    },
-                    "useLocalBuild": {
-                      "type": "string"
                     }
                   },
                   "resources": [
@@ -3439,7 +3396,6 @@
                       "properties": {
                         "serverFarmId": "[parameters('appServicePlanId')]",
                         "siteConfig": {
-                          "acrUseManagedIdentityCreds": "[equals(parameters('useLocalBuild'), 'true')]",
                           "alwaysOn": true,
                           "ftpsState": "Disabled",
                           "linuxFxVersion": "[parameters('appImageName')]"
@@ -3904,9 +3860,6 @@
           "applicationInsightsId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_ai_foundry'), '2022-09-01').outputs.applicationInsightsId.value]"
           },
-          "useLocalBuild": {
-            "value": "[variables('useLocalBuildLower')]"
-          },
           "appSettings": {
             "value": {
               "APP_API_BASE_URL": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_backend_docker'), '2022-09-01').outputs.appUrl.value]"
@@ -3920,7 +3873,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.37.4.10188",
-              "templateHash": "9861456937324375977"
+              "templateHash": "897813308310325076"
             }
           },
           "parameters": {
@@ -3946,9 +3899,6 @@
             "appServicePlanId": {
               "type": "string"
             },
-            "useLocalBuild": {
-              "type": "string"
-            },
             "name": {
               "type": "string"
             }
@@ -3957,21 +3907,6 @@
             "imageName": "[format('DOCKER|{0}.azurecr.io/km-app:{1}', parameters('acrName'), parameters('imageTag'))]"
           },
           "resources": [
-            {
-              "condition": "[equals(parameters('useLocalBuild'), 'true')]",
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', parameters('acrName'))]",
-              "name": "[guid(format('{0}-app-module', parameters('name')), resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d'))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
-                "principalId": "[reference(resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name'))), '2022-09-01').outputs.identityPrincipalId.value]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.Resources/deployments', format('{0}-app-module', parameters('name')))]"
-              ]
-            },
             {
               "type": "Microsoft.Resources/deployments",
               "apiVersion": "2022-09-01",
@@ -3994,9 +3929,6 @@
                   "appImageName": {
                     "value": "[variables('imageName')]"
                   },
-                  "useLocalBuild": {
-                    "value": "[parameters('useLocalBuild')]"
-                  },
                   "appSettings": {
                     "value": "[union(parameters('appSettings'), createObject('APPINSIGHTS_INSTRUMENTATIONKEY', reference(parameters('applicationInsightsId'), '2015-05-01').InstrumentationKey))]"
                   }
@@ -4008,7 +3940,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.37.4.10188",
-                      "templateHash": "3987406605431680589"
+                      "templateHash": "3401191210177836889"
                     }
                   },
                   "parameters": {
@@ -4037,9 +3969,6 @@
                     "userassignedIdentityId": {
                       "type": "string",
                       "defaultValue": ""
-                    },
-                    "useLocalBuild": {
-                      "type": "string"
                     }
                   },
                   "resources": [
@@ -4074,7 +4003,6 @@
                       "properties": {
                         "serverFarmId": "[parameters('appServicePlanId')]",
                         "siteConfig": {
-                          "acrUseManagedIdentityCreds": "[equals(parameters('useLocalBuild'), 'true')]",
                           "alwaysOn": true,
                           "ftpsState": "Disabled",
                           "linuxFxVersion": "[parameters('appImageName')]"
