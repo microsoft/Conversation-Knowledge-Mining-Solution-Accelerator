@@ -1,10 +1,10 @@
 // ========== main.bicep ========== //
 targetScope = 'resourceGroup'
-var abbrs = loadJsonContent('./abbreviations.json')
+//var abbrs = loadJsonContent('./abbreviations.json')
 @minLength(3)
-@maxLength(20)
+@maxLength(15)
 @description('Required. A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
-param environmentName string
+param solutionName string = 'kmgen'
 
 @description('Optional: Existing Log Analytics Workspace Resource ID')
 param existingLogAnalyticsWorkspaceId string = ''
@@ -76,7 +76,7 @@ param useLocalBuild string = 'false'
 // Convert input to lowercase
 var useLocalBuildLower = toLower(useLocalBuild)
 
-var uniqueId = toLower(uniqueString(subscription().id, environmentName, solutionLocation, resourceGroup().name))
+var uniqueId = toLower(uniqueString(subscription().id, solutionName, solutionLocation, resourceGroup().name))
 
 
 @metadata({
@@ -91,9 +91,23 @@ var uniqueId = toLower(uniqueString(subscription().id, environmentName, solution
 @description('Required. Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed.')
 param aiDeploymentsLocation string
 
-var solutionPrefix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
+//var solutionSuffix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
 
-var containerRegistryName = '${abbrs.containers.containerRegistry}${solutionPrefix}'
+@maxLength(5)
+@description('Optional. A unique text value for the solution. This is used to ensure resource names are unique for global resources. Defaults to a 5-character substring of the unique string generated from the subscription ID, resource group name, and solution name.')
+param solutionUniqueText string = substring(uniqueString(subscription().id, resourceGroup().name, solutionName), 0, 5)
+
+var solutionSuffix = toLower(trim(replace(
+  replace(
+    replace(replace(replace(replace('${solutionName}${solutionUniqueText}', '-', ''), '_', ''), '.', ''), '/', ''),
+    ' ',
+    ''
+  ),
+  '*',
+  ''
+)))
+
+var containerRegistryName = 'cr${solutionSuffix}'
 var containerRegistryNameCleaned = replace(containerRegistryName, '-', '')
 var acrName = useLocalBuildLower == 'true' ? containerRegistryNameCleaned : 'kmcontainerreg'
 
@@ -117,8 +131,8 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
 module managedIdentityModule 'deploy_managed_identity.bicep' = {
   name: 'deploy_managed_identity'
   params: {
-    miName:'${abbrs.security.managedIdentity}${solutionPrefix}'
-    solutionName: solutionPrefix
+    miName:'id-${solutionSuffix}'
+    solutionName: solutionSuffix
     solutionLocation: solutionLocation
     tags : tags
   }
@@ -129,7 +143,7 @@ module managedIdentityModule 'deploy_managed_identity.bicep' = {
 module kvault 'deploy_keyvault.bicep' = {
   name: 'deploy_keyvault'
   params: {
-    keyvaultName: '${abbrs.security.keyVault}${solutionPrefix}'
+    keyvaultName: 'kv-${solutionSuffix}'
     solutionLocation: solutionLocation
     managedIdentityObjectId:managedIdentityModule.outputs.managedIdentityOutput.objectId
     tags : tags
@@ -141,7 +155,7 @@ module kvault 'deploy_keyvault.bicep' = {
 module aifoundry 'deploy_ai_foundry.bicep' = {
   name: 'deploy_ai_foundry'
   params: {
-    solutionName: solutionPrefix
+    solutionName: solutionSuffix
     solutionLocation: aiDeploymentsLocation
     keyVaultName: kvault.outputs.keyvaultName
     cuLocation: contentUnderstandingLocation
@@ -166,7 +180,7 @@ module aifoundry 'deploy_ai_foundry.bicep' = {
 module storageAccount 'deploy_storage_account.bicep' = {
   name: 'deploy_storage_account'
   params: {
-    saName: '${abbrs.storage.storageAccount}${solutionPrefix}'
+    saName: 'st${solutionSuffix}'
     solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     managedIdentityObjectId: managedIdentityModule.outputs.managedIdentityOutput.objectId
@@ -179,7 +193,7 @@ module storageAccount 'deploy_storage_account.bicep' = {
 module cosmosDBModule 'deploy_cosmos_db.bicep' = {
   name: 'deploy_cosmos_db'
   params: {
-    accountName: '${abbrs.databases.cosmosDBDatabase}${solutionPrefix}'
+    accountName: 'cosmos-${solutionSuffix}'
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
     tags : tags
@@ -191,8 +205,8 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
 module sqlDBModule 'deploy_sql_db.bicep' = {
   name: 'deploy_sql_db'
   params: {
-    serverName: '${abbrs.databases.sqlDatabaseServer}${solutionPrefix}'
-    sqlDBName: '${abbrs.databases.sqlDatabase}${solutionPrefix}'
+    serverName: 'sql-${solutionSuffix}'
+    sqlDBName: 'sqldb-${solutionSuffix}'
     solutionLocation: secondaryLocation
     keyVaultName: kvault.outputs.keyvaultName
     managedIdentityName: managedIdentityModule.outputs.managedIdentityOutput.name
@@ -239,7 +253,7 @@ module hostingplan 'deploy_app_service_plan.bicep' = {
   name: 'deploy_app_service_plan'
   params: {
     solutionLocation: solutionLocation
-    HostingPlanName: '${abbrs.compute.appServicePlan}${solutionPrefix}'
+    HostingPlanName: 'asp-${solutionSuffix}'
     tags : tags
   }
 }
@@ -247,7 +261,7 @@ module hostingplan 'deploy_app_service_plan.bicep' = {
 module backend_docker 'deploy_backend_docker.bicep' = {
   name: 'deploy_backend_docker'
   params: {
-    name: 'api-${solutionPrefix}'
+    name: 'api-${solutionSuffix}'
     solutionLocation: solutionLocation
     aideploymentsLocation: aiDeploymentsLocation
     imageTag: imageTag
@@ -284,7 +298,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       DISPLAY_CHART_DEFAULT: 'False'
       APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
       DUMMY_TEST: 'True'
-      SOLUTION_NAME: solutionPrefix
+      SOLUTION_NAME: solutionSuffix
       APP_ENV: 'Prod'
       tags : tags
     }
@@ -295,7 +309,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
 module frontend_docker 'deploy_frontend_docker.bicep' = {
   name: 'deploy_frontend_docker'
   params: {
-    name: '${abbrs.compute.webApp}${solutionPrefix}'
+    name: 'app-${solutionSuffix}'
     solutionLocation:solutionLocation
     imageTag: imageTag
     acrName: acrName
@@ -310,8 +324,8 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
 }
 
 
-@description('Contains Solution Name.')
-output solutionName string = solutionPrefix
+@description('Contains Solution Prefix.')
+output solutionSuffix string = solutionSuffix
 
 @description('Contains Resource Group Name.')
 output resourceGroupName string = resourceGroup().name
@@ -320,7 +334,7 @@ output resourceGroupName string = resourceGroup().name
 output resourceGroupLocation string = solutionLocation
 
 @description('Contains Environment Name.')
-output environmentName string = environmentName
+output solutionName string = solutionName
 
 @description('Contains Azure Content Understanding Location.')
 output azureContentUnderstandingLocation string = contentUnderstandingLocation

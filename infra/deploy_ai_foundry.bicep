@@ -57,7 +57,7 @@ var keyvaultName = 'kv-${solutionName}'
 var location = solutionLocation //'eastus2'
 var aiProjectName = 'aifp-${solutionName}'
 var aiSearchName = 'srch-${solutionName}'
-var aiSearchConnectionName = 'myVectorStoreProjectConnectionName-${solutionName}'
+var aiSearchConnectionName = 'myCon-${solutionName}'
 
 var aiModelDeployments = [
   {
