@@ -25,6 +25,8 @@ param keyVaultName string
 
 @description('Required. Contains AI Services Name.')
 param aiServicesName string
+
+@description('Required. Contains Existing AI Project Resource ID.')
 param azureExistingAIProjectResourceId string = ''
 
 @description('Required. Contains AI Search Name')

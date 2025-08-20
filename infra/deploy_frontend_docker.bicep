@@ -38,4 +38,5 @@ module appService 'deploy_app_service.bicep' = {
   }
 }
 
+@description('Contains App URL.')
 output appUrl string = appService.outputs.appUrl

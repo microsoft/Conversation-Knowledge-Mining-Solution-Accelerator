@@ -94,6 +94,20 @@ var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledg
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
 
+@maxLength(5)
+@description('Optional. A unique text value for the solution. This is used to ensure resource names are unique for global resources. Defaults to a 5-character substring of the unique string generated from the subscription ID, resource group name, and solution name.')
+param solutionUniqueText string = substring(uniqueString(subscription().id, resourceGroup().name, solutionName), 0, 5)
+
+var solutionSuffix = toLower(trim(replace(
+  replace(
+    replace(replace(replace(replace('${solutionName}${solutionUniqueText}', '-', ''), '_', ''), '.', ''), '/', ''),
+    ' ',
+    ''
+  ),
+  '*',
+  ''
+)))
+
 // ========== Resource Group Tag ========== //
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
@@ -420,7 +434,7 @@ output azureExistingAiProjectResourceId string = azureExistingAIProjectResourceI
 output applicationinsightsConnectionString string = aifoundry.outputs.applicationInsightsConnectionString
 
 @description('Contains API App URL.')
-output API_APP_URL string = backend_docker.outputs.appUrl
+output apiAppUrl string = backend_docker.outputs.appUrl
 
 @description('Contains Web App URL.')
-output WEB_APP_URL string = frontend_docker.outputs.appUrl
+output webAppUrl string = frontend_docker.outputs.appUrl
