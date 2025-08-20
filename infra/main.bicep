@@ -70,8 +70,7 @@ param imageTag string = 'latest_fdp'
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
-var uniqueId = toLower(uniqueString(subscription().id, solutionName, solutionLocation, resourceGroup().name))
-
+//var uniqueId = toLower(uniqueString(subscription().id, solutionName, solutionLocation, resourceGroup().name))
 
 @metadata({
   azd:{
