@@ -22,9 +22,6 @@ param appImageName string
 @description('Optional. Contains User Assigned Identity ID.')
 param userassignedIdentityId string = ''
 
-@description('Required. Contains Local Build')
-param useLocalBuild string
-
 resource appService 'Microsoft.Web/sites@2020-06-01' = {
   name: solutionName
   location: solutionLocation
@@ -39,7 +36,6 @@ resource appService 'Microsoft.Web/sites@2020-06-01' = {
   properties: {
     serverFarmId: appServicePlanId
     siteConfig: {
-      acrUseManagedIdentityCreds: useLocalBuild == 'true'
       alwaysOn: true
       ftpsState: 'Disabled'
       linuxFxVersion: appImageName

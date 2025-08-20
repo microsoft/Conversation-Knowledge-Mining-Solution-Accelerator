@@ -70,12 +70,6 @@ param imageTag string = 'latest_fdp'
 param AZURE_LOCATION string=''
 var solutionLocation = empty(AZURE_LOCATION) ? resourceGroup().location : AZURE_LOCATION
 
-@description('Optional. Set this flag to true only if you are deploying from Local')
-param useLocalBuild string = 'false'
-
-// Convert input to lowercase
-var useLocalBuildLower = toLower(useLocalBuild)
-
 var uniqueId = toLower(uniqueString(subscription().id, solutionName, solutionLocation, resourceGroup().name))
 
 
@@ -93,23 +87,7 @@ param aiDeploymentsLocation string
 
 //var solutionSuffix = 'km${padLeft(take(uniqueId, 12), 12, '0')}'
 
-@maxLength(5)
-@description('Optional. A unique text value for the solution. This is used to ensure resource names are unique for global resources. Defaults to a 5-character substring of the unique string generated from the subscription ID, resource group name, and solution name.')
-param solutionUniqueText string = substring(uniqueString(subscription().id, resourceGroup().name, solutionName), 0, 5)
-
-var solutionSuffix = toLower(trim(replace(
-  replace(
-    replace(replace(replace(replace('${solutionName}${solutionUniqueText}', '-', ''), '_', ''), '.', ''), '/', ''),
-    ' ',
-    ''
-  ),
-  '*',
-  ''
-)))
-
-var containerRegistryName = 'cr${solutionSuffix}'
-var containerRegistryNameCleaned = replace(containerRegistryName, '-', '')
-var acrName = useLocalBuildLower == 'true' ? containerRegistryNameCleaned : 'kmcontainerreg'
+var acrName = 'kmcontainerreg'
 
 var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 
@@ -263,7 +241,6 @@ module backend_docker 'deploy_backend_docker.bicep' = {
   params: {
     name: 'api-${solutionSuffix}'
     solutionLocation: solutionLocation
-    aideploymentsLocation: aiDeploymentsLocation
     imageTag: imageTag
     acrName: acrName
     appServicePlanId: hostingplan.outputs.name
@@ -271,7 +248,6 @@ module backend_docker 'deploy_backend_docker.bicep' = {
     userassignedIdentityId: managedIdentityModule.outputs.managedIdentityBackendAppOutput.id
     keyVaultName: kvault.outputs.keyvaultName
     aiServicesName: aifoundry.outputs.aiServicesName
-    useLocalBuild: useLocalBuildLower
     azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
     aiSearchName: aifoundry.outputs.aiSearchName 
     appSettings: {
@@ -315,7 +291,6 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
     acrName: acrName
     appServicePlanId: hostingplan.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
-    useLocalBuild: useLocalBuildLower
     appSettings:{
       APP_API_BASE_URL:backend_docker.outputs.appUrl
     }

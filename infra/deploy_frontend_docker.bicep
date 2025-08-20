@@ -17,9 +17,6 @@ param appSettings object = {}
 @description('Required. Contains App Service Plan ID.')
 param appServicePlanId string
 
-@description('Required. Contains User Local Build.')
-param useLocalBuild string
-
 var imageName = 'DOCKER|${acrName}.azurecr.io/km-app:${imageTag}'
 //var name = '${solutionName}-app'
 @description('Required. The name of the app service resource within the current resource group scope.')
@@ -32,7 +29,6 @@ module appService 'deploy_app_service.bicep' = {
     solutionName: name
     appServicePlanId: appServicePlanId
     appImageName: imageName
-    useLocalBuild: useLocalBuild
     appSettings: union(
       appSettings,
       {
@@ -42,23 +38,4 @@ module appService 'deploy_app_service.bicep' = {
   }
 }
 
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2021-09-01' existing = if (useLocalBuild == 'true') {
-  name: acrName
-}
-
-resource AcrPull 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = if (useLocalBuild == 'true') {
-  name: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
-}
-
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (useLocalBuild == 'true') {
-  name: guid(appService.name, AcrPull.id)
-  scope: containerRegistry
-  properties: {
-    roleDefinitionId: AcrPull.id
-    principalId: appService.outputs.identityPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-@description('Contains App URL.')
 output appUrl string = appService.outputs.appUrl
