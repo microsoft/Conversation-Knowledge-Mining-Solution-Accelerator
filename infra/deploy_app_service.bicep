@@ -2,7 +2,7 @@
 targetScope = 'resourceGroup'
 
 @minLength(3)
-@maxLength(15)
+@maxLength(16)
 @description('Required. Contains Solution Name.')
 param solutionName string
 

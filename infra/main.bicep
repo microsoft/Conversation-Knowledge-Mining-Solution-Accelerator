@@ -2,7 +2,7 @@
 targetScope = 'resourceGroup'
 //var abbrs = loadJsonContent('./abbreviations.json')
 @minLength(3)
-@maxLength(15)
+@maxLength(16)
 @description('Required. A unique prefix for all resources in this deployment. This should be 3-20 characters long:')
 param solutionName string = 'kmgen'
 

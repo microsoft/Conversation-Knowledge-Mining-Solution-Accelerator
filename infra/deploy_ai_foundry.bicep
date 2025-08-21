@@ -1,7 +1,7 @@
 // Creates Azure dependent resources for Azure AI studio
 
 @minLength(3)
-@maxLength(15)
+@maxLength(16)
 @description('Required. Contains Solution Name')
 param solutionName string
 
@@ -55,7 +55,7 @@ var workspaceName = 'log-${solutionName}'
 var applicationInsightsName = 'appi-${solutionName}'
 var keyvaultName = 'kv-${solutionName}'
 var location = solutionLocation //'eastus2'
-var aiProjectName = 'aifp-${solutionName}'
+var aiProjectName = 'proj-${solutionName}'
 var aiSearchName = 'srch-${solutionName}'
 var aiSearchConnectionName = 'myCon-${solutionName}'
 
