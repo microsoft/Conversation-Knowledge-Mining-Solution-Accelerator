@@ -36,9 +36,9 @@ class ChatWithDataPlugin:
         self.azure_ai_search_index = config.azure_ai_search_index
         self.use_ai_project_client = config.use_ai_project_client
 
-    @kernel_function(name="ChatWithSQLDatabase",
+    @kernel_function(name="GetDatabaseMetrics",
                      description="Provides quantified results from the database.")
-    async def get_sql_response(
+    async def get_database_metrics(
             self,
             input: Annotated[str, "the question"]
     ):
@@ -94,8 +94,8 @@ class ChatWithDataPlugin:
 
         return answer
 
-    @kernel_function(name="ChatWithCallTranscripts", description="Provides summaries or detailed explanations from the search index.")
-    async def get_answers_from_calltranscripts(
+    @kernel_function(name="GetCallInsights", description="Provides summaries, explanations, and insights from customer call transcripts.")
+    async def get_call_insights(
             self,
             question: Annotated[str, "the question"]
     ):
@@ -168,7 +168,7 @@ class ChatWithDataPlugin:
         return answer
 
     @kernel_function(name="GenerateChartData", description="Generates Chart.js v4.4.4 compatible JSON data for data visualization requests using current and immediate previous context.")
-    async def get_chart_data(
+    async def generate_chart_data(
             self,
             input: Annotated[str, "The user's data visualization request along with relevant conversation history and context needed to generate appropriate chart data"],
     ):
