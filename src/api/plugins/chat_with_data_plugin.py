@@ -174,7 +174,6 @@ class ChatWithDataPlugin:
     ):
         query = input
         query = query.strip()
-        print("Query for chart data:", query, flush=True)
         try:
             agent_info = await ChartAgentFactory.get_agent()
             agent = agent_info["agent"]
@@ -208,5 +207,4 @@ class ChatWithDataPlugin:
 
         except Exception:
             chartdata = 'Details could not be retrieved. Please try again later.'
-        print("Chart data:", chartdata, flush=True)
         return chartdata
