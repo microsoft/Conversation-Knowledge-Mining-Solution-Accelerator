@@ -22,9 +22,13 @@ param appImageName string
 @description('Optional. Contains User Assigned Identity ID.')
 param userassignedIdentityId string = ''
 
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
 resource appService 'Microsoft.Web/sites@2020-06-01' = {
   name: solutionName
   location: solutionLocation
+  tags : tags
   identity: userassignedIdentityId == '' ? {
     type: 'SystemAssigned'
   } : {

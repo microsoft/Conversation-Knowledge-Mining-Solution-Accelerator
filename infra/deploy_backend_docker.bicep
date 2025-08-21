@@ -31,6 +31,10 @@ param azureExistingAIProjectResourceId string = ''
 
 @description('Required. Contains AI Search Name')
 param aiSearchName string
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
 var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
 var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
 var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
@@ -117,6 +121,7 @@ module appService 'deploy_app_service.bicep' = {
         REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
       }
     )
+    tags : tags
   }
 }
 
@@ -206,6 +211,7 @@ module assignAiUserRoleToAiProject 'deploy_foundry_role_assignment.bicep' = {
   }
 }
 
+@description('Contains App URL.')
 output appUrl string = appService.outputs.appUrl
 
 @description('Contains React App Layout Config.')

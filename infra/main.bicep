@@ -289,8 +289,8 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       DUMMY_TEST: 'True'
       SOLUTION_NAME: solutionSuffix
       APP_ENV: 'Prod'
-      tags : tags
     }
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -307,6 +307,7 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
     appSettings:{
       APP_API_BASE_URL:backend_docker.outputs.appUrl
     }
+    tags : tags
   }
   scope: resourceGroup(resourceGroup().name)
 }

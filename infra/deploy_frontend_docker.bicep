@@ -22,6 +22,9 @@ var imageName = 'DOCKER|${acrName}.azurecr.io/km-app:${imageTag}'
 @description('Required. The name of the app service resource within the current resource group scope.')
 param name string
 
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
 module appService 'deploy_app_service.bicep' = {
   name: '${name}-app-module'
   params: {
@@ -35,6 +38,7 @@ module appService 'deploy_app_service.bicep' = {
         APPINSIGHTS_INSTRUMENTATIONKEY: reference(applicationInsightsId, '2015-05-01').InstrumentationKey
       }
     )
+    tags : tags
   }
 }
 
