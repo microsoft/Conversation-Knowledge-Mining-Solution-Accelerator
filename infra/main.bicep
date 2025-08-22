@@ -114,6 +114,8 @@ param enableTelemetry bool = true
 param enableMonitoring bool = false
 @description('Optional. Enable redundancy for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
 param enableRedundancy bool = false
+@description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
+param enableScalability bool = false
 @description('Optional. Enable purge protection for the Key Vault')
 param enablePurgeProtection bool = false
 // @description('Optional. Key vault reference and secret settings for the module\'s secrets export.')
@@ -990,59 +992,328 @@ module saveCosmosDBSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' 
 }
 
 //========== SQL DB module ========== //
-module sqlDBModule 'deploy_sql_db.bicep' = {
-  name: 'deploy_sql_db'
+// module sqlDBModule 'deploy_sql_db.bicep' = {
+//   name: 'deploy_sql_db'
+//   params: {
+//     serverName: 'sql-${solutionSuffix}'
+//     sqlDBName: 'sqldb-${solutionSuffix}'
+//     solutionLocation: secondaryLocation
+//     keyVaultName: keyvault.outputs.name
+//     managedIdentityName: userAssignedIdentity.outputs.name
+//     sqlUsers: [
+//       {
+//         principalId: userAssignedIdentity.outputs.principalId
+//         principalName: userAssignedIdentity.outputs.name
+//         databaseRoles: ['db_datareader', 'db_datawriter']
+//       }
+//     ]
+//     tags : tags
+//   }
+//   scope: resourceGroup(resourceGroup().name)
+// }
+
+module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
+  name: 'serverDeployment'
   params: {
-    serverName: 'sql-${solutionSuffix}'
-    sqlDBName: 'sqldb-${solutionSuffix}'
-    solutionLocation: secondaryLocation
-    keyVaultName: keyvault.outputs.name
-    managedIdentityName: userAssignedIdentity.outputs.name
-    sqlUsers: [
+    // Required parameters
+    name: 'sql-${solutionSuffix}'
+    // Non-required parameters
+    administrators: {
+      azureADOnlyAuthentication: true
+      login: userAssignedIdentity.outputs.name
+      principalType: 'Application'
+      sid: userAssignedIdentity.outputs.principalId
+      tenantId: subscription().tenantId
+    }
+    connectionPolicy: 'Redirect'
+    // customerManagedKey: {
+    //   autoRotationEnabled: true
+    //   keyName: keyvault.outputs.name
+    //   keyVaultResourceId: keyvault.outputs.resourceId
+    //   // keyVersion: keyvault.outputs.
+    // }
+    databases: [
       {
-        principalId: userAssignedIdentity.outputs.principalId
-        principalName: userAssignedIdentity.outputs.name
-        databaseRoles: ['db_datareader', 'db_datawriter']
+        availabilityZone: 1
+        backupLongTermRetentionPolicy: {
+          monthlyRetention: 'P6M'
+        }
+        backupShortTermRetentionPolicy: {
+          retentionDays: 14
+        }
+        collation: 'SQL_Latin1_General_CP1_CI_AS'
+        diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }] : null
+        elasticPoolResourceId: resourceId('Microsoft.Sql/servers/elasticPools', 'sql-${solutionSuffix}', 'sqlswaf-ep-001')
+        licenseType: 'LicenseIncluded'
+        maxSizeBytes: 34359738368
+        name: 'sqldb-${solutionSuffix}'
+        sku: {
+          capacity: 0
+          name: 'ElasticPool'
+          tier: 'GeneralPurpose'
+        }
       }
     ]
-    tags : tags
+    elasticPools: [
+      {
+        availabilityZone: -1
+        //maintenanceConfigurationId: '<maintenanceConfigurationId>'
+        name: 'sqlswaf-ep-001'
+        sku: {
+          capacity: 10
+          name: 'GP_Gen5'
+          tier: 'GeneralPurpose'
+        }
+        roleAssignments: [
+          {
+            principalId: userAssignedIdentity.outputs.principalId
+            principalType: 'ServicePrincipal'
+            roleDefinitionIdOrName: 'db_datareader'
+          }
+          {
+            principalId: userAssignedIdentity.outputs.principalId
+            principalType: 'ServicePrincipal'
+            roleDefinitionIdOrName: 'db_datawriter'
+          }
+
+          //Enable if above access is not sufficient for your use case
+          // {
+          //   principalId: userAssignedIdentity.outputs.principalId
+          //   principalType: 'ServicePrincipal'
+          //   roleDefinitionIdOrName: 'SQL DB Contributor'
+          // }
+          // {
+          //   principalId: userAssignedIdentity.outputs.principalId
+          //   principalType: 'ServicePrincipal'
+          //   roleDefinitionIdOrName: 'SQL Server Contributor'
+          // }
+        ]
+      }
+    ]
+    firewallRules: [
+      {
+        endIpAddress: '255.255.255.255'
+        name: 'AllowSpecificRange'
+        startIpAddress: '0.0.0.0'
+      }
+      {
+        endIpAddress: '0.0.0.0'
+        name: 'AllowAllWindowsAzureIps'
+        startIpAddress: '0.0.0.0'
+      }
+    ]
+    location: solutionLocation
+    managedIdentities: {
+      systemAssigned: true
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
+    primaryUserAssignedIdentityResourceId: userAssignedIdentity.outputs.resourceId
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                {
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.sqlServer]!.outputs.resourceId
+                }
+              ]
+            }
+            service: 'sqlServer'
+            subnetResourceId: virtualNetwork!.outputs.subnetResourceIds[0]
+            tags: tags
+          }
+        ]
+      : []
+    restrictOutboundNetworkAccess: 'Disabled'
+    securityAlertPolicies: [
+      {
+        emailAccountAdmins: true
+        name: 'Default'
+        state: 'Enabled'
+      }
+    ]
+    tags: tags
+    virtualNetworkRules: enablePrivateNetworking
+      ? [
+          {
+            ignoreMissingVnetServiceEndpoint: true
+            name: 'newVnetRule1'
+            virtualNetworkSubnetResourceId: virtualNetwork!.outputs.subnetResourceIds[0]
+          }
+        ]
+      : []
+    vulnerabilityAssessmentsObj: {
+      name: 'default'
+      // recurringScans: {
+      //   emails: [
+      //     'test1@contoso.com'
+      //     'test2@contoso.com'
+      //   ]
+      //   emailSubscriptionAdmins: true
+      //   isEnabled: true
+      // }
+      storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    }
   }
-  scope: resourceGroup(resourceGroup().name)
 }
 
 //========== Deployment script to upload sample data ========== //
-module uploadFiles 'deploy_upload_files_script.bicep' = {
-  name : 'deploy_upload_files_script'
-  params:{
-    solutionLocation: secondaryLocation
-    baseUrl: baseUrl
-    storageAccountName: avmStorageAccount.outputs.name
-    containerName: 'data'
-    managedIdentityResourceId: userAssignedIdentity.outputs.resourceId
-    managedIdentityClientId: userAssignedIdentity.outputs.clientId
+// module uploadFiles 'deploy_upload_files_script.bicep' = {
+//   name : 'deploy_upload_files_script'
+//   params:{
+//     solutionLocation: secondaryLocation
+//     baseUrl: baseUrl
+//     storageAccountName: avmStorageAccount.outputs.name
+//     containerName: 'data'
+//     managedIdentityResourceId: userAssignedIdentity.outputs.resourceId
+//     managedIdentityClientId: userAssignedIdentity.outputs.clientId
+//   }
+// }
+
+// module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+//   name: 'createSqlUserAndRoleScriptDeployment'
+//   params: {
+//     // Required parameters
+//     kind: 'AzurePowerShell'
+//     name: 'rdswaf001'
+//     // Non-required parameters
+//     azCliVersion: '2.52.0'
+//     cleanupPreference: 'Always'
+//     location: solutionLocation
+//     lock: {
+//       kind: 'None'
+//     }
+//     managedIdentities: {
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     retentionInterval: 'P1D'
+//     runOnce: true
+//     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
+//     arguments: join(
+//       [
+//         '-SqlServerName \'${ sqlDBModule.outputs.name }\''
+//         '-SqlDatabaseName \'sqldb-${solutionSuffix}\''
+//         '-ClientId \'${userAssignedIdentity.outputs.clientId}\''
+//         '-DisplayName \'${userAssignedIdentity.outputs.name}\''
+//         '-DatabaseRoles \'${join(databaseRoles, ',')}\''
+//       ],
+//       ' '
+//     )
+//     storageAccountResourceId: avmStorageAccount.outputs.resourceId
+//     tags: tags
+//     timeout: 'PT1H'
+//   }
+// }
+
+//========== AVM WAF ========== //
+//========== Deployment script to upload sample data ========== //
+module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+  name: 'deploymentScriptForUploadFiles'
+  params: {
+    // Required parameters
+    kind: 'AzureCLI'
+    name: 'copy_demo_Data'
+    // Non-required parameters
+    azCliVersion: '2.52.0'
+    cleanupPreference: 'Always'
+    location: secondaryLocation
+    lock: {
+      kind: 'None'
+    }
+    managedIdentities: {
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
+    retentionInterval: 'P1D'
+    runOnce: true
+    primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
+    arguments: '${storageAccountName} ${'data'} ${baseUrl} ${userAssignedIdentity.outputs.resourceId}'
+    storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    tags: tags
+    timeout: 'PT1H'
   }
 }
 
+
 //========== Deployment script to process and index data ========== //
-module createIndex 'deploy_index_scripts.bicep' = {
-  name : 'deploy_index_scripts'
-  params:{
-    solutionLocation: secondaryLocation
-    managedIdentityResourceId:userAssignedIdentity.outputs.resourceId
-    managedIdentityClientId:userAssignedIdentity.outputs.clientId
-    baseUrl:baseUrl
-    keyVaultName:aifoundry.outputs.keyvaultName
-    tags : tags
+// module createIndex 'deploy_index_scripts.bicep' = {
+//   name : 'deploy_index_scripts'
+//   params:{
+//     solutionLocation: secondaryLocation
+//     managedIdentityResourceId:userAssignedIdentity.outputs.resourceId
+//     managedIdentityClientId:userAssignedIdentity.outputs.clientId
+//     baseUrl:baseUrl
+//     keyVaultName:aifoundry.outputs.keyvaultName
+//     tags : tags
+//   }
+//   dependsOn:[sqlDBModule,uploadFiles]
+// }
+
+//========== AVM WAF ========== //
+//========== Deployment script to create index ========== //
+module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+  name: 'deploymentScriptForCreateIndex'
+  params: {
+    // Required parameters
+    kind: 'AzureCLI'
+    name: 'create_search_indexes'
+    // Non-required parameters
+    azCliVersion: '2.52.0'
+    cleanupPreference: 'Always'
+    location: secondaryLocation
+    lock: {
+      kind: 'None'
+    }
+    managedIdentities: {
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
+    retentionInterval: 'P1D'
+    runOnce: true
+    primaryScriptUri: '${baseUrl}infra/scripts/run_create_index_scripts.sh'
+    arguments: '${baseUrl} ${keyvault.outputs.name} ${userAssignedIdentity.outputs.clientId}'
+    storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    tags: tags
+    timeout: 'PT1H'
   }
   dependsOn:[sqlDBModule,uploadFiles]
 }
 
-module hostingplan 'deploy_app_service_plan.bicep' = {
-  name: 'deploy_app_service_plan'
+// module hostingplan 'deploy_app_service_plan.bicep' = {
+//   name: 'deploy_app_service_plan'
+//   params: {
+//     solutionLocation: solutionLocation
+//     HostingPlanName: 'asp-${solutionSuffix}'
+//     tags : tags
+//   }
+// }
+
+// ========== AVM WAF server farm ========== //
+// WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
+// PSRule for Web Server Farm: https://azure.github.io/PSRule.Rules.Azure/en/rules/resource/#app-service
+var webServerFarmResourceName = 'asp-${solutionSuffix}'
+module webServerFarm 'br/public:avm/res/web/serverfarm:0.5.0' = {
+  name: 'deploy_app_service_plan_serverfarm'
   params: {
-    solutionLocation: solutionLocation
-    HostingPlanName: 'asp-${solutionSuffix}'
-    tags : tags
+    name: webServerFarmResourceName
+    tags: tags
+    enableTelemetry: enableTelemetry
+    location: solutionLocation
+    reserved: true
+    kind: 'linux'
+    // WAF aligned configuration for Monitoring
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }] : null
+    // WAF aligned configuration for Scalability
+    skuName: enableScalability || enableRedundancy ? 'P1v3' : 'B3'
+    skuCapacity: enableScalability ? 3 : 1
+    // WAF aligned configuration for Redundancy
+    zoneRedundant: enableRedundancy ? true : false
   }
 }
 
@@ -1053,7 +1324,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
     solutionLocation: solutionLocation
     imageTag: imageTag
     acrName: acrName
-    appServicePlanId: hostingplan.outputs.name
+    appServicePlanId: webServerFarm.outputs.name
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
     userassignedIdentityId: userAssignedIdentity.outputs.principalId
     keyVaultName: keyvault.outputs.name
@@ -1074,7 +1345,7 @@ module backend_docker 'deploy_backend_docker.bicep' = {
       AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
       AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
       SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
-      SQLDB_SERVER: '${sqlDBModule.outputs.sqlServerName}${environment().suffixes.sqlServerHostname}'
+      SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
       SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
       AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
       AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
@@ -1098,7 +1369,7 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
     solutionLocation:solutionLocation
     imageTag: imageTag
     acrName: acrName
-    appServicePlanId: hostingplan.outputs.name
+    appServicePlanId: webServerFarm.outputs.resourceId
     applicationInsightsId: aifoundry.outputs.applicationInsightsId
     appSettings:{
       APP_API_BASE_URL:backend_docker.outputs.appUrl
@@ -1191,10 +1462,10 @@ output AZURE_OPENAI_RESOURCE string = aifoundry.outputs.aiServicesName
 output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutConfig
 
 @description('Contains SQL database name.')
-output SQLDB_DATABASE string = sqlDBModule.outputs.sqlDbName
+output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 
 @description('Contains SQL server name.')
-output SQLDB_SERVER string = sqlDBModule.outputs.sqlServerName
+output SQLDB_SERVER string = sqlDBModule.outputs.name
 
 @description('Contains SQL database user managed identity client ID.')
 output SQLDB_USER_MID string = userAssignedIdentity.outputs.clientId
