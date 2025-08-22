@@ -312,129 +312,126 @@ module frontend_docker 'deploy_frontend_docker.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
-
-@description('Contains Solution Prefix.')
-output solutionSuffix string = solutionSuffix
+@description('Contains Solution Name.')
+output SOLUTION_NAME string = solutionSuffix
 
 @description('Contains Resource Group Name.')
-output resourceGroupName string = resourceGroup().name
+output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Contains Resource Group Location.')
-output resourceGroupLocation string = solutionLocation
-
-@description('Contains Environment Name.')
-output solutionName string = solutionName
+output RESOURCE_GROUP_LOCATION string = solutionLocation
 
 @description('Contains Azure Content Understanding Location.')
-output azureContentUnderstandingLocation string = contentUnderstandingLocation
+output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
 
 @description('Contains Azure Secondary Location.')
-output azureSecondaryLocation string = secondaryLocation
+output AZURE_SECONDARY_LOCATION string = secondaryLocation
 
-@description('Contains AppInsights Instrumentation Key.')
-output appInsightsInstrumentationKey string = backend_docker.outputs.appInsightInstrumentationKey
+@description('Contains Application Insights Instrumentation Key.')
+output APPINSIGHTS_INSTRUMENTATIONKEY string = backend_docker.outputs.appInsightInstrumentationKey
 
 @description('Contains AI Project Connection String.')
-output azureAiProjectConnectionString string = aifoundry.outputs.projectEndpoint
+output AZURE_AI_PROJECT_CONN_STRING string = aifoundry.outputs.projectEndpoint
 
-@description('Contains AI Agent API Version.')
-output azureAiAgentApiVersion string = azureAiAgentApiVersion
 
-@description('Contains AI Foundry Name Name.')
-output azureAiFoundryName string = aifoundry.outputs.aiServicesName
+@description('Contains Azure AI Agent API Version.')
+output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
 
-@description('Contains AI Project Name.')
-output azureAiProjectName string = aifoundry.outputs.aiProjectName
+@description('Contains Azure AI Foundry service name.')
+output AZURE_AI_FOUNDRY_NAME string = aifoundry.outputs.aiServicesName
 
-@description('Contains AI Search Name.')
-output azureAiSearchName string = aifoundry.outputs.aiSearchName
+@description('Contains Azure AI Project name.')
+output AZURE_AI_PROJECT_NAME string = aifoundry.outputs.aiProjectName
 
-@description('Contains AI Search Endpoint.')
-output azureAiSearchEndpoint string = aifoundry.outputs.aiSearchTarget
+@description('Contains Azure AI Search service name.')
+output AZURE_AI_SEARCH_NAME string = aifoundry.outputs.aiSearchName
 
-@description('Contains AI Search Index.')
-output azureAiSearchIndex string = 'call_transcripts_index'
+@description('Contains Azure AI Search endpoint URL.')
+output AZURE_AI_SEARCH_ENDPOINT string = aifoundry.outputs.aiSearchTarget
 
-@description('Contains AI Search Connection Name.')
-output azureAiSearchConnectionName string = aifoundry.outputs.aiSearchConnectionName
+@description('Contains Azure AI Search index name.')
+output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
-@description('Contains Azure Cosmos DB Account.')
-output azureCosmosDbAccount string = cosmosDBModule.outputs.cosmosAccountName
+@description('Contains Azure AI Search connection name.')
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aifoundry.outputs.aiSearchConnectionName
 
-@description('Contains Azure Cosmos DB Conversations Container.')
-output azureCosmosDbConversationsContainer string = 'conversations'
+@description('Contains Azure Cosmos DB account name.')
+output AZURE_COSMOSDB_ACCOUNT string = cosmosDBModule.outputs.cosmosAccountName
 
-@description('Contains Azure Cosmos DB Database.')
-output azureCosmosDbDatabase string = 'db_conversation_history'
+@description('Contains Azure Cosmos DB conversations container name.')
+output AZURE_COSMOSDB_CONVERSATIONS_CONTAINER string = 'conversations'
 
-@description('Contains Cosmos DB Enable Feedback.')
-output azureCOSMOSDB_ENABLE_FEEDBACK string = 'True'
+@description('Contains Azure Cosmos DB database name.')
+output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
 
-@description('Contains OpenAI Deployment Model.')
-output azureOpenaiDeploymentModel string = gptModelName
+@description('Contains Azure Cosmos DB feedback enablement setting.')
+output AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
-@description('Contains OpenAI Deployment Capacity.')
-output azureOpenaiDeploymentModelCapacity int = gptDeploymentCapacity
+@description('Contains Azure OpenAI deployment model name.')
+output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
 
-@description('Contains OpenAI Endpoint.')
-output azureOpenaiENDPOINT string = aifoundry.outputs.aiServicesTarget
+@description('Contains Azure OpenAI deployment model capacity.')
+output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
 
-@description('Contains OpenAI Model Deployment Type.')
-output azureOpenaiModelDeploymentType string = deploymentType
+@description('Contains Azure OpenAI endpoint URL.')
+output AZURE_OPENAI_ENDPOINT string = aifoundry.outputs.aiServicesTarget
 
-@description('Contains OpenAI Embedding Model.')
-output azureOpenaiEmbeddingModel string = embeddingModel
+@description('Contains Azure OpenAI model deployment type.')
+output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
 
-@description('Contains OpenAI Embedding Model Capacity.')
-output azureOpenaiEmbeddingModelCapacity int = embeddingDeploymentCapacity
+@description('Contains Azure OpenAI embedding model name.')
+output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
 
-@description('Contains OpenAI API Version.')
-output azureOpenaiApiVersion string = azureOpenAIApiVersion
+@description('Contains Azure OpenAI embedding model capacity.')
+output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
 
-@description('Contains OpenAI Resource.')
-output azureOenaiResource string = aifoundry.outputs.aiServicesName
+@description('Contains Azure OpenAI API version.')
+output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
 
-@description('Contains React App Layout Config.')
-output reactAppLayoutConfig string = backend_docker.outputs.reactAppLayoutConfig
+@description('Contains Azure OpenAI resource name.')
+output AZURE_OPENAI_RESOURCE string = aifoundry.outputs.aiServicesName
 
-@description('Contains SQL Database.')
-output sqlDatabase string = sqlDBModule.outputs.sqlDbName
+@description('Contains React app layout configuration.')
+output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutConfig
 
-@description('Contains SQL DB Server.')
-output sqlServer string = sqlDBModule.outputs.sqlServerName
+@description('Contains SQL database name.')
+output SQLDB_DATABASE string = sqlDBModule.outputs.sqlDbName
 
-@description('Contains SQL DB User MID.')
-output sqlUserMid string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
+@description('Contains SQL server name.')
+output SQLDB_SERVER string = sqlDBModule.outputs.sqlServerName
 
-@description('Contains Use AI Project Client.')
-output useAiProjectClient string = 'False'
+@description('Contains SQL database user managed identity client ID.')
+output SQLDB_USER_MID string = managedIdentityModule.outputs.managedIdentityBackendAppOutput.clientId
 
-@description('To specify whether to Enable or Disable chat history.')
-output useChatHistoryEnabled string = 'True'
+@description('Contains AI project client usage setting.')
+output USE_AI_PROJECT_CLIENT string = 'False'
 
-@description('To specify whether to Enable or Disable Display Chart.')
-output displayChartDefault string = 'False'
+@description('Contains chat history enablement setting.')
+output USE_CHAT_HISTORY_ENABLED string = 'True'
 
-@description('Contains AI Agent Endpoint.')
-output azureAiAgentEndpoint string = aifoundry.outputs.projectEndpoint
+@description('Contains default chart display setting.')
+output DISPLAY_CHART_DEFAULT string = 'False'
 
-@description('Contains Azure AI Agent Model Deployment Name.')
-output azureAiAgentModelDeploymentName string = gptModelName
+@description('Contains Azure AI Agent endpoint URL.')
+output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
 
-@description('Contains ACR Name.')
-output acrName string = acrName
+@description('Contains Azure AI Agent model deployment name.')
+output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 
-@description('Contains Azure Environment Image Tag.')
-output azureEnvImageTag string = imageTag
+@description('Contains Azure Container Registry name.')
+output ACR_NAME string = acrName
 
-@description('Contains Existing AI Project Resource ID.')
-output azureExistingAiProjectResourceId string = azureExistingAIProjectResourceId
+@description('Contains Azure environment image tag.')
+output AZURE_ENV_IMAGETAG string = imageTag
 
-@description('Contains App Insights Connection String.')
-output applicationinsightsConnectionString string = aifoundry.outputs.applicationInsightsConnectionString
+@description('Contains existing AI project resource ID.')
+output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = azureExistingAIProjectResourceId
 
-@description('Contains API App URL.')
-output apiAppUrl string = backend_docker.outputs.appUrl
+@description('Contains Application Insights connection string.')
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString
 
-@description('Contains Web App URL.')
-output webAppUrl string = frontend_docker.outputs.appUrl
+@description('Contains API application URL.')
+output API_APP_URL string = backend_docker.outputs.appUrl
+
+@description('Contains web application URL.')
+output WEB_APP_URL string = frontend_docker.outputs.appUrl
