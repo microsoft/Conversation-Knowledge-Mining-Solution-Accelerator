@@ -21,8 +21,8 @@ class TestAzureCredentialUtils:
         """Test get_azure_credential in dev environment."""
         # Arrange
         os.environ.update(mock_env_vars)
-        mock_azure_cli_credential = MagicMock()
-        mock_azure_cli_credential.return_value = mock_azure_cli_credential
+        mock_credential_instance = MagicMock()
+        mock_azure_cli_credential.return_value = mock_credential_instance
 
         # Act
         credential = azure_credential_utils.get_azure_credential()
@@ -30,7 +30,8 @@ class TestAzureCredentialUtils:
         # Assert
         mock_azure_cli_credential.assert_called_once()
         mock_managed_identity_credential.assert_not_called()
-        assert credential == mock_azure_cli_credential
+        assert credential == mock_credential_instance
+
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("helpers.azure_credential_utils.AzureCliCredential")
@@ -59,8 +60,8 @@ class TestAzureCredentialUtils:
         """Test get_azure_credential_async in dev environment."""
         # Arrange
         os.environ.update(mock_env_vars)
-        mock_aio_azure_cli_credential = MagicMock()
-        mock_aio_azure_cli_credential.return_value = mock_aio_azure_cli_credential
+        mock_credential_instance = MagicMock()
+        mock_aio_azure_cli_credential.return_value = mock_credential_instance
 
         # Act
         credential = await azure_credential_utils.get_azure_credential_async()
@@ -68,7 +69,7 @@ class TestAzureCredentialUtils:
         # Assert
         mock_aio_azure_cli_credential.assert_called_once()
         mock_aio_managed_identity_credential.assert_not_called()
-        assert credential == mock_aio_azure_cli_credential
+        assert credential == mock_credential_instance
 
     @pytest.mark.asyncio
     @patch.dict(os.environ, {}, clear=True)
