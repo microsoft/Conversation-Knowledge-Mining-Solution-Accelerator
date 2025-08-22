@@ -115,7 +115,7 @@ if exist "%API_ENV_FILE%" (
 REM Parse required variables for role assignments from the appropriate env file
 echo Reading environment variables for role assignments from: %ENV_FILE_FOR_ROLES%
 for /f "tokens=1,* delims==" %%A in ('type "%ENV_FILE_FOR_ROLES%"') do (
-    if "%%A"=="AZURE_RESOURCE_GROUP" set AZURE_RESOURCE_GROUP=%%~B
+    if "%%A"=="RESOURCE_GROUP_NAME" set AZURE_RESOURCE_GROUP=%%~B
     if "%%A"=="AZURE_COSMOSDB_ACCOUNT" set AZURE_COSMOSDB_ACCOUNT=%%~B
     if "%%A"=="AZURE_AI_FOUNDRY_NAME" set "AI_FOUNDRY_NAME=%%~B"
     if "%%A"=="AZURE_AI_SEARCH_NAME" set "SEARCH_SERVICE_NAME=%%~B"
