@@ -32,13 +32,13 @@ class AzureContentUnderstandingClient:
         )
 
     def _get_analyzer_url(self, endpoint, api_version, analyzer_id):
-        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"  # noqa
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"
 
     def _get_analyzer_list_url(self, endpoint, api_version):
         return f"{endpoint}/contentunderstanding/analyzers?api-version={api_version}"
 
     def _get_analyze_url(self, endpoint, api_version, analyzer_id):
-        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"  # noqa
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"
 
     def _get_training_data_config(
         self, storage_container_sas_url, storage_container_path_prefix
@@ -143,7 +143,7 @@ class AzureContentUnderstandingClient:
         if (
             training_storage_container_sas_url
             and training_storage_container_path_prefix
-        ):  # noqa
+        ):
             analyzer_template["trainingData"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,

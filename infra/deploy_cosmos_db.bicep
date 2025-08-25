@@ -1,5 +1,10 @@
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
+
+@description('Required. Contains KeyVault Name')
 param keyVaultName string
+
+@description('Required. Contains Account Name')
 param accountName string 
 // var accountName = '${ solutionName }-cosmos'
 var databaseName = 'db_conversation_history'
@@ -108,6 +113,11 @@ resource AZURE_COSMOSDB_ENABLE_FEEDBACK 'Microsoft.KeyVault/vaults/secrets@2021-
   }
 }
 
+@description('Contains Cosmos Account Name.')
 output cosmosAccountName string = cosmos.name
+
+@description('Contains Cosmos DB Name.')
 output cosmosDatabaseName string = databaseName
+
+@description('Contains Cosmos Container Name.')
 output cosmosContainerName string = collectionName

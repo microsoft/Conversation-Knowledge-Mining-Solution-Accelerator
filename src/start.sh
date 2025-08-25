@@ -75,7 +75,7 @@ setup_environment() {
             value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/^"\(.*\)"$/\1/')
             
             case "$key" in
-                AZURE_RESOURCE_GROUP) AZURE_RESOURCE_GROUP="$value" ;;
+                RESOURCE_GROUP_NAME) AZURE_RESOURCE_GROUP="$value" ;;
                 AZURE_COSMOSDB_ACCOUNT) AZURE_COSMOSDB_ACCOUNT="$value" ;;
                 AZURE_AI_FOUNDRY_NAME) AI_FOUNDRY_NAME="$value" ;;
                 AZURE_AI_SEARCH_NAME) SEARCH_SERVICE_NAME="$value" ;;
