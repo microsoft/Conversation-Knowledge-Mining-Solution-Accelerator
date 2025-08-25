@@ -738,6 +738,11 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
         principalType: 'ServicePrincipal'
         roleDefinitionIdOrName: 'Key Vault Administrator'
       }
+      {
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+      }
     ]
     // secrets: [
     //   {
@@ -1374,6 +1379,216 @@ module webServerFarm 'br/public:avm/res/web/serverfarm:0.5.0' = {
     zoneRedundant: enableRedundancy ? true : false
   }
 }
+
+var reactAppLayoutConfig ='''{
+  "appConfig": {
+    "THREE_COLUMN": {
+      "DASHBOARD": 50,
+      "CHAT": 33,
+      "CHATHISTORY": 17
+    },
+    "TWO_COLUMN": {
+      "DASHBOARD_CHAT": {
+        "DASHBOARD": 65,
+        "CHAT": 35
+      },
+      "CHAT_CHATHISTORY": {
+        "CHAT": 80,
+        "CHATHISTORY": 20
+      }
+    }
+  },
+  "charts": [
+    {
+      "id": "SATISFIED",
+      "name": "Satisfied",
+      "type": "card",
+      "layout": { "row": 1, "column": 1, "height": 11 }
+    },
+    {
+      "id": "TOTAL_CALLS",
+      "name": "Total Calls",
+      "type": "card",
+      "layout": { "row": 1, "column": 2, "span": 1 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME",
+      "name": "Average Handling Time",
+      "type": "card",
+      "layout": { "row": 1, "column": 3, "span": 1 }
+    },
+    {
+      "id": "SENTIMENT",
+      "name": "Topics Overview",
+      "type": "donutchart",
+      "layout": { "row": 2, "column": 1, "width": 40, "height": 44.5 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME_BY_TOPIC",
+      "name": "Average Handling Time By Topic",
+      "type": "bar",
+      "layout": { "row": 2, "column": 2, "row-span": 2, "width": 60 }
+    },
+    {
+      "id": "TOPICS",
+      "name": "Trending Topics",
+      "type": "table",
+      "layout": { "row": 3, "column": 1, "span": 2 }
+    },
+    {
+      "id": "KEY_PHRASES",
+      "name": "Key Phrases",
+      "type": "wordcloud",
+      "layout": { "row": 3, "column": 2, "height": 44.5 }
+    }
+  ]
+}'''
+var imageName = 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
+var backendWebSiteResourceName = 'app-${solutionSuffix}'
+module avmBackend_Docker 'modules/web-sites.bicep' = {
+  name: take('module.web-sites.${backendWebSiteResourceName}', 64)
+  params: {
+    name: backendWebSiteResourceName
+    tags: tags
+    location: solutionLocation
+    kind: 'app,linux,container'
+    serverFarmResourceId: webServerFarm.?outputs.resourceId
+    managedIdentities: {
+      systemAssigned: true
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
+    siteConfig: {
+      linuxFxVersion: imageName
+      minTlsVersion: '1.2'
+    }
+    configs: [
+      {
+        name: 'appsettings'
+        properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          //DOCKER_REGISTRY_SERVER_URL: 'https://${frontendContainerRegistryHostname}'
+          //WEBSITES_PORT: '3000'
+          WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
+          //BACKEND_API_URL: backend_docker.outputs.appUrl //'https://${containerApp.outputs.fqdn}'
+          AUTH_ENABLED: 'false'
+          REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
+          AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
+          AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
+          AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
+          AZURE_OPENAI_RESOURCE: aifoundry.outputs.aiServicesName
+          AZURE_AI_AGENT_ENDPOINT: aifoundry.outputs.projectEndpoint
+          AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
+          AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
+          USE_CHAT_HISTORY_ENABLED: 'True'
+          AZURE_COSMOSDB_ACCOUNT: cosmosDb.outputs.name
+          AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: collectionName
+          AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
+          AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
+          SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
+          SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
+          SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
+          AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
+          AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
+          AZURE_AI_SEARCH_CONNECTION_NAME: aifoundry.outputs.aiSearchConnectionName
+          USE_AI_PROJECT_CLIENT: 'True'
+          DISPLAY_CHART_DEFAULT: 'False'
+          APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
+          DUMMY_TEST: 'True'
+          SOLUTION_NAME: solutionSuffix
+          APP_ENV: 'Prod'
+        }
+        // WAF aligned configuration for Monitoring
+        applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
+      }
+    ]
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+    // WAF aligned configuration for Private Networking
+    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
+    vnetImagePullEnabled: enablePrivateNetworking ? true : false
+    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetPrivateEndpointsResourceId : null
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-${backendWebSiteResourceName}'
+            customNetworkInterfaceName: 'nic-${backendWebSiteResourceName}'
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }]
+            }
+            service: 'sites'
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+            roleAssignments: [
+              {
+                principalId: userAssignedIdentity.outputs.principalId
+                principalType: 'ServicePrincipal'
+                roleDefinitionIdOrName: 'Contributor'
+              }
+            ]
+          }
+        ]
+      : null
+  }
+  scope: resourceGroup(resourceGroup().name)
+}
+
+// module cosmosDBRoleAssignmentForBackendAppService 'br/public:avm/res/document-db/database-account:0.15.0' = {
+//   name: take('cosmosDBRoleAssignmentForBackendAppService-${cosmosDbResourceName}', 64)
+//   params: {
+//     // Required parameters
+//     name: cosmosDbResourceName
+//     roleAssignments: [
+//       {
+//         principalId: avmBackend_Docker.outputs.systemAssignedMIPrincipalId!
+//         principalType: 'ServicePrincipal'
+//         roleDefinitionIdOrName: 'Contributor'
+//       }
+//     ]
+//   }
+// }
+
+// module keyVaultRoleAssignmentForBackendAppService 'br/public:avm/res/key-vault/vault:0.12.1' = {
+//   name: take('keyVaultRoleAssignmentForBackendAppService.${keyVaultName}', 64)
+//   params: {
+//     name: keyVaultName
+//     enablePurgeProtection: enablePurgeProtection
+//     enableVaultForDeployment: true
+//     enableVaultForDiskEncryption: true
+//     enableVaultForTemplateDeployment: true
+//     enableRbacAuthorization: true
+//     enableSoftDelete: true
+//     softDeleteRetentionInDays: 7
+//     roleAssignments: [
+//       {
+//         principalId: avmBackend_Docker.outputs.systemAssignedMIPrincipalId!
+//         principalType: 'ServicePrincipal'
+//         roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6'
+//       }
+//     ]
+//   }
+// }
+
+// Yet to add aiFoundry role assignment for backend app service
+// module aiFoundryRolesAssignmentToBackendAppService 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
+//   name: take('aiFoundryRolesAssignmentToBackendAppService${aiFoundryAiServicesResourceName}', 64)
+//   params: {
+//     name: aiFoundryAiServicesResourceName
+//     existingFoundryProjectResourceId: existingFoundryProjectResourceId
+//     projectName: aiFoundryAiServicesAiProjectResourceName
+//     projectDescription: 'AI Foundry Project'
+//     sku: 'S0'
+//     kind: 'AIServices'
+//     roleAssignments: [
+//       {
+//         roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f' // Search Index Data Reader
+//         principalId: avmBackend_Docker.outputs.?systemAssignedMIPrincipalId
+//         principalType: 'ServicePrincipal'
+//       }
+//     ]
+//   }
+// }
+
 
 module backend_docker 'deploy_backend_docker.bicep' = {
   name: 'deploy_backend_docker'
