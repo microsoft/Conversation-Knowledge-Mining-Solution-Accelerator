@@ -18,7 +18,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.17">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.18">
     
     
       
@@ -1732,7 +1732,7 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <!-- End of mermaid configuration --><div class="jupyter-wrapper">
 <div class="jp-Notebook" data-jp-theme-light="true" data-jp-theme-name="JupyterLab Light">
 <div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=e289da72">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=dfcc801b">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1769,7 +1769,7 @@ from pathlib import Path</div>
 </div>
 </div>
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
-<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=683571d9">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs" id="cell-id=e518500a">
 <div class="jp-Cell-inputWrapper" tabindex="0">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
@@ -1813,13 +1813,13 @@ from pathlib import Path</div>
         <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_analyzer_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">api_version</span><span class="p">,</span> <span class="n">analyzer_id</span><span class="p">):</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">/contentunderstanding/analyzers/</span><span class="si">{</span><span class="n">analyzer_id</span><span class="si">}</span><span class="s2">?api-version=</span><span class="si">{</span><span class="n">api_version</span><span class="si">}</span><span class="s2">"</span>  <span class="c1"># noqa</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">/contentunderstanding/analyzers/</span><span class="si">{</span><span class="n">analyzer_id</span><span class="si">}</span><span class="s2">?api-version=</span><span class="si">{</span><span class="n">api_version</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_analyzer_list_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">api_version</span><span class="p">):</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">/contentunderstanding/analyzers?api-version=</span><span class="si">{</span><span class="n">api_version</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_analyze_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">api_version</span><span class="p">,</span> <span class="n">analyzer_id</span><span class="p">):</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">/contentunderstanding/analyzers/</span><span class="si">{</span><span class="n">analyzer_id</span><span class="si">}</span><span class="s2">:analyze?api-version=</span><span class="si">{</span><span class="n">api_version</span><span class="si">}</span><span class="s2">"</span>  <span class="c1"># noqa</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">/contentunderstanding/analyzers/</span><span class="si">{</span><span class="n">analyzer_id</span><span class="si">}</span><span class="s2">:analyze?api-version=</span><span class="si">{</span><span class="n">api_version</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_training_data_config</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">storage_container_sas_url</span><span class="p">,</span> <span class="n">storage_container_path_prefix</span>
@@ -1924,7 +1924,7 @@ from pathlib import Path</div>
         <span class="k">if</span> <span class="p">(</span>
             <span class="n">training_storage_container_sas_url</span>
             <span class="ow">and</span> <span class="n">training_storage_container_path_prefix</span>
-        <span class="p">):</span>  <span class="c1"># noqa</span>
+        <span class="p">):</span>
             <span class="n">analyzer_template</span><span class="p">[</span><span class="s2">"trainingData"</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_training_data_config</span><span class="p">(</span>
                 <span class="n">training_storage_container_sas_url</span><span class="p">,</span>
                 <span class="n">training_storage_container_path_prefix</span><span class="p">,</span>
@@ -2123,13 +2123,13 @@ from pathlib import Path</div>
         )
 
     def _get_analyzer_url(self, endpoint, api_version, analyzer_id):
-        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"  # noqa
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={api_version}"
 
     def _get_analyzer_list_url(self, endpoint, api_version):
         return f"{endpoint}/contentunderstanding/analyzers?api-version={api_version}"
 
     def _get_analyze_url(self, endpoint, api_version, analyzer_id):
-        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"  # noqa
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"
 
     def _get_training_data_config(
         self, storage_container_sas_url, storage_container_path_prefix
@@ -2234,7 +2234,7 @@ from pathlib import Path</div>
         if (
             training_storage_container_sas_url
             and training_storage_container_path_prefix
-        ):  # noqa
+        ):
             analyzer_template["trainingData"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,
