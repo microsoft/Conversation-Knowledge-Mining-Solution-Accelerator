@@ -755,27 +755,359 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
 }
 
 // ==========AI Foundry and related resources ========== //
-module aifoundry 'deploy_ai_foundry.bicep' = {
-  name: 'deploy_ai_foundry'
-  params: {
-    solutionName: solutionSuffix
-    solutionLocation: aiDeploymentsLocation
-    keyVaultName: keyvault.outputs.name
-    cuLocation: contentUnderstandingLocation
-    deploymentType: deploymentType
-    gptModelName: gptModelName
-    gptModelVersion: gptModelVersion
-    azureOpenAIApiVersion: azureOpenAIApiVersion
-    gptDeploymentCapacity: gptDeploymentCapacity
-    embeddingModel: embeddingModel
-    embeddingDeploymentCapacity: embeddingDeploymentCapacity
-    managedIdentityObjectId: userAssignedIdentity.outputs.principalId
-    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
-    azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
-    tags: tags
+// ========== AI Foundry: AI Services ========== //
+// WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
+
+@description('Optional. Resource ID of an existing Foundry project')
+param existingFoundryProjectResourceId string = ''
+var existingOpenAIEndpoint = !empty(azureExistingAIProjectResourceId) ? format('https://{0}.openai.azure.com/', split(azureExistingAIProjectResourceId, '/')[8]) : ''
+var existingProjEndpoint = !empty(azureExistingAIProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(azureExistingAIProjectResourceId, '/')[8], split(azureExistingAIProjectResourceId, '/')[10]) : ''
+var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
+var existingAIProjectName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
+var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
+var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
+
+// NOTE: Required version 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' not available in AVM
+var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
+var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
+var aiFoundryAIservicesEnabled = true
+var aiModelDeployments = [
+  {
+    name: gptModelName
+    format: 'OpenAI'
+    model: gptModelName
+    sku: {
+      name: deploymentType
+      capacity: gptDeploymentCapacity
+    }
+    version: gptModelVersion
+    raiPolicyName: 'Microsoft.Default'
   }
-  scope: resourceGroup(resourceGroup().name)
+  {
+    name: embeddingModel
+    format: 'OpenAI'
+    model: embeddingModel
+    sku: {
+      name: 'GlobalStandard'
+      capacity: embeddingDeploymentCapacity
+    }
+    version: '2'
+    raiPolicyName: 'Microsoft.Default'
+  }
+]
+
+//TODO: update to AVM module when AI Projects and AI Projects RBAC are supported
+module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
+  name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesResourceName}', 64)
+  params: {
+    name: aiFoundryAiServicesResourceName
+    location: aiDeploymentsLocation
+    tags: tags
+    existingFoundryProjectResourceId: existingFoundryProjectResourceId
+    projectName: !empty(existingAIProjectName) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
+    projectDescription: 'AI Foundry Project'
+    sku: 'S0'
+    kind: 'AIServices'
+    disableLocalAuth: true
+    customSubDomainName: aiFoundryAiServicesResourceName
+    apiProperties: {
+      //staticsEnabled: false
+    }
+    networkAcls: {
+      defaultAction: 'Allow'
+      virtualNetworkRules: []
+      ipRules: []
+    }
+    managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
+    roleAssignments: [
+      {
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '64702f94-c441-49e6-a78b-ef80e0188fee' // Azure AI Developer
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    // WAF aligned configuration for Monitoring
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: (enablePrivateNetworking &&  empty(existingFoundryProjectResourceId))
+      ? ([
+          {
+            name: 'pep-${aiFoundryAiServicesResourceName}'
+            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
+            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                {
+                  name: 'ai-services-dns-zone-cognitiveservices'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+                }
+                {
+                  name: 'ai-services-dns-zone-openai'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+                }
+                {
+                  name: 'ai-services-dns-zone-aiservices'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
+                }
+              ]
+            }
+          }
+        ])
+      : []
+    deployments: [
+      {
+        name: aiModelDeployments[0].name
+        model: {
+          format: aiModelDeployments[0].format
+          name: aiModelDeployments[0].name
+          version: aiModelDeployments[0].version
+        }
+        raiPolicyName: aiModelDeployments[0].raiPolicyName
+        sku: {
+          name: aiModelDeployments[0].sku.name
+          capacity: aiModelDeployments[0].sku.capacity
+        }
+      }
+      {
+        name: aiModelDeployments[1].name
+        model: {
+          format: aiModelDeployments[1].format
+          name: aiModelDeployments[1].name
+          version: aiModelDeployments[1].version
+        }
+        raiPolicyName: aiModelDeployments[1].raiPolicyName
+        sku: {
+          name: aiModelDeployments[1].sku.name
+          capacity: aiModelDeployments[1].sku.capacity
+        }
+      }
+    ]
+  }
 }
+
+// AI Foundry: AI Services Content Understanding
+var aiFoundryAiServicesCUResourceName = 'aif-${solutionSuffix}-cu'
+var aiServicesName_cu = 'aisa-${solutionSuffix}-cu'
+var varKvSecretNameAzureOpenaiCuKey = 'AZURE-OPENAI-CU-KEY'
+// NOTE: Required version 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' not available in AVM
+module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cognitive-services/account:0.10.1' = {
+  name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesCUResourceName}', 64)
+  params: {
+    name: aiServicesName_cu
+    location: aiDeploymentsLocation
+    tags: tags
+    enableTelemetry: enableTelemetry
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+    sku: 'S0'
+    kind: 'AIServices'
+    networkAcls: {
+      defaultAction: 'Allow'
+      virtualNetworkRules: []
+      ipRules: []
+    }
+    managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
+    disableLocalAuth: false //Added this in order to retrieve the keys. Evaluate alternatives
+    customSubDomainName: aiServicesName_cu
+    apiProperties: {
+      // staticsEnabled: false
+    }
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: (enablePrivateNetworking &&  empty(existingFoundryProjectResourceId))
+      ? ([
+          {
+            name: 'pep-${aiFoundryAiServicesResourceName}'
+            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
+            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                {
+                  name: 'ai-services-dns-zone-cognitiveservices'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+                }
+                {
+                  name: 'ai-services-dns-zone-openai'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+                }
+                {
+                  name: 'ai-services-dns-zone-aiservices'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
+                }
+              ]
+            }
+          }
+        ])
+      : []
+    roleAssignments: [
+      {
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      //Options to add more roles if needed in the future
+      // {
+      //   roleDefinitionIdOrName: '64702f94-c441-49e6-a78b-ef80e0188fee' // Azure AI Developer
+      //   principalId: userAssignedIdentity.outputs.principalId
+      //   principalType: 'ServicePrincipal'
+      // }
+      // {
+      //   roleDefinitionIdOrName: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
+      //   principalId: userAssignedIdentity.outputs.principalId
+      //   principalType: 'ServicePrincipal'
+      // }
+    ]
+    secretsExportConfiguration: {
+      keyVaultResourceId: keyvault.outputs.resourceId
+      accessKey1Name: varKvSecretNameAzureOpenaiCuKey
+    }
+  }
+}
+
+// If the above secretsExportConfiguration code not works to store the keys in key vault, uncomment below
+// module saveAIServiceCUSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
+//   name: take('saveAIServiceCUSecretsInKeyVault.${keyVaultName}', 64)
+//   params: {
+//     name: keyVaultName
+//     enablePurgeProtection: enablePurgeProtection
+//     enableVaultForDeployment: true
+//     enableVaultForDiskEncryption: true
+//     enableVaultForTemplateDeployment: true
+//     enableRbacAuthorization: true
+//     enableSoftDelete: true
+//     softDeleteRetentionInDays: 7
+//     secrets: [
+//       {
+//         name: 'AZURE-OPENAI-CU-ENDPOINT'
+//         value: avmCognitiveServicesAccountsContentUnderstanding.outputs.endpoints['OpenAI Language Model Instance API']
+//       }
+//     ]
+//   }
+// }
+
+// ========== AI Foundry: AI Search ========== //
+var aiSearchName = 'srch-${solutionName}'
+var aiSearchConnectionName = 'myCon-${solutionName}'
+var varKvSecretNameAzureSearchKey = 'AZURE-SEARCH-KEY'
+// AI Foundry: AI Search
+module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.9.1' = {
+  name: take('avm.res.cognitive-search-services.${aiSearchName}', 64)
+  params: {
+    name: aiSearchName
+    tags: tags
+    location: aiDeploymentsLocation
+    enableTelemetry: enableTelemetry
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+    sku: 'basic'
+    managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
+    replicaCount: 1
+    partitionCount: 1
+    networkRuleSet: {
+      ipRules: []
+    }
+    roleAssignments: [
+      {
+        roleDefinitionIdOrName: 'Cognitive Search Contributor' // Cognitive Search Contributor
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'// Cognitive Services OpenAI User
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+    ]
+    disableLocalAuth: false
+    authOptions: {
+      apiKeyOnly: {}
+    }
+    semanticSearch: 'free'
+    secretsExportConfiguration: {
+      keyVaultResourceId: keyvault.outputs.resourceId
+      primaryAdminKeyName: varKvSecretNameAzureSearchKey
+    }
+  }
+}
+module existing_AIProject_SearchConnectionModule 'deploy_aifp_aisearch_connection.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+  name: 'aiProjectSearchConnectionDeployment'
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+  params: {
+    existingAIProjectName: existingAIProjectName
+    existingAIServicesName: existingAIServicesName
+    aiSearchName: aiSearchName
+    aiSearchResourceId: avmSearchSearchServices.outputs.resourceId
+    aiSearchLocation: avmSearchSearchServices.outputs.location
+    aiSearchConnectionName: aiSearchConnectionName
+  }
+}
+
+// If the above secretsExportConfiguration code not works to store the keys in key vault, uncomment below
+module saveAISearchServiceSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
+  name: take('saveAISearchServiceSecretsInKeyVault.${keyVaultName}', 64)
+  params: {
+    name: keyVaultName
+    enablePurgeProtection: enablePurgeProtection
+    enableVaultForDeployment: true
+    enableVaultForDiskEncryption: true
+    enableVaultForTemplateDeployment: true
+    enableRbacAuthorization: true
+    enableSoftDelete: true
+    softDeleteRetentionInDays: 7
+    secrets: [
+      {
+        name: 'AZURE-SEARCH-ENDPOINT'
+        value: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
+      }
+      {
+        name: 'AZURE-SEARCH-SERVICE'
+        value: avmSearchSearchServices.outputs.name
+      }
+      {
+        name: 'AZURE-OPENAI-ENDPOINT'
+        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoints['OpenAI Language Model Instance API']
+      }
+      {
+        name: 'COG-SERVICES-ENDPOINT'
+        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoints['OpenAI Language Model Instance API']
+      }
+      {
+        name: 'AZURE-OPENAI-SEARCH-PROJECT'
+        value: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
+      }
+    ]
+  }
+}
+
+
+// module aifoundry 'deploy_ai_foundry.bicep' = {
+//   name: 'deploy_ai_foundry'
+//   params: {
+//     solutionName: solutionSuffix
+//     solutionLocation: aiDeploymentsLocation
+//     keyVaultName: keyvault.outputs.name
+//     cuLocation: contentUnderstandingLocation
+//     deploymentType: deploymentType
+//     gptModelName: gptModelName
+//     gptModelVersion: gptModelVersion
+//     azureOpenAIApiVersion: azureOpenAIApiVersion
+//     gptDeploymentCapacity: gptDeploymentCapacity
+//     embeddingModel: embeddingModel
+//     embeddingDeploymentCapacity: embeddingDeploymentCapacity
+//     managedIdentityObjectId: userAssignedIdentity.outputs.principalId
+//     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+//     azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
+//     tags: tags
+//   }
+//   scope: resourceGroup(resourceGroup().name)
+// }
 
 // ========== Storage account module ========== //
 // module storageAccount 'deploy_storage_account.bicep' = {
@@ -984,6 +1316,13 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
           }
         ]
       : []
+    roleAssignments: [
+      {
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+        roleDefinitionIdOrName: 'Cosmos DB Built-in Data Contributor'
+      }
+    ]
     // WAF aligned configuration for Redundancy
     zoneRedundant: enableRedundancy ? true : false
     capabilitiesToAdd: enableRedundancy ? null : ['EnableServerless']
@@ -1444,7 +1783,7 @@ var reactAppLayoutConfig ='''{
   ]
 }'''
 var imageName = 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
-var backendWebSiteResourceName = 'app-${solutionSuffix}'
+var backendWebSiteResourceName = 'api-${solutionSuffix}'
 module avmBackend_Docker 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${backendWebSiteResourceName}', 64)
   params: {
@@ -1475,10 +1814,10 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           AUTH_ENABLED: 'false'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
-          AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
+          AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoints['OpenAI Language Model Instance API']
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
-          AZURE_OPENAI_RESOURCE: aifoundry.outputs.aiServicesName
-          AZURE_AI_AGENT_ENDPOINT: aifoundry.outputs.projectEndpoint
+          AZURE_OPENAI_RESOURCE: aiFoundryAiServices.outputs.name
+          AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.endpoints['AI Foundry API']
           AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
           AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
           USE_CHAT_HISTORY_ENABLED: 'True'
@@ -1489,12 +1828,12 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
           SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
           SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
-          AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
+          AZURE_AI_SEARCH_ENDPOINT: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
           AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
-          AZURE_AI_SEARCH_CONNECTION_NAME: aifoundry.outputs.aiSearchConnectionName
+          AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchConnectionName
           USE_AI_PROJECT_CLIENT: 'True'
           DISPLAY_CHART_DEFAULT: 'False'
-          APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
+          APPLICATIONINSIGHTS_CONNECTION_STRING: enableMonitoring ? applicationInsights!.outputs.connectionString : ''
           DUMMY_TEST: 'True'
           SOLUTION_NAME: solutionSuffix
           APP_ENV: 'Prod'
@@ -1590,50 +1929,50 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
 // }
 
 
-module backend_docker 'deploy_backend_docker.bicep' = {
-  name: 'deploy_backend_docker'
-  params: {
-    name: 'api-${solutionSuffix}'
-    solutionLocation: solutionLocation
-    imageTag: imageTag
-    acrName: acrName
-    appServicePlanId: webServerFarm.outputs.name
-    applicationInsightsId: aifoundry.outputs.applicationInsightsId
-    userassignedIdentityId: userAssignedIdentity.outputs.principalId
-    keyVaultName: keyvault.outputs.name
-    aiServicesName: aifoundry.outputs.aiServicesName
-    azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
-    aiSearchName: aifoundry.outputs.aiSearchName
-    appSettings: {
-      AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
-      AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
-      AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
-      AZURE_OPENAI_RESOURCE: aifoundry.outputs.aiServicesName
-      AZURE_AI_AGENT_ENDPOINT: aifoundry.outputs.projectEndpoint
-      AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
-      AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
-      USE_CHAT_HISTORY_ENABLED: 'True'
-      AZURE_COSMOSDB_ACCOUNT: cosmosDb.outputs.name
-      AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: collectionName
-      AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
-      AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
-      SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
-      SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
-      SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
-      AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
-      AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
-      AZURE_AI_SEARCH_CONNECTION_NAME: aifoundry.outputs.aiSearchConnectionName
-      USE_AI_PROJECT_CLIENT: 'True'
-      DISPLAY_CHART_DEFAULT: 'False'
-      APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
-      DUMMY_TEST: 'True'
-      SOLUTION_NAME: solutionSuffix
-      APP_ENV: 'Prod'
-    }
-    tags: tags
-  }
-  scope: resourceGroup(resourceGroup().name)
-}
+// module backend_docker 'deploy_backend_docker.bicep' = {
+//   name: 'deploy_backend_docker'
+//   params: {
+//     name: 'api-${solutionSuffix}'
+//     solutionLocation: solutionLocation
+//     imageTag: imageTag
+//     acrName: acrName
+//     appServicePlanId: webServerFarm.outputs.name
+//     applicationInsightsId: aifoundry.outputs.applicationInsightsId
+//     userassignedIdentityId: userAssignedIdentity.outputs.principalId
+//     keyVaultName: keyvault.outputs.name
+//     aiServicesName: aifoundry.outputs.aiServicesName
+//     azureExistingAIProjectResourceId: azureExistingAIProjectResourceId
+//     aiSearchName: aifoundry.outputs.aiSearchName
+//     appSettings: {
+//       AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
+//       AZURE_OPENAI_ENDPOINT: aifoundry.outputs.aiServicesTarget
+//       AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
+//       AZURE_OPENAI_RESOURCE: aifoundry.outputs.aiServicesName
+//       AZURE_AI_AGENT_ENDPOINT: aifoundry.outputs.projectEndpoint
+//       AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
+//       AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
+//       USE_CHAT_HISTORY_ENABLED: 'True'
+//       AZURE_COSMOSDB_ACCOUNT: cosmosDb.outputs.name
+//       AZURE_COSMOSDB_CONVERSATIONS_CONTAINER: collectionName
+//       AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
+//       AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
+//       SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
+//       SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
+//       SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
+//       AZURE_AI_SEARCH_ENDPOINT: aifoundry.outputs.aiSearchTarget
+//       AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
+//       AZURE_AI_SEARCH_CONNECTION_NAME: aifoundry.outputs.aiSearchConnectionName
+//       USE_AI_PROJECT_CLIENT: 'True'
+//       DISPLAY_CHART_DEFAULT: 'False'
+//       APPLICATIONINSIGHTS_CONNECTION_STRING: aifoundry.outputs.applicationInsightsConnectionString
+//       DUMMY_TEST: 'True'
+//       SOLUTION_NAME: solutionSuffix
+//       APP_ENV: 'Prod'
+//     }
+//     tags: tags
+//   }
+//   scope: resourceGroup(resourceGroup().name)
+// }
 
 @description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
 param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
@@ -1649,61 +1988,8 @@ param frontendContainerImageName string = 'km-app'
 // PSRule for Web Server Farm: https://azure.github.io/PSRule.Rules.Azure/en/rules/resource/#app-service
 
 //NOTE: AVM module adds 1 MB of overhead to the template. Keeping vanilla resource to save template size.
-// var webSiteResourceName = 'app-${solutionSuffix}'
-// module avmFrontend_Docker 'modules/web-sites.bicep' = {
-//   name: take('module.web-sites.${webSiteResourceName}', 64)
-//   params: {
-//     name: webSiteResourceName
-//     tags: tags
-//     location: solutionLocation
-//     kind: 'app,linux,container'
-//     serverFarmResourceId: webServerFarm.?outputs.resourceId
-//     siteConfig: {
-//       linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${imageTag}'
-//       minTlsVersion: '1.2'
-//     }
-//     configs: [
-//       {
-//         name: 'appsettings'
-//         properties: {
-//           SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-//           DOCKER_REGISTRY_SERVER_URL: 'https://${frontendContainerRegistryHostname}'
-//           WEBSITES_PORT: '3000'
-//           WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
-//           BACKEND_API_URL: 'https://app-${solutionName}.azurewebsites.net' //'https://${containerApp.outputs.fqdn}'
-//           AUTH_ENABLED: 'false'
-//         }
-//         // WAF aligned configuration for Monitoring
-//         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
-//       }
-//     ]
-//     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-//     // WAF aligned configuration for Private Networking
-//     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
-//     vnetImagePullEnabled: enablePrivateNetworking ? true : false
-//     virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetPrivateEndpointsResourceId : null
-//     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-//     privateEndpoints: enablePrivateNetworking
-//       ? [
-//           {
-//             name: 'pep-${webSiteResourceName}'
-//             customNetworkInterfaceName: 'nic-${webSiteResourceName}'
-//             privateDnsZoneGroup: {
-//               privateDnsZoneGroupConfigs: [
-//                 { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }
-//               ]
-//             }
-//             service: 'sites'
-//             subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
-//           }
-//         ]
-//       : null
-//   }
-//    scope: resourceGroup(resourceGroup().name)
-// }
-
 var webSiteResourceName = 'app-${solutionSuffix}'
-module webSite 'modules/web-sites.bicep' = {
+module avmFrontend_Docker 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${webSiteResourceName}', 64)
   params: {
     name: webSiteResourceName
@@ -1719,7 +2005,12 @@ module webSite 'modules/web-sites.bicep' = {
       {
         name: 'appsettings'
         properties: {
-
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          DOCKER_REGISTRY_SERVER_URL: 'https://${frontendContainerRegistryHostname}'
+          WEBSITES_PORT: '3000'
+          WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
+          BACKEND_API_URL: 'https://app-${solutionName}.azurewebsites.net' //'https://${containerApp.outputs.fqdn}'
+          AUTH_ENABLED: 'false'
         }
         // WAF aligned configuration for Monitoring
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
@@ -1729,7 +2020,7 @@ module webSite 'modules/web-sites.bicep' = {
     // WAF aligned configuration for Private Networking
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
+    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetPrivateEndpointsResourceId : null
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking
       ? [
@@ -1737,15 +2028,63 @@ module webSite 'modules/web-sites.bicep' = {
             name: 'pep-${webSiteResourceName}'
             customNetworkInterfaceName: 'nic-${webSiteResourceName}'
             privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }]
+              privateDnsZoneGroupConfigs: [
+                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }
+              ]
             }
             service: 'sites'
-            subnetResourceId: network!.outputs.subnetWebResourceId
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
           }
         ]
       : null
   }
+   scope: resourceGroup(resourceGroup().name)
 }
+
+// var webSiteResourceName = 'app-${solutionSuffix}'
+// module webSite 'modules/web-sites.bicep' = {
+//   name: take('module.web-sites.${webSiteResourceName}', 64)
+//   params: {
+//     name: webSiteResourceName
+//     tags: tags
+//     location: solutionLocation
+//     kind: 'app,linux,container'
+//     serverFarmResourceId: webServerFarm.?outputs.resourceId
+//     siteConfig: {
+//       linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${imageTag}'
+//       minTlsVersion: '1.2'
+//     }
+//     configs: [
+//       {
+//         name: 'appsettings'
+//         properties: {
+
+//         }
+//         // WAF aligned configuration for Monitoring
+//         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
+//       }
+//     ]
+//     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+//     // WAF aligned configuration for Private Networking
+//     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
+//     vnetImagePullEnabled: enablePrivateNetworking ? true : false
+//     virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
+//     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+//     privateEndpoints: enablePrivateNetworking
+//       ? [
+//           {
+//             name: 'pep-${webSiteResourceName}'
+//             customNetworkInterfaceName: 'nic-${webSiteResourceName}'
+//             privateDnsZoneGroup: {
+//               privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }]
+//             }
+//             service: 'sites'
+//             subnetResourceId: network!.outputs.subnetWebResourceId
+//           }
+//         ]
+//       : null
+//   }
+// }
 
 // module frontend_docker 'deploy_frontend_docker.bicep' = {
 //   name: 'deploy_frontend_docker'
@@ -1780,31 +2119,31 @@ output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocatio
 output AZURE_SECONDARY_LOCATION string = secondaryLocation
 
 @description('Contains Application Insights Instrumentation Key.')
-output APPINSIGHTS_INSTRUMENTATIONKEY string = backend_docker.outputs.appInsightInstrumentationKey
+output APPINSIGHTS_INSTRUMENTATIONKEY string = enableMonitoring ? applicationInsights!.outputs.instrumentationKey : ''
 
 @description('Contains AI Project Connection String.')
-output AZURE_AI_PROJECT_CONN_STRING string = aifoundry.outputs.projectEndpoint
+output AZURE_AI_PROJECT_CONN_STRING string = !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.endpoints['AI Foundry API']
 
 @description('Contains Azure AI Agent API Version.')
 output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
 
 @description('Contains Azure AI Foundry service name.')
-output AZURE_AI_FOUNDRY_NAME string = aifoundry.outputs.aiServicesName
+output AZURE_AI_FOUNDRY_NAME string = !empty(existingAIServicesName) ? existingAIServicesName : aiFoundryAiServices.outputs.name
 
 @description('Contains Azure AI Project name.')
-output AZURE_AI_PROJECT_NAME string = aifoundry.outputs.aiProjectName
+output AZURE_AI_PROJECT_NAME string = !empty(existingAIProjectName) ? existingAIProjectName : aiFoundryAiServices.outputs.aiProjectInfo.name
 
 @description('Contains Azure AI Search service name.')
-output AZURE_AI_SEARCH_NAME string = aifoundry.outputs.aiSearchName
+output AZURE_AI_SEARCH_NAME string = !empty(existingAIServicesName) ? existingAIServicesName : aiFoundryAiServicesResourceName
 
 @description('Contains Azure AI Search endpoint URL.')
-output AZURE_AI_SEARCH_ENDPOINT string = aifoundry.outputs.aiSearchTarget
+output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.search.windows.net'
 
 @description('Contains Azure AI Search index name.')
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
 @description('Contains Azure AI Search connection name.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aifoundry.outputs.aiSearchConnectionName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchConnectionName
 
 @description('Contains Azure Cosmos DB account name.')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDb.outputs.name
@@ -1825,7 +2164,7 @@ output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
 output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
 
 @description('Contains Azure OpenAI endpoint URL.')
-output AZURE_OPENAI_ENDPOINT string = aifoundry.outputs.aiServicesTarget
+output AZURE_OPENAI_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.search.windows.net'
 
 @description('Contains Azure OpenAI model deployment type.')
 output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
@@ -1840,10 +2179,10 @@ output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
 output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
 
 @description('Contains Azure OpenAI resource name.')
-output AZURE_OPENAI_RESOURCE string = aifoundry.outputs.aiServicesName
+output AZURE_OPENAI_RESOURCE string = aiFoundryAiServices.outputs.name
 
 @description('Contains React app layout configuration.')
-output REACT_APP_LAYOUT_CONFIG string = backend_docker.outputs.reactAppLayoutConfig
+output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 
 @description('Contains SQL database name.')
 output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
@@ -1864,7 +2203,7 @@ output USE_CHAT_HISTORY_ENABLED string = 'True'
 output DISPLAY_CHART_DEFAULT string = 'False'
 
 @description('Contains Azure AI Agent endpoint URL.')
-output AZURE_AI_AGENT_ENDPOINT string = aifoundry.outputs.projectEndpoint
+output AZURE_AI_AGENT_ENDPOINT string = !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.endpoints['AI Foundry API']
 
 @description('Contains Azure AI Agent model deployment name.')
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
@@ -1879,7 +2218,7 @@ output AZURE_ENV_IMAGETAG string = imageTag
 output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = azureExistingAIProjectResourceId
 
 @description('Contains Application Insights connection string.')
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = aifoundry.outputs.applicationInsightsConnectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
 
 @description('Contains API application URL.')
 output API_APP_URL string = 'https://app-${solutionName}.azurewebsites.net'
