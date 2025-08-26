@@ -351,4 +351,4 @@ The subscription 'xxxx-xxxx' cannot have more than 1 Container App Environments 
 </details>
 
 💡 Note: If you encounter any other issues, you can refer to the [Common Deployment Errors](https://learn.microsoft.com/en-us/azure/azure-resource-manager/troubleshooting/common-deployment-errors) documentation.
-If the problem persists, you can also raise an bug in our [CKM Github Issues](https://github.com.mcas.ms/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) for further support.
+If the problem persists, you can also raise an bug in our [CKM Github Issues](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) for further support.
