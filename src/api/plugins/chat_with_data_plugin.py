@@ -66,9 +66,9 @@ class ChatWithDataPlugin:
             answer = str(e)
         return answer
 
-    @kernel_function(name="ChatWithSQLDatabase",
+    @kernel_function(name="GetDatabaseMetrics",
                      description="Provides quantified results from the database.")
-    def get_SQL_Response(
+    def get_database_metrics(
             self,
             input: Annotated[str, "the question"]
     ):
@@ -126,9 +126,9 @@ class ChatWithDataPlugin:
             answer = str(e)
         return answer
 
-    @kernel_function(name="ChatWithCallTranscripts",
-                     description="Provides summaries or detailed explanations from the search index.")
-    def get_answers_from_calltranscripts(
+    @kernel_function(name="GetCallInsights",
+                     description="Provides summaries, explanations, and insights from customer call transcripts.")
+    def get_call_insights(
             self,
             question: Annotated[str, "the question"]
     ):
