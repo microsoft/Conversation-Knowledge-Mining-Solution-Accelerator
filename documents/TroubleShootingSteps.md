@@ -61,7 +61,7 @@ Before deploying the resources, you may need to enable the **Bring Your Own Publ
 ![alt text](../documents/Images/AzureHomePage.png)
 
 3. In the Resource Groups search bar, search for the resource group you intend to target for deployment. If it exists, you can proceed with using it.
-![alt text](../documents/images/resourcegroup1.png)
+![alt text](../documents/Images/resourcegroup1.png)
 
  ## Option 2
  
