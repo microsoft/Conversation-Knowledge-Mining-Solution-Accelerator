@@ -58,10 +58,10 @@ Before deploying the resources, you may need to enable the **Bring Your Own Publ
 1. Go to [Azure Portal](https:/portal.azure.com/#home).
  
 2. Click on the **"Resource groups"** option available on the Azure portal home page.
-![alt text](../docs/images/AzureHomePage.png)
+![alt text](../documents/Images/AzureHomePage.png)
 
 3. In the Resource Groups search bar, search for the resource group you intend to target for deployment. If it exists, you can proceed with using it.
-![alt text](../docs/images/resourcegroup1.png)
+![alt text](../documents/images/resourcegroup1.png)
 
  ## Option 2
  
@@ -98,7 +98,7 @@ based on available quota you can deploy application otherwise, you can request f
 <summary><b>InsufficientQuota</b></summary>
 
 - Check if you have sufficient quota available in your subscription before deployment.
-- To verify, refer to the [quota_check](../docs/quota_check.md) file for details.
+- To verify, refer to the [quota_check](../documents/QuotaCheck.md) file for details.
 
 </details>
  
@@ -351,4 +351,4 @@ The subscription 'xxxx-xxxx' cannot have more than 1 Container App Environments 
 </details>
 
 💡 Note: If you encounter any other issues, you can refer to the [Common Deployment Errors](https://learn.microsoft.com/en-us/azure/azure-resource-manager/troubleshooting/common-deployment-errors) documentation.
-If the problem persists, you can also raise an bug in our [MACAE Github Issues](https://github.com/microsoft/Multi-Agent-Custom-Automation-Engine-Solution-Accelerator/issues) for further support.
+If the problem persists, you can also raise an bug in our [CKM Github Issues](https://github.com.mcas.ms/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) for further support.
