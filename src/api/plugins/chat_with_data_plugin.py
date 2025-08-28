@@ -1,209 +1,210 @@
-from typing import Annotated
+"""Plugin for handling chat interactions with data sources using Azure OpenAI and Azure AI Search.
 
-import openai
+This module provides functions for:
+- Responding to greetings and general questions.
+- Generating SQL queries and fetching results from a database.
+- Answering questions using call transcript data from Azure AI Search.
+"""
+
+import re
+from typing import Annotated, Dict, Any
+import ast
+
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
-from azure.identity import DefaultAzureCredential
-from azure.ai.projects import AIProjectClient
+from azure.ai.agents.models import (
+    ListSortOrder,
+    MessageRole,
+    RunStepToolCallDetails)
 
-from common.config.config import Config
 from common.database.sqldb_service import execute_sql_query
+from common.config.config import Config
+from agents.search_agent_factory import SearchAgentFactory
+from agents.sql_agent_factory import SQLAgentFactory
+from agents.chart_agent_factory import ChartAgentFactory
 
 
 class ChatWithDataPlugin:
+    """Plugin for handling chat interactions with data using various AI agents."""
+
     def __init__(self):
         config = Config()
         self.azure_openai_deployment_model = config.azure_openai_deployment_model
-        self.azure_openai_endpoint = config.azure_openai_endpoint
-        self.azure_openai_api_key = config.azure_openai_api_key
-        self.azure_openai_api_version = config.azure_openai_api_version
+        self.ai_project_endpoint = config.ai_project_endpoint
         self.azure_ai_search_endpoint = config.azure_ai_search_endpoint
         self.azure_ai_search_api_key = config.azure_ai_search_api_key
+        self.azure_ai_search_connection_name = config.azure_ai_search_connection_name
         self.azure_ai_search_index = config.azure_ai_search_index
         self.use_ai_project_client = config.use_ai_project_client
-        self.azure_ai_project_conn_string = config.azure_ai_project_conn_string
 
-    @kernel_function(name="Greeting",
-                     description="Respond to any greeting or general questions")
-    def greeting(self, input: Annotated[str, "the question"]) -> Annotated[str, "The output is a string"]:
-        query = input
-
-        try:
-            if self.use_ai_project_client:
-                project = AIProjectClient.from_connection_string(
-                    conn_str=self.azure_ai_project_conn_string,
-                    credential=DefaultAzureCredential()
-                )
-                client = project.inference.get_chat_completions_client()
-
-                completion = client.complete(
-                    model=self.azure_openai_deployment_model,
-                    messages=[
-                        {"role": "system",
-                         "content": "You are a helpful assistant to respond to any greeting or general questions."},
-                        {"role": "user", "content": query},
-                    ],
-                    temperature=0,
-                )
-            else:
-                client = openai.AzureOpenAI(
-                    azure_endpoint=self.azure_openai_endpoint,
-                    api_key=self.azure_openai_api_key,
-                    api_version=self.azure_openai_api_version
-                )
-
-                completion = client.chat.completions.create(
-                    model=self.azure_openai_deployment_model,
-                    messages=[
-                        {"role": "system",
-                         "content": "You are a helpful assistant to respond to any greeting or general questions."},
-                        {"role": "user", "content": query},
-                    ],
-                    temperature=0,
-                )
-            answer = completion.choices[0].message.content
-        except Exception as e:
-            # 'Information from database could not be retrieved. Please try again later.'
-            answer = str(e)
-        return answer
-
-    @kernel_function(name="ChatWithSQLDatabase",
+    @kernel_function(name="GetDatabaseMetrics",
                      description="Provides quantified results from the database.")
-    def get_SQL_Response(
+    async def get_database_metrics(
             self,
             input: Annotated[str, "the question"]
     ):
+        """
+        Executes a SQL generation agent to convert a natural language query into a T-SQL query,
+        executes the SQL, and returns the result.
+
+        Args:
+            input (str): Natural language question to be converted into SQL.
+
+        Returns:
+            str: SQL query result or an error message if failed.
+        """
+
         query = input
-
-        sql_prompt = f'''A valid T-SQL query to find {query} for tables and columns provided below:
-                1. Table: km_processed_data
-                Columns: ConversationId,EndTime,StartTime,Content,summary,satisfied,sentiment,topic,keyphrases,complaint
-                2. Table: processed_data_key_phrases
-                Columns: ConversationId,key_phrase,sentiment
-                Use ConversationId as the primary key as the primary key in tables for queries but not for any other operations.
-                Only return the generated sql query. do not return anything else.'''
-
         try:
-            if self.use_ai_project_client:
-                project = AIProjectClient.from_connection_string(
-                    conn_str=self.azure_ai_project_conn_string,
-                    credential=DefaultAzureCredential()
-                )
-                client = project.inference.get_chat_completions_client()
+            agent_info = await SQLAgentFactory.get_agent()
+            agent = agent_info["agent"]
+            project_client = agent_info["client"]
 
-                completion = client.complete(
-                    model=self.azure_openai_deployment_model,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": sql_prompt},
-                    ],
-                    temperature=0,
-                )
-                sql_query = completion.choices[0].message.content
-                sql_query = sql_query.replace("```sql", '').replace("```", '')
-            else:
-                client = openai.AzureOpenAI(
-                    azure_endpoint=self.azure_openai_endpoint,
-                    api_key=self.azure_openai_api_key,
-                    api_version=self.azure_openai_api_version
-                )
+            thread = project_client.agents.threads.create()
 
-                completion = client.chat.completions.create(
-                    model=self.azure_openai_deployment_model,
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": sql_prompt},
-                    ],
-                    temperature=0,
-                )
-                sql_query = completion.choices[0].message.content
-                sql_query = sql_query.replace("```sql", '').replace("```", '')
+            project_client.agents.messages.create(
+                thread_id=thread.id,
+                role=MessageRole.USER,
+                content=query,
+            )
 
-            answer = execute_sql_query(sql_query)
+            run = project_client.agents.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=agent.id
+            )
+
+            if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
+                return "Details could not be retrieved. Please try again later."
+
+            sql_query = ""
+            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+            for msg in messages:
+                if msg.role == MessageRole.AGENT and msg.text_messages:
+                    sql_query = msg.text_messages[-1].text.value
+                    break
+            sql_query = sql_query.replace("```sql", '').replace("```", '').strip()
+            answer = await execute_sql_query(sql_query)
             answer = answer[:20000] if len(answer) > 20000 else answer
 
-        except Exception as e:
-            # 'Information from database could not be retrieved. Please try again later.'
-            answer = str(e)
+            # Clean up
+            project_client.agents.threads.delete(thread_id=thread.id)
+
+        except Exception:
+            answer = 'Details could not be retrieved. Please try again later.'
+
         return answer
 
-    @kernel_function(name="ChatWithCallTranscripts",
-                     description="Provides summaries or detailed explanations from the search index.")
-    def get_answers_from_calltranscripts(
+    @kernel_function(name="GetCallInsights", description="Provides summaries, explanations, and insights from customer call transcripts.")
+    async def get_call_insights(
             self,
             question: Annotated[str, "the question"]
     ):
-        client = openai.AzureOpenAI(
-            azure_endpoint=self.azure_openai_endpoint,
-            api_key=self.azure_openai_api_key,
-            api_version=self.azure_openai_api_version
-        )
+        """
+        Uses Azure AI Search agent to answer a question based on indexed call transcripts.
 
-        query = question
-        system_message = '''You are an assistant who provides an analyst with helpful information about data.
-        You have access to the call transcripts, call data, topics, sentiments, and key phrases.
-        You can use this information to answer questions.
-        If you cannot answer the question, always return - I cannot answer this question from the data available. Please rephrase or add more details.'''
-        answer = ''
+        Args:
+            question (str): The user's query.
+
+        Returns:
+            dict: A dictionary with the answer and citation metadata.
+        """
+
+        answer: Dict[str, Any] = {"answer": "", "citations": []}
+        agent = None
+
         try:
-            completion = client.chat.completions.create(
-                model=self.azure_openai_deployment_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_message
-                    },
-                    {
-                        "role": "user",
-                        "content": query
-                    }
-                ],
-                seed=42,
-                temperature=0,
-                max_tokens=800,
-                extra_body={
-                    "data_sources": [
-                        {
-                            "type": "azure_search",
-                            "parameters": {
-                                "endpoint": self.azure_ai_search_endpoint,
-                                "index_name": self.azure_ai_search_index,
-                                "semantic_configuration": "my-semantic-config",
-                                "query_type": "vector_simple_hybrid",  # "vector_semantic_hybrid"
-                                "fields_mapping": {
-                                    "content_fields_separator": "\n",
-                                    "content_fields": ["content"],
-                                    "filepath_field": "chunk_id",
-                                    "title_field": "sourceurl",  # null,
-                                    "url_field": "sourceurl",
-                                    "vector_fields": ["contentVector"]
-                                },
-                                "in_scope": "true",
-                                "role_information": system_message,
-                                # "vector_filter_mode": "preFilter", #VectorFilterMode.PRE_FILTER,
-                                # "filter": f"client_id eq '{ClientId}'", #"", #null,
-                                "strictness": 3,
-                                "top_n_documents": 5,
-                                "authentication": {
-                                    "type": "api_key",
-                                    "key": self.azure_ai_search_api_key
-                                },
-                                "embedding_dependency": {
-                                    "type": "deployment_name",
-                                    "deployment_name": "text-embedding-ada-002"
-                                },
+            agent_info = await SearchAgentFactory.get_agent()
+            agent = agent_info["agent"]
+            project_client = agent_info["client"]
 
-                            }
-                        }
-                    ]
-                }
+            thread = project_client.agents.threads.create()
+
+            project_client.agents.messages.create(
+                thread_id=thread.id,
+                role=MessageRole.USER,
+                content=question,
             )
-            answer = completion.choices[0]
 
-            # Limit the content inside citations to 300 characters to minimize load
-            if hasattr(answer.message, 'context') and 'citations' in answer.message.context:
-                for citation in answer.message.context.get('citations', []):
-                    if isinstance(citation, dict) and 'content' in citation:
-                        citation['content'] = citation['content'][:300] + '...' if len(citation['content']) > 300 else citation['content']
-        except BaseException:
-            answer = 'Details could not be retrieved. Please try again later.'
+            run = project_client.agents.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=agent.id,
+                tool_choice={"type": "azure_ai_search"}
+            )
+
+            if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
+            else:
+                def convert_citation_markers(text):
+                    def replace_marker(match):
+                        parts = match.group(1).split(":")
+                        if len(parts) == 2 and parts[1].isdigit():
+                            new_index = int(parts[1]) + 1
+                            return f"[{new_index}]"
+                        return match.group(0)
+
+                    return re.sub(r'【(\d+:\d+)†source】', replace_marker, text)
+
+                for run_step in project_client.agents.run_steps.list(thread_id=thread.id, run_id=run.id):
+                    if isinstance(run_step.step_details, RunStepToolCallDetails):
+                        for tool_call in run_step.step_details.tool_calls:
+                            output_data = tool_call['azure_ai_search']['output']
+                            tool_output = ast.literal_eval(output_data) if isinstance(output_data, str) else output_data
+                            urls = tool_output.get("metadata", {}).get("get_urls", [])
+                            titles = tool_output.get("metadata", {}).get("titles", [])
+
+                            for i, url in enumerate(urls):
+                                title = titles[i] if i < len(titles) else ""
+                                answer["citations"].append({"url": url, "title": title})
+
+                messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+                for msg in messages:
+                    if msg.role == MessageRole.AGENT and msg.text_messages:
+                        answer["answer"] = msg.text_messages[-1].text.value
+                        answer["answer"] = convert_citation_markers(answer["answer"])
+                        break
+                project_client.agents.threads.delete(thread_id=thread.id)
+        except Exception:
+            return "Details could not be retrieved. Please try again later."
         return answer
+
+    @kernel_function(name="GenerateChartData", description="Generates Chart.js v4.4.4 compatible JSON data for data visualization requests using current and immediate previous context.")
+    async def generate_chart_data(
+            self,
+            input: Annotated[str, "The user's data visualization request along with relevant conversation history and context needed to generate appropriate chart data"],
+    ):
+        query = input
+        query = query.strip()
+        try:
+            agent_info = await ChartAgentFactory.get_agent()
+            agent = agent_info["agent"]
+            project_client = agent_info["client"]
+
+            thread = project_client.agents.threads.create()
+
+            project_client.agents.messages.create(
+                thread_id=thread.id,
+                role=MessageRole.USER,
+                content=query,
+            )
+
+            run = project_client.agents.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=agent.id
+            )
+
+            if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
+                return "Details could not be retrieved. Please try again later."
+
+            chartdata = ""
+            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+            for msg in messages:
+                if msg.role == MessageRole.AGENT and msg.text_messages:
+                    chartdata = msg.text_messages[-1].text.value
+                    break
+            # Clean up
+            project_client.agents.threads.delete(thread_id=thread.id)
+
+        except Exception:
+            chartdata = 'Details could not be retrieved. Please try again later.'
+        return chartdata

@@ -1,8 +1,10 @@
+"""Helper functions for processing RAG responses and generating Chart.js-compatible chart data using Azure OpenAI."""
+
 import json
 import time
 import uuid
 import logging
-import openai
+from helpers.azure_openai_helper import get_azure_openai_client
 from common.config.config import Config
 
 # Configure logger
@@ -16,11 +18,7 @@ def process_rag_response(rag_response, query):
     """
     try:
         config = Config()
-        client = openai.AzureOpenAI(
-            azure_endpoint=config.azure_openai_endpoint,
-            api_key=config.azure_openai_api_key,
-            api_version=config.azure_openai_api_version,
-        )
+        client = get_azure_openai_client()
         system_prompt = """You are an assistant that helps generate valid chart data to be shown using chart.js with version 4.4.4 compatible.
         Include chart type and chart options.
         Pick the best chart type for given data.

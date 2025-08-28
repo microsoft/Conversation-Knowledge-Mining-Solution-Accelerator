@@ -467,3 +467,23 @@ export const historyGenerate = async (
     });
   return response;
 };
+
+export const fetchCitationContent = async (body: any) => {
+  try {
+    const response = await fetch(`${baseURL}/api/fetch-azure-search-content`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch azure search content:", error);
+    throw error;
+  }
+};

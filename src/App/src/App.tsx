@@ -156,6 +156,7 @@ const Dashboard: React.FC = () => {
   }, [state.config.appConfig]);
 
   const onHandlePanelStates = (panelName: string) => {
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
     setLayoutWidthUpdated((prevFlag) => !prevFlag);
     const newState = {
       ...panelShowStates,
@@ -203,6 +204,7 @@ const Dashboard: React.FC = () => {
       type: actionConstants.UPDATE_APP_SPINNER_STATUS,
       payload: true,
     });
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
     setClearing(true);
     const response = await historyDeleteAll();
     if (!response.ok) {
@@ -355,7 +357,7 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
-        {state.citation.showCitation && (
+        {state.citation.showCitation && state.citation.currentConversationIdForCitation !== "" && (
           <div
             style={{
               // width: `${panelWidths[panels.DASHBOARD]}%`,

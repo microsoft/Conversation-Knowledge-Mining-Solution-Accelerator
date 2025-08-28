@@ -1,0 +1,143 @@
+# Project information .........................................
+site_name: "Knowledge Mining Microhack: Workshop Guide"
+site_url: https://microsoft.github.io/Conversation-Knowledge-Mining-Solution-Accelerator
+site_author: bsanusi
+site_description: >-
+  Knowlege mining AI solution accelerator for Azure OpenAI Service and Azure Cognitive Search.
+
+# Repository ..................................................
+repo_name: microsoft/Conversation-Knowledge-Mining-Solution-Accelerator
+repo_url: https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator
+
+# Copyright ...................................................
+copyright: >
+  Copyright &copy; 2025 - present Microsoft
+
+# Configuration ...............................................
+theme:
+  name: material
+  features:
+    - navigation.tabs               # Enables top navigation tabs
+    - navigation.indexes            # Ensures only `index.md` files are shown in the sidebar
+  font:
+    code: Roboto Mono  #Monospaced
+    text: Roboto       #Regular
+  # logo: img/postgresql.svg
+  language: en
+  custom_dir: overrides #Add custom header scripts
+
+  # Theme Modes ...............................................
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default 
+      primary: blue
+      accent: pink
+      toggle:
+        icon: material/brightness-2
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue gray
+      accent: dark blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system mode
+  
+  # Theme Features ...............................................
+  features:
+    - navigation.instant    
+    - navigation.expand             # sidebar collapsible sections open
+    - navigation.instant.progress   # load progress indicator
+    - navigation.tracking           # tracks anchor tags in URL
+    - navigation.tabs               # tabbed on desktop, single in mobile    
+    - navigation.tabs.sticky        # tabs stick when scrolling downtheme:
+    - navigation.path               # add breadcrumbs
+    - navigation.indexes            # default index.md in folder is section page
+    - navigation.top
+    - toc.follow
+    - navigation.footer
+    - content.code.copy             # allow copy-paste from codeblocks
+    - content.tabs.link             # Ensures site-wide switch to same tab name
+
+# Extras  ...............................................
+extra:
+  generator: false  
+  #alternate:
+  #  - name: English
+  #    link: https://azure-samples.github.io/postgres-sa-byoac/
+  #    lang: en
+  #  - name: Japanese
+  #    link: https://azure-samples.github.io/postgres-sa-byoac/ja/
+  #    lang: ja
+
+# Plugins  ...............................................
+plugins:
+  - search
+  - mkdocs-jupyter
+
+# Extensions  ...............................................
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      auto_title: true
+      linenums: true
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+# Navigation  ...............................................
+nav:
+  - Introduction: index.md
+  - Overview: workshop/00-Use-Case-Scenerio.md
+      # - Knowledge Mining Hands-on Workshop: workshop/index.md
+  - Challenge 0:
+      - Prerequisites: workshop/Challenge-0/index.md
+      - CU-AI Foundry: workshop/Challenge-0/CU-Challenge.md
+  - Challenge 1:
+      - Solution Overview: workshop/Challenge-1/Solution_Overview.md
+      - Deployment: workshop/Challenge-1/Deployment.md
+      # - App Authentication: workshop/Challenge-1/App_Authentication.md
+      - Explore Data: workshop/Challenge-1/Code_Walkthrough/01_Data_Explore.md
+      - Frontend: workshop/Challenge-1/Code_Walkthrough/02_Frontend.md
+      - Backend: workshop/Challenge-1/Code_Walkthrough/03_Backend.md
+      - API: workshop/Challenge-1/Code_Walkthrough/04_Api.md
+  - Challenge 2:
+      - Explore Dashboard using Natural Language queries: workshop/Challenge-2/index.md
+      # - Step 1: workshop/challenge-3/step-1.md
+      # - Step 2: workshop/challenge-3/step-2.md
+  - Challenge 3 and 4:
+      - Overview: workshop/Challenge-3-and-4/index.md
+      - Challenge 3: workshop/Challenge-3-and-4/Challenge-3.md
+      - Challenge 4: workshop/Challenge-3-and-4/Challenge-4.md
+      - Knowledge Mining API Notebook: workshop/Challenge-3-and-4/knowledge_mining_api.ipynb
+  - Challenge 5:
+      - Overview: workshop/Challenge-5/index.md
+      - Chapter Generation Notebook: workshop/Challenge-5/notebooks/video_chapter_generation.ipynb
+      - Tag Generation Notebook: workshop/Challenge-5/notebooks/video_tag_generation.ipynb
+  - Challenge 6:
+      - Overview: workshop/Challenge-6/index.md
+      - Content Safety Evaluation Notebook: workshop/Challenge-6/Content_safety_evaluation.ipynb
+  - Teardown:
+      - Overview: workshop/Tear-Down/index.md

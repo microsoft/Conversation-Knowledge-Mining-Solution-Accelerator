@@ -5,8 +5,9 @@ from fastapi import HTTPException, status
 from openai import AsyncAzureOpenAI
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity.aio import get_bearer_token_provider
 from helpers.chat_helper import complete_chat_request
+from helpers.azure_credential_utils import get_azure_credential
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +31,6 @@ class HistoryService:
         )
 
         self.azure_openai_endpoint = config.azure_openai_endpoint
-        self.azure_openai_api_key = config.azure_openai_api_key
         self.azure_openai_api_version = config.azure_openai_api_version
         self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.azure_openai_resource = config.azure_openai_resource
@@ -45,7 +45,7 @@ class HistoryService:
 
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
-                credential=DefaultAzureCredential(),
+                credential=get_azure_credential(),
                 database_name=self.azure_cosmosdb_database,
                 container_name=self.azure_cosmosdb_conversations_container,
                 enable_message_feedback=self.azure_cosmosdb_enable_feedback,
@@ -63,20 +63,17 @@ class HistoryService:
                     "AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_RESOURCE is required")
 
             endpoint = self.azure_openai_endpoint or f"https://{self.azure_openai_resource}.openai.azure.com/"
-            api_key = self.azure_openai_api_key
             ad_token_provider = None
 
-            if not api_key:
-                logger.debug("Using Azure AD authentication for OpenAI")
-                ad_token_provider = get_bearer_token_provider(
-                    DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
+            logger.debug("Using Azure AD authentication for OpenAI")
+            ad_token_provider = get_bearer_token_provider(
+                get_azure_credential(), "https://cognitiveservices.azure.com/.default")
 
             if not self.azure_openai_deployment_name:
                 raise ValueError("AZURE_OPENAI_MODEL is required")
 
             return AsyncAzureOpenAI(
                 api_version=self.azure_openai_api_version,
-                api_key=api_key,
                 azure_ad_token_provider=ad_token_provider,
                 default_headers={"x-ms-useragent": user_agent},
                 azure_endpoint=endpoint,
@@ -206,6 +203,7 @@ class HistoryService:
                 input_message=messages[-1],
             )
         else:
+            await cosmos_conversation_client.cosmosdb_client.close()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No assistant message found")

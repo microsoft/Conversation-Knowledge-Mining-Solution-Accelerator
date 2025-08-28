@@ -1,0 +1,7 @@
+openai>=1.46.1
+requests>=2.32.3
+azure-identity>=1.16.0
+python-dotenv>=1.0.1
+tiktoken>=0.8.0
+pydantic>=2.4.2
+tenacity>=8.2.3

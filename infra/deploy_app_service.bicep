@@ -1,18 +1,34 @@
 // ========== Key Vault ========== //
 targetScope = 'resourceGroup'
 
-@description('Solution Name')
+@minLength(3)
+@maxLength(16)
+@description('Required. Contains Solution Name.')
 param solutionName string
 
+@description('Required. Specifies the location for resources.')
+param solutionLocation string
+
 @secure()
+@description('Required. Contains App Settings.')
 param appSettings object = {}
+
+@description('Required. Contains App Service Plan ID.')
 param appServicePlanId string
+
+@description('Required. Contains App Image Name.')
 param appImageName string
+
+@description('Optional. Contains User Assigned Identity ID.')
 param userassignedIdentityId string = ''
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
 
 resource appService 'Microsoft.Web/sites@2020-06-01' = {
   name: solutionName
-  location: resourceGroup().location
+  location: solutionLocation
+  tags : tags
   identity: userassignedIdentityId == '' ? {
     type: 'SystemAssigned'
   } : {
@@ -63,6 +79,10 @@ resource configLogs 'Microsoft.Web/sites/config@2022-03-01' = {
   dependsOn: [configAppSettings]
 }
 
+
+@description('Contains Identity Principle ID.')
 output identityPrincipalId string = appService.identity.principalId
+
+@description('Contains App URL.')
 output appUrl string = 'https://${solutionName}.azurewebsites.net'
 

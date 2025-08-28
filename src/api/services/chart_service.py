@@ -14,13 +14,13 @@ class ChartService:
     Service class for handling chart-related data retrieval.
     """
 
-    def fetch_filter_data(self):
+    async def fetch_filter_data(self):
         """
         Fetch filter data for charts.
         """
         try:
-            adjust_processed_data_dates()
-            return fetch_filters_data()
+            await adjust_processed_data_dates()
+            return await fetch_filters_data()
         except Exception as e:
             logger.error("Error in fetch_filter_data: %s", e, exc_info=True)
             raise HTTPException(

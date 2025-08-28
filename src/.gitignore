@@ -26,3 +26,7 @@ frontend/node_modules
 .azure/
 __pycache__/
 .ipynb_checkpoints/
+
+.myenv
+/myenv
+myenv

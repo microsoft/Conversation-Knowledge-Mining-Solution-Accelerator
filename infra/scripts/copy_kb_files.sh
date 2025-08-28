@@ -33,3 +33,5 @@ az login --identity --client-id ${managedIdentityClientId}
 # Using az storage blob upload-batch to upload files with managed identity authentication, as the az storage fs directory upload command is not working with managed identity authentication.
 az storage blob upload-batch --account-name "$storageAccount" --destination data/"$extractedFolder1" --source /mnt/azscripts/azscriptinput/"$extractedFolder1" --auth-mode login --pattern '*' --overwrite
 az storage blob upload-batch --account-name "$storageAccount" --destination data/"$extractedFolder2" --source /mnt/azscripts/azscriptinput/"$extractedFolder2" --auth-mode login --pattern '*' --overwrite
+az storage fs directory create --account-name "$storageAccount" --file-system data --name custom_audiodata --auth-mode login
+az storage fs directory create --account-name "$storageAccount" --file-system data --name custom_transcripts --auth-mode login

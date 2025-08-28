@@ -4,6 +4,7 @@ import { useAppContext } from '../../state/useAppContext';
 import { actionConstants } from '../../state/ActionConstants';
 import "./Citations.css";
 import { AskResponse, Citation } from '../../types/AppTypes';
+import { fetchCitationContent } from '../../api/api';
 
 interface Props {
     answer: AskResponse;
@@ -27,12 +28,13 @@ const Citations = ({ answer, index }: Props) => {
         return citationFilename;
     };
 
-    const onCitationClicked = (
+    const onCitationClicked = async (
         citation: Citation
     ) => {
+        const citationContent = await fetchCitationContent(citation);
         dispatch({
             type: actionConstants.UPDATE_CITATION,
-            payload: { showCitation: true, activeCitation: citation },
+            payload: { showCitation: true, activeCitation: {...citation, content:citationContent.content}, currentConversationIdForCitation: state?.selectedConversationId},
         });
     };
 

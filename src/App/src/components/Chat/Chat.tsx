@@ -354,7 +354,7 @@ const Chat: React.FC<ChatProps> = ({
       }
       saveToDB(updatedMessages, conversationId, 'graph');
     } catch (e) {
-      console.log("Catched with an error while chat and save", e);
+      console.log("Caught with an error while chat and save", e);
       if (abortController.signal.aborted) {
         if (streamMessage.content) {
           updatedMessages = [
@@ -491,7 +491,7 @@ const Chat: React.FC<ChatProps> = ({
                   if (parsed?.error && !hasError) {
                     hasError = true;
                     runningText = parsed?.error;
-                  } else if (isChartQuery(userMessage)) {
+                  } else if (isChartQuery(userMessage) && !hasError) {
                     runningText = runningText + textValue;
                   } else if (typeof parsed === "object" && !hasError) {
                     const responseContent  = parsed?.choices?.[0]?.messages?.[0]?.content;
@@ -558,11 +558,23 @@ const Chat: React.FC<ChatProps> = ({
           scrollChatToBottom();
         } else if (isChartQuery(userMessage)) {
           try {
-            const parsedChartResponse = JSON.parse(runningText);
+            const splitRunningText = runningText.split("}{");
+            let parsedChartResponse: any = {};
+            parsedChartResponse= JSON.parse("{" + splitRunningText[splitRunningText.length - 1]);
+            let chartResponse : any = {};
+            try {
+              chartResponse = JSON.parse(parsedChartResponse?.choices[0]?.messages[0]?.content)
+            } catch (e) {
+              chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
+            }
+            
+            if (typeof chartResponse === 'object' && chartResponse?.answer) {
+              chartResponse = chartResponse.answer;
+            }
+            
             if (
-              "object" in parsedChartResponse &&
-              parsedChartResponse?.object?.type &&
-              parsedChartResponse?.object?.data
+              chartResponse?.type &&
+              chartResponse?.data
             ) {
               // CHART CHECKING
               try {
@@ -570,7 +582,7 @@ const Chat: React.FC<ChatProps> = ({
                   id: generateUUIDv4(),
                   role: ASSISTANT,
                   content:
-                    parsedChartResponse.object as unknown as ChartDataResponse,
+                    chartResponse as unknown as ChartDataResponse,
                   date: new Date().toISOString(),
                 };
                 updatedMessages = [
@@ -604,12 +616,12 @@ const Chat: React.FC<ChatProps> = ({
                 scrollChatToBottom();
               }
             } else if (
-              parsedChartResponse.error ||
-              parsedChartResponse?.object?.message
+              parsedChartResponse?.error ||
+              parsedChartResponse?.choices[0]?.messages[0]?.content
             ) {
               const errorMsg =
-                parsedChartResponse.error ||
-                parsedChartResponse?.object?.message;
+                parsedChartResponse?.error ||
+                parsedChartResponse?.choices[0]?.messages[0]?.content
               const errorMessage: ChatMessage = {
                 id: generateUUIDv4(),
                 role: ERROR,
@@ -642,11 +654,11 @@ const Chat: React.FC<ChatProps> = ({
           ];
         }
       }
-      if (!updatedMessages.find((msg: any) => msg.role=== "error")) {
+      if (updatedMessages[updatedMessages.length-1]?.role !== "error") {
         saveToDB(updatedMessages, conversationId, isChatReq);
       }
     } catch (e) {
-      console.log("Catched with an error while chat and save", e);
+      console.log("Caught with an error while chat and save", e);
       if (abortController.signal.aborted) {
         if (streamMessage.content) {
           updatedMessages = [
@@ -718,6 +730,7 @@ const Chat: React.FC<ChatProps> = ({
 
   const onNewConversation = () => {
     dispatch({ type: actionConstants.NEW_CONVERSATION_START });
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
   };
   const { messages, citations } = state.chat;
   return (

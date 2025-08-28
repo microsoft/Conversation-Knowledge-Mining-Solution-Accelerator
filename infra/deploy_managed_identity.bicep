@@ -2,23 +2,23 @@
 targetScope = 'resourceGroup'
 
 @minLength(3)
-@maxLength(15)
-@description('Solution Name')
+@maxLength(16)
+@description('Required. Contains Solution Name.')
 param solutionName string
 
-@description('Solution Location')
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
 
-@description('Name')
-param miName string = '${ solutionName }-managed-identity'
+@description('Required. Contains MI Name.')
+param miName string 
+
+@description('Optional. The tags to apply to all deployed Azure resources.')
+param tags object = {}
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: miName
   location: solutionLocation
-  tags: {
-    app: solutionName
-    location: solutionLocation
-  }
+  tags: tags
 }
 
 @description('This is the built-in owner role. See https://docs.microsoft.com/azure/role-based-access-control/built-in-roles#owner')
@@ -45,6 +45,7 @@ resource managedIdentityBackendApp 'Microsoft.ManagedIdentity/userAssignedIdenti
   }
 }
 
+@description('Contains Managed Identity Object details.')
 output managedIdentityOutput object = {
   id: managedIdentity.id
   objectId: managedIdentity.properties.principalId
@@ -52,6 +53,7 @@ output managedIdentityOutput object = {
   name: miName
 }
 
+@description('Contains Managed Identity Backend App Output details..')
 output managedIdentityBackendAppOutput object = {
   id: managedIdentityBackendApp.id
   objectId: managedIdentityBackendApp.properties.principalId

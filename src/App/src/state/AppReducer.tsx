@@ -257,8 +257,9 @@ const appReducer = (state: AppState, action: Action): AppState => {
         ...state,
         citation: {
           ...state.citation,
-          activeCitation: action.payload.activeCitation,
-          showCitation: action.payload.showCitation
+          activeCitation: action.payload.activeCitation || state.citation.activeCitation,   
+          showCitation: action.payload.showCitation,
+          currentConversationIdForCitation: action.payload?.currentConversationIdForCitation || state.citation.currentConversationIdForCitation,
         },
       };
     default:

@@ -24,10 +24,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Azure Container Registry
         if: ${{ (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) || (github.event_name == 'workflow_dispatch' && (github.ref_name == 'dependabotchanges'||github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) }}
@@ -49,7 +49,7 @@ jobs:
         id: determine_tag
         run: |
          if [[ "${{ github.ref_name }}" == "main" ]]; then
-          echo "tagname=latest_migrated" >> $GITHUB_OUTPUT
+          echo "tagname=latest_fdp" >> $GITHUB_OUTPUT
          elif [[ "${{ github.ref_name }}" == "dev" ]]; then
           echo "tagname=dev" >> $GITHUB_OUTPUT
          elif [[ "${{ github.ref_name }}" == "demo" ]]; then
@@ -67,8 +67,8 @@ jobs:
           file: ./src/App/WebApp.Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
 
       - name: Build and Push Docker Image for api
         uses: docker/build-push-action@v6
@@ -77,5 +77,5 @@ jobs:
           file: ./src/api/ApiApp.Dockerfile
           push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
           tags: |
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-api:${{ steps.determine_tag.outputs.tagname }}
-            ${{ secrets.ACR_LOGIN_SERVER }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}

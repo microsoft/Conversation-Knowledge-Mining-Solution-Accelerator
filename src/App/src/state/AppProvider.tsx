@@ -33,8 +33,9 @@ export type AppState = {
     citations: string |null;
   };
   citation: {
-    activeCitation: any;
+    activeCitation?: any;
     showCitation: boolean;
+    currentConversationIdForCitation?: string;
   };
   chatHistory: {
     list: Conversation[];
@@ -77,6 +78,7 @@ const initialState: AppState = {
   citation: {
     activeCitation: null,
     showCitation: false,
+    currentConversationIdForCitation: '',
   },
   chatHistory: {
     list: [],
@@ -207,7 +209,7 @@ export type Action =
     }
   | {
     type: typeof actionConstants.UPDATE_CITATION;
-    payload: {activeCitation: any, showCitation: boolean};
+    payload: {activeCitation?: any, showCitation: boolean, currentConversationIdForCitation?: string};
   };
 
 export const AppContext = createContext<{

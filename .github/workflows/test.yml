@@ -6,6 +6,7 @@ on:
       - main
       - dev
       - demo
+      - psl-backend-unittest
   pull_request:
     types:
       - opened
@@ -18,58 +19,57 @@ on:
       - demo
 
 jobs:
-#   frontend_tests:
-#     runs-on: ubuntu-latest
+  #   frontend_tests:
+  #     runs-on: ubuntu-latest
 
 #     steps:
 #       - name: Checkout code
-#         uses: actions/checkout@v3
+#         uses: actions/checkout@v4
 
-#       - name: Set up Node.js
-#         uses: actions/setup-node@v3
-#         with:
-#           node-version: '20'
+  #       - name: Set up Node.js
+  #         uses: actions/setup-node@v3
+  #         with:
+  #           node-version: '20'
 
-#       - name: Check if Frontend Test Files Exist
-#         id: check_frontend_tests
-#         run: |
-#           if [ -z "$(find App/frontend/src -type f -name '*.test.js' -o -name '*.test.ts' -o -name '*.test.tsx')" ]; then
-#             echo "No frontend test files found, skipping frontend tests."
-#             echo "skip_frontend_tests=true" >> $GITHUB_ENV
-#           else
-#             echo "Frontend test files found, running tests."
-#             echo "skip_frontend_tests=false" >> $GITHUB_ENV
-#           fi
+  #       - name: Check if Frontend Test Files Exist
+  #         id: check_frontend_tests
+  #         run: |
+  #           if [ -z "$(find App/frontend/src -type f -name '*.test.js' -o -name '*.test.ts' -o -name '*.test.tsx')" ]; then
+  #             echo "No frontend test files found, skipping frontend tests."
+  #             echo "skip_frontend_tests=true" >> $GITHUB_ENV
+  #           else
+  #             echo "Frontend test files found, running tests."
+  #             echo "skip_frontend_tests=false" >> $GITHUB_ENV
+  #           fi
 
-#       - name: Install Frontend Dependencies
-#         if: env.skip_frontend_tests == 'false'
-#         run: |
-#           cd App/frontend
-#           npm install
+  #       - name: Install Frontend Dependencies
+  #         if: env.skip_frontend_tests == 'false'
+  #         run: |
+  #           cd App/frontend
+  #           npm install
 
-#       - name: Run Frontend Tests with Coverage
-#         if: env.skip_frontend_tests == 'false'
-#         run: |
-#           cd App/frontend
-#           npm run test -- --coverage
+  #       - name: Run Frontend Tests with Coverage
+  #         if: env.skip_frontend_tests == 'false'
+  #         run: |
+  #           cd App/frontend
+  #           npm run test -- --coverage
 
-#       - name: Skip Frontend Tests
-#         if: env.skip_frontend_tests == 'true'
-#         run: |
-#           echo "Skipping frontend tests because no test files were found."
+  #       - name: Skip Frontend Tests
+  #         if: env.skip_frontend_tests == 'true'
+  #         run: |
+  #           echo "Skipping frontend tests because no test files were found."
 
   backend_tests:
     runs-on: ubuntu-latest
-    
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Backend Dependencies
         run: |
@@ -81,7 +81,7 @@ jobs:
       - name: Check if Backend Test Files Exist
         id: check_backend_tests
         run: |
-          if [ -z "$(find src/api -type f -name 'test_*.py')" ]; then
+          if [ -z "$(find src/tests/api -type f -name 'test_*.py')" ]; then
             echo "No backend test files found, skipping backend tests."
             echo "skip_backend_tests=true" >> $GITHUB_ENV
           else
@@ -92,9 +92,7 @@ jobs:
       - name: Run Backend Tests with Coverage
         if: env.skip_backend_tests == 'false'
         run: |
-          pytest --cov=. --cov-report=term-missing --cov-report=xml
-
-
+          pytest --cov=. --cov-report=term-missing --cov-report=xml ./src/tests/api
 
       - name: Skip Backend Tests
         if: env.skip_backend_tests == 'true'

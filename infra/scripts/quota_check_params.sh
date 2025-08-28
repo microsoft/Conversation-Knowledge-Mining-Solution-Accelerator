@@ -47,7 +47,7 @@ log_verbose() {
 }
 
 # Default Models and Capacities (Comma-separated in "model:capacity" format)
-DEFAULT_MODEL_CAPACITY="gpt-4o:30,gpt-4o-mini:30,gpt-4:30,text-embedding-ada-002:80"
+DEFAULT_MODEL_CAPACITY="gpt-4o:150,gpt-4o-mini:150,gpt-4:150,text-embedding-ada-002:80"
 
 # Convert the comma-separated string into an array
 IFS=',' read -r -a MODEL_CAPACITY_PAIRS <<< "$DEFAULT_MODEL_CAPACITY"
@@ -93,7 +93,7 @@ az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 echo "🎯 Active Subscription: $(az account show --query '[name, id]' --output tsv)"
 
 # Default Regions to check (Comma-separated, now configurable)
-DEFAULT_REGIONS="eastus,uksouth,eastus2,northcentralus,swedencentral,westus,westus2,southcentralus,canadacentral"
+DEFAULT_REGIONS="eastus,eastus2,australiaeast,uksouth,francecentral,westus"
 IFS=',' read -r -a DEFAULT_REGION_ARRAY <<< "$DEFAULT_REGIONS"
 
 # Read parameters (if any)
@@ -165,11 +165,7 @@ for REGION in "${REGIONS[@]}"; do
         FOUND=false
         INSUFFICIENT_QUOTA=false
 
-        if [ "$MODEL_NAME" = "text-embedding-ada-002" ]; then
-            MODEL_TYPES=("openai.standard.$MODEL_NAME")
-        else
-            MODEL_TYPES=("openai.standard.$MODEL_NAME" "openai.globalstandard.$MODEL_NAME")
-        fi
+        MODEL_TYPES=("openai.standard.$MODEL_NAME" "openai.globalstandard.$MODEL_NAME")
 
         for MODEL_TYPE in "${MODEL_TYPES[@]}"; do
             FOUND=false

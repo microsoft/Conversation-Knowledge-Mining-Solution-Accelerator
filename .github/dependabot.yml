@@ -1,37 +1,52 @@
 version: 2
+
 updates:
- # GitHub Actions dependencies
- - package-ecosystem: "github-actions"
-   directory: "/"
-   schedule:
-     interval: "monthly"
-   commit-message:
-     prefix: "build"
-   target-branch: "dependabotchanges"
-   open-pull-requests-limit: 100
+  # GitHub Actions - grouped
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
- - package-ecosystem: "pip"
-   directory: "/src/api"
-   schedule:
-     interval: "monthly"
-   commit-message:
-     prefix: "build"
-   target-branch: "dependabotchanges"
-   open-pull-requests-limit: 100
+  # Python backend dependencies - grouped
+  - package-ecosystem: "pip"
+    directory: "/src/api"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      backend-deps:
+        patterns:
+          - "*"
 
- - package-ecosystem: "npm"
-   directory: "/src/App"
-   schedule:
-     interval: "monthly"
-   commit-message:
-     prefix: "build"
-   target-branch: "dependabotchanges"
-   open-pull-requests-limit: 100
-   registries:
-     - npm_public_registry  # Only use public npm registry
+  # Frontend npm dependencies - grouped
+  - package-ecosystem: "npm"
+    directory: "/src/App"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    registries:
+      - npm_public_registry
+    groups:
+      frontend-deps:
+        patterns:
+          - "*"
 
 registries:
- npm_public_registry:
-   type: "npm-registry"
-   url: "https://registry.npmjs.org/"
-   token: ${{ secrets.TOKEN }}
+  npm_public_registry:
+    type: "npm-registry"
+    url: "https://registry.npmjs.org/"
+    token: ${{ secrets.TOKEN }}

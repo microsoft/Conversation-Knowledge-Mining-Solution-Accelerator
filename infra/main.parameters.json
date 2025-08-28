@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "AZURE_LOCATION": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "contentUnderstandingLocation" :{
+      "value": "${AZURE_CONTENT_UNDERSTANDING_LOCATION}"
+    },
+    "secondaryLocation": {
+      "value": "${AZURE_SECONDARY_LOCATION}"
+    },
+    "deploymentType": {
+      "value": "${AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE}"
+    },
+    "gptModelName": {
+      "value": "${AZURE_OPENAI_DEPLOYMENT_MODEL}"
+    },
+    "gptModelVersion": {
+      "value": "${AZURE_ENV_MODEL_VERSION}"
+    },
+    "azureOpenaiAPIVersion ": {
+      "value": "${AZURE_OPENAI_API_VERSION}"
+    },
+    "gptDeploymentCapacity": {
+      "value": "${AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY}"
+    },
+    "embeddingModel": {
+      "value": "${AZURE_OPENAI_EMBEDDING_MODEL}"
+    },
+    "embeddingDeploymentCapacity": {
+      "value": "${AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY}"
+    },
+    "imageTag": {
+      "value": "${AZURE_ENV_IMAGETAG}"
+    },
+    "existingLogAnalyticsWorkspaceId": {
+      "value": "${AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID}"
+    },
+    "azureExistingAIProjectResourceId": {
+      "value": "${AZURE_EXISTING_AI_PROJECT_RESOURCE_ID}"
+    }
+  }
+}

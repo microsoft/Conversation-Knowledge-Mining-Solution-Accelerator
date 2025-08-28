@@ -1,21 +1,47 @@
+@description('Required. Contains the Image Tag.')
 param imageTag string
+
+@description('Required. Contains ACR Name.')
+param acrName string
+
+@description('Required. Contains Application Insights ID.')
 param applicationInsightsId string
-param solutionName string
+
+@description('Required. Contains Solution Location.')
+param solutionLocation string
+
 @secure()
+@description('Required. Contains App Settings.')
 param appSettings object = {}
+
+@description('Required. Contains App Service Plan ID.')
 param appServicePlanId string
-@secure()
- param azureOpenAIKey string
- @secure()
- param azureAiProjectConnString string
- @secure()
- param azureSearchAdminKey string
+
+@description('Required. Contains User Assigned Identity ID.')
 param userassignedIdentityId string
-param aiProjectName string
 
-var imageName = 'DOCKER|kmcontainerreg.azurecr.io/km-api:${imageTag}'
-var name = '${solutionName}-api'
+@description('Required. Contains KeyVault Name.')
+param keyVaultName string
 
+@description('Required. Contains AI Services Name.')
+param aiServicesName string
+
+@description('Required. Contains Existing AI Project Resource ID.')
+param azureExistingAIProjectResourceId string = ''
+
+@description('Required. Contains AI Search Name')
+param aiSearchName string
+
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
+var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
+var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
+var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
+var existingAIProjectName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
+
+var imageName = 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
+param name string 
 var reactAppLayoutConfig ='''{
   "appConfig": {
     "THREE_COLUMN": {
@@ -84,19 +110,18 @@ module appService 'deploy_app_service.bicep' = {
   name: '${name}-app-module'
   params: {
     solutionName: name
+    solutionLocation:solutionLocation
     appServicePlanId: appServicePlanId
     appImageName: imageName
     userassignedIdentityId:userassignedIdentityId
     appSettings: union(
       appSettings,
       {
-        AZURE_OPENAI_API_KEY: azureOpenAIKey
-        AZURE_AI_SEARCH_API_KEY: azureSearchAdminKey
-        AZURE_AI_PROJECT_CONN_STRING:azureAiProjectConnString
         APPINSIGHTS_INSTRUMENTATIONKEY: reference(applicationInsightsId, '2015-05-01').InstrumentationKey
         REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
       }
     )
+    tags : tags
   }
 }
 
@@ -119,21 +144,78 @@ resource role 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2022-05-
   }
 }
 
-resource aiHubProject 'Microsoft.MachineLearningServices/workspaces@2024-01-01-preview' existing = {
-  name: aiProjectName
+resource aiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = {
+  name: aiServicesName
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
 }
 
-resource aiDeveloper 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '64702f94-c441-49e6-a78b-ef80e0188fee'
+resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' existing = {
+  name: keyVaultName
 }
 
-resource aiDeveloperAccessProj 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(appService.name, aiHubProject.id, aiDeveloper.id)
-  scope: aiHubProject
+resource keyVaultSecretsUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '4633458b-17de-408a-b874-0445c86b69e6'
+}
+
+resource keyVaultSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appService.name, keyVault.name, keyVaultSecretsUser.id)
+  scope: keyVault
   properties: {
-    roleDefinitionId: aiDeveloper.id
+    roleDefinitionId: keyVaultSecretsUser.id
     principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 
+resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' existing = {
+  name: aiSearchName
+}
+
+resource searchIndexDataReader 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
+}
+
+resource searchIndexDataReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(appService.name, aiSearch.name, searchIndexDataReader.id)
+  scope: aiSearch
+  properties: {
+    roleDefinitionId: searchIndexDataReader.id
+    principalId: appService.outputs.identityPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource aiUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '53ca6127-db72-4b80-b1b0-d745d6d5456d'
+}
+
+module existing_aiServicesModule 'existing_foundry_project.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+  name: 'existing_foundry_project'
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+  params: {
+    aiServicesName: existingAIServicesName
+    aiProjectName: existingAIProjectName
+  }
+}
+
+module assignAiUserRoleToAiProject 'deploy_foundry_role_assignment.bicep' = {
+  name: 'assignAiUserRoleToAiProject'
+  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+  params: {
+    principalId: appService.outputs.identityPrincipalId
+    roleDefinitionId: aiUser.id
+    roleAssignmentName: guid(appService.name, aiServices.id, aiUser.id)
+    aiServicesName: !empty(azureExistingAIProjectResourceId) ? existingAIServicesName : aiServicesName
+    aiProjectName: !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[10] : ''
+    enableSystemAssignedIdentity: false
+  }
+}
+
+@description('Contains App URL.')
 output appUrl string = appService.outputs.appUrl
+
+@description('Contains React App Layout Config.')
+output reactAppLayoutConfig string = reactAppLayoutConfig
+
+@description('Contains AppInsight Instrumentation Key.')
+output appInsightInstrumentationKey string = reference(applicationInsightsId, '2015-05-01').InstrumentationKey

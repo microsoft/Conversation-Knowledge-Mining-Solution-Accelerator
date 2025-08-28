@@ -5,11 +5,11 @@ import pandas as pd
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
-from azure.identity import DefaultAzureCredential
+from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
 
 
-def get_db_connection():
+async def get_db_connection():
     """Get a connection to the SQL database"""
     config = Config()
 
@@ -20,19 +20,17 @@ def get_db_connection():
     driver = config.driver
     mid_id = config.mid_id
 
+    credential = None
     try:
-        credential = DefaultAzureCredential(managed_identity_client_id=mid_id)
-
-        token_bytes = credential.get_token(
-            "https://database.windows.net/.default"
-        ).token.encode("utf-16-LE")
+        credential = await get_azure_credential_async(client_id=mid_id)
+        token = await credential.get_token("https://database.windows.net/.default")
+        token_bytes = token.token.encode("utf-16-LE")
         token_struct = struct.pack(
             f"<I{len(token_bytes)}s",
             len(token_bytes),
-            token_bytes)
-        SQL_COPT_SS_ACCESS_TOKEN = (
-            1256  # This connection option is defined by microsoft in msodbcsql.h
+            token_bytes
         )
+        SQL_COPT_SS_ACCESS_TOKEN = 1256
 
         # Set up the connection
         connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
@@ -40,26 +38,36 @@ def get_db_connection():
             connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         )
 
-        logging.info("Connected using Default Azure Credential")
-
+        logging.info("Connected using Azure Credential")
         return conn
     except pyodbc.Error as e:
-        logging.error(f"Failed with Default Credential: {str(e)}")
+        logging.error("Failed with Azure Credential: %s", str(e))
         conn = pyodbc.connect(
             f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
             timeout=5)
 
         logging.info("Connected using Username & Password")
         return conn
+    finally:
+        if credential and hasattr(credential, "close"):
+            await credential.close()
 
 
-def adjust_processed_data_dates():
-    with get_db_connection() as conn, conn.cursor() as cursor:
+async def adjust_processed_data_dates():
+    """
+    Adjusts the dates in the processed_data, km_processed_data, and processed_data_key_phrases tables
+    to align with the current date.
+    """
+    conn = await get_db_connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
         # Adjust the dates to the current date
         today = datetime.today()
         cursor.execute(
-            "SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]")
-        max_start_time = cursor.fetchone()[0]
+            "SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]"
+        )
+        max_start_time = (cursor.fetchone())[0]
 
         if max_start_time:
             days_difference = (today - max_start_time).days - 1
@@ -79,13 +87,24 @@ def adjust_processed_data_dates():
                 # Update processed_data_key_phrases table
                 cursor.execute(
                     "UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), "
-                    "'yyyy-MM-dd HH:mm:ss')", (days_difference,))
+                    "'yyyy-MM-dd HH:mm:ss')", (days_difference,)
+                )
                 # Commit the changes
                 conn.commit()
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
 
-def fetch_filters_data():
-    with get_db_connection() as conn, conn.cursor() as cursor:
+async def fetch_filters_data():
+    """
+    Fetches filter data from the database and organizes it into a nested JSON structure.
+    """
+    conn = await get_db_connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
         sql_stmt = '''select 'Topic' as filter_name, mined_topic as displayValue, mined_topic as key1 from
             (SELECT distinct mined_topic from processed_data) t
             union all
@@ -116,18 +135,27 @@ def fetch_filters_data():
             df.groupby("filter_name")
             .apply(lambda x: {
                 "filter_name": x.name,
-                "filter_values": x.drop(columns="filter_name").to_dict(orient="records")
-            }).to_list()
+                "filter_values": x.to_dict(orient="records")
+            }, include_groups=False).to_list()
         )
 
-        # print(nested_json)
         filters_data = nested_json
 
         return filters_data
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
 
 async def fetch_chart_data(chart_filters: ChartFilters = ''):
-    with get_db_connection() as conn, conn.cursor() as cursor:
+    """
+    Fetches chart data from the database based on the provided filters and organizes it into a nested JSON structure.
+    """
+    conn = await get_db_connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
         where_clause = ''
         req_body = ''
         try:
@@ -211,11 +239,10 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         # charts pt1
         nested_json1 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records')).reset_index(
-                name='chart_value')
+                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index()
         )
+        nested_json1.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
         result1 = nested_json1.to_dict(orient='records')
-
         sql_stmt = f'''SELECT TOP 1 WITH TIES
                         mined_topic as name, 'TOPICS' as id, 'Trending Topics' as chart_name, 'table' as chart_type,
                         lower(sentiment) as average_sentiment,
@@ -234,12 +261,17 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         df = pd.DataFrame(rows, columns=column_names)
 
         # charts pt2
-        nested_json2 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records')).reset_index(
-                name='chart_value')
-        )
-        result2 = nested_json2.to_dict(orient='records')
+        if not df.empty:
+            nested_json2 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json2.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result2 = nested_json2.to_dict(orient='records')
+        else:
+            result2 = []
 
         where_clause = where_clause.replace('mined_topic', 'topic')
         sql_stmt = f'''select top 15 key_phrase as text,
@@ -269,22 +301,42 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
 
         df = df.head(15)
 
-        nested_json3 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records')).reset_index(
-                name='chart_value')
-        )
-        result3 = nested_json3.to_dict(orient='records')
+        if not df.empty:
+            nested_json3 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json3.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result3 = nested_json3.to_dict(orient='records')
+        else:
+            result3 = []
 
         final_result = result1 + result2 + result3
-
         return final_result
 
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()
 
-def execute_sql_query(sql_query):
+
+async def execute_sql_query(sql_query):
     """
     Executes a given SQL query and returns the result as a concatenated string.
     """
-    with get_db_connection() as conn, conn.cursor() as cursor:
+    conn = await get_db_connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
         cursor.execute(sql_query)
-        return ''.join(str(row) for row in cursor.fetchall())
+        result = ''.join(str(row) for row in cursor.fetchall())
+        return result
+    except Exception as e:
+        logging.error("Error executing SQL query: %s", e)
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        conn.close()

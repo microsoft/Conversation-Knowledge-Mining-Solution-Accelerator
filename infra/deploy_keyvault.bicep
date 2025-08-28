@@ -1,11 +1,13 @@
-@minLength(3)
-@maxLength(15)
-@description('Solution Name')
-param solutionName string
+@description('Required. Specifies the location for resources.')
 param solutionLocation string
+
+@description('Required. Contains ID of Managed Identity.')
 param managedIdentityObjectId string
 
-var keyvaultName = '${solutionName}-kv'
+@description('Optional. Tags to be applied to the resources.')
+param tags object = {}
+
+param keyvaultName string
 
 resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
   name: keyvaultName
@@ -36,7 +38,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
     enabledForDiskEncryption: true
     enabledForTemplateDeployment: true
     enableRbacAuthorization: true
-    enablePurgeProtection: true
     publicNetworkAccess: 'enabled'
     // networkAcls: {
     //   bypass: 'AzureServices'
@@ -49,6 +50,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
     softDeleteRetentionInDays: 7
     tenantId: subscription().tenantId
   }
+  tags : tags
 }
 
 @description('This is the built-in Key Vault Administrator role.')
@@ -66,6 +68,11 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+@description('Contains KeyVault Name.')
 output keyvaultName string = keyvaultName
+
+@description('Contains KeyVault ID.')
 output keyvaultId string = keyVault.id
+
+@description('Contains KeyVault URI.')
 output keyvaultUri string = keyVault.properties.vaultUri

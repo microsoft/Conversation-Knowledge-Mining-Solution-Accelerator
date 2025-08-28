@@ -73,6 +73,11 @@ export const ChatHistoryListItemCell: React.FC<
       type: actionConstants.UPDATE_APP_SPINNER_STATUS,
       payload: true,
     });
+    if(state.citation.currentConversationIdForCitation === item.id) {
+      dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false, currentConversationIdForCitation: "" } });
+    }else{
+      dispatch({  type: actionConstants.UPDATE_CITATION,payload: { showCitation: true } });
+    }
     const response = await historyDelete(item.id);
     if (!response.ok) {
       setErrorDelete(true);
