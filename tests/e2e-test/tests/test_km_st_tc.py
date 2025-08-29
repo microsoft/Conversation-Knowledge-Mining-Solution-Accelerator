@@ -105,6 +105,28 @@ def test_hide_dashboard_and_chat_buttons(login_logout):
     logger.info("Step 2: On the left side of profile icon observe two buttons are present, Hide Dashboard & Hide Chat")
     km_page.verify_hide_dashboard_and_chat_buttons()
 
+def test_refine_chat_chart_output(login_logout):
+    """
+    KM Generic Smoke Test:
+    1. Open KM Generic URL
+    2. On chat window enter the prompt which provides chat info: EX:  Average handling time by topic
+    3. On chat window enter the prompt which provides chat info: EX:  Generate Chart
+    """ 
+
+    page = login_logout
+    km_page = KMGenericPage(page)
+    home_page = HomePage(page)
+
+    logger.info("Step 1: Open KM Generic URL")
+    km_page.open_url()
+
+    logger.info("Step 2: Verify chat response generation")
+    logger.info("Step 3: On chat window enter the prompt which provides chat info: EX:  Average handling time by topic")
+    home_page.validate_chat_response('Average handling time by topic')
+
+    logger.info("Step 4: On chat window enter the prompt which provides chat info: EX:  Generate chart")
+    home_page.validate_chat_response('Generate chart', True)
+
 @pytest.mark.smoke
 def test_chat_greeting_responses(login_logout):
 
