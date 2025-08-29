@@ -55,7 +55,7 @@ class HomePage(BasePage):
             raise AssertionError("Chat history name was not visible on the page within the expected time.")
 
     def delete_chat_history(self):
-        # self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
+        self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
         chat_history = self.page.locator("//span[contains(text(),'No chat history.')]")
         if chat_history.is_visible():
             self.page.wait_for_load_state('networkidle')

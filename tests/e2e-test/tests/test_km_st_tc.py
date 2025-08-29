@@ -204,6 +204,8 @@ def test_chat_history_panel(login_logout):
 
     home_page.page.wait_for_timeout(2000)
 
+    home_page.close_chat_history()
+
     logger.info("Step 5: Click on eclipse (3 dots) and select Clear all chat history")
     home_page.delete_chat_history()
 
@@ -252,6 +254,8 @@ def test_clear_citations_on_chat_delete(login_logout):
     print("📚 Opening chat history panel")
     home_page.show_chat_history()
     print("✅ Chat history panel is visible")
+
+    home_page.close_chat_history()
 
     # 6. Delete entire chat history
     print("🗑 Deleting all chat history")
