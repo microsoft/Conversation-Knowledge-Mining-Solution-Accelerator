@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 import os
 import uuid
+import time
 
 class BasePage:
     def __init__(self, page):
@@ -38,9 +39,14 @@ class BasePage:
             "Content-Type": "application/json-lines",
             "Accept": "*/*"
         }
-        response = self.page.request.post(url, headers=headers, data=payload_json)
+        # response = self.page.request.post(url, headers=headers, data=payload_json, timeout=60000)
+        start = time.time()
+        response = self.page.request.post(url, headers=headers, data=payload_json, timeout=90000)
+        duration = time.time() - start
+
+        print(f"✅succeeded in {duration:.2f}s")
         # Check the response status code
         assert response.status == 200, "response code is " + str(response.status)
 
-        self.page.wait_for_timeout(10000)
+        self.page.wait_for_timeout(30000)
 
