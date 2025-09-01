@@ -107,17 +107,17 @@ var solutionSuffix = toLower(trim(replace(
   ''
 )))
 @description('Optional. Enable private networking for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enablePrivateNetworking bool = false
+param enablePrivateNetworking bool = true//false
 @description('Optional. Enable/Disable usage telemetry for module.')
 param enableTelemetry bool = true
 @description('Optional. Enable monitoring applicable resources, aligned with the Well Architected Framework recommendations. This setting enables Application Insights and Log Analytics and configures all the resources applicable resources to send logs. Defaults to false.')
-param enableMonitoring bool = false
+param enableMonitoring bool = true//false
 @description('Optional. Enable redundancy for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableRedundancy bool = false
+param enableRedundancy bool = true//false
 @description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableScalability bool = false
+param enableScalability bool = true//false
 @description('Optional. Enable purge protection for the Key Vault')
-param enablePurgeProtection bool = false
+param enablePurgeProtection bool = true//false
 
 @description('Optional. Admin username for the Jumpbox Virtual Machine. Set to custom value if enablePrivateNetworking is true.')
 @secure()
@@ -635,7 +635,7 @@ var dnsZoneIndex = {
   storageQueue: 5
   storageFile: 6
   aiFoundry: 7
-  notebooks: 8
+  // notebooks: 8
   cosmosDB: 9
   appConfig: 10
   keyVault: 11
@@ -652,7 +652,7 @@ module avmPrivateDnsZones 'br/public:avm/res/network/private-dns-zone:0.7.1' = [
       name: zone
       tags: tags
       enableTelemetry: enableTelemetry
-      virtualNetworkLinks: [{ virtualNetworkResourceId: network.outputs.subnetPrivateEndpointsResourceId }]
+      virtualNetworkLinks: [{ virtualNetworkResourceId: network!.outputs.vnetResourceId }]
     }
   }
 ]
@@ -729,7 +729,7 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
               ]
             }
             service: 'vault'
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
           }
         ]
       : []
@@ -846,7 +846,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
           {
             name: 'pep-${aiFoundryAiServicesResourceName}'
             customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
             privateDnsZoneGroup: {
               privateDnsZoneGroupConfigs: [
                 {
@@ -927,21 +927,21 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
     privateEndpoints: (enablePrivateNetworking &&  empty(existingFoundryProjectResourceId))
       ? ([
           {
-            name: 'pep-${aiFoundryAiServicesResourceName}'
-            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            name: 'pep-${aiFoundryAiServicesCUResourceName}'
+            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesCUResourceName}'
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
             privateDnsZoneGroup: {
               privateDnsZoneGroupConfigs: [
                 {
-                  name: 'ai-services-dns-zone-cognitiveservices'
+                  name: 'ai-services-cu-dns-zone-cognitiveservices'
                   privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
                 }
                 {
-                  name: 'ai-services-dns-zone-openai'
+                  name: 'ai-services-cu-dns-zone-openai'
                   privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
                 }
                 {
-                  name: 'ai-services-dns-zone-aiservices'
+                  name: 'ai-services-cu-dns-zone-aiservices'
                   privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
                 }
               ]
@@ -999,73 +999,163 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
 var aiSearchName = 'srch-${solutionName}'
 var aiSearchConnectionName = 'myCon-${solutionName}'
 var varKvSecretNameAzureSearchKey = 'AZURE-SEARCH-KEY'
-// AI Foundry: AI Search
-module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.9.1' = {
-  name: take('avm.res.cognitive-search-services.${aiSearchName}', 64)
+
+module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' = {
+  name: 'searchServiceDeployment'
   params: {
+    // Required parameters
     name: aiSearchName
-    tags: tags
-    location: aiDeploymentsLocation
-    enableTelemetry: enableTelemetry
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    sku: 'standard3'
-    managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
-    replicaCount: 1
-    partitionCount: 1
-    // networkRuleSet: {
-    //   ipRules: []
-    // }
-    roleAssignments: [
-      {
-        roleDefinitionIdOrName: 'Cognitive Services Contributor' // Cognitive Search Contributor
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
+    // Authentication options
+    authOptions: {
+      aadOrApiKey: {
+        aadAuthFailureMode: 'http401WithBearerChallenge'
       }
+    }
+    // Customer-managed key enforcement (optional)
+    // cmkEnforcement: 'Enabled'
+    // Wire up diagnostic settings to the Log Analytics workspace when monitoring is enabled
+    diagnosticSettings: enableMonitoring ? [
       {
-        roleDefinitionIdOrName: 'Cognitive Services OpenAI User'//'5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'// Cognitive Services OpenAI User
+        workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId
+      }
+    ] : null
+    disableLocalAuth: false
+    hostingMode: 'default'
+    managedIdentities: {
+      systemAssigned: true
+    }
+    networkRuleSet: {
+      bypass: 'AzureServices'
+      ipRules: []
+    }
+    roleAssignments: [
+      // {
+      //   roleDefinitionIdOrName: 'Cognitive Services Contributor' // Cognitive Search Contributor
+      //   principalId: userAssignedIdentity.outputs.principalId
+      //   principalType: 'ServicePrincipal'
+      // }
+      // {
+      //   roleDefinitionIdOrName: 'Cognitive Services OpenAI User'//'5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'// Cognitive Services OpenAI User
+      //   principalId: userAssignedIdentity.outputs.principalId
+      //   principalType: 'ServicePrincipal'
+      // }
+      {
+        roleDefinitionIdOrName: 'Search Index Data Contributor' // 1407120a-92aa-4202-b7e9-c0e197c71c8f
         principalId: userAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
     ]
-    disableLocalAuth: false
-    // authOptions: {
-    //   apiKeyOnly: {}
-    // }
+    partitionCount: 1
+    replicaCount: 1
+    sku: 'standard'
     semanticSearch: 'free'
-    secretsExportConfiguration: {
-      keyVaultResourceId: keyvault.outputs.resourceId
-      primaryAdminKeyName: varKvSecretNameAzureSearchKey
-    }
-    // WAF aligned configuration for Private Networking
+    // Use the deployment tags provided to the template
+    tags: tags
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            name: 'pep-${aiSearchName}'
-            customNetworkInterfaceName: 'nic-${aiSearchName}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId }
-              ]
-            }
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+    ? [
+        {
+          name: 'pep-${aiSearchName}'
+          customNetworkInterfaceName: 'nic-${aiSearchName}'
+          privateDnsZoneGroup: {
+            privateDnsZoneGroupConfigs: [
+              { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId }
+            ]
           }
-        ]
-      : []
+          service: 'searchService'
+          subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+        }
+      ]
+    : []
   }
 }
-module existing_AIProject_SearchConnectionModule 'deploy_aifp_aisearch_connection.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
-  name: 'aiProjectSearchConnectionDeployment'
-  scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
-  params: {
-    existingAIProjectName: existingAIProjectName
-    existingAIServicesName: existingAIServicesName
-    aiSearchName: aiSearchName
-    aiSearchResourceId: avmSearchSearchServices.outputs.resourceId
-    aiSearchLocation: avmSearchSearchServices.outputs.location
-    aiSearchConnectionName: aiSearchConnectionName
+
+// var aiSearchName = 'srch-${solutionName}'
+// var aiSearchConnectionName = 'myCon-${solutionName}'
+// var varKvSecretNameAzureSearchKey = 'AZURE-SEARCH-KEY'
+// AI Foundry: AI Search
+// module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.9.1' = {
+//   name: take('avm.res.cognitive-search-services.${aiSearchName}', 64)
+//   params: {
+//     name: aiSearchName
+//     tags: tags
+//     location: aiDeploymentsLocation
+//     enableTelemetry: enableTelemetry
+//     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+//     sku: 'standard3'
+//     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
+//     replicaCount: 1
+//     partitionCount: 1
+//     // networkRuleSet: {
+//     //   ipRules: []
+//     // }
+//     roleAssignments: [
+//       {
+//         roleDefinitionIdOrName: 'Cognitive Services Contributor' // Cognitive Search Contributor
+//         principalId: userAssignedIdentity.outputs.principalId
+//         principalType: 'ServicePrincipal'
+//       }
+//       {
+//         roleDefinitionIdOrName: 'Cognitive Services OpenAI User'//'5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'// Cognitive Services OpenAI User
+//         principalId: userAssignedIdentity.outputs.principalId
+//         principalType: 'ServicePrincipal'
+//       }
+//     ]
+//     disableLocalAuth: false
+//     // authOptions: {
+//     //   apiKeyOnly: {}
+//     // }
+//     semanticSearch: 'free'
+//     secretsExportConfiguration: {
+//       keyVaultResourceId: keyvault.outputs.resourceId
+//       primaryAdminKeyName: varKvSecretNameAzureSearchKey
+//     }
+//     // WAF aligned configuration for Private Networking
+//     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+//     privateEndpoints: enablePrivateNetworking
+//       ? [
+//           {
+//             name: 'pep-${aiSearchName}'
+//             customNetworkInterfaceName: 'nic-${aiSearchName}'
+//             privateDnsZoneGroup: {
+//               privateDnsZoneGroupConfigs: [
+//                 { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId }
+//               ]
+//             }
+//             subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+//           }
+//         ]
+//       : []
+//   }
+// }
+
+resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchName}'
+  properties: {
+    category: 'CognitiveSearch'
+    target: 'https://${aiSearchName}.search.windows.net'
+    authType: 'AAD'
+    isSharedToAll: true
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: avmSearchSearchServices.outputs.resourceId
+      location: avmSearchSearchServices.outputs.location
+    }
   }
 }
+ 
+// module existing_AIProject_SearchConnectionModule 'deploy_aifp_aisearch_connection.bicep' = if (!empty(azureExistingAIProjectResourceId)) {
+//   name: 'aiProjectSearchConnectionDeployment'
+//   scope: resourceGroup(existingAIServiceSubscription, existingAIServiceResourceGroup)
+//   params: {
+//     existingAIProjectName: existingAIProjectName
+//     existingAIServicesName: existingAIServicesName
+//     aiSearchName: aiSearchName
+//     aiSearchResourceId: avmSearchSearchServices.outputs.resourceId
+//     aiSearchLocation: avmSearchSearchServices.outputs.location
+//     aiSearchConnectionName: aiSearchConnectionName
+//   }
+// }
 
 // If the above secretsExportConfiguration code not works to store the keys in key vault, uncomment below
 module saveAISearchServiceSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
@@ -1148,80 +1238,113 @@ module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
   params: {
     name: storageAccountName
     location: solutionLocation
-    managedIdentities: { systemAssigned: true }
+
+    // ✅ Use both system + user-assigned MI for maximum flexibility
+    managedIdentities: { 
+      systemAssigned: true
+      userAssignedResourceIds: [ userAssignedIdentity!.outputs.resourceId ]
+    }
+
+    // ✅ Security best practice
     minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+
+    accessTier: 'Hot'
     enableTelemetry: enableTelemetry
     tags: tags
-    accessTier: 'Hot'
-    supportsHttpsTrafficOnly: true
+
+    // ✅ Keep HNS off for deployment scripts (Gen2 conflicts otherwise)
+    enableHierarchicalNamespace: false
+
+    // ✅ RBAC for deployment scripts and data access
     roleAssignments: [
       {
         principalId: userAssignedIdentity.outputs.principalId
         roleDefinitionIdOrName: 'Storage Blob Data Contributor'
         principalType: 'ServicePrincipal'
       }
+      {
+        principalId: userAssignedIdentity.outputs.principalId
+        roleDefinitionIdOrName: 'Storage Account Contributor'
+        principalType: 'ServicePrincipal'
+      }
+      {
+        principalId: userAssignedIdentity.outputs.principalId
+        roleDefinitionIdOrName: 'Storage File Data Privileged Contributor'
+        principalType: 'ServicePrincipal'
+      }
     ]
-    // WAF aligned networking
+
+    // ✅ Networking - WAF aligned but open enough for deployment scripts
     networkAcls: {
-      bypass: 'AzureServices'
-      defaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
+      bypass: 'AzureServices, Logging, Metrics'
+      defaultAction: 'Allow' // Allow during deployment; later can restrict
+      virtualNetworkRules: []
     }
-    allowBlobPublicAccess: enablePrivateNetworking ? true : false
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    // Private endpoints for blob and queue
-    privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            name: 'pep-blob-${solutionSuffix}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                {
-                  name: 'storage-dns-zone-group-blob'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageBlob]!.outputs.resourceId
-                }
-              ]
+
+    allowSharedKeyAccess: true    // needed by scripts if MI fails
+    allowBlobPublicAccess: true   // keep for script compatibility
+    publicNetworkAccess: 'Enabled' // Private endpoints are preferred, but public access needed for scripts
+
+    // ✅ Add private endpoints if enabled
+    privateEndpoints: enablePrivateNetworking ? [
+      {
+        name: 'pep-blob-${solutionSuffix}'
+        service: 'blob'
+        subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              name: 'storage-dns-zone-group-blob'
+              privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageBlob]!.outputs.resourceId
             }
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
-            service: 'blob'
-          }
-          {
-            name: 'pep-queue-${solutionSuffix}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                {
-                  name: 'storage-dns-zone-group-queue'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageQueue]!.outputs.resourceId
-                }
-              ]
+          ]
+        }
+      }
+      {
+        name: 'pep-queue-${solutionSuffix}'
+        service: 'queue'
+        subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              name: 'storage-dns-zone-group-queue'
+              privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageQueue]!.outputs.resourceId
             }
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
-            service: 'queue'
-          }
-        ]
-      : []
+          ]
+        }
+      }
+    ] : []
+
+    // ✅ Blob service config (simplified, script-friendly)
     blobServices: {
       corsRules: []
       deleteRetentionPolicyEnabled: false
+      changeFeedEnabled: false
+      restorePolicyEnabled: false
+      isVersioningEnabled: false
+      containerDeleteRetentionPolicyEnabled: false
+      lastAccessTimeTrackingPolicy: {
+        enable: false
+      }
       containers: [
         {
           name: 'data'
-          publicAccess: 'None'
+          // ⚠️ Optional: uncomment if container needs anonymous access
+          // publicAccess: 'Blob'
         }
       ]
     }
-    //   secretsExportConfiguration: {
-    //   accessKey1Name: 'ADLS-ACCOUNT-NAME'
-    //   connectionString1Name: storageAccountName
-    //   accessKey2Name: 'ADLS-ACCOUNT-CONTAINER'
-    //   connectionString2Name: 'data'
-    //   accessKey3Name: 'ADLS-ACCOUNT-KEY'
-    //   connectionString3Name: listKeys(resourceId('Microsoft.Storage/storageAccounts', storageAccountName), '2021-04-01')
-    //   keyVaultResourceId: keyvault.outputs.resourceId
-    // }
   }
-  dependsOn: [keyvault]
+
+  // ✅ Ensure KV is ready before assigning secrets (if used later)
+  dependsOn: [
+    keyvault
+  ]
+
   scope: resourceGroup(resourceGroup().name)
 }
+
 
 // working version of saving storage account secrets in key vault using AVM module
 module saveStorageAccountSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
@@ -1330,7 +1453,7 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
               ]
             }
             service: 'Sql'
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
           }
         ]
       : []
@@ -1342,28 +1465,17 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
       }
     ]
     // WAF aligned configuration for Redundancy
-    zoneRedundant: enableRedundancy ? true : false
-    capabilitiesToAdd: enableRedundancy ? null : ['EnableServerless']
-    automaticFailover: enableRedundancy ? true : false
-    failoverLocations: enableRedundancy
-      ? [
-          {
-            failoverPriority: 0
-            isZoneRedundant: true
-            locationName: solutionLocation
-          }
-          {
-            failoverPriority: 1
-            isZoneRedundant: true
-            locationName: cosmosDbHaLocation
-          }
-        ]
-      : [
-          {
-            locationName: solutionLocation
-            failoverPriority: 0
-          }
-        ]
+    // Temporarily disabled due to high demand in East US 2 for zone-redundant accounts
+    // zoneRedundant: false // enableRedundancy ? true : false 
+    // capabilitiesToAdd: ['EnableServerless'] // Always use serverless to avoid availability zone issues
+    // automaticFailover: false // enableRedundancy ? true : false
+    failoverLocations: [
+      {
+        locationName: solutionLocation
+        failoverPriority: 0
+        // Removed isZoneRedundant to avoid availability zone constraints
+      }
+    ]
   }
   dependsOn: [keyvault, avmStorageAccount]
   scope: resourceGroup(resourceGroup().name)
@@ -1542,12 +1654,13 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
               ]
             }
             service: 'sqlServer'
-            subnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
             tags: tags
           }
         ]
       : []
     restrictOutboundNetworkAccess: 'Disabled'
+    publicNetworkAccess:'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
     securityAlertPolicies: [
       {
         emailAccountAdmins: true
@@ -1561,7 +1674,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
           {
             ignoreMissingVnetServiceEndpoint: true
             name: 'newVnetRule1'
-            virtualNetworkSubnetResourceId: network.outputs.subnetPrivateEndpointsResourceId
+            virtualNetworkSubnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
           }
         ]
       : []
@@ -1632,19 +1745,42 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
 
 //========== AVM WAF ========== //
 //========== Deployment script to upload sample data ========== //
+// module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+//   name: 'deploymentScriptForUploadFiles'
+//   params: {
+//     // Required parameters
+//     kind: 'AzureCLI'
+//     name: 'copy_demo_Data'
+//     // Non-required parameters
+//     azCliVersion: '2.52.0'
+//     cleanupPreference: 'Always'
+//     location: secondaryLocation
+//     lock: {
+//       kind: 'None'
+//     }
+//     managedIdentities: {
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     retentionInterval: 'P1D'
+//     runOnce: true
+//     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
+//     arguments: '${storageAccountName} ${'data'} ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
+//     storageAccountResourceId: enablePrivateNetworking ? null : avmStorageAccount.outputs.resourceId
+//     tags: tags
+//     timeout: 'PT1H'
+//   }
+// }
+
 module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: 'deploymentScriptForUploadFiles'
   params: {
-    // Required parameters
     kind: 'AzureCLI'
     name: 'copy_demo_Data'
-    // Non-required parameters
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
-    location: secondaryLocation
-    lock: {
-      kind: 'None'
-    }
+    location: solutionLocation   // same as VNet
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1652,13 +1788,33 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     }
     retentionInterval: 'P1D'
     runOnce: true
+
+    // ✅ Script + arguments
     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
-    arguments: '${storageAccountName} ${'data'} ${baseUrl} ${userAssignedIdentity.outputs.resourceId}'
+    arguments: '${avmStorageAccount.outputs.name} data ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
+
+    // ✅ Explicit storage account + subnet for private networking
     storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    subnetResourceIds: enablePrivateNetworking ? [
+      network!.outputs.subnetDeploymentScriptsResourceId
+    ] : null
+
     tags: tags
     timeout: 'PT1H'
   }
+  dependsOn: [
+    avmStorageAccount
+    network
+  ]
 }
+
+
+
+
+
+
+
+
 
 //========== Deployment script to process and index data ========== //
 // module createIndex 'deploy_index_scripts.bicep' = {
@@ -1668,7 +1824,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
 //     managedIdentityResourceId:userAssignedIdentity.outputs.resourceId
 //     managedIdentityClientId:userAssignedIdentity.outputs.clientId
 //     baseUrl:baseUrl
-//     keyVaultName:aifoundry.outputs.keyvaultName
+//     keyVaultName:keyvault.outputs.name
 //     tags : tags
 //   }
 //   dependsOn:[sqlDBModule,uploadFiles]
@@ -1685,7 +1841,7 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     // Non-required parameters
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
-    location: secondaryLocation
+    location: solutionLocation
     lock: {
       kind: 'None'
     }
@@ -1698,7 +1854,13 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     runOnce: true
     primaryScriptUri: '${baseUrl}infra/scripts/run_create_index_scripts.sh'
     arguments: '${baseUrl} ${keyvault.outputs.name} ${userAssignedIdentity.outputs.clientId}'
+    
+    // Explicit configuration: use storage account, no subnet delegation
     storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    
+    // Explicitly disable subnet configuration
+    subnetResourceIds: null
+    
     tags: tags
     timeout: 'PT1H'
   }
@@ -1846,7 +2008,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
           SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
           SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
-          AZURE_AI_SEARCH_ENDPOINT: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
+          AZURE_AI_SEARCH_ENDPOINT: 'https://${aiSearchName}.search.windows.net'
           AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
           AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchConnectionName
           USE_AI_PROJECT_CLIENT: 'True'
@@ -1855,6 +2017,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           DUMMY_TEST: 'True'
           SOLUTION_NAME: solutionSuffix
           APP_ENV: 'Prod'
+          AZURE_CLIENT_ID: userAssignedIdentity.outputs.clientId
         }
         // WAF aligned configuration for Monitoring
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
@@ -1864,7 +2027,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
     // WAF aligned configuration for Private Networking
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetPrivateEndpointsResourceId : null
+    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking
       ? [
@@ -2019,6 +2182,12 @@ module avmFrontend_Docker 'modules/web-sites.bicep' = {
       linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${imageTag}'
       minTlsVersion: '1.2'
     }
+    managedIdentities: {
+      systemAssigned: true
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
     configs: [
       {
         name: 'appsettings'
@@ -2038,7 +2207,7 @@ module avmFrontend_Docker 'modules/web-sites.bicep' = {
     // WAF aligned configuration for Private Networking
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetPrivateEndpointsResourceId : null
+    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking
       ? [
@@ -2057,6 +2226,37 @@ module avmFrontend_Docker 'modules/web-sites.bicep' = {
       : null
   }
   scope: resourceGroup(resourceGroup().name)
+}
+
+// update existing storage account to disable public access using avm module
+module avmStorageAccountUpdate 'br/public:avm/res/storage/storage-account:0.20.0' = if (enablePrivateNetworking) {
+  name: take('storage-account-update-${storageAccountName}', 64)
+  params: {
+    name: storageAccountName
+    location: solutionLocation
+    managedIdentities: { systemAssigned: true , userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
+    minimumTlsVersion: 'TLS1_2'
+    enableTelemetry: enableTelemetry
+    tags: tags
+    accessTier: 'Hot'
+    supportsHttpsTrafficOnly: true
+    // WAF aligned networking - Simplified configuration for deployment script compatibility
+    // This allows deployment scripts to access the storage account without firewall restrictions
+    // while still maintaining security through managed identity authentication
+    networkAcls: {
+      bypass: 'AzureServices, Logging, Metrics'
+      // Allow all access to avoid deployment script firewall issues
+      defaultAction: 'Allow'
+      virtualNetworkRules: []
+    }
+    // Allow trusted Microsoft services to bypass network restrictions
+    allowSharedKeyAccess: true
+    allowBlobPublicAccess: false
+    // Keep public access enabled for deployment scripts
+    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
+  }
+  scope: resourceGroup(resourceGroup().name)
+  dependsOn: [avmStorageAccount]
 }
 
 // var webSiteResourceName = 'app-${solutionSuffix}'

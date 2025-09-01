@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import requests
+from common.config.config import Config
 from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
 from services.chart_service import ChartService
@@ -178,7 +179,8 @@ async def fetch_azure_search_content_endpoint(request: Request):
             return JSONResponse(content={"error": "URL is required"}, status_code=400)
 
         # Get Azure AD token
-        credential = get_azure_credential()
+        config = Config()
+        credential = get_azure_credential(client_id=config.azure_client_id)
         token = credential.get_token("https://search.azure.com/.default")
         access_token = token.token
 
