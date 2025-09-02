@@ -1980,18 +1980,18 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: imageName
+      linuxFxVersion: 'DOCKER|kmgenraf.azurecr.io/kmgenraf:avmab'
       minTlsVersion: '1.2'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
-          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-          DOCKER_REGISTRY_SERVER_URL: 'https://${backendContainerRegistryHostname}'
-          WEBSITES_PORT: '8000'
-          WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
-          AUTH_ENABLED: 'false'
+          // SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          // DOCKER_REGISTRY_SERVER_URL: 'https://${backendContainerRegistryHostname}'
+          // WEBSITES_PORT: '8000'
+          // WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
+          // AUTH_ENABLED: 'false'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : (aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.endpoint : '')
@@ -2028,27 +2028,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            name: 'pep-${backendWebSiteResourceName}'
-            customNetworkInterfaceName: 'nic-${backendWebSiteResourceName}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [{ privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }]
-            }
-            service: 'sites'
-            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
-            roleAssignments: [
-              {
-                principalId: userAssignedIdentity.outputs.principalId
-                principalType: 'ServicePrincipal'
-                roleDefinitionIdOrName: 'Contributor'
-              }
-            ]
-          }
-        ]
-      : null
+    publicNetworkAccess: 'Enabled'
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -2188,8 +2168,13 @@ module webSite 'modules/web-sites.bicep' = {
         properties: {
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
+        applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
       }
     ]
+    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
+    vnetImagePullEnabled: enablePrivateNetworking ? true : false
+    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     publicNetworkAccess: 'Enabled' // Always enabling the public network access for Web App
   }
 }
