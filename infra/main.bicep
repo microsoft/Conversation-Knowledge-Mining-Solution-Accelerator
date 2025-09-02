@@ -107,17 +107,17 @@ var solutionSuffix = toLower(trim(replace(
   ''
 )))
 @description('Optional. Enable private networking for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enablePrivateNetworking bool = true//false
+param enablePrivateNetworking bool = false//true//false
 @description('Optional. Enable/Disable usage telemetry for module.')
-param enableTelemetry bool = true
+param enableTelemetry bool = false //true
 @description('Optional. Enable monitoring applicable resources, aligned with the Well Architected Framework recommendations. This setting enables Application Insights and Log Analytics and configures all the resources applicable resources to send logs. Defaults to false.')
-param enableMonitoring bool = true//false
+param enableMonitoring bool =  false//true//false
 @description('Optional. Enable redundancy for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableRedundancy bool = true//false
+param enableRedundancy bool = false //true//false
 @description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableScalability bool = true//false
+param enableScalability bool = false//true//false
 @description('Optional. Enable purge protection for the Key Vault')
-param enablePurgeProtection bool = true//false
+param enablePurgeProtection bool = false//true//false
 
 @description('Optional. Admin username for the Jumpbox Virtual Machine. Set to custom value if enablePrivateNetworking is true.')
 @secure()
@@ -996,8 +996,8 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
 // }
 
 // ========== AI Foundry: AI Search ========== //
-var aiSearchName = 'srch-${solutionName}'
-var aiSearchConnectionName = 'myCon-${solutionName}'
+var aiSearchName = 'srch-${solutionSuffix}'
+var aiSearchConnectionName = 'myCon-${solutionSuffix}'
 var varKvSecretNameAzureSearchKey = 'AZURE-SEARCH-KEY'
 
 module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' = {
@@ -1248,7 +1248,7 @@ module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
     // ✅ Security best practice
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
-
+    
     accessTier: 'Hot'
     enableTelemetry: enableTelemetry
     tags: tags
@@ -1795,9 +1795,9 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
 
     // ✅ Explicit storage account + subnet for private networking
     storageAccountResourceId: avmStorageAccount.outputs.resourceId
-    subnetResourceIds: enablePrivateNetworking ? [
-      network!.outputs.subnetDeploymentScriptsResourceId
-    ] : null
+    // subnetResourceIds: enablePrivateNetworking ? [
+    //   network!.outputs.subnetDeploymentScriptsResourceId
+    // ] : null
 
     tags: tags
     timeout: 'PT1H'
@@ -2198,6 +2198,7 @@ module avmFrontend_Docker 'modules/web-sites.bicep' = {
           WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
           BACKEND_API_URL: 'https://api-${solutionSuffix}.azurewebsites.net' //'https://${containerApp.outputs.fqdn}'
           AUTH_ENABLED: 'false'
+          APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
         // WAF aligned configuration for Monitoring
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
