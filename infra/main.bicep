@@ -2170,63 +2170,28 @@ param frontendContainerImageName string = 'km-app'
 
 //NOTE: AVM module adds 1 MB of overhead to the template. Keeping vanilla resource to save template size.
 var webSiteResourceName = 'app-${solutionSuffix}'
-module avmFrontend_Docker 'modules/web-sites.bicep' = {
+module webSite 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${webSiteResourceName}', 64)
   params: {
     name: webSiteResourceName
     tags: tags
     location: solutionLocation
     kind: 'app,linux,container'
-    serverFarmResourceId: webServerFarm.?outputs.resourceId
+    serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${imageTag}'
+      linuxFxVersion: 'DOCKER|kmcontainerreg.azurecr.io/km-app:dev'
       minTlsVersion: '1.2'
-    }
-    managedIdentities: {
-      systemAssigned: true
-      userAssignedResourceIds: [
-        userAssignedIdentity.outputs.resourceId
-      ]
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
-          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
-          DOCKER_REGISTRY_SERVER_URL: 'https://${frontendContainerRegistryHostname}'
-          WEBSITES_PORT: '3000'
-          WEBSITES_CONTAINER_START_TIME_LIMIT: '1800' // 30 minutes, adjust as needed
-          BACKEND_API_URL: 'https://api-${solutionSuffix}.azurewebsites.net' //'https://${containerApp.outputs.fqdn}'
-          AUTH_ENABLED: 'false'
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
-        // WAF aligned configuration for Monitoring
-        applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
       }
     ]
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    // WAF aligned configuration for Private Networking
-    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
-    vnetImagePullEnabled: enablePrivateNetworking ? true : false
-    virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            name: 'pep-${webSiteResourceName}'
-            customNetworkInterfaceName: 'nic-${webSiteResourceName}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.appService]!.outputs.resourceId }
-              ]
-            }
-            service: 'sites'
-            subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
-          }
-        ]
-      : null
+    publicNetworkAccess: 'Enabled' // Always enabling the public network access for Web App
   }
-  scope: resourceGroup(resourceGroup().name)
 }
 
 // update existing storage account to disable public access using avm module
