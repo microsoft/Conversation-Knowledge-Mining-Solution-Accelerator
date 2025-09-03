@@ -105,6 +105,7 @@ def test_hide_dashboard_and_chat_buttons(login_logout):
     logger.info("Step 2: On the left side of profile icon observe two buttons are present, Hide Dashboard & Hide Chat")
     km_page.verify_hide_dashboard_and_chat_buttons()
 
+@pytest.mark.smoke
 def test_refine_chat_chart_output(login_logout):
     """
     KM Generic Smoke Test:
