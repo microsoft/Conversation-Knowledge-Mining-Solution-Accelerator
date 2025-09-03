@@ -746,12 +746,100 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
         roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
       }
     ]
-    // secrets: [
-    //   {
-    //     name: 'ExampleSecret'
-    //     value: 'YourSecretValue'
-    //   }
-    // ]
+    secrets: [
+      {
+        name: 'AZURE-COSMOSDB-ACCOUNT'
+        value: cosmosDb.outputs.name
+      }
+      {
+        name: 'AZURE-COSMOSDB-ACCOUNT-KEY'
+        value: cosmosDb.outputs.primaryReadWriteKey
+      }
+      {
+        name: 'AZURE-COSMOSDB-DATABASE'
+        value: cosmosDbDatabaseName
+      }
+      {
+        name: 'AZURE-COSMOSDB-CONVERSATIONS-CONTAINER'
+        value: collectionName
+      }
+      {
+        name: 'AZURE-COSMOSDB-ENABLE-FEEDBACK'
+        value: 'True'
+      }
+      {
+        name: 'ADLS-ACCOUNT-NAME'
+        value: storageAccountName
+      }
+      {
+        name: 'ADLS-ACCOUNT-CONTAINER'
+        value: 'data'
+      }
+      {
+        name: 'ADLS-ACCOUNT-KEY'
+        value: avmStorageAccount.outputs.primaryAccessKey
+      }
+      {
+        name: 'AZURE-SEARCH-ENDPOINT'
+        value: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
+      }
+      {
+        name: 'AZURE-SEARCH-SERVICE'
+        value: avmSearchSearchServices.outputs.name
+      }
+      {
+        name: 'AZURE-OPENAI-ENDPOINT'
+        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
+      }
+      {
+        name: 'COG-SERVICES-ENDPOINT'
+        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
+      }
+      {
+        name: 'AZURE-OPENAI-SEARCH-PROJECT'
+        value: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
+      }
+      {
+        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+        value: ''
+      }
+      {
+        name: 'AZURE-OPENAI-DEPLOYMENT-MODEL'
+        value: gptModelName
+      }
+      {
+        name: 'AZURE-OPENAI-PREVIEW-API-VERSION'
+        value: azureOpenAIApiVersion
+      }
+      {
+        name: 'AZURE-OPENAI-CU-ENDPOINT'
+        value: avmCognitiveServicesAccountsContentUnderstanding.outputs.endpoints['OpenAI Language Model Instance API']
+      }
+      {
+        name: 'AZURE-OPENAI-CU-VERSION'
+        value: '?api-version=2024-12-01-preview'
+      }
+      {
+        name: 'AZURE-SEARCH-INDEX'
+        value: 'transcripts_index'
+      }
+      {
+        name: 'COG-SERVICES-NAME'
+        value: aiFoundryAiServicesResourceName
+      }
+      {
+        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+        value: ''
+      }
+      {
+        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+        value: ''
+      }
+      {
+        name: 'AZURE-OPENAI-EMBEDDING-MODEL'
+        value: embeddingModel
+      }
+    ]
     enableTelemetry: enableTelemetry
   }
 }
@@ -967,10 +1055,10 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
       //   principalType: 'ServicePrincipal'
       // }
     ]
-    secretsExportConfiguration: {
-      keyVaultResourceId: keyvault.outputs.resourceId
-      accessKey1Name: varKvSecretNameAzureOpenaiCuKey
-    }
+    // secretsExportConfiguration: {
+    //   keyVaultResourceId: keyvault.outputs.resourceId
+    //   accessKey1Name: varKvSecretNameAzureOpenaiCuKey
+    // }
   }
 }
 
@@ -1158,41 +1246,77 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
 // }
 
 // If the above secretsExportConfiguration code not works to store the keys in key vault, uncomment below
-module saveAISearchServiceSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
-  name: take('saveAISearchServiceSecretsInKeyVault.${keyVaultName}', 64)
-  params: {
-    name: keyVaultName
-    enablePurgeProtection: enablePurgeProtection
-    enableVaultForDeployment: true
-    enableVaultForDiskEncryption: true
-    enableVaultForTemplateDeployment: true
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    secrets: [
-      {
-        name: 'AZURE-SEARCH-ENDPOINT'
-        value: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
-      }
-      {
-        name: 'AZURE-SEARCH-SERVICE'
-        value: avmSearchSearchServices.outputs.name
-      }
-      {
-        name: 'AZURE-OPENAI-ENDPOINT'
-        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
-      }
-      {
-        name: 'COG-SERVICES-ENDPOINT'
-        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
-      }
-      {
-        name: 'AZURE-OPENAI-SEARCH-PROJECT'
-        value: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
-      }
-    ]
-  }
-}
+// module saveAISearchServiceSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
+//   name: take('saveAISearchServiceSecretsInKeyVault.${keyVaultName}', 64)
+//   params: {
+//     name: keyVaultName
+//     enablePurgeProtection: enablePurgeProtection
+//     enableVaultForDeployment: true
+//     enableVaultForDiskEncryption: true
+//     enableVaultForTemplateDeployment: true
+//     enableRbacAuthorization: true
+//     enableSoftDelete: true
+//     softDeleteRetentionInDays: 7
+//     secrets: [
+//       {
+//         name: 'AZURE-SEARCH-ENDPOINT'
+//         value: 'https://${avmSearchSearchServices.outputs.name}.search.windows.net'
+//       }
+//       {
+//         name: 'AZURE-SEARCH-SERVICE'
+//         value: avmSearchSearchServices.outputs.name
+//       }
+//       {
+//         name: 'AZURE-OPENAI-ENDPOINT'
+//         value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
+//       }
+//       {
+//         name: 'COG-SERVICES-ENDPOINT'
+//         value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
+//       }
+//       {
+//         name: 'AZURE-OPENAI-SEARCH-PROJECT'
+//         value: !empty(azureExistingAIProjectResourceId) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
+//       }
+//       {
+//         name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+//         value: ''
+//       }
+//       {
+//         name: 'AZURE-OPENAI-DEPLOYMENT-MODEL'
+//         value: gptModelName
+//       }
+//       {
+//         name: 'AZURE-OPENAI-PREVIEW-API-VERSION'
+//         value: azureOpenAIApiVersion
+//       }
+//       {
+//         name: 'AZURE-OPENAI-CU-ENDPOINT'
+//         value: avmCognitiveServicesAccountsContentUnderstanding.outputs.endpoints['OpenAI Language Model Instance API']
+//       }
+//       {
+//         name: 'AZURE-OPENAI-CU-VERSION'
+//         value: '?api-version=2024-12-01-preview'
+//       }
+//       {
+//         name: 'AZURE-SEARCH-INDEX'
+//         value: 'transcripts_index'
+//       }
+//       {
+//         name: 'COG-SERVICES-NAME'
+//         value: aiFoundryAiServicesResourceName
+//       }
+//       {
+//         name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+//         value: ''
+//       }
+//       {
+//         name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
+//         value: ''
+//       }
+//     ]
+//   }
+// }
 
 
 // module aifoundry 'deploy_ai_foundry.bicep' = {
@@ -1337,43 +1461,38 @@ module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
     }
   }
 
-  // ✅ Ensure KV is ready before assigning secrets (if used later)
-  dependsOn: [
-    keyvault
-  ]
-
   scope: resourceGroup(resourceGroup().name)
 }
 
 
 // working version of saving storage account secrets in key vault using AVM module
-module saveStorageAccountSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
-  name: take('saveStorageAccountSecretsInKeyVault.${keyVaultName}', 64)
-  params: {
-    name: keyVaultName
-    enablePurgeProtection: enablePurgeProtection
-    enableVaultForDeployment: true
-    enableVaultForDiskEncryption: true
-    enableVaultForTemplateDeployment: true
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    secrets: [
-      {
-        name: 'ADLS-ACCOUNT-NAME'
-        value: storageAccountName
-      }
-      {
-        name: 'ADLS-ACCOUNT-CONTAINER'
-        value: 'data'
-      }
-      {
-        name: 'ADLS-ACCOUNT-KEY'
-        value: avmStorageAccount.outputs.primaryAccessKey
-      }
-    ]
-  }
-}
+// module saveStorageAccountSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
+//   name: take('saveStorageAccountSecretsInKeyVault.${keyVaultName}', 64)
+//   params: {
+//     name: keyVaultName
+//     enablePurgeProtection: enablePurgeProtection
+//     enableVaultForDeployment: true
+//     enableVaultForDiskEncryption: true
+//     enableVaultForTemplateDeployment: true
+//     enableRbacAuthorization: true
+//     enableSoftDelete: true
+//     softDeleteRetentionInDays: 7
+//     secrets: [
+//       {
+//         name: 'ADLS-ACCOUNT-NAME'
+//         value: storageAccountName
+//       }
+//       {
+//         name: 'ADLS-ACCOUNT-CONTAINER'
+//         value: 'data'
+//       }
+//       {
+//         name: 'ADLS-ACCOUNT-KEY'
+//         value: avmStorageAccount.outputs.primaryAccessKey
+//       }
+//     ]
+//   }
+// }
 
 // ========== Cosmos DB module ========== //
 // module cosmosDBModule 'deploy_cosmos_db.bicep' = {
@@ -1477,46 +1596,45 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
       }
     ]
   }
-  dependsOn: [keyvault, avmStorageAccount]
   scope: resourceGroup(resourceGroup().name)
 }
 
 // working version of saving Cosmos DB secrets in key vault using AVM module
-module saveCosmosDBSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
-  name: take('saveCosmosDBSecretsInKeyVault.${keyVaultName}', 64)
-  params: {
-    name: keyVaultName
-    enablePurgeProtection: enablePurgeProtection
-    enableVaultForDeployment: true
-    enableVaultForDiskEncryption: true
-    enableVaultForTemplateDeployment: true
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    secrets: [
-      {
-        name: 'AZURE-COSMOSDB-ACCOUNT'
-        value: cosmosDb.outputs.name
-      }
-      {
-        name: 'AZURE-COSMOSDB-ACCOUNT-KEY'
-        value: cosmosDb.outputs.primaryReadWriteKey
-      }
-      {
-        name: 'AZURE-COSMOSDB-DATABASE'
-        value: cosmosDbDatabaseName
-      }
-      {
-        name: 'AZURE-COSMOSDB-CONVERSATIONS-CONTAINER'
-        value: collectionName
-      }
-      {
-        name: 'AZURE-COSMOSDB-ENABLE-FEEDBACK'
-        value: 'True'
-      }
-    ]
-  }
-}
+// module saveCosmosDBSecretsInKeyVault 'br/public:avm/res/key-vault/vault:0.12.1' = {
+//   name: take('saveCosmosDBSecretsInKeyVault.${keyVaultName}', 64)
+//   params: {
+//     name: keyVaultName
+//     enablePurgeProtection: enablePurgeProtection
+//     enableVaultForDeployment: true
+//     enableVaultForDiskEncryption: true
+//     enableVaultForTemplateDeployment: true
+//     enableRbacAuthorization: true
+//     enableSoftDelete: true
+//     softDeleteRetentionInDays: 7
+//     secrets: [
+//       {
+//         name: 'AZURE-COSMOSDB-ACCOUNT'
+//         value: cosmosDb.outputs.name
+//       }
+//       {
+//         name: 'AZURE-COSMOSDB-ACCOUNT-KEY'
+//         value: cosmosDb.outputs.primaryReadWriteKey
+//       }
+//       {
+//         name: 'AZURE-COSMOSDB-DATABASE'
+//         value: cosmosDbDatabaseName
+//       }
+//       {
+//         name: 'AZURE-COSMOSDB-CONVERSATIONS-CONTAINER'
+//         value: collectionName
+//       }
+//       {
+//         name: 'AZURE-COSMOSDB-ENABLE-FEEDBACK'
+//         value: 'True'
+//       }
+//     ]
+//   }
+// }
 
 //========== SQL DB module ========== //
 // module sqlDBModule 'deploy_sql_db.bicep' = {
@@ -1840,31 +1958,20 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     name: 'create_search_indexes'
     // Non-required parameters
     azCliVersion: '2.52.0'
-    cleanupPreference: 'Always'
     location: solutionLocation
-    lock: {
-      kind: 'None'
-    }
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
       ]
     }
-    retentionInterval: 'P1D'
     runOnce: true
     primaryScriptUri: '${baseUrl}infra/scripts/run_create_index_scripts.sh'
     arguments: '${baseUrl} ${keyvault.outputs.name} ${userAssignedIdentity.outputs.clientId}'
-    
-    // Explicit configuration: use storage account, no subnet delegation
-    storageAccountResourceId: avmStorageAccount.outputs.resourceId
-    
-    // Explicitly disable subnet configuration
-    subnetResourceIds: null
-    
     tags: tags
     timeout: 'PT1H'
+    retentionInterval: 'P1D'
+    cleanupPreference: 'OnSuccess'
   }
-  dependsOn: [sqlDBModule, uploadFiles]
 }
 
 // module hostingplan 'deploy_app_service_plan.bicep' = {
@@ -1980,7 +2087,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|kmgenraf.azurecr.io/kmgenraf:avmab'
+      linuxFxVersion: 'DOCKER|macaer.azurecr.io/kmgenraf:avmab'
       minTlsVersion: '1.2'
     }
     configs: [
