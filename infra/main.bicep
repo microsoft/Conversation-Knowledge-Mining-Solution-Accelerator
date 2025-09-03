@@ -2100,7 +2100,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
+      linuxFxVersion: 'DOCKER|macaer.azurecr.io/macaebackend:infraavmwaf'
       minTlsVersion: '1.2'
     }
     configs: [
@@ -2114,10 +2114,10 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           // AUTH_ENABLED: 'false'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
-          AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : (aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.endpoint : '')
+          AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
-          AZURE_OPENAI_RESOURCE: aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.name : ''
-          AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : (aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.endpoint : '')
+          AZURE_OPENAI_RESOURCE: aiFoundryAiServices.outputs.name
+          AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
           AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
           USE_CHAT_HISTORY_ENABLED: 'True'
@@ -2453,7 +2453,7 @@ output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
 output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
 
 @description('Contains Azure OpenAI endpoint URL.')
-output AZURE_OPENAI_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.search.windows.net'
+output AZURE_OPENAI_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
 
 @description('Contains Azure OpenAI model deployment type.')
 output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
@@ -2492,7 +2492,7 @@ output USE_CHAT_HISTORY_ENABLED string = 'True'
 output DISPLAY_CHART_DEFAULT string = 'False'
 
 @description('Contains Azure AI Agent endpoint URL.')
-output AZURE_AI_AGENT_ENDPOINT string = !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.endpoint
+output AZURE_AI_AGENT_ENDPOINT string = !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
 
 @description('Contains Azure AI Agent model deployment name.')
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
