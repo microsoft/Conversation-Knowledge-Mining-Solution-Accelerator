@@ -789,7 +789,7 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
       }
       {
         name: 'AZURE-OPENAI-ENDPOINT'
-        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
+        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServicesResourceName}.openai.azure.com/'
       }
       {
         name: 'COG-SERVICES-ENDPOINT'
@@ -838,6 +838,14 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
       {
         name: 'AZURE-OPENAI-EMBEDDING-MODEL'
         value: embeddingModel
+      }
+      {
+        name: 'SQLDB-SERVER'
+        value: 'sql-${solutionSuffix}${environment().suffixes.sqlServerHostname}'
+      }
+      {
+        name: 'SQLDB-DATABASE'
+        value: 'sqldb-${solutionSuffix}'
       }
     ]
     enableTelemetry: enableTelemetry
@@ -994,7 +1002,7 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
   name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesCUResourceName}', 64)
   params: {
     name: aiServicesName_cu
-    location: aiDeploymentsLocation
+    location: contentUnderstandingLocation
     tags: tags
     enableTelemetry: enableTelemetry
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
@@ -2092,7 +2100,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|macaer.azurecr.io/kmgenraf:avmab'
+      linuxFxVersion: 'DOCKER|${acrName}.azurecr.io/km-api:${imageTag}'
       minTlsVersion: '1.2'
     }
     configs: [
