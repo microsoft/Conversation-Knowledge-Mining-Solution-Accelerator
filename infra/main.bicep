@@ -1117,18 +1117,23 @@ module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' 
       ipRules: []
     }
     roleAssignments: [
-      // {
-      //   roleDefinitionIdOrName: 'Cognitive Services Contributor' // Cognitive Search Contributor
-      //   principalId: userAssignedIdentity.outputs.principalId
-      //   principalType: 'ServicePrincipal'
-      // }
-      // {
-      //   roleDefinitionIdOrName: 'Cognitive Services OpenAI User'//'5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'// Cognitive Services OpenAI User
-      //   principalId: userAssignedIdentity.outputs.principalId
-      //   principalType: 'ServicePrincipal'
-      // }
       {
-        roleDefinitionIdOrName: 'Search Index Data Contributor' // 1407120a-92aa-4202-b7e9-c0e197c71c8f
+        roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //'Search Index Data Contributor'
+        principalId: userAssignedIdentity.outputs.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
         principalId: userAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
