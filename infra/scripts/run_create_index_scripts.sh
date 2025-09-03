@@ -56,9 +56,9 @@ sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_
 
 # Step 5: Execute the Python scripts
 echo "Running Python index scripts..."
-python 01_create_search_index.py
-python 02_create_cu_template_text.py
-python 02_create_cu_template_audio.py
-python 03_cu_process_data_text.py
+python3 01_create_search_index.py
+python3 02_create_cu_template_text.py
+python3 02_create_cu_template_audio.py
+python3 03_cu_process_data_text.py
 
 echo "Index script setup completed successfully."

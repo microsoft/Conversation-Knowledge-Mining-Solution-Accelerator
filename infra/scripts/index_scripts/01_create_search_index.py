@@ -21,6 +21,8 @@ KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 INDEX_NAME = "call_transcripts_index"
 
+print("calling create_search_index()....")
+
 
 def get_secrets_from_kv(secret_name: str) -> str:
     """
