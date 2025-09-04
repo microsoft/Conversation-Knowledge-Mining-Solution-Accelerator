@@ -106,7 +106,7 @@ var solutionSuffix = toLower(trim(replace(
   '*',
   ''
 )))
-
+var deployerInfo = deployer()
 // ========== Resource Group Tag ========== //
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
@@ -114,6 +114,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
     tags: {
       ... tags
       TemplateName: 'KM Generic'
+      CreatedBy: split(deployerInfo.userPrincipalName, '@')[0] 
     }
   }
 }
