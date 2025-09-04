@@ -174,6 +174,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
     tags: {
       ...tags
       TemplateName: 'KM Generic'
+      SecurityControl: 'Ignore'
     }
   }
 }
@@ -1171,6 +1172,16 @@ module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' 
   }
 }
 
+// ========== Search Service to AI Services Role Assignment ========== //
+resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aiSearchName, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', aiFoundryAiServicesResourceName)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
+    principalId: avmSearchSearchServices.outputs.systemAssignedMIPrincipalId!
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // var aiSearchName = 'srch-${solutionName}'
 // var aiSearchConnectionName = 'myCon-${solutionName}'
 // var varKvSecretNameAzureSearchKey = 'AZURE-SEARCH-KEY'
@@ -2100,7 +2111,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|macaer.azurecr.io/macaebackend:infraavmwaf'
+      linuxFxVersion: 'DOCKER|macaer.azurecr.io/kmgenraf:avmab'
       minTlsVersion: '1.2'
     }
     configs: [
@@ -2130,7 +2141,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
           SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
           AZURE_AI_SEARCH_ENDPOINT: 'https://${aiSearchName}.search.windows.net'
           AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
-          AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchConnectionName
+          AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchName
           USE_AI_PROJECT_CLIENT: 'True'
           DISPLAY_CHART_DEFAULT: 'False'
           APPLICATIONINSIGHTS_CONNECTION_STRING: enableMonitoring ? applicationInsights!.outputs.connectionString : ''
@@ -2300,35 +2311,35 @@ module webSite 'modules/web-sites.bicep' = {
 }
 
 // update existing storage account to disable public access using avm module
-module avmStorageAccountUpdate 'br/public:avm/res/storage/storage-account:0.20.0' = if (enablePrivateNetworking) {
-  name: take('storage-account-update-${storageAccountName}', 64)
-  params: {
-    name: storageAccountName
-    location: solutionLocation
-    managedIdentities: { systemAssigned: true , userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
-    minimumTlsVersion: 'TLS1_2'
-    enableTelemetry: enableTelemetry
-    tags: tags
-    accessTier: 'Hot'
-    supportsHttpsTrafficOnly: true
-    // WAF aligned networking - Simplified configuration for deployment script compatibility
-    // This allows deployment scripts to access the storage account without firewall restrictions
-    // while still maintaining security through managed identity authentication
-    networkAcls: {
-      bypass: 'AzureServices, Logging, Metrics'
-      // Allow all access to avoid deployment script firewall issues
-      defaultAction: 'Allow'
-      virtualNetworkRules: []
-    }
-    // Allow trusted Microsoft services to bypass network restrictions
-    allowSharedKeyAccess: true
-    allowBlobPublicAccess: false
-    // Keep public access enabled for deployment scripts
-    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
-  }
-  scope: resourceGroup(resourceGroup().name)
-  dependsOn: [avmStorageAccount]
-}
+// module avmStorageAccountUpdate 'br/public:avm/res/storage/storage-account:0.20.0' = if (enablePrivateNetworking) {
+//   name: take('storage-account-update-${storageAccountName}', 64)
+//   params: {
+//     name: storageAccountName
+//     location: solutionLocation
+//     managedIdentities: { systemAssigned: true , userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] }
+//     minimumTlsVersion: 'TLS1_2'
+//     enableTelemetry: enableTelemetry
+//     tags: tags
+//     accessTier: 'Hot'
+//     supportsHttpsTrafficOnly: true
+//     // WAF aligned networking - Simplified configuration for deployment script compatibility
+//     // This allows deployment scripts to access the storage account without firewall restrictions
+//     // while still maintaining security through managed identity authentication
+//     networkAcls: {
+//       bypass: 'AzureServices, Logging, Metrics'
+//       // Allow all access to avoid deployment script firewall issues
+//       defaultAction: 'Allow'
+//       virtualNetworkRules: []
+//     }
+//     // Allow trusted Microsoft services to bypass network restrictions
+//     allowSharedKeyAccess: true
+//     allowBlobPublicAccess: false
+//     // Keep public access enabled for deployment scripts
+//     publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
+//   }
+//   scope: resourceGroup(resourceGroup().name)
+//   dependsOn: [avmStorageAccount]
+// }
 
 // var webSiteResourceName = 'app-${solutionSuffix}'
 // module webSite 'modules/web-sites.bicep' = {
@@ -2432,7 +2443,7 @@ output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
 @description('Contains Azure AI Search connection name.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchConnectionName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchName
 
 @description('Contains Azure Cosmos DB account name.')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDb.outputs.name
