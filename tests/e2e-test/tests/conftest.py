@@ -23,7 +23,7 @@ def login_logout():
         # Navigate to the login URL
         page.goto(URL, wait_until="domcontentloaded")
         # Wait for the login form to appear
-        page.wait_for_timeout(60000)
+        page.wait_for_timeout(5000)
         #page.wait_for_load_state('networkidle')
 
 
