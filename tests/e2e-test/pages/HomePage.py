@@ -235,32 +235,4 @@ class HomePage(BasePage):
 
         logger.info("✅ New chat conversation started successfully.")
     
-    # def verify_chat_response_generation(self):
-    #     self.page.reload(wait_until="networkidle")
-    #     logger.info("Step 1: On chat window enter the prompt which provides chat info: EX:  Average handling time by topic")
-    #     self.enter_chat_question("Average handling time by topic")
-    #     self.click_send_button()
-
-    #     # Wait and verify some assistant response appears
-    #     self.page.wait_for_timeout(2000)
-
-    #     assistant_messages = self.page.locator("div.chat-message.assistant")
-    #     last_message = assistant_messages.last
-
-    #     # Validate greeting response
-    #     p = last_message.locator("p")
-    #     message_text = p.inner_text().lower()
-
-    #     # Wait and verify some assistant response appears
-    #     response = self.page.locator("div.chat-message.assistant")
-    #     expect(response).to_be_visible(timeout=10000)
-    #     print("✅ Response received for 'Average handling time by topic'")
-
-    #     logger.info("Step 2: On chat window enter the prompt which provides chat info: EX:  Generate chart")
-    #     self.enter_chat_question("Generate chart")
-    #     self.click_send_button()
-
-    #     # Check that a chart is present in response
-    #     chart_svg = self.page.locator("div.chat-message.assistant svg")
-    #     expect(chart_svg).to_be_visible(timeout=10000)
-    #     print("✅ Chart is generated in response to 'Generate chart'")
+   

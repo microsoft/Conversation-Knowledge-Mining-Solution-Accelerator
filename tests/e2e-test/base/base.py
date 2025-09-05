@@ -48,5 +48,5 @@ class BasePage:
         # Check the response status code
         assert response.status == 200, "response code is " + str(response.status)
 
-        self.page.wait_for_timeout(30000)
+        self.page.wait_for_timeout(4000)
 

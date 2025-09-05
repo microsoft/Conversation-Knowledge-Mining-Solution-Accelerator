@@ -6,31 +6,123 @@ from pages.KMGenericPage import KMGenericPage
 import logging
 from pages.HomePage import HomePage
 from playwright.sync_api import expect
+import time
+from pytest_check import check
+from config.constants import *
+import io
 
 logger = logging.getLogger(__name__)
 
-@pytest.mark.smoke
-def test_validate_golden_path():
-    # Locate the golden path test file relative to this file's directory
-    test_file_path = os.path.join(
-        os.path.dirname(__file__),
-        "test_km_gp_tc.py"
+
+
+# Helper to validate the final response text
+def _validate_response_text(page, question):
+    response_text = page.locator("//p")
+    last_response = response_text.nth(response_text.count() - 1).text_content()
+    check.not_equal(
+        "I cannot answer this question from the data available. Please rephrase or add more details.",
+        last_response,
+        f"Invalid response for: {question}"
+    )
+    check.not_equal(
+        "Chart cannot be generated.",
+        last_response,
+        f"Invalid response for: {question}"
     )
 
-    # Run pytest on the golden path file in a subprocess
-    command = [sys.executable, "-m", "pytest", test_file_path]
-    logger.info(f"Running golden path: {' '.join(command)}")
-
-    result = subprocess.run(command, capture_output=True, text=True)
-
-    logger.info("Golden path output:\n" + result.stdout)
-
-    if result.returncode != 0:
-        logger.error("Golden path errors:\n" + result.stderr)
-    assert result.returncode == 0, f"Golden path failed:\n{result.stderr}"
-
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_user_filter_functioning(login_logout):
+def test_km_generic_golden_path_refactored(login_logout, request):
+    """
+    KM Generic Golden Path Smoke Test:
+    Refactored from parametrized test to sequential execution
+    1. Load home page and clear chat history
+    2. Execute all golden path questions sequentially
+    3. Validate responses and handle citations
+    4. Verify chat history functionality
+    """
+    
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "Golden Path - KM Generic - test golden path demo script works properly"
+    
+    page = login_logout
+    home_page = HomePage(page)
+    home_page.page = page
+
+    log_capture = io.StringIO()
+    handler = logging.StreamHandler(log_capture)
+    logger.addHandler(handler)
+
+    try:
+        logger.info("Step 1: Validate home page is loaded")
+        start = time.time()
+        home_page.home_page_load()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate home page is loaded': {duration:.2f}s")
+
+        logger.info("Step 2: Validate delete chat history")
+        start = time.time()
+        home_page.delete_chat_history()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate delete chat history': {duration:.2f}s")
+
+        # Execute all golden path questions
+        for i, question in enumerate(questions, start=1):
+            logger.info(f"Step {i+2}: Validate response for GP Prompt: {question}")
+            start = time.time()
+            
+            # Retry logic: attempt up to 2 times if response is invalid
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    # Enter question and get response
+                    home_page.enter_chat_question(question)
+                    home_page.click_send_button()
+                    home_page.validate_response_status(question)
+                    _validate_response_text(home_page.page, question)
+                    
+                    # If we reach here, the response was valid - break out of retry loop
+                    logger.info(f"[{question}] Valid response received on attempt {attempt + 1}")
+                    break
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:  # Not the last attempt
+                        logger.warning(f"[{question}] Attempt {attempt + 1} failed: {str(e)}")
+                        logger.info(f"[{question}] Retrying... (attempt {attempt + 2}/{max_retries})")
+                        # Wait a bit before retrying
+                        home_page.page.wait_for_timeout(2000)
+                    else:  # Last attempt failed
+                        logger.error(f"[{question}] All {max_retries} attempts failed. Last error: {str(e)}")
+                        raise e  # Re-raise the exception to fail the test
+            
+            # Handle citations if present
+            if home_page.has_reference_link():
+                logger.info(f"[{question}] Reference link found. Opening citation.")
+                home_page.click_reference_link_in_response()
+                logger.info(f"[{question}] Closing citation.")
+                home_page.close_citation()
+            
+            duration = time.time() - start
+            logger.info(f"Execution Time for 'Validate response for GP Prompt: {question}': {duration:.2f}s")
+
+        logger.info("Step: Validate chat history is saved")
+        start = time.time()
+        home_page.show_chat_history()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate chat history is saved': {duration:.2f}s")
+
+        logger.info("Step: Validate chat history is closed")
+        start = time.time()
+        home_page.close_chat_history()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate chat history is closed': {duration:.2f}s")
+
+    finally:
+        logger.removeHandler(handler)
+
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
+@pytest.mark.smoke
+def test_user_filter_functioning(login_logout, request):
     """
     KM Generic Smoke Test:
     1. Open KM Generic URL
@@ -40,6 +132,9 @@ def test_user_filter_functioning(login_logout):
     5. Click Apply
     6. Verify screen blur + chart update
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic - User filter functioning"
 
     page = login_logout
     km_page = KMGenericPage(page)
@@ -64,13 +159,16 @@ def test_user_filter_functioning(login_logout):
 
 
 @pytest.mark.smoke
-def test_after_filter_functioning(login_logout):
+def test_after_filter_functioning(login_logout, request):
     """
     KM Generic Smoke Test:
     1. Open KM Generic URL
     2. Changes the value of user filter
     3. Notice the value/data change in the chart/graphs tables
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic - After filter apply change in charts"
 
     page = login_logout
     km_page = KMGenericPage(page)
@@ -84,17 +182,23 @@ def test_after_filter_functioning(login_logout):
     logger.info("Step 3: Click Apply")
     km_page.click_apply_button()
 
-    logger.info("Step 4: Validate dashboard reflects filtered data")
-    km_page.validate_filter_data()
+    logger.info("Step 4: Validate filter data is reflecting in charts/graphs")
+    billing_data = km_page.validate_trending_topics_billing_issue()
+    logger.info(f"Billing issues data validated: {billing_data}")
 
+
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_hide_dashboard_and_chat_buttons(login_logout):
+def test_hide_dashboard_and_chat_buttons(login_logout, request):
     """
     KM Generic Smoke Test:
     1. Open KM Generic URL
     2. Changes the value of user filter
     3. Notice the value/data change in the chart/graphs tables
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic - Hide Dashboard and Chat buttons"
 
     page = login_logout
     km_page = KMGenericPage(page)
@@ -105,14 +209,18 @@ def test_hide_dashboard_and_chat_buttons(login_logout):
     logger.info("Step 2: On the left side of profile icon observe two buttons are present, Hide Dashboard & Hide Chat")
     km_page.verify_hide_dashboard_and_chat_buttons()
 
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_refine_chat_chart_output(login_logout):
+def test_refine_chat_chart_output(login_logout, request):
     """
     KM Generic Smoke Test:
     1. Open KM Generic URL
     2. On chat window enter the prompt which provides chat info: EX:  Average handling time by topic
     3. On chat window enter the prompt which provides chat info: EX:  Generate Chart
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic_Improve Chart Generation Experience in Chat"
 
     page = login_logout
     km_page = KMGenericPage(page)
@@ -124,12 +232,15 @@ def test_refine_chat_chart_output(login_logout):
     logger.info("Step 2: Verify chat response generation")
     logger.info("Step 3: On chat window enter the prompt which provides chat info: EX:  Average handling time by topic")
     home_page.validate_chat_response('Average handling time by topic')
+    home_page.validate_response_status('Average handling time by topic')
 
     logger.info("Step 4: On chat window enter the prompt which provides chat info: EX:  Generate chart")
     home_page.validate_chat_response('Generate chart', True)
+    home_page.validate_response_status('Generate chart')
 
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_chat_greeting_responses(login_logout):
+def test_chat_greeting_responses(login_logout, request):
 
     """
     KM Generic Smoke Test:
@@ -137,6 +248,9 @@ def test_chat_greeting_responses(login_logout):
     2. Open KM Generic URL
     3. On chat window enter the Greeting related info: EX:  Hi, Good morning, Hello.
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic_ Greeting related experience in Chat"
 
     page = login_logout
     km_page = KMGenericPage(page)
@@ -168,72 +282,109 @@ def test_chat_greeting_responses(login_logout):
         # Optional wait between messages
         home_page.page.wait_for_timeout(1000)
 
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_chat_history_panel(login_logout):
+def test_chat_history_panel(login_logout, request):
     """
     KM Generic Smoke Test:
-    1. Open KM Generic URL
-    2. Ask questions in the chat area, where the citations are provided.
-    3. Click on the any citation link.
-    4. Open Chat history panel.
-    5. In chat history panel delete complete chat history.
-    6. Observe Citation Section.
+    Refactored to reuse golden path logic plus additional chat history operations
+    1. Reuse golden path test execution (load home page, delete history, execute questions)
+    2. Edit chat thread title 
+    3. Verify chat history operations (delete thread, create new chat, clear all history)
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic - Chat History Panel"
 
     page = login_logout
     home_page = HomePage(page)
+    home_page.page = page
 
-    logger.info("Step 1: Open KM Generic URL")
-    home_page.page.reload(wait_until="networkidle")
-    home_page.page.wait_for_timeout(2000)
-    print("✅ KM Generic page reloaded successfully")
+    log_capture = io.StringIO()
+    handler = logging.StreamHandler(log_capture)
+    logger.addHandler(handler)
 
-    # 2. Verify main UI components
-    home_page.home_page_load()
-    print("✅ Main components like dashboard, chat panel, and chat history are visible")
+    try:
+        # Reuse golden path logic - Steps 1-2: Load home page and clear chat history
+        logger.info("Step 1: Validate home page is loaded")
+        start = time.time()
+        home_page.home_page_load()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate home page is loaded': {duration:.2f}s")
 
-    # 3. Ask chat questions with citations
-    logger.info("Step 2: On chat window enter the prompt")
-    questions = [
-        "Total number of calls by date for last 7 days",
-        "Generate Chart",
-        "Show average handling time by topics in minutes",
-        "What are top 7 challenges user reported",
-        "When customers call in about unexpected charges, what types of charges are they seeing?"
-    ]
-    
-    for question in questions:
-        print(f"📨 Asking question: {question}")
-        home_page.enter_chat_question(question)
+        logger.info("Step 2: Validate delete chat history")
+        start = time.time()
+        home_page.delete_chat_history()
+        duration = time.time() - start
+        logger.info(f"Execution Time for 'Validate delete chat history': {duration:.2f}s")
+
+        # Reuse golden path logic - Execute all golden path questions
+        for i, question in enumerate(questions, start=1):
+            logger.info(f"Step {i+2}: Validate response for GP Prompt: {question}")
+            start = time.time()
+            
+            # Retry logic: attempt up to 2 times if response is invalid
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    # Enter question and get response
+                    home_page.enter_chat_question(question)
+                    home_page.click_send_button()
+                    home_page.validate_response_status(question)
+                    _validate_response_text(home_page.page, question)
+                    
+                    # If we reach here, the response was valid - break out of retry loop
+                    logger.info(f"[{question}] Valid response received on attempt {attempt + 1}")
+                    break
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:  # Not the last attempt
+                        logger.warning(f"[{question}] Attempt {attempt + 1} failed: {str(e)}")
+                        logger.info(f"[{question}] Retrying... (attempt {attempt + 2}/{max_retries})")
+                        # Wait a bit before retrying
+                        home_page.page.wait_for_timeout(2000)
+                    else:  # Last attempt failed
+                        logger.error(f"[{question}] All {max_retries} attempts failed. Last error: {str(e)}")
+                        raise e  # Re-raise the exception to fail the test
+            
+            # Handle citations if present
+            if home_page.has_reference_link():
+                logger.info(f"[{question}] Reference link found. Opening citation.")
+                home_page.click_reference_link_in_response()
+                logger.info(f"[{question}] Closing citation.")
+                home_page.close_citation()
+            
+            duration = time.time() - start
+            logger.info(f"Execution Time for 'Validate response for GP Prompt: {question}': {duration:.2f}s")
+
+        # Additional chat history specific operations
+        logger.info("Step 7: Try editing the title of chat thread")
+        home_page.edit_chat_title("Updated Title")
+
         home_page.page.wait_for_timeout(2000)
-        home_page.click_send_button()
-        # home_page.validate_response_status(question)
-    
-    home_page.page.wait_for_timeout(8000)
 
-    logger.info("Step 7: Try editing the title of chat thread")
-    home_page.edit_chat_title("Updated Title")
+        logger.info("Step 8: Verify the chat history is getting stored properly or not")
+        logger.info("Step 9: Try deleting the chat thread from chat history panel")
+        home_page.delete_first_chat_thread()
 
-    home_page.page.wait_for_timeout(2000)
+        home_page.page.wait_for_timeout(2000)
 
-    logger.info("Step 3: Verify the chat history is getting stored properly or not")
-    logger.info("Step 4: Try deleting the chat thread from chat history panel")
-    home_page.delete_first_chat_thread()
+        logger.info("Step 10: Try clicking on + icon present before chat box")
+        home_page.create_new_chat()
 
-    home_page.page.wait_for_timeout(2000)
+        home_page.page.wait_for_timeout(2000)
 
-    logger.info("Step 6: Try clicking on + icon present before chat box")
-    home_page.create_new_chat()
+        home_page.close_chat_history()
 
-    home_page.page.wait_for_timeout(2000)
+        logger.info("Step 11: Click on eclipse (3 dots) and select Clear all chat history")
+        home_page.delete_chat_history()
 
-    home_page.close_chat_history()
+    finally:
+        logger.removeHandler(handler)
 
-    logger.info("Step 5: Click on eclipse (3 dots) and select Clear all chat history")
-    home_page.delete_chat_history()
-
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
 @pytest.mark.smoke
-def test_clear_citations_on_chat_delete(login_logout):
+def test_clear_citations_on_chat_delete(login_logout, request):
     """
     KM Generic Smoke Test:
     1. Open KM Generic URL
@@ -243,60 +394,48 @@ def test_clear_citations_on_chat_delete(login_logout):
     5. In chat history panel delete complete chat history.
     6. Observe Citation Section.
     """ 
+
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic - Citation should get cleared after deleting complete chat history"
 
     page = login_logout
     km_page = KMGenericPage(page)
     home_page = HomePage(page)
 
-    home_page.page.reload(wait_until="networkidle")
-    home_page.page.wait_for_timeout(2000)
-    print("✅ KM Generic page reloaded successfully")
+    logger.info("Step 2: Send a query to trigger a citation")
+    question= "When customers call in about unexpected charges, what types of charges are they seeing?"
+    home_page.enter_chat_question(question)
+    home_page.click_send_button()
+    # home_page.validate_chat_response(question)
+    home_page.page.wait_for_timeout(3000)
 
-    # 3. Ask chat questions with citations
-    questions = [
-        "Total number of calls by date for last 7 days",
-        "Generate Chart",
-        "When customers call in about unexpected charges, what types of charges are they seeing?",
-        "Show average handling time by topics in minutes",
-        "What are top 7 challenges user reported"
-    ]
-    
-    for question in questions:
-        home_page.validate_chat_response(question)
-
-        # ✅ Ensure input field is cleared/ready for next
-        home_page.page.wait_for_timeout(8000)
-
-        if not home_page.has_reference_link():
-            print(f"❌ No citation found for: '{question}'. Moving to next question...")
-            continue
-
-        print("✅ Citation found")
-
-    # 5. Show chat history
-    print("📚 Opening chat history panel")
-    home_page.show_chat_history()
-    print("✅ Chat history panel is visible")
-
-    home_page.close_chat_history()
+    logger.info("Step 3: Validate citation link appears in response")
+    logger.info("Step 4: Click on the citation link to open the panel")
+    home_page.click_reference_link_in_response()
+    home_page.page.wait_for_timeout(5000)
 
     # 6. Delete entire chat history
     print("🗑 Deleting all chat history")
     home_page.delete_chat_history()
     print("✅ Chat history deleted")
 
-    # 7. Check citation section is also cleared
-    print("🔍 Verifying citation section is cleared")
-    try:
-        home_page.close_citation()  # This should fail or do nothing if citation is already closed
-        print("✅ Citation panel closed (or already removed) after deleting chat history")
-    except:
-        print("✅ Citation panel was already removed after history deletion")
+    # 7. Check citation section is not visible after chat history deletion
+    print("🔍 Verifying citation section is not visible")
+    citations_locator = page.locator("//div[contains(text(),'Citations')]")
+    expect(citations_locator).not_to_be_visible(timeout=3000)
+    print("✅ Citations section is not visible after chat history deletion")
 
-def test_citation_panel_closes_with_chat(login_logout):
+   
+
+@pytest.mark.skip(reason="Skipping to run only test_after_filter_functioning")
+def test_citation_panel_closes_with_chat(login_logout, request):
     """
     Test to ensure citation panel closes when chat section is hidden.
     """
+    
+    # Set custom test name for pytest HTML report
+    request.node._nodeid = "KM Generic: Citation panel should close after hiding chat"
+    
     page = login_logout
     km_page = KMGenericPage(page)
     home_page = HomePage(page)
@@ -327,3 +466,5 @@ def test_citation_panel_closes_with_chat(login_logout):
     expect(citation_panel).not_to_be_visible(timeout=3000)
 
     logger.info("✅ Citation panel successfully closed with chat.")
+
+

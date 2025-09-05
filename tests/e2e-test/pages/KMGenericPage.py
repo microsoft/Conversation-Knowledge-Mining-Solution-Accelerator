@@ -12,7 +12,7 @@ class KMGenericPage(BasePage):
     def open_url(self):
         self.page.goto(URL, wait_until="domcontentloaded")
         # Wait for the login form to appear
-        self.page.wait_for_timeout(60000)
+        self.page.wait_for_timeout(8000)
         self.page.wait_for_load_state("networkidle")
     
     def validate_dashboard_ui(self):
@@ -71,6 +71,7 @@ class KMGenericPage(BasePage):
         apply_button = self.page.locator("button:has-text('Apply')")
         expect(apply_button).to_be_enabled()
         apply_button.click()
+        self.page.wait_for_timeout(4000)
 
     def verify_blur_and_chart_update(self):
         self.page.wait_for_timeout(2000)  # Wait for blur effect
@@ -118,3 +119,44 @@ class KMGenericPage(BasePage):
         chat_section = self.page.locator("#chat-section")
         assert not chat_section.is_visible(), "Chat section did not collapse/hide after clicking Hide Chat"
         print("✅ Chat section collapsed/hid on clicking Hide Chat")
+
+    def validate_trending_topics_billing_issue(self):
+        """
+        Validates that the Trending Topics table has only one entry of 'Billing issues' with positive sentiment
+        """
+        # Wait for the trending topics table to be visible
+        trending_topics_section = self.page.locator("text=Trending Topics")
+        expect(trending_topics_section).to_be_visible()
+        
+        # Locate the trending topics table
+        trending_table = self.page.locator("table.fui-Table")
+        expect(trending_table).to_be_visible()
+        
+        # Find all rows that contain "Billing issues" in the Topic column
+        billing_rows = self.page.locator("table.fui-Table tbody tr:has(td:has-text('Billing issues'))")
+        
+        # Assert there is exactly one billing issues entry
+        expect(billing_rows).to_have_count(1)
+        print("✅ Found exactly one 'Billing issues' entry in trending topics")
+        
+        # Get the specific billing issues row
+        billing_row = billing_rows.first
+        
+        # Validate the sentiment is positive
+        sentiment_cell = billing_row.locator("td").nth(2)  # Assuming sentiment is the 3rd column (index 2)
+        sentiment_text = sentiment_cell.inner_text().strip().lower()
+        
+        assert "positive" in sentiment_text, f"Expected sentiment to be 'positive' but found: {sentiment_text}"
+        print(f"✅ Billing issues sentiment is positive: {sentiment_text}")
+        
+        # Optionally validate the frequency (13 as shown in screenshot)
+        frequency_cell = billing_row.locator("td").nth(1)  # Assuming frequency is the 2nd column (index 1)
+        frequency_text = frequency_cell.inner_text().strip()
+        
+        print(f"✅ Billing issues frequency: {frequency_text}")
+        
+        return {
+            "topic": "Billing issues",
+            "frequency": frequency_text,
+            "sentiment": sentiment_text
+        }
