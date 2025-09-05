@@ -107,17 +107,17 @@ var solutionSuffix = toLower(trim(replace(
   ''
 )))
 @description('Optional. Enable private networking for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enablePrivateNetworking bool = false//true//false
+param enablePrivateNetworking bool = true//false
 @description('Optional. Enable/Disable usage telemetry for module.')
-param enableTelemetry bool = false //true
+param enableTelemetry bool = true
 @description('Optional. Enable monitoring applicable resources, aligned with the Well Architected Framework recommendations. This setting enables Application Insights and Log Analytics and configures all the resources applicable resources to send logs. Defaults to false.')
-param enableMonitoring bool =  false//true//false
+param enableMonitoring bool =  true//false
 @description('Optional. Enable redundancy for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableRedundancy bool = false //true//false
+param enableRedundancy bool = false
 @description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableScalability bool = false//true//false
+param enableScalability bool = true//false
 @description('Optional. Enable purge protection for the Key Vault')
-param enablePurgeProtection bool = false//true//false
+param enablePurgeProtection bool = true//false
 
 @description('Optional. Admin username for the Jumpbox Virtual Machine. Set to custom value if enablePrivateNetworking is true.')
 @secure()
@@ -618,7 +618,7 @@ var privateDnsZones = [
   'privatelink.file.${environment().suffixes.storage}'
   'privatelink.api.azureml.ms'
   'privatelink.notebooks.azure.net'
-  'privatelink.mongo.cosmos.azure.com'
+  'privatelink.documents.azure.com'
   'privatelink.azconfig.io'
   'privatelink.vaultcore.azure.net'
   'privatelink.azurecr.io'
@@ -1153,8 +1153,8 @@ module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' 
     semanticSearch: 'free'
     // Use the deployment tags provided to the template
     tags: tags
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: enablePrivateNetworking
+    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: false //enablePrivateNetworking
     ? [
         {
           name: 'pep-${aiSearchName}'
@@ -1432,7 +1432,7 @@ module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
 
     allowSharedKeyAccess: true    // needed by scripts if MI fails
     allowBlobPublicAccess: true   // keep for script compatibility
-    publicNetworkAccess: 'Enabled' // Private endpoints are preferred, but public access needed for scripts
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
 
     // ✅ Add private endpoints if enabled
     privateEndpoints: enablePrivateNetworking ? [
@@ -1537,6 +1537,92 @@ var cosmosDbDatabaseName = 'db_conversation_history'
 // var cosmosDbDatabaseMemoryContainerName = 'memory'
 var collectionName = 'conversations'
 //TODO: update to latest version of AVM module
+// module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
+//   name: take('avm.res.document-db.database-account.${cosmosDbResourceName}', 64)
+//   params: {
+//     // Required parameters
+//     name: cosmosDbResourceName
+//     location: solutionLocation
+//     tags: tags
+//     enableTelemetry: enableTelemetry
+//     sqlDatabases: [
+//       {
+//         name: cosmosDbDatabaseName
+//         containers: [
+//           // {
+//           //   name: cosmosDbDatabaseMemoryContainerName
+//           //   paths: [
+//           //     '/session_id'
+//           //   ]
+//           //   kind: 'Hash'
+//           //   version: 2
+//           // }
+//           {
+//             name: collectionName
+//             paths: [
+//               '/userId'
+//             ]
+//           }
+//         ]
+//       }
+//     ]
+//     dataPlaneRoleDefinitions: [
+//       {
+//         // Cosmos DB Built-in Data Contributor: https://docs.azure.cn/en-us/cosmos-db/nosql/security/reference-data-plane-roles#cosmos-db-built-in-data-contributor
+//         roleName: 'Cosmos DB SQL Data Contributor'
+//         dataActions: [
+//           'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+//           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
+//           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
+//         ]
+//         assignments: [{ principalId: userAssignedIdentity.outputs.principalId }]
+//       }
+//     ]
+//     // WAF aligned configuration for Monitoring
+//     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }] : null
+//     // WAF aligned configuration for Private Networking
+//     networkRestrictions: {
+//       networkAclBypass: 'None'
+//       publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+//     }
+//     privateEndpoints: enablePrivateNetworking
+//       ? [
+//           {
+//             name: 'pep-${cosmosDbResourceName}'
+//             customNetworkInterfaceName: 'nic-${cosmosDbResourceName}'
+//             privateDnsZoneGroup: {
+//               privateDnsZoneGroupConfigs: [
+//                 { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cosmosDB]!.outputs.resourceId }
+//               ]
+//             }
+//             service: 'Sql'
+//             subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+//           }
+//         ]
+//       : []
+//     roleAssignments: [
+//       {
+//         principalId: userAssignedIdentity.outputs.principalId
+//         principalType: 'ServicePrincipal'
+//         roleDefinitionIdOrName: 'Contributor'
+//       }
+//     ]
+//     // WAF aligned configuration for Redundancy
+//     // Temporarily disabled due to high demand in East US 2 for zone-redundant accounts
+//     // zoneRedundant: false // enableRedundancy ? true : false 
+//     // capabilitiesToAdd: ['EnableServerless'] // Always use serverless to avoid availability zone issues
+//     // automaticFailover: false // enableRedundancy ? true : false
+//     failoverLocations: [
+//           {
+//             locationName: solutionLocation
+//             failoverPriority: 0
+//           }
+//         ]
+//   }
+//   dependsOn: [ avmStorageAccount]
+//   scope: resourceGroup(resourceGroup().name)
+// }
+
 module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
   name: take('avm.res.document-db.database-account.${cosmosDbResourceName}', 64)
   params: {
@@ -1600,26 +1686,31 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
           }
         ]
       : []
-    roleAssignments: [
-      {
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-        roleDefinitionIdOrName: 'Contributor'
-      }
-    ]
     // WAF aligned configuration for Redundancy
-    // Temporarily disabled due to high demand in East US 2 for zone-redundant accounts
-    // zoneRedundant: false // enableRedundancy ? true : false 
-    // capabilitiesToAdd: ['EnableServerless'] // Always use serverless to avoid availability zone issues
-    // automaticFailover: false // enableRedundancy ? true : false
-    failoverLocations: [
-      {
-        locationName: solutionLocation
-        failoverPriority: 0
-        // Removed isZoneRedundant to avoid availability zone constraints
-      }
-    ]
+    zoneRedundant: enableRedundancy ? true : false
+    capabilitiesToAdd: enableRedundancy ? null : ['EnableServerless']
+    automaticFailover: enableRedundancy ? true : false
+    failoverLocations: enableRedundancy
+      ? [
+          {
+            failoverPriority: 0
+            isZoneRedundant: true
+            locationName: solutionLocation
+          }
+          {
+            failoverPriority: 1
+            isZoneRedundant: true
+            locationName: cosmosDbHaLocation
+          }
+        ]
+      : [
+          {
+            locationName: solutionLocation
+            failoverPriority: 0
+          }
+        ]
   }
+  dependsOn: [avmStorageAccount]
   scope: resourceGroup(resourceGroup().name)
 }
 
@@ -1681,8 +1772,163 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
 //   scope: resourceGroup(resourceGroup().name)
 // }
 
+// module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
+//   name: 'serverDeployment'
+//   params: {
+//     // Required parameters
+//     name: 'sql-${solutionSuffix}'
+//     // Non-required parameters
+//     administrators: {
+//       azureADOnlyAuthentication: true
+//       login: userAssignedIdentity.outputs.name
+//       principalType: 'Application'
+//       sid: userAssignedIdentity.outputs.principalId
+//       tenantId: subscription().tenantId
+//     }
+//     connectionPolicy: 'Redirect'
+//     // customerManagedKey: {
+//     //   autoRotationEnabled: true
+//     //   keyName: keyvault.outputs.name
+//     //   keyVaultResourceId: keyvault.outputs.resourceId
+//     //   // keyVersion: keyvault.outputs.
+//     // }
+//     databases: [
+//       {
+//         availabilityZone: 1
+//         backupLongTermRetentionPolicy: {
+//           monthlyRetention: 'P6M'
+//         }
+//         backupShortTermRetentionPolicy: {
+//           retentionDays: 14
+//         }
+//         collation: 'SQL_Latin1_General_CP1_CI_AS'
+//         diagnosticSettings: enableMonitoring
+//           ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }]
+//           : null
+//         elasticPoolResourceId: resourceId(
+//           'Microsoft.Sql/servers/elasticPools',
+//           'sql-${solutionSuffix}',
+//           'sqlswaf-ep-001'
+//         )
+//         licenseType: 'LicenseIncluded'
+//         maxSizeBytes: 34359738368
+//         name: 'sqldb-${solutionSuffix}'
+//         sku: {
+//           capacity: 0
+//           name: 'ElasticPool'
+//           tier: 'GeneralPurpose'
+//         }
+//       }
+//     ]
+//     elasticPools: [
+//       {
+//         availabilityZone: -1
+//         //maintenanceConfigurationId: '<maintenanceConfigurationId>'
+//         name: 'sqlswaf-ep-001'
+//         sku: {
+//           capacity: 10
+//           name: 'GP_Gen5'
+//           tier: 'GeneralPurpose'
+//         }
+//         roleAssignments: [
+//           {
+//             principalId: userAssignedIdentity.outputs.principalId
+//             principalType: 'ServicePrincipal'
+//             roleDefinitionIdOrName: 'db_datareader'
+//           }
+//           {
+//             principalId: userAssignedIdentity.outputs.principalId
+//             principalType: 'ServicePrincipal'
+//             roleDefinitionIdOrName: 'db_datawriter'
+//           }
+
+//           //Enable if above access is not sufficient for your use case
+//           // {
+//           //   principalId: userAssignedIdentity.outputs.principalId
+//           //   principalType: 'ServicePrincipal'
+//           //   roleDefinitionIdOrName: 'SQL DB Contributor'
+//           // }
+//           // {
+//           //   principalId: userAssignedIdentity.outputs.principalId
+//           //   principalType: 'ServicePrincipal'
+//           //   roleDefinitionIdOrName: 'SQL Server Contributor'
+//           // }
+//         ]
+//       }
+//     ]
+//     // firewallRules: [
+//     //   {
+//     //     endIpAddress: '255.255.255.255'
+//     //     name: 'AllowSpecificRange'
+//     //     startIpAddress: '0.0.0.0'
+//     //   }
+//     //   {
+//     //     endIpAddress: '0.0.0.0'
+//     //     name: 'AllowAllWindowsAzureIps'
+//     //     startIpAddress: '0.0.0.0'
+//     //   }
+//     // ]
+//     location: solutionLocation
+//     managedIdentities: {
+//       systemAssigned: true
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     primaryUserAssignedIdentityResourceId: userAssignedIdentity.outputs.resourceId
+//     privateEndpoints: enablePrivateNetworking
+//       ? [
+//           {
+//             privateDnsZoneGroup: {
+//               privateDnsZoneGroupConfigs: [
+//                 {
+//                   privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.sqlServer]!.outputs.resourceId
+//                 }
+//               ]
+//             }
+//             service: 'sqlServer'
+//             subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+//             tags: tags
+//           }
+//         ]
+//       : []
+//     restrictOutboundNetworkAccess: 'Disabled'
+//     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+//     securityAlertPolicies: [
+//       {
+//         emailAccountAdmins: true
+//         name: 'Default'
+//         state: 'Enabled'
+//       }
+//     ]
+//     tags: tags
+//     virtualNetworkRules: []
+//     // virtualNetworkRules: enablePrivateNetworking
+//     //   ? [
+//     //       {
+//     //         ignoreMissingVnetServiceEndpoint: true
+//     //         name: 'newVnetRule1'
+//     //         virtualNetworkSubnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+//     //       }
+//     //     ]
+//     //   : []
+//     vulnerabilityAssessmentsObj: {
+//       name: 'default'
+//       // recurringScans: {
+//       //   emails: [
+//       //     'test1@contoso.com'
+//       //     'test2@contoso.com'
+//       //   ]
+//       //   emailSubscriptionAdmins: true
+//       //   isEnabled: true
+//       // }
+//       storageAccountResourceId: avmStorageAccount.outputs.resourceId
+//     }
+//   }
+// }
+
 module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
-  name: 'serverDeployment'
+  name: 'serverDeployment-${solutionSuffix}'
   params: {
     // Required parameters
     name: 'sql-${solutionSuffix}'
@@ -1714,11 +1960,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
         diagnosticSettings: enableMonitoring
           ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }]
           : null
-        elasticPoolResourceId: resourceId(
-          'Microsoft.Sql/servers/elasticPools',
-          'sql-${solutionSuffix}',
-          'sqlswaf-ep-001'
-        )
+        elasticPoolResourceId: resourceId('Microsoft.Sql/servers/elasticPools', 'sql-${solutionSuffix}', 'sqlswaf-ep-001')
         licenseType: 'LicenseIncluded'
         maxSizeBytes: 34359738368
         name: 'sqldb-${solutionSuffix}'
@@ -1765,18 +2007,18 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
         ]
       }
     ]
-    firewallRules: [
-      {
-        endIpAddress: '255.255.255.255'
-        name: 'AllowSpecificRange'
-        startIpAddress: '0.0.0.0'
-      }
-      {
-        endIpAddress: '0.0.0.0'
-        name: 'AllowAllWindowsAzureIps'
-        startIpAddress: '0.0.0.0'
-      }
-    ]
+    // firewallRules: [
+    //   {
+    //     endIpAddress: '255.255.255.255'
+    //     name: 'AllowSpecificRange'
+    //     startIpAddress: '0.0.0.0'
+    //   }
+    //   {
+    //     endIpAddress: '0.0.0.0'
+    //     name: 'AllowAllWindowsAzureIps'
+    //     startIpAddress: '0.0.0.0'
+    //   }
+    // ]
     location: solutionLocation
     managedIdentities: {
       systemAssigned: true
@@ -1802,7 +2044,6 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
         ]
       : []
     restrictOutboundNetworkAccess: 'Disabled'
-    publicNetworkAccess:'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
     securityAlertPolicies: [
       {
         emailAccountAdmins: true
@@ -1811,15 +2052,15 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
       }
     ]
     tags: tags
-    virtualNetworkRules: enablePrivateNetworking
-      ? [
-          {
-            ignoreMissingVnetServiceEndpoint: true
-            name: 'newVnetRule1'
-            virtualNetworkSubnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
-          }
-        ]
-      : []
+    // virtualNetworkRules: enablePrivateNetworking
+    //   ? [
+    //       {
+    //         ignoreMissingVnetServiceEndpoint: true
+    //         name: 'newVnetRule1'
+    //         virtualNetworkSubnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+    //       }
+    //     ]
+    //   : []
     vulnerabilityAssessmentsObj: {
       name: 'default'
       // recurringScans: {
@@ -1915,7 +2156,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
 //   }
 // }
 
-module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!enablePrivateNetworking) {
   name: 'deploymentScriptForUploadFiles'
   params: {
     kind: 'AzureCLI'
@@ -1974,7 +2215,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
 
 //========== AVM WAF ========== //
 //========== Deployment script to create index ========== //
-module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!enablePrivateNetworking) {
   name: 'deploymentScriptForCreateIndex'
   params: {
     // Required parameters
@@ -2159,7 +2400,7 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -2306,7 +2547,7 @@ module webSite 'modules/web-sites.bicep' = {
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? network!.outputs.subnetWebResourceId : null
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    publicNetworkAccess: 'Enabled' // Always enabling the public network access for Web App
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
   }
 }
 
