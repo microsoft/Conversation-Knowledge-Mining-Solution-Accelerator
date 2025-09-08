@@ -19,8 +19,11 @@ param existingFoundryProjectResourceId string = ''
 // // Extract components from existing AI Project Resource ID if provided
 var useExistingProject = !empty(existingFoundryProjectResourceId)
 var existingProjName = useExistingProject ? last(split(existingFoundryProjectResourceId, '/')) : ''
-var existingProjEndpoint = useExistingProject ? format('https://{0}.services.ai.azure.com/api/projects/{1}', aiServicesName, existingProjName) : ''
-
+var existingAiFoundryAiServicesSubscriptionId = useExistingProject ? split(existingFoundryProjectResourceId, '/')[2] : ''
+var existingAiFoundryAiServicesResourceGroupName = useExistingProject ? split(existingFoundryProjectResourceId, '/')[4] : ''
+var existingAiFoundryAiServicesServiceName = useExistingProject ? split(existingFoundryProjectResourceId, '/')[8] : ''
+// Example endpoint (only if existing project provided)
+var existingProjEndpoint = useExistingProject ? format('https://{0}.services.ai.azure.com/api/projects/{1}', existingAiFoundryAiServicesServiceName, existingProjName) : ''
 // Reference to cognitive service in current resource group for new projects
 resource cogServiceReference 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = {
   name: aiServicesName
@@ -41,32 +44,10 @@ resource aiProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = 
   }
 }
 
-resource searchIndexDataReaderRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
-}
-
-// ========== Search Service to AI Services Role Assignment ========== //
-resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(aiProject.id, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
-  properties: {
-    roleDefinitionId: searchIndexDataReaderRoleDefinition.id
-    principalId: aiProject.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-@description('This is the built-in Search Service Contributor role.')
-resource searchServiceContributorRoleDefinition 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  name: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
-}
-
-resource searchServiceContributorRoleAssignmentToAIFP 'Microsoft.Authorization/roleAssignments@2022-04-01' =  {
-  name: guid(aiProject.id, searchServiceContributorRoleDefinition.id)
-  properties: {
-    roleDefinitionId: searchServiceContributorRoleDefinition.id
-    principalId: aiProject.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
+// Reference the existing AI Foundry project if reusing
+resource existingAiProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' existing = if (useExistingProject){
+  name: '${existingAiFoundryAiServicesServiceName}/${existingProjName}'
+  scope: resourceGroup(existingAiFoundryAiServicesSubscriptionId, existingAiFoundryAiServicesResourceGroupName)
 }
 
 @description('AI Project metadata including name, resource ID, and API endpoint.')
@@ -74,6 +55,7 @@ output aiProjectInfo aiProjectOutputType = {
   name: useExistingProject ? existingProjName : aiProject.name
   resourceId: useExistingProject ? existingFoundryProjectResourceId : aiProject.id
   apiEndpoint: useExistingProject ? existingProjEndpoint : aiProject!.properties.endpoints['AI Foundry API']
+  aiprojectSystemAssignedMIPrincipalId : useExistingProject ? existingAiProject!.identity.principalId : aiProject!.identity.principalId
 }
 
 @export()
@@ -87,4 +69,7 @@ type aiProjectOutputType = {
 
   @description('Required. API endpoint for the AI project.')
   apiEndpoint: string
+
+  @description('Required. System Assigned Managed Identity Principal Id of the AI project.')
+  aiprojectSystemAssignedMIPrincipalId: string
 }

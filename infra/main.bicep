@@ -88,7 +88,7 @@ param aiDeploymentsLocation string
 
 var acrName = 'kmcontainerreg'
 
-var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/psl-wafstandardization/'
+var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/dev/'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -107,17 +107,17 @@ var solutionSuffix = toLower(trim(replace(
   ''
 )))
 @description('Optional. Enable private networking for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enablePrivateNetworking bool = true//false
+param enablePrivateNetworking bool = false
 @description('Optional. Enable/Disable usage telemetry for module.')
-param enableTelemetry bool = true
+param enableTelemetry bool = false
 @description('Optional. Enable monitoring applicable resources, aligned with the Well Architected Framework recommendations. This setting enables Application Insights and Log Analytics and configures all the resources applicable resources to send logs. Defaults to false.')
-param enableMonitoring bool =  true//false
+param enableMonitoring bool =  false //false
 @description('Optional. Enable redundancy for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
 param enableRedundancy bool = false
 @description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
-param enableScalability bool = true//false
+param enableScalability bool = false//false
 @description('Optional. Enable purge protection for the Key Vault')
-param enablePurgeProtection bool = true//false
+param enablePurgeProtection bool = false//false
 
 @description('Optional. Admin username for the Jumpbox Virtual Machine. Set to custom value if enablePrivateNetworking is true.')
 @secure()
@@ -129,6 +129,12 @@ param vmAdminPassword string?
 
 @description('Optional. Size of the Jumpbox Virtual Machine when created. Set to custom value if enablePrivateNetworking is true.')
 param vmSize string = 'Standard_DS2_v2'
+
+@description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
+param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
+
+@description('Optional. The Container Image Name to deploy on the frontend.')
+param frontendContainerImageName string = 'km-app'
 
 // @description('Optional. Key vault reference and secret settings for the module\'s secrets export.')
 // param secretsExportConfiguration secretsExportConfigurationType?
@@ -177,13 +183,13 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
     }
   }
 }
-
+@description('Optional. The SKU name for the Log Analytics Workspace. Defaults to PerGB2018.')
 param logAnalyticsSkuName string = 'PerGB2018'
 // ========== Log Analytics Workspace ========== //
 // WAF best practices for Log Analytics: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-log-analytics
 // WAF PSRules for Log Analytics: https://azure.github.io/PSRule.Rules.Azure/en/rules/resource/#azure-monitor-logs
 var logAnalyticsWorkspaceResourceName = 'log-${solutionSuffix}'
-module logAnalyticsWorkspace 'br/public:avm/res/operational-insights/workspace:0.12.0' = if (enableMonitoring) {
+module logAnalyticsWorkspace 'br/public:avm/res/operational-insights/workspace:0.12.0' = if (enableMonitoring && !useExistingLogAnalytics) {
   name: take('avm.res.operational-insights.workspace.${logAnalyticsWorkspaceResourceName}', 64)
   params: {
     name: logAnalyticsWorkspaceResourceName
@@ -306,7 +312,7 @@ var dnsZoneIndex = {
   storageQueue: 5
   storageFile: 6
   aiFoundry: 7
-  // notebooks: 8
+  notebooks: 8
   cosmosDB: 9
   appConfig: 10
   keyVault: 11
@@ -503,8 +509,6 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
 // ========== AI Foundry: AI Services ========== //
 // WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
 
-@description('Optional. Resource ID of an existing Foundry project')
-param existingFoundryProjectResourceId string = ''
 var existingOpenAIEndpoint = !empty(azureExistingAIProjectResourceId) ? format('https://{0}.openai.azure.com/', split(azureExistingAIProjectResourceId, '/')[8]) : ''
 var existingProjEndpoint = !empty(azureExistingAIProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(azureExistingAIProjectResourceId, '/')[8], split(azureExistingAIProjectResourceId, '/')[10]) : ''
 var existingAIServicesName = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[8] : ''
@@ -512,8 +516,22 @@ var existingAIProjectName = !empty(azureExistingAIProjectResourceId) ? split(azu
 var existingAIServiceSubscription = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[2] : subscription().subscriptionId
 var existingAIServiceResourceGroup = !empty(azureExistingAIProjectResourceId) ? split(azureExistingAIProjectResourceId, '/')[4] : resourceGroup().name
 
+var aiFoundryAiServicesSubscriptionId = useExistingAiFoundryAiProject
+  ? split(azureExistingAIProjectResourceId, '/')[2]
+  : subscription().id
+var useExistingAiFoundryAiProject = !empty(azureExistingAIProjectResourceId)
+var aiFoundryAiServicesResourceGroupName = useExistingAiFoundryAiProject
+  ? split(azureExistingAIProjectResourceId, '/')[4]
+  : 'rg-${solutionSuffix}'
+var aiFoundryAiServicesResourceName = useExistingAiFoundryAiProject
+  ? split(azureExistingAIProjectResourceId, '/')[8]
+  : 'aif-${solutionSuffix}'
+var aiFoundryAiProjectResourceName = useExistingAiFoundryAiProject
+  ? split(azureExistingAIProjectResourceId, '/')[10]
+  : 'proj-${solutionSuffix}' 
+
 // NOTE: Required version 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' not available in AVM
-var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
+// var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
 var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
 var aiFoundryAIservicesEnabled = true
 var aiModelDeployments = [
@@ -541,6 +559,17 @@ var aiModelDeployments = [
   }
 ]
 
+resource existingAiFoundryAiServices 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if (useExistingAiFoundryAiProject) {
+  name: aiFoundryAiServicesResourceName
+  scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
+}
+
+resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-preview' existing = if (useExistingAiFoundryAiProject) {
+  name: aiFoundryAiProjectResourceName
+  parent: existingAiFoundryAiServices
+}
+
+
 //TODO: update to AVM module when AI Projects and AI Projects RBAC are supported
 module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
   name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesResourceName}', 64)
@@ -548,7 +577,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
     name: aiFoundryAiServicesResourceName
     location: aiDeploymentsLocation
     tags: tags
-    existingFoundryProjectResourceId: existingFoundryProjectResourceId
+    existingFoundryProjectResourceId: azureExistingAIProjectResourceId
     projectName: !empty(existingAIProjectName) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
     projectDescription: 'AI Foundry Project'
     sku: 'S0'
@@ -584,7 +613,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
     // WAF aligned configuration for Monitoring
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: (enablePrivateNetworking &&  empty(existingFoundryProjectResourceId))
+    privateEndpoints: (enablePrivateNetworking &&  empty(azureExistingAIProjectResourceId))
       ? ([
           {
             name: 'pep-${aiFoundryAiServicesResourceName}'
@@ -667,7 +696,7 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
       // staticsEnabled: false
     }
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: (enablePrivateNetworking &&  empty(existingFoundryProjectResourceId))
+    privateEndpoints: (enablePrivateNetworking &&  empty(azureExistingAIProjectResourceId))
       ? ([
           {
             name: 'pep-${aiFoundryAiServicesCUResourceName}'
@@ -757,6 +786,16 @@ module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' 
         principalId: userAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
+      {
+        roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f' // Search Index Data Reader
+        principalId: !useExistingAiFoundryAiProject ? aiFoundryAiServices.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId : existingAiFoundryAiServicesProject!.identity.principalId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' // Search Service Contributor
+        principalId: !useExistingAiFoundryAiProject ? aiFoundryAiServices.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId : existingAiFoundryAiServicesProject!.identity.principalId
+        principalType: 'ServicePrincipal'
+      }
     ]
     partitionCount: 1
     replicaCount: 1
@@ -784,7 +823,7 @@ module avmSearchSearchServices 'br/public:avm/res/search/search-service:0.11.1' 
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
-resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExistingAiFoundryAiProject){
   name: guid(aiSearchName, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', aiFoundryAiServicesResourceName)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
@@ -793,7 +832,7 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
   }
 }
 
-resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
+resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (!useExistingAiFoundryAiProject){
   name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchName}'
   properties: {
     category: 'CognitiveSearch'
@@ -805,6 +844,31 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
       ResourceId: avmSearchSearchServices.outputs.resourceId
       location: avmSearchSearchServices.outputs.location
     }
+  }
+}
+
+module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_connection.bicep' = if (useExistingAiFoundryAiProject) {
+  name: 'aiProjectSearchConnectionDeployment'
+  scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
+  params: {
+    existingAIProjectName: aiFoundryAiProjectResourceName
+    existingAIFoundryName: aiFoundryAiServicesResourceName
+    aiSearchName: aiSearchName
+    aiSearchResourceId: avmSearchSearchServices.outputs.resourceId
+    aiSearchLocation: avmSearchSearchServices.outputs.location
+    aiSearchConnectionName: aiSearchName
+  }
+}
+
+
+// Role assignment for existing AI Services scenario
+module searchServiceToExistingAiServicesRoleAssignment 'modules/role-assignment.bicep' = if (useExistingAiFoundryAiProject) {
+  name: 'searchToExistingAiServices-roleAssignment'
+  scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
+  params: {
+    principalId: avmSearchSearchServices.outputs.systemAssignedMIPrincipalId!
+    roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
+    targetResourceName: aiFoundryAiServices.outputs.name
   }
 }
 
@@ -1097,6 +1161,18 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
         ]
       : []
     restrictOutboundNetworkAccess: 'Disabled'
+    firewallRules: (!enablePrivateNetworking) ? [
+      {
+        endIpAddress: '255.255.255.255'
+        name: 'AllowSpecificRange'
+        startIpAddress: '0.0.0.0'
+      }
+      {
+        endIpAddress: '0.0.0.0'
+        name: 'AllowAllWindowsAzureIps'
+        startIpAddress: '0.0.0.0'
+      }
+    ] : []
     securityAlertPolicies: [
       {
         emailAccountAdmins: true
@@ -1173,6 +1249,7 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!e
     retentionInterval: 'P1D'
     cleanupPreference: 'OnSuccess'
   }
+  dependsOn:[sqlDBModule,uploadFiles]
 }
 
 // ========== AVM WAF server farm ========== //
@@ -1327,12 +1404,6 @@ module avmBackend_Docker 'modules/web-sites.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
-@description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
-param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
-@description('Optional. The Container Image Name to deploy on the frontend.')
-param frontendContainerImageName string = 'km-app'
-
 // ========== Web App module ========== //
 // WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
 //NOTE: AVM module adds 1 MB of overhead to the template. Keeping vanilla resource to save template size.
@@ -1346,7 +1417,7 @@ module webSite 'modules/web-sites.bicep' = {
     kind: 'app,linux,container'
     serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
-      linuxFxVersion: 'DOCKER|kmcontainerreg.azurecr.io/km-app:dev'
+      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${imageTag}'
       minTlsVersion: '1.2'
     }
     configs: [
