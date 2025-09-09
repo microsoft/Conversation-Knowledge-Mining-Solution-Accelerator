@@ -1093,7 +1093,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
         availabilityZone: enableRedundancy ? 1 : -1
         collation: 'SQL_Latin1_General_CP1_CI_AS'
         diagnosticSettings: enableMonitoring
-          ? [{ workspaceResourceId: logAnalyticsWorkspace!.outputs.resourceId }]
+          ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }]
           : null
         licenseType: 'LicenseIncluded'
         maxSizeBytes: 34359738368
