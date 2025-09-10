@@ -187,7 +187,7 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
   name: 'deploy_cosmos_db'
   params: {
     accountName: 'cosmos-${solutionSuffix}'
-    solutionLocation: secondaryLocation
+    solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     tags : tags
   }
