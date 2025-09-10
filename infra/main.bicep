@@ -696,7 +696,7 @@ module avmCognitiveServicesAccountsContentUnderstanding 'br/public:avm/res/cogni
       // staticsEnabled: false
     }
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: (enablePrivateNetworking &&  empty(azureExistingAIProjectResourceId))
+    privateEndpoints: (enablePrivateNetworking)
       ? ([
           {
             name: 'pep-${aiFoundryAiServicesCUResourceName}'
