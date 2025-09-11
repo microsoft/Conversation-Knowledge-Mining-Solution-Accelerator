@@ -112,11 +112,18 @@ param createdBy string = empty(deployer().userPrincipalName) ? '' : split(deploy
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
   properties: {
-    tags: {
-      ... tags
-      TemplateName: 'KM Generic'
-      CreatedBy: createdBy
-    }
+    tags: union(
+      reference(
+        resourceGroup().id, 
+        '2021-04-01', 
+        'Full'
+      ).tags ?? {},
+      {
+        TemplateName: 'KM Generic'
+        CreatedBy: createdBy
+      },
+      tags
+    )
   }
 }
 
@@ -187,7 +194,7 @@ module cosmosDBModule 'deploy_cosmos_db.bicep' = {
   name: 'deploy_cosmos_db'
   params: {
     accountName: 'cosmos-${solutionSuffix}'
-    solutionLocation: secondaryLocation
+    solutionLocation: solutionLocation
     keyVaultName: kvault.outputs.keyvaultName
     tags : tags
   }

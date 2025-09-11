@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "7263803858241829495"
+      "templateHash": "4854945365103887323"
     }
   },
   "parameters": {
@@ -166,6 +166,13 @@
       "metadata": {
         "description": "Optional. A unique text value for the solution. This is used to ensure resource names are unique for global resources. Defaults to a 5-character substring of the unique string generated from the subscription ID, resource group name, and solution name."
       }
+    },
+    "createdBy": {
+      "type": "string",
+      "defaultValue": "[if(empty(deployer().userPrincipalName), '', split(deployer().userPrincipalName, '@')[0])]",
+      "metadata": {
+        "description": "Optional created by user name"
+      }
     }
   },
   "variables": {
@@ -180,7 +187,7 @@
       "apiVersion": "2021-04-01",
       "name": "default",
       "properties": {
-        "tags": "[shallowMerge(createArray(parameters('tags'), createObject('TemplateName', 'KM Generic')))]"
+        "tags": "[union(coalesce(reference(resourceGroup().id, '2021-04-01', 'Full').tags, createObject()), createObject('TemplateName', 'KM Generic', 'CreatedBy', parameters('createdBy')), parameters('tags'))]"
       }
     },
     {
@@ -2258,7 +2265,7 @@
             "value": "[format('cosmos-{0}', variables('solutionSuffix'))]"
           },
           "solutionLocation": {
-            "value": "[parameters('secondaryLocation')]"
+            "value": "[variables('solutionLocation')]"
           },
           "keyVaultName": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', 'deploy_keyvault'), '2022-09-01').outputs.keyvaultName.value]"
