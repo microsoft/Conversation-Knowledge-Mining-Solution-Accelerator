@@ -112,11 +112,18 @@ param createdBy string = empty(deployer().userPrincipalName) ? '' : split(deploy
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
   properties: {
-    tags: {
-      ... tags
-      TemplateName: 'KM Generic'
-      CreatedBy: createdBy
-    }
+    tags: union(
+      reference(
+        resourceGroup().id, 
+        '2021-04-01', 
+        'Full'
+      ).tags ?? {},
+      {
+        TemplateName: 'KM Generic'
+        CreatedBy: createdBy
+      },
+      tags
+    )
   }
 }
 
