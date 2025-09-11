@@ -134,84 +134,15 @@ module network 'network/main.bicep' = {
         }
       }
       {
-  name: 'deployment-scripts'
-  addressPrefixes: ['10.0.4.0/23'] // 512 IPs
-  networkSecurityGroup: {
-    name: 'nsg-deployment-scripts'
-    securityRules: [
-      {
-        name: 'AllowVnetOutbound'
-        properties: {
-          access: 'Allow'
-          direction: 'Outbound'
-          priority: 100
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRange: '*'
-          sourceAddressPrefix: 'VirtualNetwork'
-          destinationAddressPrefix: 'VirtualNetwork'
+        name: 'deployment-scripts'
+        addressPrefixes: ['10.0.4.0/24']
+        networkSecurityGroup: {
+          name: 'nsg-deployment-scripts'
+          securityRules: []
         }
+        delegation: 'Microsoft.ContainerInstance/containerGroups'
+        serviceEndpoints: ['Microsoft.Storage','Microsoft.KeyVault']
       }
-      {
-        name: 'AllowAzureCloudOutbound'
-        properties: {
-          access: 'Allow'
-          direction: 'Outbound'
-          priority: 110
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '443'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: 'AzureCloud'
-        }
-      }
-      {
-        name: 'AllowInternetOutbound'
-        properties: {
-          access: 'Allow'
-          direction: 'Outbound'
-          priority: 120
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRanges: [
-            '80'
-            '443'
-          ]
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: 'Internet'
-        }
-      }
-      {
-        name: 'AllowStorageOutbound'
-        properties: {
-          access: 'Allow'
-          direction: 'Outbound'
-          priority: 130
-          protocol: 'Tcp'
-          sourcePortRange: '*'
-          destinationPortRange: '443'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: 'Storage'
-        }
-      }
-      {
-        name: 'AllowDnsOutbound'
-        properties: {
-          access: 'Allow'
-          direction: 'Outbound'
-          priority: 140
-          protocol: '*'
-          sourcePortRange: '*'
-          destinationPortRange: '53'
-          sourceAddressPrefix: '*'
-          destinationAddressPrefix: '*'
-        }
-      }
-    ]
-  }
-  delegation: 'Microsoft.ContainerInstance/containerGroups'
-}
-
     ]
     bastionConfiguration: {
       name: 'bas-${resourcesName}'
@@ -327,7 +258,10 @@ output subnetPrivateEndpointsResourceId string = first(filter(network.outputs.su
 output bastionResourceId string = network.outputs.bastionHostId
 
 @description('Resource ID of the subnet for deployment scripts.')
-output subnetDeploymentScriptsResourceId string = first(filter(network.outputs.subnets, s => s.name == 'deployment-scripts')).?resourceId ?? ''
+output subnetDeploymentScriptsResourceId string = first(filter(
+  network.outputs.subnets,
+  s => s.name == 'deployment-scripts'
+)).?resourceId ?? ''
 
 @description('Resource ID of the Jumpbox VM.')
 output jumpboxResourceId string = network.outputs.jumpboxResourceId

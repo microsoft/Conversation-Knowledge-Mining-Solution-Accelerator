@@ -58,6 +58,7 @@ module virtualNetwork 'br/public:avm/res/network/virtual-network:0.7.0' =  {
         privateEndpointNetworkPolicies: subnet.?privateEndpointNetworkPolicies
         privateLinkServiceNetworkPolicies: subnet.?privateLinkServiceNetworkPolicies
         delegation: subnet.?delegation
+        serviceEndpoints: subnet.?serviceEndpoints
       }
     ]
     diagnosticSettings: [
