@@ -24,6 +24,40 @@ class HomePage(BasePage):
     def home_page_load(self):
         self.page.locator("//span[normalize-space()='Satisfied']").wait_for(state="visible")
 
+    def validate_response_text(self, question):
+        logger.info(f"🔍 DEBUG: validate_response_text called for question: '{question}'")
+        try:
+            response_text = self.page.locator("//p")
+            response_count = response_text.count()
+            logger.info(f"🔍 DEBUG: Found {response_count} <p> elements on page")
+            
+            if response_count == 0:
+                logger.info("⚠️ DEBUG: No <p> elements found on page")
+                raise AssertionError(f"No response text found for question: {question}")
+                
+            last_response = response_text.nth(response_count - 1).text_content()
+            logger.info(f"🔍 DEBUG: Last response text: '{last_response}'")
+            
+            # Check for invalid responses
+            invalid_response_1 = "I cannot answer this question from the data available. Please rephrase or add more details."
+            invalid_response_2 = "Chart cannot be generated."
+            
+            # Use regular assertions instead of pytest-check to trigger retry logic
+            if invalid_response_1 in last_response:
+                logger.info(f"❌ DEBUG: Found invalid response 1: '{invalid_response_1}'")
+                raise AssertionError(f"Invalid response for question '{question}': {invalid_response_1}")
+            
+            if invalid_response_2 in last_response:
+                logger.info(f"❌ DEBUG: Found invalid response 2: '{invalid_response_2}'")
+                raise AssertionError(f"Invalid response for question '{question}': {invalid_response_2}")
+                
+            logger.info(f"✅ DEBUG: Response validation completed successfully for question: '{question}'")
+            
+        except Exception as e:
+            logger.info(f"❌ DEBUG: Exception in validate_response_text: {str(e)}")
+            raise e
+
+
     def enter_chat_question(self,text):
         # self.page.locator(self.TYPE_QUESTION_TEXT_AREA).fill(text)
         # send_btn = self.page.locator("//button[@title='Send Question']")
@@ -66,6 +100,7 @@ class HomePage(BasePage):
         else:
             self.page.locator(self.CLEAR_CHAT_HISTORY_MENU).click()
             self.page.locator(self.CLEAR_CHAT_HISTORY).click()
+            self.page.wait_for_timeout(3000)
             self.page.get_by_role("button", name="Clear All").click()
             self.page.wait_for_timeout(10000)
             self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
@@ -163,16 +198,10 @@ class HomePage(BasePage):
         # Step 3: Locate and click the delete button inside the 0th item
         delete_button = first_thread.locator("button[title='Delete']")
         delete_button.click()
-
-        # Step 4: Confirm deletion (if a confirmation modal appears)
-        try:
-            confirm_button = self.page.locator("button:has-text('Delete')")  # or 'Yes' based on actual text
-            if confirm_button.is_visible():
-                confirm_button.click()
-        except:
-            pass  # No confirmation modal present
-
-        self.page.wait_for_timeout(1000)  # Optional: wait for UI update
+        self.page.wait_for_timeout(3000)
+        delete_chat = self.page.locator("//span[starts-with(text(),'Delete')]")
+        delete_chat.click()
+        self.page.wait_for_timeout(2000)  # Optional: wait for UI update
 
     def edit_chat_title(self, new_title: str, index: int = 0):
         # Step 1: Open chat history panel

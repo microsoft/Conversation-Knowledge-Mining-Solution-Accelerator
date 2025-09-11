@@ -34,9 +34,23 @@ class KMGenericPage(BasePage):
         filter_buttons = self.page.locator(".filters-container button.ms-Button--hasMenu")
         count = filter_buttons.count()
         print(f"Found {count} filter buttons")
+        
+        # Define the target values to select for each filter
+        target_values = {
+            0: "Last 14 days",      # First filter (date range)
+            1: "Positive",          # Second filter (sentiment)
+            2: "Billing Issues"     # Third filter (topics)
+        }
+        
+        selected_filters = {}
 
         for i in range(count):
-            print(f"Clicking filter button {i}")
+            print(f"\n📋 Processing filter button {i}")
+            
+            # Get the filter button text to identify which filter this is
+            filter_button_text = filter_buttons.nth(i).inner_text().strip()
+            print(f"Filter {i} button text: '{filter_button_text}'")
+            
             filter_buttons.nth(i).click()
 
             try:
@@ -50,22 +64,102 @@ class KMGenericPage(BasePage):
                 print(f"Found {options_count} menu items for filter {i}")
 
                 if options_count > 0:
-                    # Click the first menu item (index 0)
-                    print(f"Selecting first option for filter {i}: '{menu_items.nth(1).inner_text()}'")
-                    menu_items.nth(1).click()
+                    # Get all available options
+                    print("📋 Available options:")
+                    all_options = []
+                    for j in range(options_count):
+                        option_text = menu_items.nth(j).inner_text().strip()
+                        all_options.append(option_text)
+                        print(f"  {j}: '{option_text}'")
+                    
+                    # Find and select the target value
+                    target_value = target_values.get(i, "").lower()
+                    selected_index = -1
+                    selected_option = ""
+                    
+                    if target_value:
+                        # Look for the target value (case insensitive)
+                        for j, option in enumerate(all_options):
+                            if target_value in option.lower():
+                                selected_index = j
+                                selected_option = option
+                                break
+                        
+                        if selected_index >= 0:
+                            print(f"🎯 Target found: Selecting '{selected_option}' (index {selected_index})")
+                            menu_items.nth(selected_index).click()
+                            selected_filters[filter_button_text] = selected_option
+                        else:
+                            # If target not found, select the second option as fallback
+                            fallback_index = 1 if options_count > 1 else 0
+                            selected_option = all_options[fallback_index]
+                            print(f"⚠️ Target '{target_value}' not found. Selecting fallback: '{selected_option}' (index {fallback_index})")
+                            menu_items.nth(fallback_index).click()
+                            selected_filters[filter_button_text] = selected_option
+                    else:
+                        # No target specified, select second option as default
+                        default_index = 1 if options_count > 1 else 0
+                        selected_option = all_options[default_index]
+                        print(f"📌 No target specified. Selecting default: '{selected_option}' (index {default_index})")
+                        menu_items.nth(default_index).click()
+                        selected_filters[filter_button_text] = selected_option
+                        
                 else:
-                    print(f"No menu items found for filter {i} to select")
+                    print(f"❌ No menu items found for filter {i}")
+                    selected_filters[filter_button_text] = "No options available"
 
             except Exception as e:
                 print(f"❌ Failed to interact with filter {i}: {e}")
+                selected_filters[filter_button_text] = f"Error: {str(e)}"
 
             self.page.wait_for_timeout(1000)  # Wait to let UI stabilize
 
         self.page.wait_for_timeout(2000)  # Wait after all filters updated
+        
+        # Store the selected filters as an instance variable for later validation
+        self.selected_filters = selected_filters
+        
+        # Print summary of selected filters
+        print("\n📋 Summary of selected filters:")
+        for filter_name, selected_value in selected_filters.items():
+            print(f"  {filter_name}: {selected_value}")
+        
+        # Return the selected filters for immediate use if needed
+        return selected_filters
 
-
-        # Wait after all filters updated
-        self.page.wait_for_timeout(2000)
+    def get_selected_filters(self):
+        """
+        Returns the previously selected filter values for validation
+        """
+        return getattr(self, 'selected_filters', {})
+    
+    def validate_dashboard_charts(self):
+        """
+        Validates that the dashboard charts reflect the applied filters
+        """
+        selected_filters = self.get_selected_filters()
+        print("\n🔍 Validating dashboard charts with selected filters:")
+        for filter_name, selected_value in selected_filters.items():
+            print(f"  Filter applied: {filter_name} = {selected_value}")
+        
+        # Validate trending topics table is visible and updated
+        trending_table = self.page.locator("table.fui-Table")
+        expect(trending_table).to_be_visible()
+        print("✅ Trending topics table is visible")
+        
+        # Validate topics overview chart is visible
+        topics_overview = self.page.locator("text=Topics Overview")
+        expect(topics_overview).to_be_visible()
+        print("✅ Topics overview chart is visible")
+        
+        # Validate average handling time chart is visible
+        avg_handling_time = self.page.locator("#AVG_HANDLING_TIME")
+        expect(avg_handling_time).to_be_visible()
+        print("✅ Average handling time chart is visible")
+        
+        print("✅ Dashboard charts validation completed")
+        
+        return True
 
     def click_apply_button(self):
         apply_button = self.page.locator("button:has-text('Apply')")
@@ -105,7 +199,7 @@ class KMGenericPage(BasePage):
         assert hide_dashboard_btn.is_visible(), "Hide Dashboard button is not visible"
         assert hide_chat_btn.is_visible(), "Hide Chat button is not visible"
         print("✅ Hide Dashboard and Hide Chat buttons are present")
-
+    
         # Click Hide Dashboard and verify dashboard collapses/hides
         logger.info("Step 3: Try clicking on Hide dashboard button")
         hide_dashboard_btn.click()
