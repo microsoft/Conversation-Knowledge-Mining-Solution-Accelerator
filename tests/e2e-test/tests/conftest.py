@@ -46,6 +46,10 @@ def pytest_runtest_setup(item):
     # Save handler and stream
     log_streams[item.nodeid] = (handler, stream)
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_html_report_title(report):
+    report.title = "KM_Generic_Smoke_testing_Report"
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
