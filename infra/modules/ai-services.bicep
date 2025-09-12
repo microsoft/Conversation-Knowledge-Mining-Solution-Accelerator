@@ -193,7 +193,8 @@ resource cognitiveServiceNew 'Microsoft.CognitiveServices/accounts@2025-06-01' =
       ? {
           defaultAction: networkAcls.?defaultAction
           virtualNetworkRules: networkAcls.?virtualNetworkRules ?? []
-          ipRules: networkAcls.?ipRules ?? []
+          ipRules: networkAcls.?ipRules ?? []      
+          bypass: networkAcls.?bypass ?? 'None'
         }
       : null
     publicNetworkAccess: publicNetworkAccess != null

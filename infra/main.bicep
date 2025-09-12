@@ -593,6 +593,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
       defaultAction: 'Allow'
       virtualNetworkRules: []
       ipRules: []
+      bypass: 'AzureServices'
     }
     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
     roleAssignments: [
