@@ -15,7 +15,7 @@ AZURE_AI_API_VERSION = "2024-12-01-preview"
 ANALYZER_ID = "ckm-audio"
 ANALYZER_TEMPLATE_FILE = 'ckm-analyzer_config_audio.json'
 
-print("02_create_cu_template_audio.py: Started")
+
 # === Helper Functions ===
 def get_secrets_from_kv(secret_name: str, vault_name: str) -> str:
     """
@@ -40,8 +40,6 @@ sys.path.append(str(Path.cwd().parent))
 # Fetch endpoint from Key Vault
 endpoint = get_secrets_from_kv("AZURE-OPENAI-CU-ENDPOINT", KEY_VAULT_NAME)
 
-print("02_create_cu_template_audio.py: Inprogress")
-
 credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
@@ -54,5 +52,3 @@ client = AzureContentUnderstandingClient(
 # Create Analyzer
 response = client.begin_create_analyzer(ANALYZER_ID, analyzer_template_path=ANALYZER_TEMPLATE_FILE)
 result = client.poll_result(response)
-
-print("02_create_cu_template_audio.py: Completed")

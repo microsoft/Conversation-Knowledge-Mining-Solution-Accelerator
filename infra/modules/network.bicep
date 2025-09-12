@@ -141,7 +141,7 @@ module network 'network/main.bicep' = {
           securityRules: []
         }
         delegation: 'Microsoft.ContainerInstance/containerGroups'
-        serviceEndpoints: ['Microsoft.Storage','Microsoft.KeyVault']
+        serviceEndpoints: ['Microsoft.Storage']
       }
     ]
     bastionConfiguration: {

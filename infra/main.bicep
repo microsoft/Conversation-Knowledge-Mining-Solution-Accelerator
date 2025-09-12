@@ -301,6 +301,7 @@ var privateDnsZones = [
   'privatelink${environment().suffixes.sqlServerHostname}'
   'privatelink.azurewebsites.net'
   'privatelink.search.windows.net'
+  'privatelink.dfs.${environment().suffixes.storage}'
 ]
 // DNS Zone Index Constants
 var dnsZoneIndex = {
@@ -320,6 +321,7 @@ var dnsZoneIndex = {
   sqlServer: 13
   appService: 14
   search: 15
+  storageDfs: 16
 }
 @batchSize(5)
 module avmPrivateDnsZones 'br/public:avm/res/network/private-dns-zone:0.7.1' = [
@@ -956,6 +958,32 @@ module avmStorageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
           ]
         }
       }
+      {
+        name: 'pep-file-${solutionSuffix}'
+        service: 'file'
+        subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              name: 'storage-dns-zone-group-file'
+              privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageFile]!.outputs.resourceId
+            }
+          ]
+        }
+      }
+      {
+        name: 'pep-dfs-${solutionSuffix}'
+        service: 'dfs'
+        subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+        privateDnsZoneGroup: {
+          privateDnsZoneGroupConfigs: [
+            {
+              name: 'storage-dns-zone-group-dfs'
+              privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.storageDfs]!.outputs.resourceId
+            }
+          ]
+        }
+      }
     ] : []
 
     // ✅ Blob service config (simplified, script-friendly)
@@ -1149,14 +1177,14 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
 
 //========== AVM WAF ========== //
 //========== Deployment script to upload data ========== //
-module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!enablePrivateNetworking) {
+module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: 'deploymentScriptForUploadFiles'
   params: {
     kind: 'AzureCLI'
     name: 'copy_demo_Data'
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
-    location: solutionLocation   // same as VNet
+    location: solutionLocation
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1164,29 +1192,20 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!e
     }
     retentionInterval: 'P1D'
     runOnce: true
-
-    // ✅ Script + arguments
     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
     arguments: '${avmStorageAccount.outputs.name} data ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
-
-    // ✅ Explicit storage account + subnet for private networking
     storageAccountResourceId: avmStorageAccount.outputs.resourceId
-    // subnetResourceIds: enablePrivateNetworking ? [
-    //   network!.outputs.subnetDeploymentScriptsResourceId
-    // ] : null
-
+    subnetResourceIds: enablePrivateNetworking ? [
+      network!.outputs.subnetDeploymentScriptsResourceId
+    ] : null
     tags: tags
     timeout: 'PT1H'
   }
-  dependsOn: [
-    avmStorageAccount
-    network
-  ]
 }
 
 //========== AVM WAF ========== //
 //========== Deployment script to create index ========== //
-module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!enablePrivateNetworking) {
+module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: 'deploymentScriptForCreateIndex'
   params: {
     // Required parameters
@@ -1207,6 +1226,10 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = if(!e
     timeout: 'PT1H'
     retentionInterval: 'P1D'
     cleanupPreference: 'OnSuccess'
+    storageAccountResourceId: avmStorageAccount.outputs.resourceId
+    subnetResourceIds: enablePrivateNetworking ? [
+      network!.outputs.subnetDeploymentScriptsResourceId
+    ] : null
   }
   dependsOn:[sqlDBModule,uploadFiles]
 }
