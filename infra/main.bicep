@@ -139,6 +139,9 @@ param existingLogAnalyticsWorkspaceId string = ''
 @description('Optional. Use this parameter to use an existing AI project resource ID')
 param existingAiFoundryAiProjectResourceId string = ''
 
+@description('Optional. created by user name')
+param createdBy string = empty(deployer().userPrincipalName) ? '' : split(deployer().userPrincipalName, '@')[0]
+
 @maxLength(5)
 @description('Optional. A unique text value for the solution. This is used to ensure resource names are unique for global resources. Defaults to a 5-character substring of the unique string generated from the subscription ID, resource group name, and solution name.')
 param solutionUniqueText string = substring(uniqueString(subscription().id, resourceGroup().name, solutionName), 0, 5)
@@ -196,11 +199,18 @@ var logAnalyticsWorkspaceResourceId = useExistingLogAnalytics
 resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
   name: 'default'
   properties: {
-    tags: {
-      ...tags
-      TemplateName: 'KM Generic'
-      SecurityControl: 'Ignore'
-    }
+    tags: union(
+      reference(
+        resourceGroup().id, 
+        '2021-04-01', 
+        'Full'
+      ).tags ?? {},
+      {
+        TemplateName: 'KM Generic'
+        CreatedBy: createdBy
+      },
+      tags
+    )
   }
 }
 

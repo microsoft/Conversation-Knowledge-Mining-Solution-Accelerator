@@ -14,7 +14,7 @@ on:
 env:
   GPT_MIN_CAPACITY: 150
   TEXT_EMBEDDING_MIN_CAPACITY: 80
-  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+  BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -112,7 +112,7 @@ jobs:
           echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
       - name: Determine Tag Name Based on Branch
         id: determine_tag
-        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_fdp' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || github.head_ref || 'default' }}" >> $GITHUB_OUTPUT
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_fdp' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || 'latest_fdp' }}" >> $GITHUB_OUTPUT
       - name: Deploy Bicep Template
         id: deploy
         run: |
@@ -120,7 +120,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters solutionName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }} gptDeploymentCapacity=150 azureAiServiceLocation="${{ env.AZURE_LOCATION }}"
+            --parameters solutionName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }} gptDeploymentCapacity=150 azureAiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'SecurityControl':'Ignore'}"
 
      
 
