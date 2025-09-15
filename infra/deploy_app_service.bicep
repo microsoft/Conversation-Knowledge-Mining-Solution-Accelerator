@@ -1,8 +1,6 @@
 // ========== Key Vault ========== //
 targetScope = 'resourceGroup'
 
-@minLength(3)
-@maxLength(16)
 @description('Required. Contains Solution Name.')
 param solutionName string
 
