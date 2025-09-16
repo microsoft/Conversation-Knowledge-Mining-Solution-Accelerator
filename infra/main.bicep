@@ -208,7 +208,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
       {
         TemplateName: 'KM Generic'
         CreatedBy: createdBy
-      },
+              },
       tags
     )
   }
@@ -405,7 +405,7 @@ module userAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-id
 
 // ========== AVM WAF ========== //
 // ========== Key Vault Module ========== //
-var keyVaultName = 'KV-${solutionSuffix}'
+var keyVaultName = 'kv-${solutionSuffix}'
 module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
   name: take('avm.res.key-vault.vault.${keyVaultName}', 64)
   params: {
