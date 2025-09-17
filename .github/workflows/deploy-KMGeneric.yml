@@ -112,7 +112,7 @@ jobs:
           echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
       - name: Determine Tag Name Based on Branch
         id: determine_tag
-        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_fdp' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || 'latest_fdp' }}" >> $GITHUB_OUTPUT
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_waf' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || 'latest_waf' }}" >> $GITHUB_OUTPUT
       - name: Deploy Bicep Template
         id: deploy
         run: |
