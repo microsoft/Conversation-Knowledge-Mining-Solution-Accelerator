@@ -568,8 +568,16 @@ const Chat: React.FC<ChatProps> = ({
               chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
             }
             
-            if (typeof chartResponse === 'object' && chartResponse?.answer) {
-              chartResponse = chartResponse.answer;
+            if (typeof chartResponse === 'object' &&  'answer' in chartResponse) {
+              if (
+                chartResponse.answer === "" ||
+                chartResponse.answer === undefined ||
+                (typeof chartResponse.answer === "object" && Object.keys(chartResponse.answer).length === 0)
+              ) {
+                chartResponse = "Chart can't be generated, please try again.";
+              } else {
+                chartResponse = chartResponse.answer;
+              }
             }
             
             if (
@@ -619,6 +627,16 @@ const Chat: React.FC<ChatProps> = ({
               parsedChartResponse?.error ||
               parsedChartResponse?.choices[0]?.messages[0]?.content
             ) {
+              let content = parsedChartResponse?.choices[0]?.messages[0]?.content;
+              let displayContent = content;
+              try {
+                const parsed = typeof content === "string" ? JSON.parse(content) : content;
+                if (parsed && typeof parsed === "object" && "answer" in parsed) {
+                  displayContent = parsed.answer;
+                }
+              } catch {
+                displayContent = content;
+              }
               const errorMsg =
                 parsedChartResponse?.error ||
                 parsedChartResponse?.choices[0]?.messages[0]?.content

@@ -16,9 +16,10 @@ from azure.search.documents.indexes.models import (
 )
 from azure_credential_utils import get_azure_credential
 
-# === Configuration ===
-KEY_VAULT_NAME = 'kv_to-be-replaced'
-MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
+import sys
+
+KEY_VAULT_NAME=sys.argv[1]
+MANAGED_IDENTITY_CLIENT_ID=sys.argv[2]
 INDEX_NAME = "call_transcripts_index"
 
 print("calling create_search_index()....")
