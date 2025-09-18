@@ -168,7 +168,7 @@ var solutionSuffix = toLower(trim(replace(
 )))
 
 var acrName = 'kmcontainerreg'
-var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/dev/'
+var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
 // @description('Optional. Key vault reference and secret settings for the module\'s secrets export.')
 // param secretsExportConfiguration secretsExportConfigurationType?
 // Replica regions list based on article in [Azure regions list](https://learn.microsoft.com/azure/reliability/regions-list) and [Enhance resilience by replicating your Log Analytics workspace across regions](https://learn.microsoft.com/azure/azure-monitor/logs/workspace-replication#supported-regions) for supported regions for Log Analytics Workspace.
