@@ -20,6 +20,17 @@ param solutionName string = 'kmgen'
 ])
 param location string
 
+@allowed([
+  'australiaeast'
+  'eastus'
+  'eastus2'
+  'francecentral'
+  'japaneast'
+  'swedencentral'
+  'uksouth'
+  'westus'
+  'westus3'
+])
 @metadata({
   azd: {
     type: 'location'
