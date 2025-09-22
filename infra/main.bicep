@@ -101,7 +101,7 @@ param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_waf'
+param backendContainerImageTag string = 'latest_waf_2025-09-18_898'
 
 @description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
 param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
@@ -110,7 +110,7 @@ param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_waf'
+param frontendContainerImageTag string = 'latest_waf_2025-09-18_898'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -219,7 +219,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
       {
         TemplateName: 'KM Generic'
         CreatedBy: createdBy
-              },
+                      },
       tags
     )
   }
@@ -1569,7 +1569,7 @@ output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = existingAiFoundryAiProject
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
 
 @description('Contains API application URL.')
-output API_APP_URL string = 'https://app-${solutionName}.azurewebsites.net'
+output API_APP_URL string = 'https://api-${solutionSuffix}.azurewebsites.net'
 
 @description('Contains web application URL.')
-output WEB_APP_URL string = 'https://api-${solutionName}.azurewebsites.net'
+output WEB_APP_URL string = 'https://app-${solutionSuffix}.azurewebsites.net'
