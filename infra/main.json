@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "18295975344394141399"
+      "templateHash": "15438166002668413819"
     }
   },
   "parameters": {
@@ -168,7 +168,7 @@
     },
     "backendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf",
+      "defaultValue": "latest_waf_2025-09-18_898",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the backend."
       }
@@ -189,7 +189,7 @@
     },
     "frontendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf",
+      "defaultValue": "latest_waf_2025-09-18_898",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the frontend."
       }
@@ -60138,14 +60138,14 @@
       "metadata": {
         "description": "Contains API application URL."
       },
-      "value": "[format('https://app-{0}.azurewebsites.net', parameters('solutionName'))]"
+      "value": "[format('https://api-{0}.azurewebsites.net', variables('solutionSuffix'))]"
     },
     "WEB_APP_URL": {
       "type": "string",
       "metadata": {
         "description": "Contains web application URL."
       },
-      "value": "[format('https://api-{0}.azurewebsites.net', parameters('solutionName'))]"
+      "value": "[format('https://app-{0}.azurewebsites.net', variables('solutionSuffix'))]"
     }
   }
 }
