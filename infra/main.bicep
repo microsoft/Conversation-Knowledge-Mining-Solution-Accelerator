@@ -219,7 +219,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
       {
         TemplateName: 'KM Generic'
         CreatedBy: createdBy
-                      },
+      },
       tags
     )
   }
