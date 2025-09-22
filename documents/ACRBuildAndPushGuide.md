@@ -50,7 +50,7 @@ docker push <acrloginserver>/<repo>:<tagname>
 
 - Click **Save** → this will create a new revision automatically with the updated image.
 
-![alt text](./images/ContainerApp.png)
+![alt text](./Images/ContainerApp.png)
 
 **WebApp :**
 
@@ -71,7 +71,7 @@ If you want to update image tag and image manually you can follow below steps:
 
     - Tag → e.g., v1.2.3.
 
-![alt text](./images/AppServiceContainer.png)
+![alt text](./Images/AppServiceContainer.png)
 
 
 ## ✅ Verification
