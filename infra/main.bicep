@@ -217,7 +217,8 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
         'Full'
       ).tags ?? {},
       {
-        TemplateName: enablePrivateNetworking ? 'KM-Generic-WAF' : 'KM-Generic'
+        TemplateName: 'KM-Generic'
+        Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
         CreatedBy: createdBy
               },
       tags
