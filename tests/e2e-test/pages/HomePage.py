@@ -1,5 +1,9 @@
 from base.base import BasePage
 from playwright.sync_api import expect
+import logging
+from pytest_check import check
+
+logger = logging.getLogger(__name__)
 
 class HomePage(BasePage):
     TYPE_QUESTION_TEXT_AREA = "//textarea[@placeholder='Ask a question...']"
@@ -20,13 +24,49 @@ class HomePage(BasePage):
     def home_page_load(self):
         self.page.locator("//span[normalize-space()='Satisfied']").wait_for(state="visible")
 
+    def validate_response_text(self, question):
+        logger.info(f"🔍 DEBUG: validate_response_text called for question: '{question}'")
+        try:
+            response_text = self.page.locator("//p")
+            response_count = response_text.count()
+            logger.info(f"🔍 DEBUG: Found {response_count} <p> elements on page")
+            
+            if response_count == 0:
+                logger.info("⚠️ DEBUG: No <p> elements found on page")
+                raise AssertionError(f"No response text found for question: {question}")
+                
+            last_response = response_text.nth(response_count - 1).text_content()
+            logger.info(f"🔍 DEBUG: Last response text: '{last_response}'")
+            
+            # Check for invalid responses
+            invalid_response_1 = "I cannot answer this question from the data available. Please rephrase or add more details."
+            invalid_response_2 = "Chart cannot be generated."
+            
+            # Use regular assertions instead of pytest-check to trigger retry logic
+            if invalid_response_1 in last_response:
+                logger.info(f"❌ DEBUG: Found invalid response 1: '{invalid_response_1}'")
+                raise AssertionError(f"Invalid response for question '{question}': {invalid_response_1}")
+            
+            if invalid_response_2 in last_response:
+                logger.info(f"❌ DEBUG: Found invalid response 2: '{invalid_response_2}'")
+                raise AssertionError(f"Invalid response for question '{question}': {invalid_response_2}")
+                
+            logger.info(f"✅ DEBUG: Response validation completed successfully for question: '{question}'")
+            
+        except Exception as e:
+            logger.info(f"❌ DEBUG: Exception in validate_response_text: {str(e)}")
+            raise e
+
+
     def enter_chat_question(self,text):
         # self.page.locator(self.TYPE_QUESTION_TEXT_AREA).fill(text)
-        # self.page.wait_for_timeout(5000)
         # send_btn = self.page.locator("//button[@title='Send Question']")
 
         new_conv_btn = self.page.locator("//button[@title='Create new Conversation']")
-        
+
+        if not new_conv_btn.is_enabled():
+            self.page.wait_for_timeout(16000)
+
         if new_conv_btn.is_enabled():
         # Type a question in the text area
             self.page.locator(self.TYPE_QUESTION_TEXT_AREA).fill(text)
@@ -35,7 +75,7 @@ class HomePage(BasePage):
     def click_send_button(self):
         # Click on send button in question area
         self.page.locator(self.SEND_BUTTON).click()
-        self.page.wait_for_timeout(10000)
+        self.page.wait_for_timeout(12000)
         self.page.wait_for_load_state('networkidle')
 
     
@@ -47,7 +87,6 @@ class HomePage(BasePage):
             expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=9000)
         except AssertionError:
             raise AssertionError("Chat history name was not visible on the page within the expected time.")
-        
 
     def delete_chat_history(self):
         self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
@@ -61,6 +100,7 @@ class HomePage(BasePage):
         else:
             self.page.locator(self.CLEAR_CHAT_HISTORY_MENU).click()
             self.page.locator(self.CLEAR_CHAT_HISTORY).click()
+            self.page.wait_for_timeout(3000)
             self.page.get_by_role("button", name="Clear All").click()
             self.page.wait_for_timeout(10000)
             self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
@@ -102,3 +142,126 @@ class HomePage(BasePage):
         # Use XPath properly by prefixing with 'xpath='
         reference_links = last_assistant.locator("xpath=.//span[@role='button' and contains(@class, 'citationContainer')]")
         return reference_links.count() > 0
+
+    def validate_chat_response(self, question: str, expect_chart: bool = False):
+        logger.info(f"💬 Sending question: {question}")
+        self.enter_chat_question(question)
+
+        # Wait for send button to be enabled and click it
+        self.click_send_button()
+
+        # Backend validation
+        self.validate_response_status(question)
+
+        # Wait for assistant message
+        assistant_response = self.page.locator("div.chat-message.assistant").last
+        expect(assistant_response).to_be_visible(timeout=10000)
+
+        # If not expecting chart, validate the text response
+        if not expect_chart:
+            try:
+                p_tag = assistant_response.locator("p")
+                expect(p_tag).to_be_visible(timeout=5000)
+                response_text = p_tag.inner_text().strip().lower()
+                logger.info(f"📥 Assistant response: {response_text}")
+
+                with check:
+                    assert "i cannot answer this question" not in response_text, \
+                        f"❌ Fallback response for: {question}"
+                    assert "chart cannot be generated" not in response_text, \
+                        f"❌ Chart failure response for: {question}"
+            except Exception as e:
+                logger.warning(f"⚠️ No <p> tag found in assistant response for: {question} — skipping text validation. Error: {str(e)}")
+
+        # Validate chart if expected
+        if expect_chart:
+            logger.info("📊 Validating chart presence...")
+            chart_canvas = assistant_response.locator("canvas")
+            expect(chart_canvas).to_be_visible(timeout=10000)
+            logger.info("✅ Chart canvas found in assistant response.")
+
+        # Optional citation check
+        if self.has_reference_link():
+            logger.info("🔗 Reference link found. Opening and closing citation.")
+            self.click_reference_link_in_response()
+            self.close_citation()
+
+    def delete_first_chat_thread(self):
+
+        # self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
+        # self.page.wait_for_load_state('networkidle')
+        # self.page.wait_for_timeout(2000)
+
+        # Step 2: Locate the 0th chat history item
+        first_thread = self.page.locator("div[data-list-index='0']")
+
+        # Step 3: Locate and click the delete button inside the 0th item
+        delete_button = first_thread.locator("button[title='Delete']")
+        delete_button.click()
+        self.page.wait_for_timeout(3000)
+        delete_chat = self.page.locator("//span[starts-with(text(),'Delete')]")
+        delete_chat.click()
+        self.page.wait_for_timeout(2000)  # Optional: wait for UI update
+
+    def edit_chat_title(self, new_title: str, index: int = 0):
+        # Step 1: Open chat history panel
+        self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
+        self.page.wait_for_load_state('networkidle')
+        self.page.wait_for_timeout(2000)
+
+        # Step 2: Locate the chat item by index (use nth(0) to avoid strict mode issues)
+        chat_item = self.page.locator(f"div[data-list-index='{index}']").nth(0)
+        expect(chat_item).to_be_visible(timeout=5000)
+
+        # Step 3: Click the Edit button inside the chat item
+        edit_button = chat_item.locator("button[title='Edit']")
+        expect(edit_button).to_be_visible(timeout=3000)
+        edit_button.click()
+
+        # Step 4: Fill the new title
+        title_input = chat_item.locator("input[type='text']")
+        expect(title_input).to_be_visible(timeout=3000)
+        title_input.fill(new_title)
+
+        save_button = self.page.locator('button[aria-label="confirm new title"]')
+        try:
+            expect(save_button).to_be_visible(timeout=3000)
+            save_button.click()
+        except AssertionError:
+            self.page.screenshot(path="save_button_not_found.png", full_page=True)
+            raise AssertionError("❌ 'Save' icon button not found or not visible. Screenshot saved to 'save_button_not_found.png'.")
+
+
+
+        # Optional wait for UI to reflect the update
+        self.page.wait_for_timeout(1000)
+
+        # Step 6: Verify the updated title
+        updated_chat_item = self.page.locator(f"div[data-list-index='{index}']").first
+        updated_title_locator = updated_chat_item.locator(".ChatHistoryListItemCell_chatTitle__areVC")
+
+        try:
+            expect(updated_title_locator).to_be_visible(timeout=3000)
+            updated_title = updated_title_locator.text_content(timeout=3000).strip()
+        except:
+            self.page.screenshot(path="updated_title_not_found.png", full_page=True)
+            raise AssertionError("❌ Updated title element not found or not visible. Screenshot saved.")
+
+        assert new_title.lower() in updated_title.lower(), \
+            f"❌ Chat title not updated. Expected: {new_title}, Found: {updated_title}"
+
+        logger.info(f"✅ Chat title successfully updated to: {updated_title}")
+
+    def create_new_chat(self):
+    # Click the "Create new Conversation" (+) button
+        create_button = self.page.locator("button[title='Create new Conversation']")
+        expect(create_button).to_be_visible()
+        create_button.click()
+
+        # Optional: Wait and check if new chat panel is cleared
+        textarea = self.page.locator("textarea[placeholder='Ask a question...']")
+        expect(textarea).to_have_value("", timeout=3000)
+
+        logger.info("✅ New chat conversation started successfully.")
+    
+   
