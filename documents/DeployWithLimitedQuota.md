@@ -1,6 +1,6 @@
 # Deploying with Limited OpenAI Quota
 
-This document provides guidance on deploying the Document Generation Solution Accelerator when you have limited Azure OpenAI model quota available.
+This document provides guidance on deploying the Conversation Knowledge Solution Accelerator when you have limited Azure OpenAI model quota available.
 
 ## Overview
 
