@@ -46,7 +46,7 @@ Update the values on lines 38-39 in [`infra/main.bicep`](../infra/main.bicep) to
   azd: {
     type: 'location'
     usageName: [
-        'OpenAI.GlobalStandard.gpt4.1, 50'           // Changed from 150
+        'OpenAI.GlobalStandard.gpt-4o-mini, 50'           // Changed from 150
         'OpenAI.GlobalStandard.text-embedding-ada-002, 50'  // Changed from 80
     ]
   }
