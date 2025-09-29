@@ -15,7 +15,7 @@ Install these tools before you start:
 - [PowerShell 7.0+](https://github.com/PowerShell/PowerShell#get-powershell).
 - [Node.js (LTS)](https://nodejs.org/en).
 - [Git](https://git-scm.com/downloads).
-- [Azure Developer CLI (azd) v1.15.0+](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
+- [Azure Developer CLI (azd) v1.18.0+](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
 - [Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
 
 
