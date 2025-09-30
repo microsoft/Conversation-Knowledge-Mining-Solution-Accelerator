@@ -635,6 +635,47 @@ resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/account
   parent: existingAiFoundryAiServices
 }
 
+// ========== Private Endpoint for Existing AI Services ========== //
+var shouldCreatePrivateEndpoint = useExistingAiFoundryAiProject && enablePrivateNetworking
+module existingAiServicesPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' = if (shouldCreatePrivateEndpoint) {
+  name: take('module.private-endpoint.${existingAiFoundryAiServices.name}', 64)
+  params: {
+    name: 'pep-${existingAiFoundryAiServices.name}'
+    location: location
+    subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
+    customNetworkInterfaceName: 'nic-${existingAiFoundryAiServices.name}'
+    privateDnsZoneGroup: {
+      privateDnsZoneGroupConfigs: [
+        {
+          name: 'ai-services-dns-zone-cognitiveservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-openai'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-aiservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
+        }
+      ]
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-${existingAiFoundryAiServices.name}'
+        properties: {
+          groupIds: ['account']
+          privateLinkServiceId: existingAiFoundryAiServices.id
+        }
+      }
+    ]
+    tags: tags
+  }
+  dependsOn: [
+    existingAiFoundryAiServices
+    avmPrivateDnsZones
+  ]
+}
 
 //TODO: update to AVM module when AI Projects and AI Projects RBAC are supported
 module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
@@ -706,30 +747,17 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
         ])
       : []
     deployments: [
-      {
-        name: aiModelDeployments[0].name
+      for deployment in aiModelDeployments: {
+        name: deployment.name
         model: {
-          format: aiModelDeployments[0].format
-          name: aiModelDeployments[0].name
-          version: aiModelDeployments[0].version
+          format: deployment.format
+          name: deployment.name
+          version: deployment.version
         }
-        raiPolicyName: aiModelDeployments[0].raiPolicyName
+        raiPolicyName: deployment.raiPolicyName
         sku: {
-          name: aiModelDeployments[0].sku.name
-          capacity: aiModelDeployments[0].sku.capacity
-        }
-      }
-      {
-        name: aiModelDeployments[1].name
-        model: {
-          format: aiModelDeployments[1].format
-          name: aiModelDeployments[1].name
-          version: aiModelDeployments[1].version
-        }
-        raiPolicyName: aiModelDeployments[1].raiPolicyName
-        sku: {
-          name: aiModelDeployments[1].sku.name
-          capacity: aiModelDeployments[1].sku.capacity
+          name: deployment.sku.name
+          capacity: deployment.sku.capacity
         }
       }
     ]
