@@ -25,7 +25,7 @@ jobs:
       API_APP_URL: ${{ steps.get_output.outputs.API_APP_URL }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Azure CLI
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
