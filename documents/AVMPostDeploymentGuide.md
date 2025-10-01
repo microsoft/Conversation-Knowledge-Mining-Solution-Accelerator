@@ -1,5 +1,9 @@
 # AVM Post Deployment Guide
 
+> **📋 Note**: This guide is specifically for post-deployment steps after using the AVM template. For complete deployment instructions, see the main [Deployment Guide](./DeploymentGuide.md).
+
+---
+
 This document provides guidance on post-deployment steps after deploying the Conversation Knowledge Mining solution accelerator from the [AVM (Azure Verified Modules) repository](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/sa/conversation-knowledge-mining).
 
 ## Prerequisites
@@ -37,7 +41,3 @@ Try these questions in the application to explore the solution capabilities:
 - "What are the top 7 challenges users reported?"
 - "Give a summary of billing issues"
 - "When customers call in about unexpected charges, what types of charges are they seeing?"
-
----
-
-> **📋 Note**: This guide is specifically for post-deployment steps after using the AVM template. For complete deployment instructions, see the main [Deployment Guide](./DeploymentGuide.md).
