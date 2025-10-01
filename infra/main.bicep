@@ -416,6 +416,19 @@ module userAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-id
   }
 }
 
+// ========== SQL Operations User Assigned Identity ========== //
+// Dedicated identity for backend SQL operations with limited permissions (db_datareader, db_datawriter)
+var sqlUserAssignedIdentityResourceName = 'id-sql-${solutionSuffix}'
+module sqlUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
+  name: take('avm.res.managed-identity.user-assigned-identity.${sqlUserAssignedIdentityResourceName}', 64)
+  params: {
+    name: sqlUserAssignedIdentityResourceName
+    location: location
+    tags: tags
+    enableTelemetry: enableTelemetry
+  }
+}
+
 // ========== AVM WAF ========== //
 // ========== Key Vault Module ========== //
 var keyVaultName = 'kv-${solutionSuffix}'
@@ -1271,6 +1284,49 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   dependsOn:[sqlDBModule,uploadFiles]
 }
 
+var databaseRoles = [
+  'db_datareader'
+  'db_datawriter'
+]
+//========== Deployment script to create Sql User and Role  ========== //
+module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+  name: take('avm.res.resources.deployment-script.createSqlUserAndRole', 64)
+  params: {
+    // Required parameters
+    kind: 'AzurePowerShell'
+    name: 'create_sql_user_and_role'
+    // Non-required parameters
+    azPowerShellVersion: '11.0'
+    location: enablePrivateNetworking ? location : secondaryLocation
+    managedIdentities: {
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
+    }
+    runOnce: true
+    arguments: join(
+      [
+        '-SqlServerName \'${sqlServerResourceName}\''
+        '-SqlDatabaseName \'${sqlDbModuleName}\''
+        '-ClientId \'${sqlUserAssignedIdentity.outputs.clientId}\''
+        '-DisplayName \'${sqlUserAssignedIdentity.outputs.name}\''
+        '-DatabaseRoles \'${join(databaseRoles, ',')}\''
+      ],
+      ' '
+    )
+    scriptContent: loadTextContent('./scripts/add_user_scripts/create-sql-user-and-role.ps1')
+    tags: tags
+    timeout: 'PT1H'
+    retentionInterval: 'PT1H'
+    cleanupPreference: 'OnSuccess'
+    storageAccountResourceId: storageAccount.outputs.resourceId
+    subnetResourceIds: enablePrivateNetworking ? [
+      network!.outputs.subnetDeploymentScriptsResourceId
+    ] : null
+  }
+  dependsOn:[sqlDBModule]
+}
+
 // ========== AVM WAF server farm ========== //
 // WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
 // PSRule for Web Server Farm: https://azure.github.io/PSRule.Rules.Azure/en/rules/resource/#app-service
@@ -1395,7 +1451,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
           SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
           SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
-          SQLDB_USER_MID: userAssignedIdentity.outputs.clientId
+          SQLDB_USER_MID: sqlUserAssignedIdentity.outputs.clientId
           AZURE_AI_SEARCH_ENDPOINT: 'https://${aiSearchName}.search.windows.net'
           AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
           AZURE_AI_SEARCH_CONNECTION_NAME: aiSearchName
@@ -1541,7 +1597,7 @@ output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 output SQLDB_SERVER string = sqlDBModule.outputs.name
 
 @description('Contains SQL database user managed identity client ID.')
-output SQLDB_USER_MID string = userAssignedIdentity.outputs.clientId
+output SQLDB_USER_MID string = sqlUserAssignedIdentity.outputs.clientId
 
 @description('Contains AI project client usage setting.')
 output USE_AI_PROJECT_CLIENT string = 'False'
