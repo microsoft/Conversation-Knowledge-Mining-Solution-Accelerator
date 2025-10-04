@@ -9,7 +9,7 @@ pydantic[email]
 azure-core==1.34.0
 requests==2.32.3
 types-requests==2.32.4.20250611
-aiohttp==3.12.9
+aiohttp==3.12.14
 
 # Azure Services
 azure-identity==1.23.0
