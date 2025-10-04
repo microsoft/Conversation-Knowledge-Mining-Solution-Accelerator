@@ -23,7 +23,7 @@ def login_logout():
         # Navigate to the login URL
         page.goto(URL, wait_until="domcontentloaded")
         # Wait for the login form to appear
-        page.wait_for_timeout(60000)
+        page.wait_for_timeout(5000)
         #page.wait_for_load_state('networkidle')
 
 
@@ -45,6 +45,10 @@ def pytest_runtest_setup(item):
 
     # Save handler and stream
     log_streams[item.nodeid] = (handler, stream)
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_html_report_title(report):
+    report.title = "KM_Generic_Smoke_testing_Report"
 
 
 @pytest.hookimpl(hookwrapper=True)
