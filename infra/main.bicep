@@ -960,7 +960,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
     accessTier: 'Hot'
     enableTelemetry: enableTelemetry
     tags: tags
-    enableHierarchicalNamespace: false
+    enableHierarchicalNamespace: true
     roleAssignments: [
       {
         principalId: userAssignedIdentity.outputs.principalId
