@@ -25,7 +25,7 @@ echo "Fetching Key Vault and Managed Identity from resource group: $resourceGrou
 keyVaultName=$(az keyvault list --resource-group "$resourceGroupName" --query "[0].name" -o tsv)
 
 # === Retrieve the ID of the first user-assigned identity with name starting with 'id-' ===
-managedIdentityResourceId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-')].id | [0]" -o tsv)
+managedIdentityResourceId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-') && !starts_with(name, 'id-sql-')].id | [0]" -o tsv)
 
 # === Normalize managedIdentityResourceId (necessary for compatibility in Git Bash on Windows) ===
 managedIdentityResourceId=$(echo "$managedIdentityResourceId" | sed -E 's|.*(/subscriptions/)|\1|')
@@ -34,7 +34,7 @@ managedIdentityResourceId=$(echo "$managedIdentityResourceId" | sed -E 's|.*(/su
 sqlServerLocation=$(az sql server list --resource-group "$resourceGroupName" --query "[0].location" -o tsv)
 
 # === Retrieve the principal ID of the first user-assigned identity with name starting with 'id-' ===
-managedIdentityClientId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-')].clientId | [0]" -o tsv)
+managedIdentityClientId=$(az identity list --resource-group "$resourceGroupName" --query "[?starts_with(name, 'id-') && !starts_with(name, 'id-sql-')].clientId | [0]" -o tsv)
 
 # === Validate that all required resources were found ===
 if [[ -z "$keyVaultName" || -z "$sqlServerLocation" || -z "$managedIdentityResourceId" || ! "$managedIdentityResourceId" =~ ^/subscriptions/ ]]; then
