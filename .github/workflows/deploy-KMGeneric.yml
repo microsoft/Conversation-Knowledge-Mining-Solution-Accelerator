@@ -124,7 +124,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters solutionName=${{env.SOLUTION_PREFIX}} contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" imageTag=${{ steps.determine_tag.outputs.tagname }} gptDeploymentCapacity=150 azureAiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'SecurityControl':'Ignore','Purpose':'Deploying and Cleaning Up Resources for Validation','CreatedDate':'$current_date'}"
+            --parameters solutionName=${{env.SOLUTION_PREFIX}} location="${{ env.AZURE_LOCATION }}" contentUnderstandingLocation="swedencentral" secondaryLocation="${{ env.AZURE_LOCATION }}" gptDeploymentCapacity=150 aiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'SecurityControl':'Ignore','Purpose':'Deploying and Cleaning Up Resources for Validation','CreatedDate':'$current_date'}"
 
      
 
