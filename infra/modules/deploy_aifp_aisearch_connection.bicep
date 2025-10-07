@@ -1,23 +1,24 @@
-@description('Required. Contains existing AI Project Name')
+@description('Required. Existing AI Project Name')
 param existingAIProjectName string
 
-@description('Required. Contains existing AI Services Name')
-param existingAIServicesName string
+@description('Required. Existing AI Foundry Name')
+param existingAIFoundryName string
 
-@description('Required. Contains AI Search Name')
+@description('Required. AI Search Name')
 param aiSearchName string
 
-@description('Required. Contains AI Search Resource ID')
+@description('Required. AI Search Resource ID')
 param aiSearchResourceId string
 
-@description('Required. Contains AI Search Location')
+@description('Required. AI Search Location')
 param aiSearchLocation string
 
-@description('Required. Contains AI Search Connection Name')
+@description('Required. AI Search Connection Name')
 param aiSearchConnectionName string
 
+
 resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = {
-  name: '${existingAIServicesName}/${existingAIProjectName}/${aiSearchConnectionName}'
+  name: '${existingAIFoundryName}/${existingAIProjectName}/${aiSearchConnectionName}'
   properties: {
     category: 'CognitiveSearch'
     target: 'https://${aiSearchName}.search.windows.net'

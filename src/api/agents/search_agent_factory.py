@@ -23,7 +23,7 @@ class SearchAgentFactory(BaseAgentFactory):
         """
         project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=get_azure_credential(),
+            credential=get_azure_credential(client_id=config.azure_client_id),
             api_version=config.ai_project_api_version,
         )
 
