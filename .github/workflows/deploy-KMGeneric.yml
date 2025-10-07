@@ -1,5 +1,6 @@
 name: KMGeneric Deploy-Test-Cleanup Pipeline
 on:
+  push:
   workflow_run:
     workflows: ["Build Docker and Optional Push"]
     types:
