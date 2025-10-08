@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.38.5.1644",
-      "templateHash": "10843486573745781490"
+      "version": "0.37.4.10188",
+      "templateHash": "3959837650762319888"
     }
   },
   "parameters": {
@@ -400,6 +400,7 @@
         "raiPolicyName": "Microsoft.Default"
       }
     ],
+    "shouldCreatePrivateEndpoint": "[and(variables('useExistingAiFoundryAiProject'), parameters('enablePrivateNetworking'))]",
     "aiFoundryAiServicesCUResourceName": "[format('aif-{0}-cu', variables('solutionSuffix'))]",
     "aiServicesName_cu": "[format('aisa-{0}-cu', variables('solutionSuffix'))]",
     "aiSearchName": "[format('srch-{0}', variables('solutionSuffix'))]",
@@ -502,7 +503,7 @@
     "logAnalyticsWorkspace": {
       "condition": "[and(parameters('enableMonitoring'), not(variables('useExistingLogAnalytics')))]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.operational-insights.workspace.{0}', variables('logAnalyticsWorkspaceResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -3608,7 +3609,7 @@
     "applicationInsights": {
       "condition": "[parameters('enableMonitoring')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.insights.component.{0}', variables('applicationInsightsResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -4339,7 +4340,7 @@
     "network": {
       "condition": "[parameters('enablePrivateNetworking')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('module.network.{0}', variables('solutionSuffix')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -4376,8 +4377,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "185624935688429658"
+              "version": "0.37.4.10188",
+              "templateHash": "1085609688480596031"
             }
           },
           "parameters": {
@@ -4436,7 +4437,7 @@
           "resources": [
             {
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[take(format('network-{0}-create', parameters('resourcesName')), 64)]",
               "properties": {
                 "expressionEvaluationOptions": {
@@ -4668,8 +4669,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.38.5.1644",
-                      "templateHash": "12768316806622743802"
+                      "version": "0.37.4.10188",
+                      "templateHash": "15207223252983879062"
                     }
                   },
                   "definitions": {
@@ -4971,7 +4972,7 @@
                   "resources": {
                     "virtualNetwork": {
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-virtualNetwork', parameters('resourcesName'))]",
                       "properties": {
                         "expressionEvaluationOptions": {
@@ -5008,8 +5009,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "14593686513981179019"
+                              "version": "0.37.4.10188",
+                              "templateHash": "5992825805937865628"
                             }
                           },
                           "definitions": {
@@ -5229,7 +5230,7 @@
                               },
                               "condition": "[not(empty(tryGet(parameters('subnets')[copyIndex()], 'networkSecurityGroup')))]",
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[take(format('{0}-{1}-networksecuritygroup', parameters('name'), tryGet(parameters('subnets')[copyIndex()], 'networkSecurityGroup', 'name')), 64)]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -5881,7 +5882,7 @@
                             },
                             "virtualNetwork": {
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[take(format('{0}-virtualNetwork', parameters('name')), 64)]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -7589,7 +7590,7 @@
                     "bastionHost": {
                       "condition": "[not(empty(parameters('bastionConfiguration')))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-bastionHost', parameters('resourcesName'))]",
                       "properties": {
                         "expressionEvaluationOptions": {
@@ -7629,8 +7630,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "16717791123938219019"
+                              "version": "0.37.4.10188",
+                              "templateHash": "3082168335446205769"
                             }
                           },
                           "definitions": {
@@ -7839,7 +7840,7 @@
                             "nsg": {
                               "condition": "[not(empty(parameters('subnet')))]",
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[format('{0}-{1}', parameters('vnetName'), tryGet(parameters('subnet'), 'networkSecurityGroup', 'name'))]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -8492,7 +8493,7 @@
                             "bastionSubnet": {
                               "condition": "[not(empty(parameters('subnet')))]",
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[take(format('bastionSubnet-{0}', parameters('vnetName')), 64)]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -8906,7 +8907,7 @@
                             },
                             "bastionHost": {
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[take(format('bastionHost-{0}-{1}', parameters('vnetName'), parameters('name')), 64)]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -10249,7 +10250,7 @@
                     "jumpbox": {
                       "condition": "[not(empty(parameters('jumpboxConfiguration')))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-jumpbox', parameters('resourcesName'))]",
                       "properties": {
                         "expressionEvaluationOptions": {
@@ -10295,8 +10296,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "13585811385348677752"
+                              "version": "0.37.4.10188",
+                              "templateHash": "40464970328764907"
                             }
                           },
                           "definitions": {
@@ -10539,7 +10540,7 @@
                             "nsg": {
                               "condition": "[not(empty(parameters('subnet')))]",
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[format('{0}-{1}', parameters('vnetName'), tryGet(parameters('subnet'), 'networkSecurityGroup', 'name'))]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -11192,7 +11193,7 @@
                             "subnetResource": {
                               "condition": "[not(empty(parameters('subnet')))]",
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[coalesce(tryGet(parameters('subnet'), 'name'), format('{0}-jumpbox-subnet', parameters('vnetName')))]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -11606,7 +11607,7 @@
                             },
                             "vm": {
                               "type": "Microsoft.Resources/deployments",
-                              "apiVersion": "2025-04-01",
+                              "apiVersion": "2022-09-01",
                               "name": "[take(format('{0}-jumpbox', variables('vmName')), 64)]",
                               "properties": {
                                 "expressionEvaluationOptions": {
@@ -20045,49 +20046,49 @@
               "metadata": {
                 "description": "Name of the Virtual Network resource."
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.vnetName.value]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.vnetName.value]"
             },
             "vnetResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the Virtual Network."
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.vnetResourceId.value]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.vnetResourceId.value]"
             },
             "subnetWebResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the \"web\" subnet."
               },
-              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'web')))), 'resourceId'), '')]"
+              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'web')))), 'resourceId'), '')]"
             },
             "subnetPrivateEndpointsResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the \"peps\" subnet for Private Endpoints."
               },
-              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'peps')))), 'resourceId'), '')]"
+              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'peps')))), 'resourceId'), '')]"
             },
             "bastionResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the Bastion Host."
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.bastionHostId.value]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.bastionHostId.value]"
             },
             "subnetDeploymentScriptsResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the subnet for deployment scripts."
               },
-              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'deployment-scripts')))), 'resourceId'), '')]"
+              "value": "[coalesce(tryGet(first(filter(reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.subnets.value, lambda('s', equals(lambdaVariables('s').name, 'deployment-scripts')))), 'resourceId'), '')]"
             },
             "jumpboxResourceId": {
               "type": "string",
               "metadata": {
                 "description": "Resource ID of the Jumpbox VM."
               },
-              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2025-04-01').outputs.jumpboxResourceId.value]"
+              "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('network-{0}-create', parameters('resourcesName')), 64)), '2022-09-01').outputs.jumpboxResourceId.value]"
             }
           }
         }
@@ -20105,7 +20106,7 @@
       },
       "condition": "[parameters('enablePrivateNetworking')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[format('avm.res.network.private-dns-zone.{0}', split(variables('privateDnsZones')[copyIndex()], '.')[1])]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -23272,7 +23273,7 @@
     },
     "userAssignedIdentity": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.managed-identity.user-assigned-identity.{0}', variables('userAssignedIdentityResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -23754,7 +23755,7 @@
     },
     "sqlUserAssignedIdentity": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.managed-identity.user-assigned-identity.{0}', variables('sqlUserAssignedIdentityResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -24236,7 +24237,7 @@
     },
     "keyvault": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.key-vault.vault.{0}', variables('keyVaultName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -24307,7 +24308,7 @@
               },
               {
                 "name": "AZURE-COSMOSDB-ACCOUNT-KEY",
-                "value": "[listOutputsWithSecureValues('cosmosDb', '2025-04-01').primaryReadWriteKey]"
+                "value": "[listOutputsWithSecureValues('cosmosDb', '2022-09-01').primaryReadWriteKey]"
               },
               {
                 "name": "AZURE-COSMOSDB-DATABASE",
@@ -24331,7 +24332,7 @@
               },
               {
                 "name": "ADLS-ACCOUNT-KEY",
-                "value": "[listOutputsWithSecureValues('storageAccount', '2025-04-01').primaryAccessKey]"
+                "value": "[listOutputsWithSecureValues('storageAccount', '2022-09-01').primaryAccessKey]"
               },
               {
                 "name": "AZURE-SEARCH-ENDPOINT",
@@ -27536,10 +27537,772 @@
         "userAssignedIdentity"
       ]
     },
+    "existingAiServicesPrivateEndpoint": {
+      "condition": "[variables('shouldCreatePrivateEndpoint')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "[take(format('module.private-endpoint.{0}', variables('aiFoundryAiServicesResourceName')), 64)]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[format('pep-{0}', variables('aiFoundryAiServicesResourceName'))]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "subnetResourceId": {
+            "value": "[reference('network').outputs.subnetPrivateEndpointsResourceId.value]"
+          },
+          "customNetworkInterfaceName": {
+            "value": "[format('nic-{0}', variables('aiFoundryAiServicesResourceName'))]"
+          },
+          "privateDnsZoneGroup": {
+            "value": {
+              "privateDnsZoneGroupConfigs": [
+                {
+                  "name": "ai-services-dns-zone-cognitiveservices",
+                  "privateDnsZoneResourceId": "[reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)).outputs.resourceId.value]"
+                },
+                {
+                  "name": "ai-services-dns-zone-openai",
+                  "privateDnsZoneResourceId": "[reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)).outputs.resourceId.value]"
+                },
+                {
+                  "name": "ai-services-dns-zone-aiservices",
+                  "privateDnsZoneResourceId": "[reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)).outputs.resourceId.value]"
+                }
+              ]
+            }
+          },
+          "privateLinkServiceConnections": {
+            "value": [
+              {
+                "name": "[format('pep-{0}', variables('aiFoundryAiServicesResourceName'))]",
+                "properties": {
+                  "groupIds": [
+                    "account"
+                  ],
+                  "privateLinkServiceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundryAiServicesSubscriptionId'), variables('aiFoundryAiServicesResourceGroupName')), 'Microsoft.CognitiveServices/accounts', variables('aiFoundryAiServicesResourceName'))]"
+                }
+              }
+            ]
+          },
+          "tags": {
+            "value": "[parameters('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.34.44.8038",
+              "templateHash": "12389807800450456797"
+            },
+            "name": "Private Endpoints",
+            "description": "This module deploys a Private Endpoint."
+          },
+          "definitions": {
+            "privateDnsZoneGroupType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The name of the Private DNS Zone Group."
+                  }
+                },
+                "privateDnsZoneGroupConfigs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/privateDnsZoneGroupConfigType"
+                  },
+                  "metadata": {
+                    "description": "Required. The private DNS zone groups to associate the private endpoint. A DNS zone group can support up to 5 DNS zones."
+                  }
+                }
+              },
+              "metadata": {
+                "__bicep_export!": true
+              }
+            },
+            "ipConfigurationType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "metadata": {
+                    "description": "Required. The name of the resource that is unique within a resource group."
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "groupId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Required. The ID of a group obtained from the remote resource that this private endpoint should connect to. If used with private link service connection, this property must be defined as empty string."
+                      }
+                    },
+                    "memberName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Required. The member name of a group obtained from the remote resource that this private endpoint should connect to. If used with private link service connection, this property must be defined as empty string."
+                      }
+                    },
+                    "privateIPAddress": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Required. A private IP address obtained from the private endpoint's subnet."
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "description": "Required. Properties of private endpoint IP configurations."
+                  }
+                }
+              },
+              "metadata": {
+                "__bicep_export!": true
+              }
+            },
+            "privateLinkServiceConnectionType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "metadata": {
+                    "description": "Required. The name of the private link service connection."
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "groupIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "metadata": {
+                        "description": "Required. The ID of a group obtained from the remote resource that this private endpoint should connect to. If used with private link service connection, this property must be defined as empty string array `[]`."
+                      }
+                    },
+                    "privateLinkServiceId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Required. The resource id of private link service."
+                      }
+                    },
+                    "requestMessage": {
+                      "type": "string",
+                      "nullable": true,
+                      "metadata": {
+                        "description": "Optional. A message passed to the owner of the remote resource with this connection request. Restricted to 140 chars."
+                      }
+                    }
+                  },
+                  "metadata": {
+                    "description": "Required. Properties of private link service connection."
+                  }
+                }
+              },
+              "metadata": {
+                "__bicep_export!": true
+              }
+            },
+            "customDnsConfigType": {
+              "type": "object",
+              "properties": {
+                "fqdn": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. FQDN that resolves to private endpoint IP address."
+                  }
+                },
+                "ipAddresses": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "description": "Required. A list of private IP addresses of the private endpoint."
+                  }
+                }
+              },
+              "metadata": {
+                "__bicep_export!": true
+              }
+            },
+            "lockType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. Specify the name of lock."
+                  }
+                },
+                "kind": {
+                  "type": "string",
+                  "allowedValues": [
+                    "CanNotDelete",
+                    "None",
+                    "ReadOnly"
+                  ],
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. Specify the type of lock."
+                  }
+                }
+              },
+              "metadata": {
+                "description": "An AVM-aligned type for a lock.",
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "br:mcr.microsoft.com/bicep/avm/utl/types/avm-common-types:0.5.1"
+                }
+              }
+            },
+            "privateDnsZoneGroupConfigType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The name of the private DNS zone group config."
+                  }
+                },
+                "privateDnsZoneResourceId": {
+                  "type": "string",
+                  "metadata": {
+                    "description": "Required. The resource id of the private DNS zone."
+                  }
+                }
+              },
+              "metadata": {
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "private-dns-zone-group/main.bicep"
+                }
+              }
+            },
+            "roleAssignmentType": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The name (as GUID) of the role assignment. If not provided, a GUID will be generated."
+                  }
+                },
+                "roleDefinitionIdOrName": {
+                  "type": "string",
+                  "metadata": {
+                    "description": "Required. The role to assign. You can provide either the display name of the role definition, the role definition GUID, or its fully qualified ID in the following format: '/providers/Microsoft.Authorization/roleDefinitions/c2f4ef07-c644-48eb-af81-4b1b4947fb11'."
+                  }
+                },
+                "principalId": {
+                  "type": "string",
+                  "metadata": {
+                    "description": "Required. The principal ID of the principal (user/group/identity) to assign the role to."
+                  }
+                },
+                "principalType": {
+                  "type": "string",
+                  "allowedValues": [
+                    "Device",
+                    "ForeignGroup",
+                    "Group",
+                    "ServicePrincipal",
+                    "User"
+                  ],
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The principal type of the assigned principal ID."
+                  }
+                },
+                "description": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The description of the role assignment."
+                  }
+                },
+                "condition": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The conditions on the role assignment. This limits the resources it can be assigned to. e.g.: @Resource[Microsoft.Storage/storageAccounts/blobServices/containers:ContainerName] StringEqualsIgnoreCase \"foo_storage_container\"."
+                  }
+                },
+                "conditionVersion": {
+                  "type": "string",
+                  "allowedValues": [
+                    "2.0"
+                  ],
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. Version of the condition."
+                  }
+                },
+                "delegatedManagedIdentityResourceId": {
+                  "type": "string",
+                  "nullable": true,
+                  "metadata": {
+                    "description": "Optional. The Resource Id of the delegated managed identity resource."
+                  }
+                }
+              },
+              "metadata": {
+                "description": "An AVM-aligned type for a role assignment.",
+                "__bicep_imported_from!": {
+                  "sourceTemplate": "br:mcr.microsoft.com/bicep/avm/utl/types/avm-common-types:0.5.1"
+                }
+              }
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the private endpoint resource to create."
+              }
+            },
+            "subnetResourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Resource ID of the subnet where the endpoint needs to be created."
+              }
+            },
+            "applicationSecurityGroupResourceIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. Application security groups in which the private endpoint IP configuration is included."
+              }
+            },
+            "customNetworkInterfaceName": {
+              "type": "string",
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. The custom name of the network interface attached to the private endpoint."
+              }
+            },
+            "ipConfigurations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ipConfigurationType"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. A list of IP configurations of the private endpoint. This will be used to map to the First Party Service endpoints."
+              }
+            },
+            "privateDnsZoneGroup": {
+              "$ref": "#/definitions/privateDnsZoneGroupType",
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. The private DNS zone group to configure for the private endpoint."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for all Resources."
+              }
+            },
+            "lock": {
+              "$ref": "#/definitions/lockType",
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. The lock settings of the service."
+              }
+            },
+            "roleAssignments": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/roleAssignmentType"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. Array of role assignments to create."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. Tags to be applied on all resources/resource groups in this deployment."
+              }
+            },
+            "customDnsConfigs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/customDnsConfigType"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Optional. Custom DNS configurations."
+              }
+            },
+            "manualPrivateLinkServiceConnections": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/privateLinkServiceConnectionType"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Conditional. A grouping of information about the connection to the remote resource. Used when the network admin does not have access to approve connections to the remote resource. Required if `privateLinkServiceConnections` is empty."
+              }
+            },
+            "privateLinkServiceConnections": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/privateLinkServiceConnectionType"
+              },
+              "nullable": true,
+              "metadata": {
+                "description": "Conditional. A grouping of information about the connection to the remote resource. Required if `manualPrivateLinkServiceConnections` is empty."
+              }
+            },
+            "enableTelemetry": {
+              "type": "bool",
+              "defaultValue": true,
+              "metadata": {
+                "description": "Optional. Enable/Disable usage telemetry for module."
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "formattedRoleAssignments",
+                "count": "[length(coalesce(parameters('roleAssignments'), createArray()))]",
+                "input": "[union(coalesce(parameters('roleAssignments'), createArray())[copyIndex('formattedRoleAssignments')], createObject('roleDefinitionId', coalesce(tryGet(variables('builtInRoleNames'), coalesce(parameters('roleAssignments'), createArray())[copyIndex('formattedRoleAssignments')].roleDefinitionIdOrName), if(contains(coalesce(parameters('roleAssignments'), createArray())[copyIndex('formattedRoleAssignments')].roleDefinitionIdOrName, '/providers/Microsoft.Authorization/roleDefinitions/'), coalesce(parameters('roleAssignments'), createArray())[copyIndex('formattedRoleAssignments')].roleDefinitionIdOrName, subscriptionResourceId('Microsoft.Authorization/roleDefinitions', coalesce(parameters('roleAssignments'), createArray())[copyIndex('formattedRoleAssignments')].roleDefinitionIdOrName)))))]"
+              }
+            ],
+            "builtInRoleNames": {
+              "Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+              "DNS Resolver Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0f2ebee7-ffd4-4fc0-b3b7-664099fdad5d')]",
+              "DNS Zone Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'befefa01-2a29-4197-83a8-272ff33ce314')]",
+              "Domain Services Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'eeaeda52-9324-47f6-8069-5d5bade478b2')]",
+              "Domain Services Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '361898ef-9ed1-48c2-849c-a832951106bb')]",
+              "Network Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4d97b98b-1d4f-4787-a291-c67834d212e7')]",
+              "Owner": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657-a8ff-443c-a75c-2fe8c4bcb635')]",
+              "Private DNS Zone Contributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b12aa53e-6015-4669-85d0-8515ebb3ae7f')]",
+              "Reader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+              "Role Based Access Control Administrator": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f58310d9-a9f6-439a-9e8d-f62e7b41a168')]"
+            }
+          },
+          "resources": {
+            "avmTelemetry": {
+              "condition": "[parameters('enableTelemetry')]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2024-03-01",
+              "name": "[format('46d3xbcp.res.network-privateendpoint.{0}.{1}', replace('0.11.0', '.', '-'), substring(uniqueString(deployment().name, parameters('location')), 0, 4))]",
+              "properties": {
+                "mode": "Incremental",
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "contentVersion": "1.0.0.0",
+                  "resources": [],
+                  "outputs": {
+                    "telemetry": {
+                      "type": "String",
+                      "value": "For more information, see https://aka.ms/avm/TelemetryInfo"
+                    }
+                  }
+                }
+              }
+            },
+            "privateEndpoint": {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2024-05-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "copy": [
+                  {
+                    "name": "applicationSecurityGroups",
+                    "count": "[length(coalesce(parameters('applicationSecurityGroupResourceIds'), createArray()))]",
+                    "input": {
+                      "id": "[coalesce(parameters('applicationSecurityGroupResourceIds'), createArray())[copyIndex('applicationSecurityGroups')]]"
+                    }
+                  }
+                ],
+                "customDnsConfigs": "[coalesce(parameters('customDnsConfigs'), createArray())]",
+                "customNetworkInterfaceName": "[coalesce(parameters('customNetworkInterfaceName'), '')]",
+                "ipConfigurations": "[coalesce(parameters('ipConfigurations'), createArray())]",
+                "manualPrivateLinkServiceConnections": "[coalesce(parameters('manualPrivateLinkServiceConnections'), createArray())]",
+                "privateLinkServiceConnections": "[coalesce(parameters('privateLinkServiceConnections'), createArray())]",
+                "subnet": {
+                  "id": "[parameters('subnetResourceId')]"
+                }
+              }
+            },
+            "privateEndpoint_lock": {
+              "condition": "[and(not(empty(coalesce(parameters('lock'), createObject()))), not(equals(tryGet(parameters('lock'), 'kind'), 'None')))]",
+              "type": "Microsoft.Authorization/locks",
+              "apiVersion": "2020-05-01",
+              "scope": "[format('Microsoft.Network/privateEndpoints/{0}', parameters('name'))]",
+              "name": "[coalesce(tryGet(parameters('lock'), 'name'), format('lock-{0}', parameters('name')))]",
+              "properties": {
+                "level": "[coalesce(tryGet(parameters('lock'), 'kind'), '')]",
+                "notes": "[if(equals(tryGet(parameters('lock'), 'kind'), 'CanNotDelete'), 'Cannot delete resource or child resources.', 'Cannot delete or modify the resource or child resources.')]"
+              },
+              "dependsOn": [
+                "privateEndpoint"
+              ]
+            },
+            "privateEndpoint_roleAssignments": {
+              "copy": {
+                "name": "privateEndpoint_roleAssignments",
+                "count": "[length(coalesce(variables('formattedRoleAssignments'), createArray()))]"
+              },
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[format('Microsoft.Network/privateEndpoints/{0}', parameters('name'))]",
+              "name": "[coalesce(tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'name'), guid(resourceId('Microsoft.Network/privateEndpoints', parameters('name')), coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()].principalId, coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()].roleDefinitionId))]",
+              "properties": {
+                "roleDefinitionId": "[coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()].roleDefinitionId]",
+                "principalId": "[coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()].principalId]",
+                "description": "[tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'description')]",
+                "principalType": "[tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'principalType')]",
+                "condition": "[tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'condition')]",
+                "conditionVersion": "[if(not(empty(tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'condition'))), coalesce(tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'conditionVersion'), '2.0'), null())]",
+                "delegatedManagedIdentityResourceId": "[tryGet(coalesce(variables('formattedRoleAssignments'), createArray())[copyIndex()], 'delegatedManagedIdentityResourceId')]"
+              },
+              "dependsOn": [
+                "privateEndpoint"
+              ]
+            },
+            "privateEndpoint_privateDnsZoneGroup": {
+              "condition": "[not(empty(parameters('privateDnsZoneGroup')))]",
+              "type": "Microsoft.Resources/deployments",
+              "apiVersion": "2022-09-01",
+              "name": "[format('{0}-PrivateEndpoint-PrivateDnsZoneGroup', uniqueString(deployment().name))]",
+              "properties": {
+                "expressionEvaluationOptions": {
+                  "scope": "inner"
+                },
+                "mode": "Incremental",
+                "parameters": {
+                  "name": {
+                    "value": "[tryGet(parameters('privateDnsZoneGroup'), 'name')]"
+                  },
+                  "privateEndpointName": {
+                    "value": "[parameters('name')]"
+                  },
+                  "privateDnsZoneConfigs": {
+                    "value": "[parameters('privateDnsZoneGroup').privateDnsZoneGroupConfigs]"
+                  }
+                },
+                "template": {
+                  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                  "languageVersion": "2.0",
+                  "contentVersion": "1.0.0.0",
+                  "metadata": {
+                    "_generator": {
+                      "name": "bicep",
+                      "version": "0.34.44.8038",
+                      "templateHash": "13997305779829540948"
+                    },
+                    "name": "Private Endpoint Private DNS Zone Groups",
+                    "description": "This module deploys a Private Endpoint Private DNS Zone Group."
+                  },
+                  "definitions": {
+                    "privateDnsZoneGroupConfigType": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "nullable": true,
+                          "metadata": {
+                            "description": "Optional. The name of the private DNS zone group config."
+                          }
+                        },
+                        "privateDnsZoneResourceId": {
+                          "type": "string",
+                          "metadata": {
+                            "description": "Required. The resource id of the private DNS zone."
+                          }
+                        }
+                      },
+                      "metadata": {
+                        "__bicep_export!": true
+                      }
+                    }
+                  },
+                  "parameters": {
+                    "privateEndpointName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "Conditional. The name of the parent private endpoint. Required if the template is used in a standalone deployment."
+                      }
+                    },
+                    "privateDnsZoneConfigs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/privateDnsZoneGroupConfigType"
+                      },
+                      "minLength": 1,
+                      "maxLength": 5,
+                      "metadata": {
+                        "description": "Required. Array of private DNS zone configurations of the private DNS zone group. A DNS zone group can support up to 5 DNS zones."
+                      }
+                    },
+                    "name": {
+                      "type": "string",
+                      "defaultValue": "default",
+                      "metadata": {
+                        "description": "Optional. The name of the private DNS zone group."
+                      }
+                    }
+                  },
+                  "variables": {
+                    "copy": [
+                      {
+                        "name": "privateDnsZoneConfigsVar",
+                        "count": "[length(parameters('privateDnsZoneConfigs'))]",
+                        "input": {
+                          "name": "[coalesce(tryGet(parameters('privateDnsZoneConfigs')[copyIndex('privateDnsZoneConfigsVar')], 'name'), last(split(parameters('privateDnsZoneConfigs')[copyIndex('privateDnsZoneConfigsVar')].privateDnsZoneResourceId, '/')))]",
+                          "properties": {
+                            "privateDnsZoneId": "[parameters('privateDnsZoneConfigs')[copyIndex('privateDnsZoneConfigsVar')].privateDnsZoneResourceId]"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "resources": {
+                    "privateEndpoint": {
+                      "existing": true,
+                      "type": "Microsoft.Network/privateEndpoints",
+                      "apiVersion": "2024-05-01",
+                      "name": "[parameters('privateEndpointName')]"
+                    },
+                    "privateDnsZoneGroup": {
+                      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                      "apiVersion": "2024-05-01",
+                      "name": "[format('{0}/{1}', parameters('privateEndpointName'), parameters('name'))]",
+                      "properties": {
+                        "privateDnsZoneConfigs": "[variables('privateDnsZoneConfigsVar')]"
+                      }
+                    }
+                  },
+                  "outputs": {
+                    "name": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The name of the private endpoint DNS zone group."
+                      },
+                      "value": "[parameters('name')]"
+                    },
+                    "resourceId": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The resource ID of the private endpoint DNS zone group."
+                      },
+                      "value": "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', parameters('privateEndpointName'), parameters('name'))]"
+                    },
+                    "resourceGroupName": {
+                      "type": "string",
+                      "metadata": {
+                        "description": "The resource group the private endpoint DNS zone group was deployed into."
+                      },
+                      "value": "[resourceGroup().name]"
+                    }
+                  }
+                }
+              },
+              "dependsOn": [
+                "privateEndpoint"
+              ]
+            }
+          },
+          "outputs": {
+            "resourceGroupName": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource group the private endpoint was deployed into."
+              },
+              "value": "[resourceGroup().name]"
+            },
+            "resourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the private endpoint."
+              },
+              "value": "[resourceId('Microsoft.Network/privateEndpoints', parameters('name'))]"
+            },
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the private endpoint."
+              },
+              "value": "[parameters('name')]"
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "The location the resource was deployed into."
+              },
+              "value": "[reference('privateEndpoint', '2024-05-01', 'full').location]"
+            },
+            "customDnsConfigs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/customDnsConfigType"
+              },
+              "metadata": {
+                "description": "The custom DNS configurations of the private endpoint."
+              },
+              "value": "[reference('privateEndpoint').customDnsConfigs]"
+            },
+            "networkInterfaceResourceIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "metadata": {
+                "description": "The resource IDs of the network interfaces associated with the private endpoint."
+              },
+              "value": "[map(reference('privateEndpoint').networkInterfaces, lambda('nic', lambdaVariables('nic').id))]"
+            },
+            "groupId": {
+              "type": "string",
+              "nullable": true,
+              "metadata": {
+                "description": "The group Id for the private endpoint Group."
+              },
+              "value": "[coalesce(tryGet(tryGet(tryGet(tryGet(reference('privateEndpoint'), 'manualPrivateLinkServiceConnections'), 0, 'properties'), 'groupIds'), 0), tryGet(tryGet(tryGet(tryGet(reference('privateEndpoint'), 'privateLinkServiceConnections'), 0, 'properties'), 'groupIds'), 0))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "avmPrivateDnsZones",
+        "existingAiFoundryAiServices",
+        "network"
+      ]
+    },
     "aiFoundryAiServices": {
       "condition": "[variables('aiFoundryAIservicesEnabled')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.cognitive-services.account.{0}', variables('aiFoundryAiServicesResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -27616,32 +28379,11 @@
           "publicNetworkAccess": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
           "privateEndpoints": "[if(and(parameters('enablePrivateNetworking'), empty(parameters('existingAiFoundryAiProjectResourceId'))), createObject('value', createArray(createObject('name', format('pep-{0}', variables('aiFoundryAiServicesResourceName')), 'customNetworkInterfaceName', format('nic-{0}', variables('aiFoundryAiServicesResourceName')), 'subnetResourceId', reference('network').outputs.subnetPrivateEndpointsResourceId.value, 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('name', 'ai-services-dns-zone-cognitiveservices', 'privateDnsZoneResourceId', reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)).outputs.resourceId.value), createObject('name', 'ai-services-dns-zone-openai', 'privateDnsZoneResourceId', reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)).outputs.resourceId.value), createObject('name', 'ai-services-dns-zone-aiservices', 'privateDnsZoneResourceId', reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)).outputs.resourceId.value)))))), createObject('value', createArray()))]",
           "deployments": {
-            "value": [
+            "copy": [
               {
-                "name": "[variables('aiModelDeployments')[0].name]",
-                "model": {
-                  "format": "[variables('aiModelDeployments')[0].format]",
-                  "name": "[variables('aiModelDeployments')[0].name]",
-                  "version": "[variables('aiModelDeployments')[0].version]"
-                },
-                "raiPolicyName": "[variables('aiModelDeployments')[0].raiPolicyName]",
-                "sku": {
-                  "name": "[variables('aiModelDeployments')[0].sku.name]",
-                  "capacity": "[variables('aiModelDeployments')[0].sku.capacity]"
-                }
-              },
-              {
-                "name": "[variables('aiModelDeployments')[1].name]",
-                "model": {
-                  "format": "[variables('aiModelDeployments')[1].format]",
-                  "name": "[variables('aiModelDeployments')[1].name]",
-                  "version": "[variables('aiModelDeployments')[1].version]"
-                },
-                "raiPolicyName": "[variables('aiModelDeployments')[1].raiPolicyName]",
-                "sku": {
-                  "name": "[variables('aiModelDeployments')[1].sku.name]",
-                  "capacity": "[variables('aiModelDeployments')[1].sku.capacity]"
-                }
+                "name": "value",
+                "count": "[length(variables('aiModelDeployments'))]",
+                "input": "[createObject('name', variables('aiModelDeployments')[copyIndex('value')].name, 'model', createObject('format', variables('aiModelDeployments')[copyIndex('value')].format, 'name', variables('aiModelDeployments')[copyIndex('value')].name, 'version', variables('aiModelDeployments')[copyIndex('value')].version), 'raiPolicyName', variables('aiModelDeployments')[copyIndex('value')].raiPolicyName, 'sku', createObject('name', variables('aiModelDeployments')[copyIndex('value')].sku.name, 'capacity', variables('aiModelDeployments')[copyIndex('value')].sku.capacity))]"
               }
             ]
           }
@@ -27653,8 +28395,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "5088745500548789421"
+              "version": "0.37.4.10188",
+              "templateHash": "9302733089815614062"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -28834,7 +29576,7 @@
             "cognitive_service_dependencies": {
               "condition": "[not(variables('useExistingService'))]",
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('cognitive_service_dependencies-{0}', uniqueString('cognitive_service_dependencies', deployment().name))]",
               "properties": {
                 "expressionEvaluationOptions": {
@@ -28886,8 +29628,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.38.5.1644",
-                      "templateHash": "15314300194851189920"
+                      "version": "0.37.4.10188",
+                      "templateHash": "13864482829550647329"
                     }
                   },
                   "definitions": {
@@ -29926,7 +30668,7 @@
                         "count": "[length(coalesce(parameters('privateEndpoints'), createArray()))]"
                       },
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-cognitiveService-PrivateEndpoint-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
                       "subscriptionId": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[2]]",
                       "resourceGroup": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[4]]",
@@ -30677,7 +31419,7 @@
                     "secretsExport": {
                       "condition": "[not(equals(parameters('secretsExportConfiguration'), null()))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-secrets-kv', uniqueString(deployment().name, parameters('location')))]",
                       "subscriptionId": "[split(tryGet(parameters('secretsExportConfiguration'), 'keyVaultResourceId'), '/')[2]]",
                       "resourceGroup": "[split(tryGet(parameters('secretsExportConfiguration'), 'keyVaultResourceId'), '/')[4]]",
@@ -30701,8 +31443,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "16130607705032080414"
+                              "version": "0.37.4.10188",
+                              "templateHash": "2491273843075489892"
                             }
                           },
                           "definitions": {
@@ -30821,7 +31563,7 @@
                     "aiProject": {
                       "condition": "[or(not(empty(parameters('projectName'))), not(empty(parameters('existingFoundryProjectResourceId'))))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[take(format('{0}-ai-project-{1}-deployment', parameters('name'), parameters('projectName')), 64)]",
                       "properties": {
                         "expressionEvaluationOptions": {
@@ -30855,8 +31597,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "349352008169908934"
+                              "version": "0.37.4.10188",
+                              "templateHash": "7781450680156271399"
                             }
                           },
                           "definitions": {
@@ -31035,7 +31777,7 @@
             "existing_cognitive_service_dependencies": {
               "condition": "[variables('useExistingService')]",
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('existing_cognitive_service_dependencies-{0}', uniqueString('existing_cognitive_service_dependencies', deployment().name))]",
               "subscriptionId": "[variables('existingCognitiveServiceDetails')[2]]",
               "resourceGroup": "[variables('existingCognitiveServiceDetails')[4]]",
@@ -31092,8 +31834,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.38.5.1644",
-                      "templateHash": "15314300194851189920"
+                      "version": "0.37.4.10188",
+                      "templateHash": "13864482829550647329"
                     }
                   },
                   "definitions": {
@@ -32132,7 +32874,7 @@
                         "count": "[length(coalesce(parameters('privateEndpoints'), createArray()))]"
                       },
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-cognitiveService-PrivateEndpoint-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
                       "subscriptionId": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[2]]",
                       "resourceGroup": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[4]]",
@@ -32883,7 +33625,7 @@
                     "secretsExport": {
                       "condition": "[not(equals(parameters('secretsExportConfiguration'), null()))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[format('{0}-secrets-kv', uniqueString(deployment().name, parameters('location')))]",
                       "subscriptionId": "[split(tryGet(parameters('secretsExportConfiguration'), 'keyVaultResourceId'), '/')[2]]",
                       "resourceGroup": "[split(tryGet(parameters('secretsExportConfiguration'), 'keyVaultResourceId'), '/')[4]]",
@@ -32907,8 +33649,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "16130607705032080414"
+                              "version": "0.37.4.10188",
+                              "templateHash": "2491273843075489892"
                             }
                           },
                           "definitions": {
@@ -33027,7 +33769,7 @@
                     "aiProject": {
                       "condition": "[or(not(empty(parameters('projectName'))), not(empty(parameters('existingFoundryProjectResourceId'))))]",
                       "type": "Microsoft.Resources/deployments",
-                      "apiVersion": "2025-04-01",
+                      "apiVersion": "2022-09-01",
                       "name": "[take(format('{0}-ai-project-{1}-deployment', parameters('name'), parameters('projectName')), 64)]",
                       "properties": {
                         "expressionEvaluationOptions": {
@@ -33061,8 +33803,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.38.5.1644",
-                              "templateHash": "349352008169908934"
+                              "version": "0.37.4.10188",
+                              "templateHash": "7781450680156271399"
                             }
                           },
                           "definitions": {
@@ -33329,7 +34071,7 @@
     },
     "cognitiveServicesCu": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.cognitive-services.account.{0}', variables('aiFoundryAiServicesCUResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -35648,8 +36390,8 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "logAnalyticsWorkspace",
         "network",
         "userAssignedIdentity"
@@ -35657,7 +36399,7 @@
     },
     "searchSearchServices": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.search.search-service.{0}', variables('aiSearchName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -38047,7 +38789,7 @@
     "existing_AIProject_SearchConnectionModule": {
       "condition": "[variables('useExistingAiFoundryAiProject')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "aiProjectSearchConnectionDeployment",
       "subscriptionId": "[variables('aiFoundryAiServicesSubscriptionId')]",
       "resourceGroup": "[variables('aiFoundryAiServicesResourceGroupName')]",
@@ -38082,8 +38824,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "10511123670839318015"
+              "version": "0.37.4.10188",
+              "templateHash": "6038840175458269917"
             }
           },
           "parameters": {
@@ -38151,7 +38893,7 @@
     "searchServiceToExistingAiServicesRoleAssignment": {
       "condition": "[variables('useExistingAiFoundryAiProject')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "searchToExistingAiServices-roleAssignment",
       "subscriptionId": "[variables('aiFoundryAiServicesSubscriptionId')]",
       "resourceGroup": "[variables('aiFoundryAiServicesResourceGroupName')]",
@@ -38177,8 +38919,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "9828768308732392791"
+              "version": "0.37.4.10188",
+              "templateHash": "3644919950024112374"
             }
           },
           "parameters": {
@@ -38228,7 +38970,7 @@
     },
     "storageAccount": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.storage.storage-account.{0}', variables('storageAccountName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -44013,17 +44755,17 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "network",
         "userAssignedIdentity"
       ]
     },
     "cosmosDb": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.document-db.database-account.{0}', variables('cosmosDbResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -47862,7 +48604,7 @@
     },
     "sqlDBModule": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('avm.res.sql.server.{0}', variables('sqlServerResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -54504,7 +55246,7 @@
     },
     "uploadFiles": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take('avm.res.resources.deployment-script.uploadFiles', 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -55088,7 +55830,7 @@
     },
     "createIndex": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take('avm.res.resources.deployment-script.createIndex', 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -55675,7 +56417,7 @@
     },
     "createSqlUserAndRole": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take('avm.res.resources.deployment-script.createSqlUserAndRole', 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -56261,7 +57003,7 @@
     },
     "webServerFarm": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "deploy_app_service_plan_serverfarm",
       "properties": {
         "expressionEvaluationOptions": {
@@ -56832,7 +57574,7 @@
     },
     "webSiteBackend": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('module.web-sites.{0}', variables('backendWebSiteResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -56920,8 +57662,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "14709587396306826230"
+              "version": "0.37.4.10188",
+              "templateHash": "4298119334635398540"
             }
           },
           "definitions": {
@@ -57898,7 +58640,7 @@
                 "count": "[length(coalesce(parameters('configs'), createArray()))]"
               },
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('{0}-Site-Config-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
               "properties": {
                 "expressionEvaluationOptions": {
@@ -57933,8 +58675,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.38.5.1644",
-                      "templateHash": "12256118191761050457"
+                      "version": "0.37.4.10188",
+                      "templateHash": "4653685834544796273"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -58079,7 +58821,7 @@
                 "count": "[length(coalesce(parameters('privateEndpoints'), createArray()))]"
               },
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('{0}-app-PrivateEndpoint-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
               "subscriptionId": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[2]]",
               "resourceGroup": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[4]]",
@@ -58906,7 +59648,7 @@
     },
     "webSiteFrontend": {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
+      "apiVersion": "2022-09-01",
       "name": "[take(format('module.web-sites.{0}', variables('webSiteResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -58961,8 +59703,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.38.5.1644",
-              "templateHash": "14709587396306826230"
+              "version": "0.37.4.10188",
+              "templateHash": "4298119334635398540"
             }
           },
           "definitions": {
@@ -59939,7 +60681,7 @@
                 "count": "[length(coalesce(parameters('configs'), createArray()))]"
               },
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('{0}-Site-Config-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
               "properties": {
                 "expressionEvaluationOptions": {
@@ -59974,8 +60716,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.38.5.1644",
-                      "templateHash": "12256118191761050457"
+                      "version": "0.37.4.10188",
+                      "templateHash": "4653685834544796273"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -60120,7 +60862,7 @@
                 "count": "[length(coalesce(parameters('privateEndpoints'), createArray()))]"
               },
               "type": "Microsoft.Resources/deployments",
-              "apiVersion": "2025-04-01",
+              "apiVersion": "2022-09-01",
               "name": "[format('{0}-app-PrivateEndpoint-{1}', uniqueString(deployment().name, parameters('location')), copyIndex())]",
               "subscriptionId": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[2]]",
               "resourceGroup": "[split(coalesce(tryGet(coalesce(parameters('privateEndpoints'), createArray())[copyIndex()], 'resourceGroupResourceId'), resourceGroup().id), '/')[4]]",
