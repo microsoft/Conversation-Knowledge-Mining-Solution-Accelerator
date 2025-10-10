@@ -1,9 +1,12 @@
+"""
+Factory module for creating conversation agents with SQL, Chart, and Conversation capabilities.
+This module provides classes for creating and managing conversation agents.
+"""
 from azure.ai.projects.aio import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
-
-from services.chat_service import ChatService
 from helpers.azure_credential_utils import get_azure_credential_async
+from services.chat_service import ChatService
 
 
 class ConversationAgentFactory(BaseAgentFactory):
@@ -67,18 +70,20 @@ class ConversationAgentFactory(BaseAgentFactory):
         return agent
 
     @classmethod
-    async def _delete_agent_instance(cls, agent, config):
+    async def _delete_agent_instance(cls, agent: object, config: object) -> None:
         """
-        Asynchronously deletes all associated threads from the agent instance and then deletes the agent.
+        Asynchronously deletes all associated threads from the agent instance and
+        then deletes the agent.
 
         Args:
             agent: The agent instance whose threads and definition need to be removed.
+            config: Configuration object containing AI project endpoint.
         """
         thread_cache = getattr(ChatService, "thread_cache", None)
         # Get the AI project client to perform cleanup operations
         creds = await get_azure_credential_async()
         client = AIProjectClient(credential=creds, endpoint=config.ai_project_endpoint)
-        
+
         if thread_cache:
             for conversation_id, thread_id in list(thread_cache.items()):
                 try:

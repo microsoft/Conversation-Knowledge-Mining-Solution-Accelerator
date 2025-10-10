@@ -1,3 +1,11 @@
+"""
+API routes for the Conversation Knowledge Mining Solution Accelerator.
+
+This module defines the FastAPI routes for core functionality including chat interactions,
+chart data retrieval, and health checks. It handles both synchronous and streaming responses
+for chat functionality and implements proper error handling and telemetry.
+"""
+
 import asyncio
 import json
 import logging

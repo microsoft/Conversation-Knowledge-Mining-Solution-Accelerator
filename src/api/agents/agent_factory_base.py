@@ -1,3 +1,11 @@
+"""
+Base factory module for agent creation and management.
+
+This module provides abstract base classes for implementing the factory pattern
+for creating and managing agent instances. It ensures singleton behavior for agents
+and defines the interface for agent creation and cleanup operations.
+"""
+
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Optional
