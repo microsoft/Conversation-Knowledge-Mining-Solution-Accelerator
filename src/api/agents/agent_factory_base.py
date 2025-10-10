@@ -24,7 +24,8 @@ class BaseAgentFactory(ABC):
         """Delete the current agent instance."""
         async with cls._lock:
             if cls._agent is not None:
-                await cls._delete_agent_instance(cls._agent)
+                config = Config()
+                await cls._delete_agent_instance(cls._agent, config)
                 cls._agent = None
 
     @classmethod
