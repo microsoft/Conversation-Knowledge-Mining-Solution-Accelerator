@@ -30,7 +30,8 @@ For WAF-aligned deployments with private networking:
 
 1. Navigate to your VM in the Azure portal
 2. Click **Connect** → **Bastion**
-3. Enter your VM credentials and click **Connect**
-4. Once connected, use Azure CLI commands to upload files to the storage account
+3. Enter your VM credentials (username and password) and click **Connect**
+4. Wait for the Bastion connection to establish - this may take a few moments
+5. Once connected, you'll have access to the VM desktop/terminal interface
 
 
