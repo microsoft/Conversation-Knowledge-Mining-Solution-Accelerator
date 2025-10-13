@@ -10,6 +10,9 @@ If you would like to update the solution to leverage your own data please follow
 
 1. Navigate to the storage account in the resource group you are using for this solution. 
 2. Open the `data` container
+
+> **Note for WAF-aligned deployments:** If your deployment uses private networking, you'll need to log into a VM within the virtual network to upload files. See [VM login instructions](#how-to-login-to-vm-using-azure-bastion) below.
+
 3. If you have audio files, upload them to `custom_audiodata` folder. If you have call transcript files, upload them to `custom_transcripts` folder.
 4. Navigate to the terminal and run the `run_process_data_scripts.sh` to process the new data into the solution with the following commands. 
     ```shell
@@ -21,17 +24,14 @@ If you would like to update the solution to leverage your own data please follow
     ```
     a. resourcegroupname_param - the name of the resource group.
 
-> Note (WAF‑aligned deployments): If you deployed the solution with the WAF / private networking option enabled, you must run the data processing script **from inside the deployed VM (jumpbox / processing VM)** so it can reach the private endpoints. Follow these steps:
->
-> 1. Connect to the VM (Azure Bastion, SSH, or RDP depending on OS).
-> 2. Ensure the repo (or the `infra/scripts` folder) is present. If not, clone or pull it.
-> 3. Open a Bash-compatible shell (Git Bash on Windows, or native bash on Linux).
-> 4. Run `az login` (add `--tenant <tenantId>` if required by your org policy).
-> 5. Navigate to `infra/scripts` and execute:
->    ```bash
->    bash run_process_data_scripts.sh <resource-group-name>
->    ```
-> 6. Replace `<resource-group-name>` with the name of the resource group you deployed (same value used for `resourcegroupname_param`).
->
-> Tip: If Azure CLI is not installed on the VM, install it first (see official docs) before running the script.
+## How to Login to VM Using Azure Bastion
+
+For WAF-aligned deployments with private networking:
+
+1. Navigate to your VM in the Azure portal
+2. Click **Connect** → **Bastion**
+3. Enter your VM credentials (username and password) and click **Connect**
+4. Wait for the Bastion connection to establish - this may take a few moments
+5. Once connected, you'll have access to the VM desktop/terminal interface
+
 
