@@ -1594,7 +1594,7 @@ output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 
 @description('Contains SQL server name.')
-output SQLDB_SERVER string = sqlDBModule.outputs.name
+output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
 
 @description('Contains SQL database user managed identity client ID.')
 output SQLDB_USER_MID string = sqlUserAssignedIdentity.outputs.clientId
