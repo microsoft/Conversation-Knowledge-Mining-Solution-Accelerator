@@ -34,7 +34,7 @@ async def get_db_connection():
         SQL_COPT_SS_ACCESS_TOKEN = 1256
 
         # Set up the connection
-        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};Encrypt=yes;TrustServerCertificate=yes;"
+        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
         conn = pyodbc.connect(
             connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         )
