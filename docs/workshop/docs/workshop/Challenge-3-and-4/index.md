@@ -62,7 +62,7 @@ This function lets users ask questions that are better answered using full-text 
 ### Prerequisites
 - Azure AI project credentials.
 - [Python 3.9+](https://www.python.org/downloads/)
-- [Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16#version-17)
+- [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
 - Python environment with required libraries installed (`azure-ai-evaluation`, `pandas`, etc.).
 - Access to the Azure API endpoint.
 - Completed [Challenge 3](./Challenge-3.md) 
