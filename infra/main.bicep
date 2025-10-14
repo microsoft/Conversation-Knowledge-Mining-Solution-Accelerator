@@ -1540,10 +1540,10 @@ output AZURE_AI_FOUNDRY_NAME string = !empty(existingAIServicesName) ? existingA
 output AZURE_AI_PROJECT_NAME string = !empty(existingAIProjectName) ? existingAIProjectName : aiFoundryAiServices.outputs.aiProjectInfo.name
 
 @description('Contains Azure AI Search service name.')
-output AZURE_AI_SEARCH_NAME string = !empty(existingAIServicesName) ? existingAIServicesName : aiFoundryAiServicesResourceName
+output AZURE_AI_SEARCH_NAME string = aiSearchName
 
 @description('Contains Azure AI Search endpoint URL.')
-output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.search.windows.net'
+output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiSearchName}.search.windows.net'
 
 @description('Contains Azure AI Search index name.')
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
