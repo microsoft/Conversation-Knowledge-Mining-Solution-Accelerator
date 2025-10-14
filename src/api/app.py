@@ -26,7 +26,7 @@ async def lifespan(fastapi_app: FastAPI):
     """
     Manages the application lifespan events for the FastAPI app.
 
-    On startup, initializes the Azure AI agent using the configuration and attaches it 
+    On startup, initializes the Azure AI agent using the configuration and attaches it
     to the app state.
     On shutdown, deletes the agent instance and performs any necessary cleanup.
     """

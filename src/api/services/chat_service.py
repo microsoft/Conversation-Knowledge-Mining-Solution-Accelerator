@@ -16,7 +16,6 @@ import re
 import pyodbc
 
 from fastapi import HTTPException, Request, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from azure.ai.projects.aio import AIProjectClient
@@ -42,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 class ExpCache(TTLCache):
     """Extended TTLCache that deletes Azure AI agent threads when items expire."""
- 
+
     def __init__(self, *args, **kwargs):
         """Initialize cache with optional project client for thread cleanup."""
         super().__init__(*args, **kwargs)
@@ -51,7 +50,7 @@ class ExpCache(TTLCache):
             endpoint=config.ai_project_endpoint,
             credential=get_azure_credential_async()
         )
- 
+
     def expire(self, time=None):
         """Remove expired items and delete associated Azure AI threads."""
         items = super().expire(time)
@@ -63,7 +62,7 @@ class ExpCache(TTLCache):
             except Exception as e:
                 logger.error("Failed to delete thread for key %s: %s", key, e)
         return items
- 
+
     def popitem(self):
         """Remove item using LRU eviction and delete associated Azure AI thread."""
         key, thread_id = super().popitem()
@@ -74,7 +73,7 @@ class ExpCache(TTLCache):
         except Exception as e:
             logger.error("Failed to delete thread for key %s (LRU evict): %s", key, e)
         return key, thread_id
- 
+
     async def _delete_thread_async(self, thread_id: str):
         """Asynchronously delete a thread using the Azure AI Project Client."""
         try:
@@ -82,6 +81,7 @@ class ExpCache(TTLCache):
                 await self.project_client.agents.threads.delete(thread_id=thread_id)
         except Exception as e:
             logger.error("Failed to delete thread %s: %s", thread_id, e)
+
 
 class SQLTool(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
@@ -101,6 +101,7 @@ class SQLTool(BaseModel):
             if cursor:
                 cursor.close()
 
+
 class ChatService:
     """
     Service for handling chat interactions, including streaming responses,
@@ -117,7 +118,7 @@ class ChatService:
         if ChatService.thread_cache is None:
             ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
 
-    async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
+    async def stream_openai_text(self, conversation_id: str, query: str):
         """
         Get a streaming text response from OpenAI.
         """
@@ -132,7 +133,6 @@ class ChatService:
             # Correctly await the credential before using it
             credential = await get_azure_credential_async()
             client = AIProjectClient(endpoint=config.ai_project_endpoint, credential=credential)
-            
             try:
                 custom_tool = SQLTool(conn=await get_db_connection())
 
@@ -151,7 +151,6 @@ class ChatService:
                     agent_id=self.agent.id,
                     project_endpoint=config.ai_project_endpoint
                 )
-                
                 async with ChatAgent(
                     chat_client=agent_ai_client,
                     tools=my_tools,

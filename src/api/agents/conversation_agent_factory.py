@@ -34,7 +34,7 @@ class ConversationAgentFactory(BaseAgentFactory):
                 Columns: ConversationId, key_phrase, sentiment
         Use accurate SQL expressions and ensure all calculations are precise and logically consistent.
         **Always** use the get_sql_response function to execute queries.
-        
+
         if the user query is asking for a chart,
             Generate chart.js v4.4.4 compatible JSON with appropriate chart type and options
             Include chart type and chart options.
@@ -48,7 +48,7 @@ class ConversationAgentFactory(BaseAgentFactory):
             Verify and refine that JSON should not have any syntax errors like extra closing brackets.
             Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
             Ensure bars and data points are evenly spaced and not squished or cropped at **100%** resolution by maintaining appropriate **barPercentage** and **categoryPercentage** values.
-        
+
         Always return the citations as is in final response.
         Always return citation markers exactly as they appear in the source data, placed in the "answer" field at the correct location. Do not modify, convert, or simplify these markers.
         Only include citation markers if their sources are present in the "citations" list. Only include sources in the "citations" list if they are used in the answer.
@@ -83,7 +83,6 @@ class ConversationAgentFactory(BaseAgentFactory):
         # Get the AI project client to perform cleanup operations
         creds = await get_azure_credential_async()
         client = AIProjectClient(credential=creds, endpoint=config.ai_project_endpoint)
-
         if thread_cache:
             for conversation_id, thread_id in list(thread_cache.items()):
                 try:

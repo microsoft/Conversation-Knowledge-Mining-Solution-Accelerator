@@ -18,7 +18,7 @@ def mock_db_conn():
 
 @pytest.fixture
 def token_fixture():
-    """Fixture to mock get_azure_credential_async with async context support."""
+    """Fixture to mock get_azure_credential_async."""
     with patch("common.database.sqldb_service.get_azure_credential_async", new_callable=AsyncMock) as mock_cred:
         mock_cred_instance = AsyncMock()
 
@@ -28,15 +28,10 @@ def token_fixture():
             return token_mock
 
         mock_cred_instance.get_token.side_effect = mock_get_token
-
-        async def aenter(*args, **kwargs):
-            return mock_cred_instance
-
-        async def aexit(*args, **kwargs):
-            pass
-
-        mock_cred_instance.__aenter__.side_effect = aenter
-        mock_cred_instance.__aexit__.side_effect = aexit
+        
+        # Add close method for cleanup
+        mock_cred_instance.close = AsyncMock()
+        
         mock_cred.return_value = mock_cred_instance
 
         yield mock_cred_instance
@@ -46,12 +41,19 @@ class TestSqlDbService:
 
     @pytest.mark.asyncio
     async def test_get_db_connection_success(self, mock_db_conn, token_fixture):
+        mock_conn, _ = mock_db_conn
         conn = await sqldb_service.get_db_connection()
-        assert conn is not None
+        assert conn is mock_conn
+        
+        # Verify that token was obtained correctly
+        token_fixture.get_token.assert_awaited_once_with("https://database.windows.net/.default")
+        
+        # Verify that credential cleanup was attempted
+        token_fixture.close.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_get_db_connection_fallback_to_sql_auth(self):
-        """Test fallback to SQL auth when token auth fails."""
+    async def test_get_db_connection_error_handling(self):
+        """Test error handling in get_db_connection."""
         with patch("pyodbc.connect") as mock_connect, \
              patch("common.database.sqldb_service.get_azure_credential_async", new_callable=AsyncMock) as mock_cred:
 
@@ -63,19 +65,18 @@ class TestSqlDbService:
                 return token_mock
 
             mock_token_instance.get_token.side_effect = get_token_mock
-
-            async def aenter(*args, **kwargs):
-                raise pyodbc.Error("Simulated failure")
-
-            mock_token_instance.__aenter__.side_effect = aenter
-            mock_token_instance.__aexit__.side_effect = AsyncMock()
             mock_cred.return_value = mock_token_instance
-
-            fallback_conn = MagicMock()
-            mock_connect.return_value = fallback_conn
-
-            conn = await sqldb_service.get_db_connection()
-            assert conn is fallback_conn
+            
+            # Simulate connection error
+            mock_connect.side_effect = pyodbc.Error("Connection error")
+            
+            # Test that the method correctly handles errors and ensures credential cleanup
+            with pytest.raises(pyodbc.Error):
+                await sqldb_service.get_db_connection()
+            
+            # Verify that credential.close() was called if it exists
+            if hasattr(mock_token_instance, 'close'):
+                mock_token_instance.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_adjust_processed_data_dates(self, mock_db_conn, token_fixture):

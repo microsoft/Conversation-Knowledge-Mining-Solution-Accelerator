@@ -17,7 +17,7 @@ class MockAgentFactory(BaseAgentFactory):
         return {"agent": "mock-agent"}
 
     @classmethod
-    async def _delete_agent_instance(cls, agent: object):
+    async def _delete_agent_instance(cls, agent: object, config: Config):
         cls._deleted = True
 
 
