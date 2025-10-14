@@ -14,12 +14,12 @@ apk update
 apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev
 apk add --no-cache --virtual .build-deps build-base unixodbc-dev
 
-# Install Microsoft ODBC and SQL tools
-echo "Installing MS ODBC drivers and tools..."
-curl -s -o msodbcsql17_17.10.6.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk
-curl -s -o mssql-tools_17.10.1.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk
-apk add --allow-untrusted msodbcsql17_17.10.6.1-1_amd64.apk
-apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
+# Install Microsoft ODBC Driver 18 and SQL tools
+echo "Installing MS ODBC 18 drivers and tools..."
+curl -s -o msodbcsql18_18.5.1.1-1_amd64.apk https://download.microsoft.com/download/fae28b9a-d880-42fd-9b98-d779f0fdd77f/msodbcsql18_18.5.1.1-1_amd64.apk
+curl -s -o mssql-tools18_18.4.1.1-1_amd64.apk https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/mssql-tools18_18.4.1.1-1_amd64.apk
+apk add --allow-untrusted msodbcsql18_18.5.1.1-1_amd64.apk
+apk add --allow-untrusted mssql-tools18_18.4.1.1-1_amd64.apk
 
 # Step 2: Download index scripts
 echo "Downloading index scripts..."
