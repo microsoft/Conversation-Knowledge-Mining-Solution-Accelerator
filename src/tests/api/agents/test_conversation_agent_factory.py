@@ -15,9 +15,9 @@ def reset_conversation_agent_factory():
 @pytest.mark.asyncio
 @patch("agents.conversation_agent_factory.AzureAIAgentSettings", autospec=True)
 @patch("agents.conversation_agent_factory.AzureAIAgent", autospec=True)
-@patch("agents.conversation_agent_factory.DefaultAzureCredential", autospec=True)
+@patch("agents.conversation_agent_factory.get_azure_credential_async", new_callable=AsyncMock)
 async def test_get_agent_creates_new_instance(
-    mock_credential,
+    mock_get_azure_credential_async,
     mock_azure_agent,
     mock_azure_ai_agent_settings
 ):
@@ -25,6 +25,9 @@ async def test_get_agent_creates_new_instance(
     mock_settings.endpoint = "https://test-endpoint"
     mock_settings.model_deployment_name = "test-model"
     mock_azure_ai_agent_settings.return_value = mock_settings
+
+    mock_credential = AsyncMock()
+    mock_get_azure_credential_async.return_value = mock_credential
 
     mock_client = AsyncMock()
     mock_agent_definition = MagicMock()
@@ -38,7 +41,7 @@ async def test_get_agent_creates_new_instance(
 
     assert result == agent_instance
     mock_azure_agent.create_client.assert_called_once_with(
-        credential=mock_credential.return_value,
+        credential=mock_get_azure_credential_async.return_value,
         endpoint="https://test-endpoint"
     )
     mock_client.agents.create_agent.assert_awaited_once()
