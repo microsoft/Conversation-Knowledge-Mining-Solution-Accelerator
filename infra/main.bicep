@@ -460,12 +460,6 @@ var dnsZoneIndex = {
   sqlServer: 9
   search: 10
 }
-// List of DNS zone indices that correspond to AI-related services.
-var aiRelatedDnsZoneIndices = [
-  dnsZoneIndex.cognitiveServices
-  dnsZoneIndex.openAI
-  dnsZoneIndex.aiServices
-]
 
 // ===================================================
 // DEPLOY PRIVATE DNS ZONES
@@ -738,42 +732,21 @@ resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/account
 
 // ========== Private Endpoint for Existing AI Services ========== //
 var shouldCreatePrivateEndpoint = useExistingAiFoundryAiProject && enablePrivateNetworking
-module existingAiServicesPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.0' = if (shouldCreatePrivateEndpoint) {
-  name: take('module.private-endpoint.${existingAiFoundryAiServices.name}', 64)
+var isProjectPrivate = existingAiFoundryAiServices!.properties.publicNetworkAccess == 'Enabled' ? false : true
+module existingAiServicesPrivateEndpoint './modules/existing-aif-private-endpoint.bicep' = if (shouldCreatePrivateEndpoint){
+  name: 'create-project-private-endpoint'
   params: {
-    name: 'pep-${existingAiFoundryAiServices.name}'
+    isPrivate: isProjectPrivate
+    aiServicesName: existingAiFoundryAiServices.name
+    subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+    aiServicesId: existingAiFoundryAiServices.id
     location: location
-    subnetResourceId: network!.outputs.subnetPrivateEndpointsResourceId
-    customNetworkInterfaceName: 'nic-${existingAiFoundryAiServices.name}'
-    privateDnsZoneGroup: {
-      privateDnsZoneGroupConfigs: [
-        {
-          name: 'ai-services-dns-zone-cognitiveservices'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-dns-zone-openai'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-dns-zone-aiservices'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
-        }
-      ]
-    }
-    privateLinkServiceConnections: [
-      {
-        name: 'pep-${existingAiFoundryAiServices.name}'
-        properties: {
-          groupIds: ['account']
-          privateLinkServiceId: existingAiFoundryAiServices.id
-        }
-      }
-    ]
+    cognitiveServicesDnsZoneId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+    openAiDnsZoneId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+    aiServicesDnsZoneId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
     tags: tags
   }
   dependsOn: [
-    existingAiFoundryAiServices
     avmPrivateDnsZones
   ]
 }
