@@ -4,7 +4,8 @@ Helper functions for initializing and managing Azure OpenAI client instances.
 """
 
 import openai
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import get_bearer_token_provider
+from helpers.azure_credential_utils import get_azure_credential
 from common.config.config import Config
 
 
@@ -15,7 +16,7 @@ def get_azure_openai_client():
 
     config = Config()
     token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
+        get_azure_credential(client_id=config.azure_client_id), "https://cognitiveservices.azure.com/.default"
     )
     client = openai.AzureOpenAI(
         azure_endpoint=config.azure_openai_endpoint,

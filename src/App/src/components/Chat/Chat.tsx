@@ -558,11 +558,31 @@ const Chat: React.FC<ChatProps> = ({
           scrollChatToBottom();
         } else if (isChartQuery(userMessage)) {
           try {
-            const parsedChartResponse = JSON.parse(runningText);
+            const splitRunningText = runningText.split("}{");
+            let parsedChartResponse: any = {};
+            parsedChartResponse= JSON.parse("{" + splitRunningText[splitRunningText.length - 1]);
+            let chartResponse : any = {};
+            try {
+              chartResponse = JSON.parse(parsedChartResponse?.choices[0]?.messages[0]?.content)
+            } catch (e) {
+              chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
+            }
+            
+            if (typeof chartResponse === 'object' &&  'answer' in chartResponse) {
+              if (
+                chartResponse.answer === "" ||
+                chartResponse.answer === undefined ||
+                (typeof chartResponse.answer === "object" && Object.keys(chartResponse.answer).length === 0)
+              ) {
+                chartResponse = "Chart can't be generated, please try again.";
+              } else {
+                chartResponse = chartResponse.answer;
+              }
+            }
+            
             if (
-              "object" in parsedChartResponse &&
-              parsedChartResponse?.object?.type &&
-              parsedChartResponse?.object?.data
+              chartResponse?.type &&
+              chartResponse?.data
             ) {
               // CHART CHECKING
               try {
@@ -570,7 +590,7 @@ const Chat: React.FC<ChatProps> = ({
                   id: generateUUIDv4(),
                   role: ASSISTANT,
                   content:
-                    parsedChartResponse.object as unknown as ChartDataResponse,
+                    chartResponse as unknown as ChartDataResponse,
                   date: new Date().toISOString(),
                 };
                 updatedMessages = [
@@ -604,12 +624,22 @@ const Chat: React.FC<ChatProps> = ({
                 scrollChatToBottom();
               }
             } else if (
-              parsedChartResponse.error ||
-              parsedChartResponse?.object?.message
+              parsedChartResponse?.error ||
+              parsedChartResponse?.choices[0]?.messages[0]?.content
             ) {
+              let content = parsedChartResponse?.choices[0]?.messages[0]?.content;
+              let displayContent = content;
+              try {
+                const parsed = typeof content === "string" ? JSON.parse(content) : content;
+                if (parsed && typeof parsed === "object" && "answer" in parsed) {
+                  displayContent = parsed.answer;
+                }
+              } catch {
+                displayContent = content;
+              }
               const errorMsg =
-                parsedChartResponse.error ||
-                parsedChartResponse?.object?.message;
+                parsedChartResponse?.error ||
+                parsedChartResponse?.choices[0]?.messages[0]?.content
               const errorMessage: ChatMessage = {
                 id: generateUUIDv4(),
                 role: ERROR,

@@ -7,7 +7,7 @@ environment:
 name: conversation-knowledge-mining
 
 requiredVersions:
-  azd: ">= 1.15.0"
+  azd: ">= 1.18.0"
 
 metadata:
   template: conversation-knowledge-mining@1.0

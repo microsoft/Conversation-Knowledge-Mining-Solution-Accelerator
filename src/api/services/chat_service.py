@@ -26,7 +26,6 @@ from azure.ai.agents.models import TruncationObject
 from cachetools import TTLCache
 
 from helpers.utils import format_stream_response
-from helpers.azure_openai_helper import get_azure_openai_client
 from common.config.config import Config
 
 # Constants
@@ -85,49 +84,6 @@ class ChatService:
 
         if ChatService.thread_cache is None:
             ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0, agent=self.agent)
-
-    def process_rag_response(self, rag_response, query):
-        """
-        Parses the RAG response dynamically to extract chart data for Chart.js.
-        """
-        try:
-            client = get_azure_openai_client()
-
-            system_prompt = """You are an assistant that helps generate valid chart data to be shown using chart.js with version 4.4.4 compatible.
-            Include chart type and chart options.
-            Pick the best chart type for given data.
-            Do not generate a chart unless the input contains some numbers. Otherwise return a message that Chart cannot be generated.
-            Only return a valid JSON output and nothing else.
-            Verify that the generated JSON can be parsed using json.loads.
-            Do not include tooltip callbacks in JSON.
-            Always make sure that the generated json can be rendered in chart.js.
-            Always remove any extra trailing commas.
-            Verify and refine that JSON should not have any syntax errors like extra closing brackets.
-            Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
-            Ensure bars and data points are evenly spaced and not squished or cropped at **100%** resolution by maintaining appropriate **barPercentage** and **categoryPercentage** values."""
-            user_prompt = f"""Generate chart data for -
-            {query}
-            {rag_response}
-            """
-            logger.info(">>> Processing chart data for response: %s", rag_response)
-
-            completion = client.chat.completions.create(
-                model=self.azure_openai_deployment_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0,
-            )
-
-            chart_data = completion.choices[0].message.content.strip().replace("```json", "").replace("```", "")
-            logger.info(">>> Generated chart data: %s", chart_data)
-
-            return json.loads(chart_data)
-
-        except Exception as e:
-            logger.error("Error processing RAG response: %s", e)
-            return {"error": "Chart could not be generated from this data. Please ask a different question."}
 
     async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
         """
@@ -254,7 +210,7 @@ class ChatService:
             return {"error": "A previous RAG response is required to generate a chart."}
 
         # Process RAG response to generate chart data
-        chart_data = self.process_rag_response(last_rag_response, query)
+        chart_data = await self.process_rag_response(last_rag_response, query)
 
         if not chart_data or "error" in chart_data:
             return {
