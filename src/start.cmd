@@ -6,46 +6,125 @@ REM Set root and config paths
 set ROOT_DIR=%cd%\..
 set AZURE_FOLDER=%ROOT_DIR%\.azure
 set CONFIG_FILE=%AZURE_FOLDER%\config.json
+set API_ENV_FILE=%ROOT_DIR%\src\api\.env
+set WORKSHOP_ENV_FILE=%ROOT_DIR%\docs\workshop\docs\workshop\.env
 
-REM Validate config.json
+REM Check if .azure folder exists first
+if not exist "%AZURE_FOLDER%" (
+    echo .azure folder not found. This is normal if Azure deployment hasn't been run yet.
+    goto :check_local_env
+)
+
+REM Check if config.json exists
 if not exist "%CONFIG_FILE%" (
-    echo config.json not found at %CONFIG_FILE%
-    exit /b 1
+    echo config.json not found in .azure folder. This is normal if Azure deployment hasn't been run yet.
+    goto :check_local_env
 )
 
 REM Extract default environment name
-for /f "delims=" %%i in ('powershell -command "(Get-Content '%CONFIG_FILE%' | ConvertFrom-Json).defaultEnvironment"') do set DEFAULT_ENV=%%i
+for /f "delims=" %%i in ('powershell -command "try { (Get-Content '%CONFIG_FILE%' | ConvertFrom-Json).defaultEnvironment } catch { '' }"') do set DEFAULT_ENV=%%i
 
 if not defined DEFAULT_ENV (
-    echo Failed to extract defaultEnvironment from config.json
-    exit /b 1
+    echo Failed to extract defaultEnvironment from config.json or config.json is invalid.
+    goto :check_local_env
 )
 
-REM Load .env file
+REM Load .env file from Azure deployment
 set ENV_FILE=%AZURE_FOLDER%\%DEFAULT_ENV%\.env
-if not exist "%ENV_FILE%" (
-    echo .env file not found at %ENV_FILE%
+
+REM Check if .env file exists in .azure folder
+if exist "%ENV_FILE%" (
+    echo Found .env file in Azure deployment folder: %ENV_FILE%
+    
+    REM Check if API .env also exists and ask for overwrite
+    if exist "%API_ENV_FILE%" (
+        echo Found existing .env file in src/api
+        set /p OVERWRITE_ENV="Do you want to overwrite it with the Azure deployment .env? (y/N): "
+        if /i "!OVERWRITE_ENV!"=="y" (
+            echo Overwriting existing .env file with Azure deployment configuration...
+            copy /Y "%ENV_FILE%" "%API_ENV_FILE%"
+            if errorlevel 1 (
+                echo Failed to copy .env to src/api
+                exit /b 1
+            )
+            echo Azure deployment .env copied to src/api
+            set ENV_FILE_FOR_ROLES=%ENV_FILE%
+        ) else (
+            echo Preserving existing .env file in src/api
+            echo Reading environment variables from src/api/.env for role assignments...
+            set ENV_FILE_FOR_ROLES=%API_ENV_FILE%
+        )
+    ) else (
+        echo No .env file found in src/api, copying from Azure deployment...
+        copy /Y "%ENV_FILE%" "%API_ENV_FILE%"
+        if errorlevel 1 (
+            echo Failed to copy .env to src/api
+            exit /b 1
+        )
+        echo Copied .env to src/api
+        set ENV_FILE_FOR_ROLES=%ENV_FILE%
+    )
+    
+    copy /Y "%ENV_FILE%" "%WORKSHOP_ENV_FILE%"
+    if errorlevel 1 (
+        echo Warning: Failed to copy .env to workshop directory
+    ) else (
+        echo Azure deployment .env copied to workshop/docs/workshop
+    )
+    
+    goto :setup_environment
+)
+
+:check_local_env
+echo Checking for local .env file in src/api...
+
+REM Try to use src/api .env file as fallback
+if exist "%API_ENV_FILE%" (
+    echo Using existing .env file from src/api for configuration...
+    set ENV_FILE_FOR_ROLES=%API_ENV_FILE%
+    echo Warning: No Azure deployment found, using local src/api/.env
+    
+    copy /Y "%API_ENV_FILE%" "%WORKSHOP_ENV_FILE%"
+    if errorlevel 1 (
+        echo Warning: Failed to copy .env to workshop directory
+    ) else (
+        echo Local .env copied to workshop/docs/workshop
+    )
+    
+    goto :setup_environment
+) else (
+    echo ERROR: No .env files found in any location.
+    echo.
+    echo The following files/folders are missing:
+    if not exist "%AZURE_FOLDER%" echo   - .azure folder (created by 'azd up')
+    if exist "%AZURE_FOLDER%" if not exist "%CONFIG_FILE%" echo   - .azure/config.json (created by 'azd up')
+    if exist "%CONFIG_FILE%" if not defined DEFAULT_ENV echo   - Valid defaultEnvironment in config.json
+    if defined DEFAULT_ENV if not exist "%ENV_FILE%" echo   - .env file in Azure deployment folder: %ENV_FILE%
+    echo   - Local .env file: %API_ENV_FILE%
+    echo.
+    echo Please choose one of the following options:
+    echo   1. Run 'azd up' to deploy Azure resources and generate .env files
+    echo   2. Manually create %API_ENV_FILE% with required environment variables
+    echo   3. Copy an existing .env file to %API_ENV_FILE%
+    echo.
+    echo For more information, see: documents/LocalDebuggingSetup.md
     exit /b 1
 )
 
-REM Parse required variables from .env
-for /f "tokens=1,* delims==" %%A in ('type "%ENV_FILE%"') do (
-    if "%%A"=="AZURE_RESOURCE_GROUP" set AZURE_RESOURCE_GROUP=%%~B
+:setup_environment
+REM Parse required variables for role assignments from the appropriate env file
+echo Reading environment variables for role assignments from: %ENV_FILE_FOR_ROLES%
+for /f "tokens=1,* delims==" %%A in ('type "%ENV_FILE_FOR_ROLES%"') do (
+    if "%%A"=="RESOURCE_GROUP_NAME" set AZURE_RESOURCE_GROUP=%%~B
     if "%%A"=="AZURE_COSMOSDB_ACCOUNT" set AZURE_COSMOSDB_ACCOUNT=%%~B
+    if "%%A"=="AZURE_AI_FOUNDRY_NAME" set "AI_FOUNDRY_NAME=%%~B"
+    if "%%A"=="AZURE_AI_SEARCH_NAME" set "SEARCH_SERVICE_NAME=%%~B"
+    if "%%A"=="AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" set "EXISTING_AI_PROJECT_RESOURCE_ID=%%~B"
     if "%%A"=="SQLDB_SERVER" (
         set SQLDB_SERVER=%%~B
         for /f "tokens=1 delims=." %%C in ("%%~B") do set SQLDB_SERVER_NAME=%%C
     )
 )
-
-REM Copy .env to src/api
-set API_ENV_FILE=%ROOT_DIR%\src\api\.env
-copy /Y "%ENV_FILE%" "%API_ENV_FILE%"
-if errorlevel 1 (
-    echo Failed to copy .env to src/api
-    exit /b 1
-)
-echo Copied .env to src/api
 
 REM Write API base URL to frontend .env
 set APP_ENV_FILE=%ROOT_DIR%\src\App\.env
@@ -54,59 +133,17 @@ set APP_ENV_FILE=%ROOT_DIR%\src\App\.env
 ) > "%APP_ENV_FILE%"
 echo Updated src/App/.env with APP_API_BASE_URL
 
-@REM REM Copy .env to workshop
-@REM set MICROHACK_ENV_FILE=%ROOT_DIR%\workshop\docs\workshop\.env
-@REM copy /Y "%ENV_FILE%" "%MICROHACK_ENV_FILE%"
-@REM if errorlevel 1 (
-@REM     echo Failed to copy .env to workshop/docs/workshop
-@REM     exit /b 1
-@REM )
-@REM echo Copied .env to workshop/docs/workshop
-
-REM Define paths
-set "SOURCE_ENV_FILE=%ENV_FILE%"
-set "TARGET_ENV_FILE=%ROOT_DIR%\workshop\docs\workshop\.env"
-set "TEMP_MERGED_FILE=%TEMP%\merged_env.tmp"
-
-REM Ensure the source env file exists
-if not exist "%SOURCE_ENV_FILE%" (
-    echo Source .env file not found at %SOURCE_ENV_FILE%
-    exit /b 1
+REM Add or update APP_ENV="dev" in API .env file
+echo Checking for existing APP_ENV in src/api/.env...
+findstr /i "^APP_ENV=" "%API_ENV_FILE%" >nul 2>&1
+if %ERRORLEVEL%==0 (
+    echo APP_ENV already exists, updating to "dev"...
+    powershell -command "(Get-Content '%API_ENV_FILE%') -replace '^APP_ENV=.*', 'APP_ENV=\"dev\"' | Set-Content '%API_ENV_FILE%'"
+) else (
+    echo APP_ENV not found, adding APP_ENV="dev"...
+    echo APP_ENV="dev" >> "%API_ENV_FILE%"
 )
-
-REM Create temporary merged file
-copy /Y "%TARGET_ENV_FILE%" "%TEMP_MERGED_FILE%" >nul 2>&1
-
-REM Read lines from SOURCE_ENV_FILE
-for /f "usebackq tokens=* delims=" %%A in ("%SOURCE_ENV_FILE%") do (
-    set "line=%%A"
-
-    REM Skip empty lines or comments
-    if not "!line!"=="" if not "!line:~0,1!"=="#" (
-
-        REM Extract variable name (text before '=')
-        for /f "tokens=1 delims==" %%B in ("!line!") do (
-            set "var=%%B"
-
-            REM Check if variable already exists in TARGET_ENV_FILE
-            findstr /b /i "%%B=" "%TARGET_ENV_FILE%" >nul
-            if errorlevel 1 (
-                echo !line!>>"%TEMP_MERGED_FILE%"
-            ) else (
-                echo Skipping existing variable: %%B
-            )
-        )
-    )
-)
-
-REM Move merged file back to .env
-move /Y "%TEMP_MERGED_FILE%" "%TARGET_ENV_FILE%" >nul
-if errorlevel 1 (
-    echo Failed to update .env file
-    exit /b 1
-)
-
-echo Successfully merged .env variables.
+echo APP_ENV="dev" configured in src/api/.env
 
 REM Authenticate with Azure
 echo Checking Azure login status...
@@ -123,9 +160,9 @@ if %ERRORLEVEL%==0 (
     echo Logged in successfully.
 )
 
-
-REM Get signed-in user ID
+REM Get signed-in user ID and subscription ID
 FOR /F "delims=" %%i IN ('az ad signed-in-user show --query id -o tsv') DO set "signed_user_id=%%i"
+FOR /F "delims=" %%s IN ('az account show --query id -o tsv') DO set "subscription_id=%%s"
 
 REM Check if user has Cosmos DB role
 FOR /F "delims=" %%i IN ('az cosmosdb sql role assignment list --resource-group %AZURE_RESOURCE_GROUP% --account-name %AZURE_COSMOSDB_ACCOUNT% --query "[?roleDefinitionId.ends_with(@, '00000000-0000-0000-0000-000000000002') && principalId == '%signed_user_id%']" -o tsv') DO set "roleExists=%%i"
@@ -141,8 +178,8 @@ if defined roleExists (
         --principal-id %signed_user_id% ^
         --scope "/" ^
         --output none
+    echo Cosmos DB Built-in Data Contributor role assigned successfully.
 )
-echo Cosmos DB Built-in Data Contributor role assigned successfully.
 
 REM Assign Azure SQL Server AAD admin
 FOR /F "delims=" %%i IN ('az account show --query user.name --output tsv') DO set "SQLADMIN_USERNAME=%%i"
@@ -151,18 +188,91 @@ call az sql server ad-admin create ^
     --display-name %SQLADMIN_USERNAME% ^
     --object-id "%signed_user_id%" ^
     --resource-group %AZURE_RESOURCE_GROUP% ^
-    --server %SQLDB_SERVER_NAME%
+    --server %SQLDB_SERVER_NAME% ^
     --output tsv >nul 2>&1
 echo Azure SQL Server AAD admin role assigned successfully.
 
-echo Proceeding to restore backend Python packages...
-REM Restore backend Python packages
-cd %ROOT_DIR%\src\api
+REM Assign Azure AI User role
+echo Checking Azure AI User role assignment...
+if not defined EXISTING_AI_PROJECT_RESOURCE_ID (
+    echo Using AI Foundry account scope...
+    FOR /F "delims=" %%i IN ('az role assignment list --assignee %signed_user_id% --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.CognitiveServices/accounts/%AI_FOUNDRY_NAME%" --query "[0].id" -o tsv') DO set "aiUserRoleExists=%%i"
+    if defined aiUserRoleExists (
+        echo User already has the Azure AI User role.
+    ) else (
+        echo Assigning Azure AI User role to AI Foundry account...
+        call az role assignment create ^
+            --assignee %signed_user_id% ^
+            --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" ^
+            --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.CognitiveServices/accounts/%AI_FOUNDRY_NAME%" ^
+            --output none
+        echo Azure AI User role assigned successfully.
+    )
+) else (
+    echo Extracting foundry scope from existing AI project resource ID...
+    for /f "tokens=1,2,3,4,5,6,7,8 delims=/" %%a in ("%EXISTING_AI_PROJECT_RESOURCE_ID%") do (
+        set "FOUNDRY_SCOPE=/%%a/%%b/%%c/%%d/%%e/%%f/%%g/%%h"
+    )
+    echo Using foundry scope from existing project: !FOUNDRY_SCOPE!
+    FOR /F "delims=" %%i IN ('az role assignment list --assignee %signed_user_id% --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" --scope "!FOUNDRY_SCOPE!" --query "[0].id" -o tsv') DO set "aiUserRoleExists=%%i"
+    if defined aiUserRoleExists (
+        echo User already has the Azure AI User role.
+    ) else (
+        echo Assigning Azure AI User role to foundry account...
+        call az role assignment create ^
+            --assignee %signed_user_id% ^
+            --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" ^
+            --scope "!FOUNDRY_SCOPE!" ^
+            --output none
+        echo Azure AI User role assigned successfully.
+    )
+)
+
+REM Assign Search Index Data Reader role
+echo Checking Search Index Data Reader role assignment...
+FOR /F "delims=" %%i IN ('az role assignment list --assignee %signed_user_id% --role "1407120a-92aa-4202-b7e9-c0e197c71c8f" --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.Search/searchServices/%SEARCH_SERVICE_NAME%" --query "[0].id" -o tsv') DO set "searchReaderRoleExists=%%i"
+if defined searchReaderRoleExists (
+    echo User already has the Search Index Data Reader role.
+) else (
+    echo Assigning Search Index Data Reader role to AI Search service...
+    call az role assignment create ^
+        --assignee %signed_user_id% ^
+        --role "1407120a-92aa-4202-b7e9-c0e197c71c8f" ^
+        --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.Search/searchServices/%SEARCH_SERVICE_NAME%" ^
+        --output none
+    echo Search Index Data Reader role assigned successfully.
+)
+
+echo Proceeding to create virtual environment and restore backend Python packages...
+REM Create and activate virtual environment in root folder
+cd %ROOT_DIR%
+
+REM Check if virtual environment already exists
+if not exist ".venv" (
+    echo Creating Python virtual environment in root folder...
+    call python -m venv .venv
+    if errorlevel 1 (
+        echo Failed to create virtual environment
+        exit /b 1
+    )
+    echo Virtual environment created successfully.
+) else (
+    echo Virtual environment already exists.
+)
+
+REM Activate virtual environment and install backend packages
+echo Activating virtual environment and installing backend packages...
+call .venv\Scripts\activate.bat
+call python -m pip install --upgrade pip
+cd src\api
 call python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo Failed to restore backend Python packages
+    call deactivate
     exit /b 1
 )
+echo Backend Python packages installed successfully in virtual environment.
+call deactivate
 cd %ROOT_DIR%
 
 REM Restore frontend packages
@@ -174,13 +284,22 @@ if errorlevel 1 (
 )
 cd %ROOT_DIR%
 
-REM Start backend
-start cmd /k "cd src\api && python app.py --port=8000"
-timeout /t 10 /nobreak >nul
+REM Start backend and frontend
+echo Starting backend server...
+cd %ROOT_DIR%
+call .venv\Scripts\activate.bat
+cd src\api
+start /b python app.py --port=8000
+echo Backend started at http://127.0.0.1:8000
 
-REM Start frontend
-start cmd /k "cd src\App && npm start"
+echo Waiting for backend to initialize...
+timeout /t 30 /nobreak >nul
 
+echo Starting frontend server...
+cd %ROOT_DIR%\src\App
+call npm start
+
+echo Both servers have been started.
 echo Backend running at http://127.0.0.1:8000
 echo Frontend running at http://localhost:3000
 

@@ -1,4 +1,4 @@
-from azure.identity import DefaultAzureCredential
+from azure.identity import ManagedIdentityCredential
 import base64
 import json
 import requests
@@ -9,7 +9,7 @@ import zipfile
 import time
 
 
-# credential = DefaultAzureCredential()
+# credential = ManagedIdentityCredential()
 from azure.identity import AzureCliCredential
 credential = AzureCliCredential()
 

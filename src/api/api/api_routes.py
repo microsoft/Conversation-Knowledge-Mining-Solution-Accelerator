@@ -1,18 +1,20 @@
 import asyncio
 import json
 import logging
+import math
 import os
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import requests
+from common.config.config import Config
 from api.models.input_models import ChartFilters
 from services.chat_service import ChatService
 from services.chart_service import ChartService
 from common.logging.event_utils import track_event_if_configured
+from helpers.azure_credential_utils import get_azure_credential
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
-from azure.identity import DefaultAzureCredential
 
 router = APIRouter()
 
@@ -74,6 +76,12 @@ async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
             "FetchChartDataWithFiltersSuccess",
             {"status": "success", "filters": chart_filters.model_dump()}
         )
+        # Sanitize the response to handle NaN and Infinity values
+        for record in response:
+            if isinstance(record.get("chart_value"), list):
+                for item in record["chart_value"]:
+                    if isinstance(item.get("value"), float) and (math.isnan(item["value"]) or math.isinf(item["value"])):
+                        item["value"] = None
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_chart_data_with_filters: %s", str(e))
@@ -108,30 +116,15 @@ async def conversation(request: Request):
     try:
         # Get the request JSON and last RAG response from the client
         request_json = await request.json()
-        last_rag_response = request_json.get("last_rag_response")
         conversation_id = request_json.get("conversation_id")
-        logger.info(f"Received last_rag_response: {last_rag_response}")
-
         query = request_json.get("messages")[-1].get("content")
-        is_chart_query = any(
-            term in query.lower()
-            for term in ["chart", "graph", "visualize", "plot"]
-        )
         chat_service = ChatService(request=request)
-        if not is_chart_query:
-            result = await chat_service.stream_chat_request(request_json, conversation_id, query)
-            track_event_if_configured(
-                "ChatStreamSuccess",
-                {"conversation_id": conversation_id, "query": query}
-            )
-            return StreamingResponse(result, media_type="application/json-lines")
-        else:
-            result = await chat_service.complete_chat_request(query, last_rag_response)
-            track_event_if_configured(
-                "ChartChatSuccess",
-                {"conversation_id": conversation_id, "query": query}
-            )
-            return JSONResponse(content=result)
+        result = await chat_service.stream_chat_request(request_json, conversation_id, query)
+        track_event_if_configured(
+            "ChatStreamSuccess",
+            {"conversation_id": conversation_id, "query": query}
+        )
+        return StreamingResponse(result, media_type="application/json-lines")
 
     except Exception as ex:
         logger.exception("Error in conversation endpoint: %s", str(ex))
@@ -186,7 +179,8 @@ async def fetch_azure_search_content_endpoint(request: Request):
             return JSONResponse(content={"error": "URL is required"}, status_code=400)
 
         # Get Azure AD token
-        credential = DefaultAzureCredential()
+        config = Config()
+        credential = get_azure_credential(client_id=config.azure_client_id)
         token = credential.get_token("https://search.azure.com/.default")
         access_token = token.token
 

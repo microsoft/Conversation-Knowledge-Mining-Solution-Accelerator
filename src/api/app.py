@@ -17,6 +17,7 @@ import uvicorn
 from agents.conversation_agent_factory import ConversationAgentFactory
 from agents.search_agent_factory import SearchAgentFactory
 from agents.sql_agent_factory import SQLAgentFactory
+from agents.chart_agent_factory import ChartAgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
 
@@ -34,13 +35,16 @@ async def lifespan(fastapi_app: FastAPI):
     fastapi_app.state.agent = await ConversationAgentFactory.get_agent()
     fastapi_app.state.search_agent = await SearchAgentFactory.get_agent()
     fastapi_app.state.sql_agent = await SQLAgentFactory.get_agent()
+    fastapi_app.state.chart_agent = await ChartAgentFactory.get_agent()
     yield
     await ConversationAgentFactory.delete_agent()
     await SearchAgentFactory.delete_agent()
     await SQLAgentFactory.delete_agent()
+    await ChartAgentFactory.delete_agent()
     fastapi_app.state.sql_agent = None
     fastapi_app.state.search_agent = None
     fastapi_app.state.agent = None
+    fastapi_app.state.chart_agent = None
 
 
 def build_app() -> FastAPI:

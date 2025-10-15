@@ -5,7 +5,7 @@ import pandas as pd
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
-from azure.identity.aio import DefaultAzureCredential
+from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
 
 
@@ -18,35 +18,40 @@ async def get_db_connection():
     username = config.sqldb_username
     password = config.sqldb_database
     driver = config.driver
-    mid_id = config.mid_id
+    # mid_id = config.mid_id
+    mid_id = config.azure_client_id
 
+    credential = None
     try:
-        async with DefaultAzureCredential(managed_identity_client_id=mid_id) as credential:
-            token = await credential.get_token("https://database.windows.net/.default")
-            token_bytes = token.token.encode("utf-16-LE")
-            token_struct = struct.pack(
-                f"<I{len(token_bytes)}s",
-                len(token_bytes),
-                token_bytes
-            )
-            SQL_COPT_SS_ACCESS_TOKEN = 1256
+        credential = await get_azure_credential_async(client_id=mid_id)
+        token = await credential.get_token("https://database.windows.net/.default")
+        token_bytes = token.token.encode("utf-16-LE")
+        token_struct = struct.pack(
+            f"<I{len(token_bytes)}s",
+            len(token_bytes),
+            token_bytes
+        )
+        SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-            # Set up the connection
-            connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-            conn = pyodbc.connect(
-                connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
-            )
+        # Set up the connection
+        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+        conn = pyodbc.connect(
+            connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+        )
 
-            logging.info("Connected using Default Azure Credential")
-            return conn
+        logging.info("Connected using Azure Credential")
+        return conn
     except pyodbc.Error as e:
-        logging.error("Failed with Default Credential: %s", str(e))
+        logging.error("Failed with Azure Credential: %s", str(e))
         conn = pyodbc.connect(
             f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
             timeout=5)
 
         logging.info("Connected using Username & Password")
         return conn
+    finally:
+        if credential and hasattr(credential, "close"):
+            await credential.close()
 
 
 async def adjust_processed_data_dates():
@@ -235,11 +240,10 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         # charts pt1
         nested_json1 = (
             df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
+                lambda x: x[['name', 'value', 'unit_of_measurement']].to_dict(orient='records'), include_groups=False).reset_index()
         )
+        nested_json1.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
         result1 = nested_json1.to_dict(orient='records')
-
         sql_stmt = f'''SELECT TOP 1 WITH TIES
                         mined_topic as name, 'TOPICS' as id, 'Trending Topics' as chart_name, 'table' as chart_type,
                         lower(sentiment) as average_sentiment,
@@ -258,12 +262,17 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         df = pd.DataFrame(rows, columns=column_names)
 
         # charts pt2
-        nested_json2 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
-        )
-        result2 = nested_json2.to_dict(orient='records')
+        if not df.empty:
+            nested_json2 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['name', 'call_frequency', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json2.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result2 = nested_json2.to_dict(orient='records')
+        else:
+            result2 = []
 
         where_clause = where_clause.replace('mined_topic', 'topic')
         sql_stmt = f'''select top 15 key_phrase as text,
@@ -293,15 +302,19 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
 
         df = df.head(15)
 
-        nested_json3 = (
-            df.groupby(['id', 'chart_name', 'chart_type']).apply(
-                lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'), include_groups=False).reset_index(
-                name='chart_value')
-        )
-        result3 = nested_json3.to_dict(orient='records')
+        if not df.empty:
+            nested_json3 = (
+                df.groupby(['id', 'chart_name', 'chart_type']).apply(
+                    lambda x: x[['text', 'size', 'average_sentiment']].to_dict(orient='records'),
+                    include_groups=False
+                ).reset_index()
+            )
+            nested_json3.columns = ['id', 'chart_name', 'chart_type', 'chart_value']
+            result3 = nested_json3.to_dict(orient='records')
+        else:
+            result3 = []
 
         final_result = result1 + result2 + result3
-
         return final_result
 
     finally:
