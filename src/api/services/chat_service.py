@@ -18,6 +18,7 @@ import pyodbc
 from fastapi import HTTPException, Request, status
 from pydantic import BaseModel
 
+from azure.ai.agents.models import TruncationObject
 from azure.ai.projects.aio import AIProjectClient
 from agent_framework import ChatAgent, HostedFileSearchTool
 from agent_framework.azure import AzureAIAgentClient
@@ -144,6 +145,8 @@ class ChatService:
                     }
                 )
 
+                truncation_strategy = TruncationObject(type="last_messages", last_messages=4)
+
                 my_tools = [custom_tool.get_sql_response, search_tool]
 
                 agent_ai_client = AzureAIAgentClient(
@@ -162,11 +165,15 @@ class ChatService:
                         thread_id = ChatService.thread_cache.get(conversation_id, None)
                     if thread_id:
                         thread = agent.get_new_thread(service_thread_id=thread_id)
+                        assert thread.is_initialized
                     else:
                         service_thread = await client.agents.threads.create()
                         thread = agent.get_new_thread(service_thread_id=service_thread.id)
+                        assert thread.is_initialized
+                        if ChatService.thread_cache is not None:
+                            ChatService.thread_cache[conversation_id] = service_thread.id
 
-                    async for response in agent.run_stream(messages=query, thread=thread):
+                    async for response in agent.run_stream(messages=query, thread=thread, truncation_strategy=truncation_strategy):
                         yield response.text
 
             finally:
