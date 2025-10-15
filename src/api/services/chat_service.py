@@ -27,7 +27,7 @@ from cachetools import TTLCache
 
 from common.database.sqldb_service import get_db_connection
 from helpers.utils import format_stream_response
-from helpers.azure_credential_utils import get_azure_credential_async
+from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
 from common.config.config import Config
 
 # Constants
@@ -48,7 +48,7 @@ class ExpCache(TTLCache):
         config = Config()
         self.project_client = AIProjectClient(
             endpoint=config.ai_project_endpoint,
-            credential=get_azure_credential_async()
+            credential= get_azure_credential(client_id=config.azure_client_id)
         )
 
     def expire(self, time=None):
@@ -131,7 +131,7 @@ class ChatService:
 
             config = Config()
             # Correctly await the credential before using it
-            credential = await get_azure_credential_async()
+            credential = await get_azure_credential_async(config.azure_client_id)
             client = AIProjectClient(endpoint=config.ai_project_endpoint, credential=credential)
             try:
                 custom_tool = SQLTool(conn=await get_db_connection())
