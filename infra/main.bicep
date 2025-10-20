@@ -1322,7 +1322,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     name: 'copy_demo_Data'
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
-    location: enablePrivateNetworking ? location : secondaryLocation
+    location: location
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1351,7 +1351,7 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     name: 'create_search_indexes'
     // Non-required parameters
     azCliVersion: '2.52.0'
-    location: enablePrivateNetworking ? location : secondaryLocation
+    location: location
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
@@ -1385,7 +1385,7 @@ module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1
     name: 'create_sql_user_and_role'
     // Non-required parameters
     azPowerShellVersion: '11.0'
-    location: enablePrivateNetworking ? location : secondaryLocation
+    location: location
     managedIdentities: {
       userAssignedResourceIds: [
         userAssignedIdentity.outputs.resourceId
