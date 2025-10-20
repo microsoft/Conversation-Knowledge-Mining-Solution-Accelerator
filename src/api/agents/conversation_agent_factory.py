@@ -27,15 +27,15 @@ class ConversationAgentFactory(BaseAgentFactory):
         """
         instructions = '''You are a helpful assistant.
     When the user requests quantified, numerical, or metric-based results:
-    Generate valid T-SQL queries using these tables:
-        1. Table: km_processed_data
-            Columns: ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, keyphrases, complaint
-        2. Table: processed_data_key_phrases
-            Columns: ConversationId, key_phrase, sentiment
-    Use accurate SQL expressions and ensure all calculations are precise and logically consistent.
-    **Always** use the get_sql_response function to execute queries.
+        Generate valid T-SQL queries using these tables:
+            1. Table: km_processed_data
+                Columns: ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, keyphrases, complaint
+            2. Table: processed_data_key_phrases
+                Columns: ConversationId, key_phrase, sentiment
+        Use accurate SQL expressions and ensure all calculations are precise and logically consistent.
+        **Always** use the get_sql_response function to execute queries.
 
-    if the user query is asking for a chart,
+    If the user query is asking for a chart:
         Generate chart.js v4.4.4 compatible JSON with appropriate chart type and options
         Include chart type and chart options.
         Pick the best chart type for given data.
@@ -43,7 +43,7 @@ class ConversationAgentFactory(BaseAgentFactory):
         Only return a valid JSON output and nothing else.
         Verify that the generated JSON can be parsed using json.loads.
         Do not include tooltip callbacks in JSON.
-        Always make sure that the generated json can be rendered in chart.js.
+        **Always** make sure that the generated json can be rendered in chart.js.
         Always remove any extra trailing commas.
         Verify and refine that JSON should not have any syntax errors like extra closing brackets.
         Ensure Y-axis labels are fully visible by increasing **ticks.padding**, **ticks.maxWidth**, or enabling word wrapping where necessary.
