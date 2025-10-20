@@ -138,9 +138,10 @@ class ChatService:
                 custom_tool = SQLTool(conn=await get_db_connection())
 
                 search_tool = HostedFileSearchTool(
+                    description='Search for summaries, explanations, or insights from customer call transcripts.',
                     additional_properties={
                         "index_name": config.azure_ai_search_index,
-                        "query_type": "simple",
+                        "query_type": "vector_semantic_hybrid",
                         "top_k": 5
                     }
                 )

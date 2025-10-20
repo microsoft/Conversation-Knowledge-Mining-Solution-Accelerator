@@ -20,7 +20,7 @@ azure-ai-projects==1.0.0
 azure-cosmos==4.9.0
 
 # Additional utilities
-agent-framework==1.0.0b251007
+agent-framework==1.0.0b251016
 openai==1.109.1
 pyodbc==5.2.0
 pandas==2.3.3
