@@ -230,24 +230,78 @@ print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
-    with open(json_file, "r") as f:
-        data = json.load(f)
-    data_list = [tuple(record.values()) for record in data]
-    columns = ", ".join(data[0].keys())
-    placeholders = ", ".join(["?"] * len(data[0]))
-    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-    cursor.executemany(sql, data_list)
-    conn.commit()
-    print(f"Imported {len(data)} records into {table_name}.")
+    try:
+        print(f"Opening file: {json_file}")
+        with open(json_file, "r") as f:
+            data = json.load(f)
+        print(f"Loaded {len(data)} records from {json_file}")
+        
+        data_list = [tuple(record.values()) for record in data]
+        columns = ", ".join(data[0].keys())
+        placeholders = ", ".join(["?"] * len(data[0]))
+        sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+        
+        print(f"Executing SQL: {sql}")
+        cursor.executemany(sql, data_list)
+        conn.commit()
+        print(f"Imported {len(data)} records into {table_name}.")
+    except FileNotFoundError as e:
+        print(f"File not found: {json_file} - {str(e)}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error in {json_file}: {str(e)}")
+        raise
+    except Exception as e:
+        print(f"Database error importing to {table_name}: {str(e)}")
+        raise
 
-with open('sample_search_index_data.json', 'r') as file:
-    documents = json.load(file)
-batch = [{"@search.action": "upload", **doc} for doc in documents]
-search_client.upload_documents(documents=batch)
-print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+# Load sample data to search index
+try:
+    print("Attempting to load sample_search_index_data.json...")
+    if not os.path.exists('sample_search_index_data.json'):
+        print("❌ sample_search_index_data.json does not exist in current directory")
+        raise FileNotFoundError("sample_search_index_data.json not found")
+    print(f"✅ Found sample_search_index_data.json (size: {os.path.getsize('sample_search_index_data.json')} bytes)")
+    with open('sample_search_index_data.json', 'r') as file:
+        documents = json.load(file)
+    batch = [{"@search.action": "upload", **doc} for doc in documents]
+    search_client.upload_documents(documents=batch)
+    print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+except Exception as e:
+    print(f"Failed to load sample search index data: {str(e)}")
 
-bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
-bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+# Load sample data to database tables
+import os
+print("Current working directory:", os.getcwd())
+print("Files in current directory:", os.listdir('.'))
+
+# Check if sample data files exist
+sample_files = ['sample_processed_data.json', 'sample_processed_data_key_phrases.json', 'sample_search_index_data.json']
+for file in sample_files:
+    if os.path.exists(file):
+        print(f"✅ Found file: {file} (size: {os.path.getsize(file)} bytes)")
+    else:
+        print(f"❌ Missing file: {file}")
+
+try:
+    print("Attempting to load sample_processed_data.json...")
+    if not os.path.exists('sample_processed_data.json'):
+        print("❌ sample_processed_data.json does not exist in current directory")
+        raise FileNotFoundError("sample_processed_data.json not found")
+    bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
+    print("Successfully loaded sample processed_data")
+except Exception as e:
+    print(f"Failed to load sample processed_data: {str(e)}")
+
+try:
+    print("Attempting to load sample_processed_data_key_phrases.json...")
+    if not os.path.exists('sample_processed_data_key_phrases.json'):
+        print("❌ sample_processed_data_key_phrases.json does not exist in current directory")
+        raise FileNotFoundError("sample_processed_data_key_phrases.json not found")
+    bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+    print("Successfully loaded sample processed_data_key_phrases")
+except Exception as e:
+    print(f"Failed to load sample processed_data_key_phrases: {str(e)}")
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
