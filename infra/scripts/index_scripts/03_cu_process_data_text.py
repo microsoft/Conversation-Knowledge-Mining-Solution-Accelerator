@@ -13,7 +13,7 @@ from azure.storage.filedatalake import DataLakeServiceClient
 from openai import AzureOpenAI
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
-
+import os
 # Constants and configuration
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
@@ -230,6 +230,7 @@ print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
+    import time
     try:
         print(f"Opening file: {json_file}")
         with open(json_file, "r") as f:
@@ -242,9 +243,38 @@ def bulk_import_json_to_table(json_file, table_name):
         sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
         
         print(f"Executing SQL: {sql}")
-        cursor.executemany(sql, data_list)
-        conn.commit()
-        print(f"Imported {len(data)} records into {table_name}.")
+        
+        # Process in smaller batches to avoid timeout
+        batch_size = 100
+        total_records = len(data_list)
+        successful_records = 0
+        
+        for i in range(0, total_records, batch_size):
+            batch = data_list[i:i + batch_size]
+            retry_count = 0
+            max_retries = 3
+            
+            while retry_count < max_retries:
+                try:
+                    cursor.executemany(sql, batch)
+                    conn.commit()
+                    successful_records += len(batch)
+                    print(f"Imported batch {i//batch_size + 1}: {len(batch)} records ({successful_records}/{total_records} total)")
+                    break
+                except Exception as batch_error:
+                    retry_count += 1
+                    print(f"Batch {i//batch_size + 1} failed (attempt {retry_count}/{max_retries}): {str(batch_error)}")
+                    if retry_count < max_retries:
+                        time.sleep(2 ** retry_count)  # Exponential backoff
+                        # Reconnect if connection was lost
+                        try:
+                            conn.rollback()
+                        except:
+                            pass
+                    else:
+                        print(f"Failed to import batch {i//batch_size + 1} after {max_retries} attempts")
+                        
+        print(f"Imported {successful_records}/{total_records} records into {table_name}.")
     except FileNotFoundError as e:
         print(f"File not found: {json_file} - {str(e)}")
         raise
@@ -271,7 +301,7 @@ except Exception as e:
     print(f"Failed to load sample search index data: {str(e)}")
 
 # Load sample data to database tables
-import os
+
 print("Current working directory:", os.getcwd())
 print("Files in current directory:", os.listdir('.'))
 
