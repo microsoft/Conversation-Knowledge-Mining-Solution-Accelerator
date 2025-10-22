@@ -13,7 +13,7 @@ from azure.storage.filedatalake import DataLakeServiceClient
 from openai import AzureOpenAI
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
-
+import os
 # Constants and configuration
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
@@ -54,13 +54,14 @@ search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
 
-# SQL Server setup
+# SQL Server setup with enhanced timeout settings
 driver = "{ODBC Driver 17 for SQL Server}"
 token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
 token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
 SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};Connection Timeout=60;Command Timeout=300;"
+conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}, timeout=60)
+conn.timeout = 300  # Set query timeout to 5 minutes
 cursor = conn.cursor()
 print("SQL Server connection established.")
 
@@ -230,24 +231,128 @@ print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
-    with open(json_file, "r") as f:
-        data = json.load(f)
-    data_list = [tuple(record.values()) for record in data]
-    columns = ", ".join(data[0].keys())
-    placeholders = ", ".join(["?"] * len(data[0]))
-    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-    cursor.executemany(sql, data_list)
-    conn.commit()
-    print(f"Imported {len(data)} records into {table_name}.")
+    import time
+    try:
+        print(f"Opening file: {json_file}")
+        with open(json_file, "r") as f:
+            data = json.load(f)
+        print(f"Loaded {len(data)} records from {json_file}")
+        
+        data_list = [tuple(record.values()) for record in data]
+        columns = ", ".join(data[0].keys())
+        placeholders = ", ".join(["?"] * len(data[0]))
+        sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+        
+        print(f"Executing SQL: {sql}")
+        
+        # Process in smaller batches to avoid timeout - reduced to 50 records
+        batch_size = 50
+        total_records = len(data_list)
+        successful_records = 0
+        
+        for i in range(0, total_records, batch_size):
+            batch = data_list[i:i + batch_size]
+            retry_count = 0
+            max_retries = 5  # Increased retry attempts
+            
+            while retry_count < max_retries:
+                try:
+                    # Reconnect if needed
+                    global conn, cursor
+                    if not conn:
+                        print("Reconnecting to database...")
+                        token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+                        token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+                        conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}, timeout=60)
+                        conn.timeout = 300
+                        cursor = conn.cursor()
+                    
+                    cursor.executemany(sql, batch)
+                    conn.commit()
+                    successful_records += len(batch)
+                    print(f"✅ Imported batch {i//batch_size + 1}: {len(batch)} records ({successful_records}/{total_records} total)")
+                    break
+                except Exception as batch_error:
+                    retry_count += 1
+                    error_msg = str(batch_error)
+                    print(f"❌ Batch {i//batch_size + 1} failed (attempt {retry_count}/{max_retries}): {error_msg}")
+                    
+                    # Check if connection was lost and reset it
+                    if "TCP Provider" in error_msg or "Communication link failure" in error_msg:
+                        print("🔄 Connection lost, closing and will reconnect on next attempt")
+                        try:
+                            cursor.close()
+                            conn.close()
+                        except:
+                            pass
+                        conn = None
+                        cursor = None
+                    
+                    if retry_count < max_retries:
+                        wait_time = min(2 ** retry_count, 30)  # Cap wait time at 30 seconds
+                        print(f"⏳ Waiting {wait_time} seconds before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"💥 Failed to import batch {i//batch_size + 1} after {max_retries} attempts")
+                        
+        print(f"📊 Final result: Imported {successful_records}/{total_records} records into {table_name}.")
+    except FileNotFoundError as e:
+        print(f"File not found: {json_file} - {str(e)}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error in {json_file}: {str(e)}")
+        raise
+    except Exception as e:
+        print(f"Database error importing to {table_name}: {str(e)}")
+        raise
 
-with open('sample_search_index_data.json', 'r') as file:
-    documents = json.load(file)
-batch = [{"@search.action": "upload", **doc} for doc in documents]
-search_client.upload_documents(documents=batch)
-print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+# Load sample data to search index
+try:
+    print("Attempting to load sample_search_index_data.json...")
+    if not os.path.exists('sample_search_index_data.json'):
+        print("❌ sample_search_index_data.json does not exist in current directory")
+        raise FileNotFoundError("sample_search_index_data.json not found")
+    print(f"✅ Found sample_search_index_data.json (size: {os.path.getsize('sample_search_index_data.json')} bytes)")
+    with open('sample_search_index_data.json', 'r') as file:
+        documents = json.load(file)
+    batch = [{"@search.action": "upload", **doc} for doc in documents]
+    search_client.upload_documents(documents=batch)
+    print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+except Exception as e:
+    print(f"Failed to load sample search index data: {str(e)}")
 
-bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
-bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+# Load sample data to database tables
+
+print("Current working directory:", os.getcwd())
+print("Files in current directory:", os.listdir('.'))
+
+# Check if sample data files exist
+sample_files = ['sample_processed_data.json', 'sample_processed_data_key_phrases.json', 'sample_search_index_data.json']
+for file in sample_files:
+    if os.path.exists(file):
+        print(f"✅ Found file: {file} (size: {os.path.getsize(file)} bytes)")
+    else:
+        print(f"❌ Missing file: {file}")
+
+try:
+    print("Attempting to load sample_processed_data.json...")
+    if not os.path.exists('sample_processed_data.json'):
+        print("❌ sample_processed_data.json does not exist in current directory")
+        raise FileNotFoundError("sample_processed_data.json not found")
+    bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
+    print("Successfully loaded sample processed_data")
+except Exception as e:
+    print(f"Failed to load sample processed_data: {str(e)}")
+
+try:
+    print("Attempting to load sample_processed_data_key_phrases.json...")
+    if not os.path.exists('sample_processed_data_key_phrases.json'):
+        print("❌ sample_processed_data_key_phrases.json does not exist in current directory")
+        raise FileNotFoundError("sample_processed_data_key_phrases.json not found")
+    bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+    print("Successfully loaded sample processed_data_key_phrases")
+except Exception as e:
+    print(f"Failed to load sample processed_data_key_phrases: {str(e)}")
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
