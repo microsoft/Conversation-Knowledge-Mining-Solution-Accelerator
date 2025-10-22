@@ -54,13 +54,14 @@ search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
 
-# SQL Server setup
+# SQL Server setup with enhanced timeout settings
 driver = "{ODBC Driver 17 for SQL Server}"
 token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
 token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
 SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};Connection Timeout=60;Command Timeout=300;"
+conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}, timeout=60)
+conn.timeout = 300  # Set query timeout to 5 minutes
 cursor = conn.cursor()
 print("SQL Server connection established.")
 
@@ -244,37 +245,57 @@ def bulk_import_json_to_table(json_file, table_name):
         
         print(f"Executing SQL: {sql}")
         
-        # Process in smaller batches to avoid timeout
-        batch_size = 100
+        # Process in smaller batches to avoid timeout - reduced to 50 records
+        batch_size = 50
         total_records = len(data_list)
         successful_records = 0
         
         for i in range(0, total_records, batch_size):
             batch = data_list[i:i + batch_size]
             retry_count = 0
-            max_retries = 3
+            max_retries = 5  # Increased retry attempts
             
             while retry_count < max_retries:
                 try:
+                    # Reconnect if needed
+                    global conn, cursor
+                    if not conn:
+                        print("Reconnecting to database...")
+                        token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+                        token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+                        conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}, timeout=60)
+                        conn.timeout = 300
+                        cursor = conn.cursor()
+                    
                     cursor.executemany(sql, batch)
                     conn.commit()
                     successful_records += len(batch)
-                    print(f"Imported batch {i//batch_size + 1}: {len(batch)} records ({successful_records}/{total_records} total)")
+                    print(f"✅ Imported batch {i//batch_size + 1}: {len(batch)} records ({successful_records}/{total_records} total)")
                     break
                 except Exception as batch_error:
                     retry_count += 1
-                    print(f"Batch {i//batch_size + 1} failed (attempt {retry_count}/{max_retries}): {str(batch_error)}")
-                    if retry_count < max_retries:
-                        time.sleep(2 ** retry_count)  # Exponential backoff
-                        # Reconnect if connection was lost
+                    error_msg = str(batch_error)
+                    print(f"❌ Batch {i//batch_size + 1} failed (attempt {retry_count}/{max_retries}): {error_msg}")
+                    
+                    # Check if connection was lost and reset it
+                    if "TCP Provider" in error_msg or "Communication link failure" in error_msg:
+                        print("🔄 Connection lost, closing and will reconnect on next attempt")
                         try:
-                            conn.rollback()
+                            cursor.close()
+                            conn.close()
                         except:
                             pass
+                        conn = None
+                        cursor = None
+                    
+                    if retry_count < max_retries:
+                        wait_time = min(2 ** retry_count, 30)  # Cap wait time at 30 seconds
+                        print(f"⏳ Waiting {wait_time} seconds before retry...")
+                        time.sleep(wait_time)
                     else:
-                        print(f"Failed to import batch {i//batch_size + 1} after {max_retries} attempts")
+                        print(f"💥 Failed to import batch {i//batch_size + 1} after {max_retries} attempts")
                         
-        print(f"Imported {successful_records}/{total_records} records into {table_name}.")
+        print(f"📊 Final result: Imported {successful_records}/{total_records} records into {table_name}.")
     except FileNotFoundError as e:
         print(f"File not found: {json_file} - {str(e)}")
         raise
