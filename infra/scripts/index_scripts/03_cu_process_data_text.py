@@ -54,16 +54,21 @@ search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
 
-# SQL Server setup
-driver = "{ODBC Driver 17 for SQL Server}"
-token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
-token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
-SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+# SQL connection helper
+def get_sql_connection():
+    """Always fetches a new SQL connection with a fresh access token."""
+    driver = "{ODBC Driver 17 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    conn.autocommit = True
+    return conn
+
+conn = get_sql_connection()
 cursor = conn.cursor()
 print("SQL Server connection established.")
-
 
 # Content Understanding client
 cu_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
@@ -91,45 +96,31 @@ def get_embeddings(text: str, openai_api_base, openai_api_version):
     embedding = client.embeddings.create(input=text, model=model_id).data[0].embedding
     return embedding
 
-# Function: Clean Spaces with Regex - 
 def clean_spaces_with_regex(text):
-    # Use a regular expression to replace multiple spaces with a single space
     cleaned_text = re.sub(r'\s+', ' ', text)
-    # Use a regular expression to replace consecutive dots with a single dot
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
     return cleaned_text
 
 def chunk_data(text, tokens_per_chunk=1024):
     text = clean_spaces_with_regex(text)
-
-    sentences = text.split('. ') # Split text into sentences
+    sentences = text.split('. ')
     chunks = []
     current_chunk = ''
     current_chunk_token_count = 0
-    
-    # Iterate through each sentence
     for sentence in sentences:
-        # Split sentence into tokens
         tokens = sentence.split()
-        
-        # Check if adding the current sentence exceeds tokens_per_chunk
         if current_chunk_token_count + len(tokens) <= tokens_per_chunk:
-            # Add the sentence to the current chunk
             if current_chunk:
                 current_chunk += '. ' + sentence
             else:
                 current_chunk += sentence
             current_chunk_token_count += len(tokens)
         else:
-            # Add current chunk to chunks list and start a new chunk
             chunks.append(current_chunk)
             current_chunk = sentence
             current_chunk_token_count = len(tokens)
-    
-    # Add the last chunk
     if current_chunk:
         chunks.append(current_chunk)
-    
     return chunks
 
 def prepare_search_doc(content, document_id, path_name):
@@ -138,12 +129,12 @@ def prepare_search_doc(content, document_id, path_name):
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
+            v_contentVector = get_embeddings(str(chunk), openai_api_base, openai_api_version)
         except:
             time.sleep(30)
-            try: 
-                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
-            except: 
+            try:
+                v_contentVector = get_embeddings(str(chunk), openai_api_base, openai_api_version)
+            except:
                 v_contentVector = []
         docs.append({
             "id": chunk_id,
@@ -156,8 +147,10 @@ def prepare_search_doc(content, document_id, path_name):
 
 # Database table creation
 def create_tables():
-    cursor.execute('DROP TABLE IF EXISTS processed_data')
-    cursor.execute("""CREATE TABLE processed_data (
+    conn_local = get_sql_connection()
+    cursor_local = conn_local.cursor()
+    cursor_local.execute('DROP TABLE IF EXISTS processed_data')
+    cursor_local.execute("""CREATE TABLE processed_data (
         ConversationId varchar(255) NOT NULL PRIMARY KEY,
         EndTime varchar(255),
         StartTime varchar(255),
@@ -170,15 +163,17 @@ def create_tables():
         complaint varchar(255), 
         mined_topic varchar(255)
     );""")
-    cursor.execute('DROP TABLE IF EXISTS processed_data_key_phrases')
-    cursor.execute("""CREATE TABLE processed_data_key_phrases (
+    cursor_local.execute('DROP TABLE IF EXISTS processed_data_key_phrases')
+    cursor_local.execute("""CREATE TABLE processed_data_key_phrases (
         ConversationId varchar(255),
         key_phrase varchar(500), 
         sentiment varchar(255),
         topic varchar(255), 
         StartTime varchar(255)
     );""")
-    conn.commit()
+    conn_local.commit()
+    cursor_local.close()
+    conn_local.close()
     print("Database tables created.")
 
 create_tables()
@@ -209,16 +204,22 @@ for path in paths:
         key_phrases = fields['keyPhrases']['valueString']
         complaint = fields['complaint']['valueString']
         content = fields['content']['valueString']
+
+        conn = get_sql_connection()
+        cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint)
         )
         conn.commit()
+        cursor.close()
+        conn.close()
+
         docs.extend(prepare_search_doc(content, conversation_id, path.name))
         counter += 1
-    except:
-        pass
-    if docs != [] and counter % 10 == 0:
+    except Exception as e:
+        print(f"Error processing file {path.name}: {e}")
+    if docs and counter % 10 == 0:
         result = search_client.upload_documents(documents=docs)
         docs = []
         print(f'{counter} uploaded to Azure Search.')
@@ -230,14 +231,18 @@ print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
+    conn_local = get_sql_connection()
+    cursor_local = conn_local.cursor()
     with open(json_file, "r") as f:
         data = json.load(f)
     data_list = [tuple(record.values()) for record in data]
     columns = ", ".join(data[0].keys())
     placeholders = ", ".join(["?"] * len(data[0]))
     sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-    cursor.executemany(sql, data_list)
-    conn.commit()
+    cursor_local.executemany(sql, data_list)
+    conn_local.commit()
+    cursor_local.close()
+    conn_local.close()
     print(f"Imported {len(data)} records into {table_name}.")
 
 with open('sample_search_index_data.json', 'r') as file:
@@ -251,6 +256,8 @@ bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_d
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
+conn = get_sql_connection()
+cursor = conn.cursor()
 cursor.execute('SELECT distinct topic FROM processed_data')
 rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
@@ -299,11 +306,10 @@ openai_client = AzureOpenAI(
     azure_ad_token_provider=token_provider,
     api_version=openai_api_version,
 )
-max_tokens = 3096
-
 res = call_gpt4(topics_str, openai_client)
-for object1 in res['topics']:
-    cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
+
+for obj in res['topics']:
+    cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (obj['label'], obj['description']))
 conn.commit()
 print("Topics mined and inserted into km_mined_topics.")
 
