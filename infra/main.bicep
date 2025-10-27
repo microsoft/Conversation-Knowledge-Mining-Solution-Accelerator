@@ -221,7 +221,6 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2021-04-01' = {
         TemplateName: 'KM-Generic'
         Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
         CreatedBy: createdBy
-        SecurityControl: 'Ignore'
       },
       tags
     )
