@@ -1319,7 +1319,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: take('avm.res.resources.deployment-script.uploadFiles', 64)
   params: {
     kind: 'AzureCLI'
-    name: 'copy_demo_Data'
+    name: 'copy_demo_Data-${enablePrivateNetworking ? location : secondaryLocation}'
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
     location: enablePrivateNetworking ? location : secondaryLocation
@@ -1348,7 +1348,7 @@ module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   params: {
     // Required parameters
     kind: 'AzureCLI'
-    name: 'create_search_indexes'
+    name: 'create_search_indexes-${enablePrivateNetworking ? location : secondaryLocation}'
     // Non-required parameters
     azCliVersion: '2.52.0'
     location: enablePrivateNetworking ? location : secondaryLocation
@@ -1382,7 +1382,7 @@ module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1
   params: {
     // Required parameters
     kind: 'AzurePowerShell'
-    name: 'create_sql_user_and_role'
+    name: 'create_sql_user_and_role-${enablePrivateNetworking ? location : secondaryLocation}'
     // Non-required parameters
     azPowerShellVersion: '11.0'
     location: enablePrivateNetworking ? location : secondaryLocation
