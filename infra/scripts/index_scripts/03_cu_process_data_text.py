@@ -150,6 +150,8 @@ def prepare_search_doc(content, document_id, path_name):
             "chunk_id": chunk_id,
             "content": chunk,
             "sourceurl": path_name.split('/')[-1],
+            "url": path_name.split('/')[-1],
+            "title": chunk_id,
             "contentVector": v_contentVector
         })
     return docs
@@ -240,11 +242,11 @@ def bulk_import_json_to_table(json_file, table_name):
     conn.commit()
     print(f"Imported {len(data)} records into {table_name}.")
 
-with open('sample_search_index_data.json', 'r') as file:
-    documents = json.load(file)
-batch = [{"@search.action": "upload", **doc} for doc in documents]
-search_client.upload_documents(documents=batch)
-print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+# with open('sample_search_index_data.json', 'r') as file:
+#     documents = json.load(file)
+# batch = [{"@search.action": "upload", **doc} for doc in documents]
+# search_client.upload_documents(documents=batch)
+# print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
 
 bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
 bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
