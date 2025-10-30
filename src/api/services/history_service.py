@@ -131,7 +131,7 @@ class HistoryService:
             agent = project_client.agents.create_agent(
                 model=self.azure_openai_deployment_name,
                 name=f"TitleAgent-{self.solution_name}",
-                instructions="Generate a concise 4-word or less conversation title. No quotes or punctuation.",
+                instructions=title_prompt,
             )
 
             thread = project_client.agents.threads.create()
