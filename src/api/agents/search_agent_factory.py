@@ -2,8 +2,6 @@ from azure.ai.agents.models import AzureAISearchTool, AzureAISearchQueryType
 from azure.ai.projects import AIProjectClient
 from agents.agent_factory_base import BaseAgentFactory
 from helpers.azure_credential_utils import get_azure_credential
-# from agents.agent_factory_base import BaseAgentFactory
-# from helpers.azure_credential_utils import get_azure_credential
 
 
 class SearchAgentFactory(BaseAgentFactory):
@@ -36,12 +34,12 @@ class SearchAgentFactory(BaseAgentFactory):
         project_index = project_client.indexes.create_or_update(
             name=f"project-index-{config.azure_ai_search_connection_name}-{config.azure_ai_search_index}",
             version="1",
-            index= {
-                    "connectionName": config.azure_ai_search_connection_name,
-                    "indexName": config.azure_ai_search_index,
-                    "type": "AzureSearch",
-                    "fieldMapping": field_mapping
-                 }
+            index={
+                "connectionName": config.azure_ai_search_connection_name,
+                "indexName": config.azure_ai_search_index,
+                "type": "AzureSearch",
+                "fieldMapping": field_mapping
+            }
         )
 
         ai_search = AzureAISearchTool(
