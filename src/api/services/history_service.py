@@ -118,16 +118,13 @@ class HistoryService:
         final_prompt = f"{combined_content}\n\n{title_prompt}"
 
         try:
-            # Use Foundry SDK instead of direct OpenAI API
-            print("Test1: Initializing AIProjectClient")
             logger.info('Testing R01')
             project_client = AIProjectClient(
                 endpoint=self.ai_project_endpoint,
                 credential=get_azure_credential(client_id=self.azure_client_id),
                 api_version=self.ai_project_api_version,
             )
-            print("Test2: AIProjectClient initialized")
-            # Create a simple agent for title generation
+            
             agent = project_client.agents.create_agent(
                 model=self.azure_openai_deployment_name,
                 name=f"TitleAgent-{self.solution_name}",

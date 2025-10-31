@@ -33,17 +33,15 @@ class SearchAgentFactory(BaseAgentFactory):
             "titleField": "chunk_id",
         }
 
-        index_body = {
-            "connectionName": config.azure_ai_search_connection_name,
-            "indexName": config.azure_ai_search_index,
-            "type": "AzureSearch",
-            "fieldMapping": field_mapping
-        }
-
         project_index = project_client.indexes.create_or_update(
             name=f"project-index-{config.azure_ai_search_connection_name}-{config.azure_ai_search_index}",
             version="1",
-            body=index_body
+            index= {
+                    "connectionName": config.azure_ai_search_connection_name,
+                    "indexName": config.azure_ai_search_index,
+                    "type": "AzureSearch",
+                    "fieldMapping": field_mapping
+                 }
         )
 
         ai_search = AzureAISearchTool(

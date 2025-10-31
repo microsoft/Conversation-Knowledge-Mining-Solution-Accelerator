@@ -1628,10 +1628,10 @@ output AZURE_AI_FOUNDRY_NAME string = !empty(existingAIServicesName) ? existingA
 output AZURE_AI_PROJECT_NAME string = !empty(existingAIProjectName) ? existingAIProjectName : aiFoundryAiServices.outputs.aiProjectInfo.name
 
 @description('Contains Azure AI Search service name.')
-output AZURE_AI_SEARCH_NAME string = !empty(existingAIServicesName) ? existingAIServicesName : aiFoundryAiServicesResourceName
+output AZURE_AI_SEARCH_NAME string = aiSearchName
 
 @description('Contains Azure AI Search endpoint URL.')
-output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.search.windows.net'
+output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiSearchName}.search.windows.net'
 
 @description('Contains Azure AI Search index name.')
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
@@ -1682,7 +1682,7 @@ output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 
 @description('Contains SQL server name.')
-output SQLDB_SERVER string = sqlDBModule.outputs.name
+output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
 
 @description('Contains SQL database user managed identity client ID.')
 output SQLDB_USER_MID string = sqlUserAssignedIdentity.outputs.clientId
