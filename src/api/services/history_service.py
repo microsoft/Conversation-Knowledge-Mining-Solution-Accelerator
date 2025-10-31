@@ -37,7 +37,7 @@ class HistoryService:
         self.azure_openai_deployment_name = config.azure_openai_deployment_model  # Still needed for Foundry SDK model parameter
         # self.azure_openai_resource = config.azure_openai_resource  # Not needed for Foundry SDK
         self.azure_client_id = config.azure_client_id
-        
+
         # AI Project configuration for Foundry SDK
         self.ai_project_endpoint = config.ai_project_endpoint
         self.ai_project_api_version = config.ai_project_api_version
@@ -98,7 +98,7 @@ class HistoryService:
     async def generate_title(self, conversation_messages):
         """
         Generate a conversation title using Azure AI Foundry SDK.
-        
+
         This method has been migrated from direct OpenAI API calls to use
         Azure AI Foundry SDK with AIProjectClient for better resource management
         and integration with Azure AI services.
@@ -111,8 +111,8 @@ class HistoryService:
 
         # Filter user messages and prepare content
         user_messages = [{"role": msg["role"], "content": msg["content"]}
-                        for msg in conversation_messages if msg["role"] == "user"]
-        
+                         for msg in conversation_messages if msg["role"] == "user"]
+
         # Combine all user messages with the title prompt
         combined_content = "\n".join([msg["content"] for msg in user_messages])
         final_prompt = f"{combined_content}\n\n{title_prompt}"
@@ -124,7 +124,7 @@ class HistoryService:
                 credential=get_azure_credential(client_id=self.azure_client_id),
                 api_version=self.ai_project_api_version,
             )
-            
+
             agent = project_client.agents.create_agent(
                 model=self.azure_openai_deployment_name,
                 name=f"TitleAgent-{self.solution_name}",
@@ -132,7 +132,7 @@ class HistoryService:
             )
 
             thread = project_client.agents.threads.create()
-            
+
             project_client.agents.messages.create(
                 thread_id=thread.id,
                 role=MessageRole.USER,
@@ -159,9 +159,9 @@ class HistoryService:
             # Clean up
             project_client.agents.threads.delete(thread_id=thread.id)
             project_client.agents.delete_agent(agent.id)
-            
+
             return title.strip()
-            
+
         except Exception as e:
             logger.error(f"Error generating title: {e}")
             # Fallback to user message or default
