@@ -118,7 +118,7 @@ jobs:
 
       - name: Upload test report
         id: upload_report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
         with:
 
