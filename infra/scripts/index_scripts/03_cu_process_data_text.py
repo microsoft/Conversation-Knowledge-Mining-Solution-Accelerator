@@ -6,6 +6,8 @@ import pyodbc
 import pandas as pd
 import logging
 import requests
+import sys
+import os
 from typing import Dict
 from datetime import datetime, timedelta
 from azure.identity import get_bearer_token_provider
@@ -18,9 +20,24 @@ from azure.ai.projects import AIProjectClient
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('03_cu_process_data_text.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# Also print startup message to ensure visibility
+print("=== STARTING 03_cu_process_data_text.py ===")
+print(f"Working directory: {os.getcwd()}")
+print(f"Python version: {sys.version}")
+logger.info("=== STARTING 03_cu_process_data_text.py ===")
+logger.info("Python version: %s", sys.version)
+logger.info("Working directory: %s", os.getcwd())
 
 
 class AssistantsWrapper:
@@ -84,12 +101,29 @@ DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
 
+logger.info("Configuration loaded:")
+logger.info("KEY_VAULT_NAME: %s", KEY_VAULT_NAME)
+logger.info("MANAGED_IDENTITY_CLIENT_ID: %s", MANAGED_IDENTITY_CLIENT_ID)
+logger.info("INDEX_NAME: %s", INDEX_NAME)
+logger.info("DIRECTORY: %s", DIRECTORY)
+
 def get_secrets_from_kv(kv_name, secret_name):
-    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
-    secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
-    return secret_client.get_secret(secret_name).value
+    try:
+        logger.info("Retrieving secret: %s from Key Vault: %s", secret_name, kv_name)
+        kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+        secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
+        secret_value = secret_client.get_secret(secret_name).value
+        logger.info("Successfully retrieved secret: %s", secret_name)
+        return secret_value
+    except Exception as e:
+        logger.error("Error retrieving secret %s: %s", secret_name, str(e))
+        logger.error("Error type: %s", type(e).__name__)
+        import traceback
+        logger.error("Traceback: %s", traceback.format_exc())
+        raise
 
 # Retrieve secrets
+logger.info("Starting secrets retrieval...")
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
 openai_api_base = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")
 openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
@@ -543,8 +577,11 @@ cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY
 cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
 conn.commit()
+logger.info("Dates adjusted to current date successfully.")
 print("Dates adjusted to current date.")
 
 cursor.close()
 conn.close()
+logger.info("=== COMPLETED 03_cu_process_data_text.py SUCCESSFULLY ===")
+logger.info("All steps completed. SQL connection closed.")
 print("All steps completed. Connection closed.")
