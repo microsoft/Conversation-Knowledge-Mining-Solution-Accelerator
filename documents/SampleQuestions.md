@@ -4,7 +4,7 @@ To help you get started, here are some **Sample Prompts** you can ask in the app
 
 1. Ask the following questions:
    - Total number of calls by date for last 7 days.
-      - Generate Chart.
+      - To view the response data as a graph, just prompt "Generate Chart".
    - Show average handling time by topics in minutes.
    - What are top 7 challenges user reported.
    - Give a summary of billing issues.
