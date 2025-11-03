@@ -13,7 +13,7 @@ aiohttp==3.13.0
 
 # Azure Services
 azure-identity==1.25.1
-azure-search-documents==11.6.0
+azure-search-documents==11.7.0b1
 azure-ai-agents==1.2.0b5
 azure-ai-inference==1.0.0b9
 azure-ai-projects==1.0.0
@@ -35,6 +35,6 @@ opentelemetry-instrumentation==0.58b0
 azure-monitor-opentelemetry==1.8.1
 
 # Development tools
-pytest==8.3.5
-pytest-cov==6.1.1
-pytest-asyncio==0.26.0
+pytest==8.4.2
+pytest-cov==7.0.0
+pytest-asyncio==1.2.0
