@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+"""
+01_create_search_index.py - Creates Azure Search Index with vector search configuration
+"""
+
+# Early debug output - this should appear immediately
+print("01_create_search_index.py: Script execution started")
+print("01_create_search_index.py: Importing modules...")
+
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -25,22 +34,33 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/tmp/01_create_search_index.log')
+        logging.FileHandler('01_create_search_index.log')  # Write to current directory
     ]
 )
 logger = logging.getLogger(__name__)
 
+# Also print startup message to ensure visibility
+print("=== STARTING 01_create_search_index.py ===")
+print(f"Working directory: {os.getcwd()}")
+print(f"Python version: {sys.version}")
+logger.info("=== STARTING 01_create_search_index.py ===")
+logger.info("Working directory: %s", os.getcwd())
+logger.info("Python version: %s", sys.version)
+
 # === Configuration ===
+print("01_create_search_index.py: Setting up configuration...")
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 INDEX_NAME = "call_transcripts_index"
 
-logger.info("=== STARTING 01_create_search_index.py ===")
-logger.info(f"KEY_VAULT_NAME: {KEY_VAULT_NAME}")
-logger.info(f"MANAGED_IDENTITY_CLIENT_ID: {MANAGED_IDENTITY_CLIENT_ID}")
-logger.info(f"INDEX_NAME: {INDEX_NAME}")
+print(f"01_create_search_index.py: Configuration - KEY_VAULT_NAME: {KEY_VAULT_NAME}")
+print(f"01_create_search_index.py: Configuration - INDEX_NAME: {INDEX_NAME}")
+logger.info("Configuration loaded:")
+logger.info("KEY_VAULT_NAME: %s", KEY_VAULT_NAME)
+logger.info("MANAGED_IDENTITY_CLIENT_ID: %s", MANAGED_IDENTITY_CLIENT_ID)
+logger.info("INDEX_NAME: %s", INDEX_NAME)
 
-print("calling create_search_index()....")
+print("01_create_search_index.py: About to define functions...")
 
 
 def get_secrets_from_kv(secret_name: str) -> str:
@@ -187,19 +207,22 @@ def create_search_index():
 
 def main():
     """Main execution wrapper with error handling"""
-    logger.info("=== STARTING 01_create_search_index.py ===")
-    logger.info(f"Python version: {sys.version}")
-    logger.info(f"Working directory: {os.getcwd()}")
+    print("=== MAIN EXECUTION STARTED ===")
+    logger.info("=== STARTING 01_create_search_index.py MAIN ===")
     
     try:
+        print("About to call create_search_index()")
         create_search_index()
+        print("=== COMPLETED 01_create_search_index.py SUCCESSFULLY ===")
         logger.info("=== COMPLETED 01_create_search_index.py SUCCESSFULLY ===")
     except Exception as e:
-        logger.error(f"=== FAILED 01_create_search_index.py ===")
-        logger.error(f"Main execution error: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
+        print(f"=== FAILED 01_create_search_index.py ===")
+        print(f"Main execution error: {str(e)}")
+        logger.error("=== FAILED 01_create_search_index.py ===")
+        logger.error("Main execution error: %s", str(e))
+        logger.error("Error type: %s", type(e).__name__)
         import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error("Full traceback: %s", traceback.format_exc())
         print(f"MAIN ERROR: {str(e)}")
         sys.exit(1)
 

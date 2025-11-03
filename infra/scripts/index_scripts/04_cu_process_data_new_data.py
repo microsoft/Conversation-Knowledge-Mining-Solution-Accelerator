@@ -37,12 +37,16 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/tmp/04_cu_process_data_new_data.log'),
+        logging.FileHandler('04_cu_process_data_new_data.log'),  # Write to current directory
         logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
 
+# Also print startup message to ensure visibility
+print("=== STARTING 04_cu_process_data_new_data.py ===")
+print(f"Working directory: {os.getcwd()}")
+print(f"Python version: {sys.version}")
 logger.info("=== STARTING 04_cu_process_data_new_data.py ===")
 logger.info("Python version: %s", sys.version)
 logger.info("Working directory: %s", os.getcwd())

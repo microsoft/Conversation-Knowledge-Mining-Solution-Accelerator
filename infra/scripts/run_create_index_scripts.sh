@@ -23,10 +23,14 @@ apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
 
 # Step 2: Download index scripts
 echo "Downloading index scripts..."
+echo "Base URL: ${baseUrl}"
+echo "Current directory: $(pwd)"
 curl --output "01_create_search_index.py" "${baseUrl}infra/scripts/index_scripts/01_create_search_index.py"
+echo "Downloaded 01_create_search_index.py - size: $(wc -l 01_create_search_index.py 2>/dev/null || echo 'failed')"
 curl --output "02_create_cu_template_text.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_text.py"
 curl --output "02_create_cu_template_audio.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_audio.py"
 curl --output "03_cu_process_data_text.py" "${baseUrl}infra/scripts/index_scripts/03_cu_process_data_text.py"
+echo "Downloaded 03_cu_process_data_text.py - size: $(wc -l 03_cu_process_data_text.py 2>/dev/null || echo 'failed')"
 curl --output "content_understanding_client.py" "${baseUrl}infra/scripts/index_scripts/content_understanding_client.py"
 curl --output "azure_credential_utils.py" "${baseUrl}infra/scripts/index_scripts/azure_credential_utils.py"
 curl --output "ckm-analyzer_config_text.json" "${baseUrl}infra/data/ckm-analyzer_config_text.json"
@@ -34,6 +38,9 @@ curl --output "ckm-analyzer_config_audio.json" "${baseUrl}infra/data/ckm-analyze
 curl --output "sample_processed_data.json" "${baseUrl}infra/data/sample_processed_data.json"
 curl --output "sample_processed_data_key_phrases.json" "${baseUrl}infra/data/sample_processed_data_key_phrases.json"
 curl --output "sample_search_index_data.json" "${baseUrl}infra/data/sample_search_index_data.json"
+
+echo "Downloaded files:"
+ls -la *.py *.json 2>/dev/null || echo "No Python or JSON files found"
 
 # Step 3: Download and install Python requirements
 echo "Installing Python requirements..."
@@ -56,9 +63,28 @@ sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_
 
 # Step 5: Execute the Python scripts
 echo "Running Python index scripts..."
-python 01_create_search_index.py
-python 02_create_cu_template_text.py
-python 02_create_cu_template_audio.py
-python 03_cu_process_data_text.py
+echo "Current directory: $(pwd)"
+echo "Python version: $(python --version)"
+echo "Files in current directory:"
+ls -la *.py *.json 2>/dev/null || echo "No Python or JSON files found"
+
+echo "=== Starting 01_create_search_index.py ==="
+python 01_create_search_index.py 2>&1 | tee 01_create_search_index_output.log
+echo "Exit code for 01_create_search_index.py: $?"
+
+echo "=== Starting 02_create_cu_template_text.py ==="
+python 02_create_cu_template_text.py 2>&1 | tee 02_create_cu_template_text_output.log
+echo "Exit code for 02_create_cu_template_text.py: $?"
+
+echo "=== Starting 02_create_cu_template_audio.py ==="
+python 02_create_cu_template_audio.py 2>&1 | tee 02_create_cu_template_audio_output.log
+echo "Exit code for 02_create_cu_template_audio.py: $?"
+
+echo "=== Starting 03_cu_process_data_text.py ==="
+python 03_cu_process_data_text.py 2>&1 | tee 03_cu_process_data_text_output.log
+echo "Exit code for 03_cu_process_data_text.py: $?"
+
+echo "=== Showing any generated log files ==="
+ls -la *.log 2>/dev/null || echo "No log files found"
 
 echo "Index script setup completed successfully."
