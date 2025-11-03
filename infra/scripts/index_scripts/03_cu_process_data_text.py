@@ -4,6 +4,9 @@ import time
 import struct
 import pyodbc
 import pandas as pd
+import logging
+import sys
+import os
 from datetime import datetime, timedelta
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
@@ -15,6 +18,21 @@ from azure.ai.agents.models import MessageRole, ListSortOrder
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('/tmp/03_cu_process_data_text.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+logger.info("=== STARTING 03_cu_process_data_text.py ===")
+logger.info("Python version: %s", sys.version)
+logger.info("Working directory: %s", os.getcwd())
+
 # Constants and configuration
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
@@ -23,12 +41,29 @@ DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
 
+logger.info("Configuration loaded:")
+logger.info("KEY_VAULT_NAME: %s", KEY_VAULT_NAME)
+logger.info("MANAGED_IDENTITY_CLIENT_ID: %s", MANAGED_IDENTITY_CLIENT_ID)
+logger.info("INDEX_NAME: %s", INDEX_NAME)
+logger.info("DIRECTORY: %s", DIRECTORY)
+
 def get_secrets_from_kv(kv_name, secret_name):
-    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
-    secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
-    return secret_client.get_secret(secret_name).value
+    try:
+        logger.info("Retrieving secret: %s from Key Vault: %s", secret_name, kv_name)
+        kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+        secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
+        secret_value = secret_client.get_secret(secret_name).value
+        logger.info("Successfully retrieved secret: %s", secret_name)
+        return secret_value
+    except Exception as e:
+        logger.error("Error retrieving secret %s: %s", secret_name, str(e))
+        logger.error("Error type: %s", type(e).__name__)
+        import traceback
+        logger.error("Traceback: %s", traceback.format_exc())
+        raise
 
 # Retrieve secrets
+logger.info("Starting secrets retrieval...")
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
 azure_ai_model_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")  # Still used for model deployment
 azure_ai_model_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")  # API version for model
@@ -44,7 +79,12 @@ ai_project_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOI
 ai_project_api_version = "2025-05-01"
 solution_name = "ckm-data-processing"
 
-print("Secrets retrieved.")
+logger.info("All secrets retrieved successfully.")
+logger.info("Search endpoint: %s", search_endpoint)
+logger.info("Azure AI model endpoint: %s", azure_ai_model_endpoint)
+logger.info("AI project endpoint: %s", ai_project_endpoint)
+logger.info("SQL server: %s", server)
+logger.info("SQL database: %s", database)
 
 # Azure DataLake setup
 account_url = f"https://{account_name}.dfs.core.windows.net"
@@ -62,14 +102,33 @@ index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_cre
 print("Azure Search setup complete.")
 
 # SQL Server setup
-driver = "{ODBC Driver 17 for SQL Server}"
-token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
-token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
-SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
-cursor = conn.cursor()
-print("SQL Server connection established.")
+logger.info("Setting up SQL Server connection...")
+logger.info("SQL Server: %s", server)
+logger.info("SQL Database: %s", database)
+
+try:
+    driver = "{ODBC Driver 17 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+    
+    logger.info("Attempting SQL connection with connection string: %s", connection_string.replace(server, "***"))
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    cursor = conn.cursor()
+    logger.info("SQL Server connection established successfully.")
+    
+    # Test the connection
+    cursor.execute("SELECT 1")
+    result = cursor.fetchone()
+    logger.info("SQL connection test successful: %s", result)
+    
+except Exception as e:
+    logger.error("Error establishing SQL connection: %s", str(e))
+    logger.error("Error type: %s", type(e).__name__)
+    import traceback
+    logger.error("SQL connection traceback: %s", traceback.format_exc())
+    raise
 
 
 # Content Understanding client
@@ -279,32 +338,51 @@ def prepare_search_doc(content, document_id, path_name):
 
 # Database table creation
 def create_tables():
-    cursor.execute('DROP TABLE IF EXISTS processed_data')
-    cursor.execute("""CREATE TABLE processed_data (
-        ConversationId varchar(255) NOT NULL PRIMARY KEY,
-        EndTime varchar(255),
-        StartTime varchar(255),
-        Content varchar(max),
-        summary varchar(3000),
-        satisfied varchar(255),
-        sentiment varchar(255),
-        topic varchar(255),
-        key_phrases nvarchar(max),
-        complaint varchar(255), 
-        mined_topic varchar(255)
-    );""")
-    cursor.execute('DROP TABLE IF EXISTS processed_data_key_phrases')
-    cursor.execute("""CREATE TABLE processed_data_key_phrases (
-        ConversationId varchar(255),
-        key_phrase varchar(500), 
-        sentiment varchar(255),
-        topic varchar(255), 
-        StartTime varchar(255)
-    );""")
-    conn.commit()
-    print("Database tables created.")
+    logger.info("Creating database tables...")
+    try:
+        logger.info("Dropping existing processed_data table if exists...")
+        cursor.execute('DROP TABLE IF EXISTS processed_data')
+        
+        logger.info("Creating processed_data table...")
+        cursor.execute("""CREATE TABLE processed_data (
+            ConversationId varchar(255) NOT NULL PRIMARY KEY,
+            EndTime varchar(255),
+            StartTime varchar(255),
+            Content varchar(max),
+            summary varchar(3000),
+            satisfied varchar(255),
+            sentiment varchar(255),
+            topic varchar(255),
+            key_phrases nvarchar(max),
+            complaint varchar(255), 
+            mined_topic varchar(255)
+        );""")
+        
+        logger.info("Dropping existing processed_data_key_phrases table if exists...")
+        cursor.execute('DROP TABLE IF EXISTS processed_data_key_phrases')
+        
+        logger.info("Creating processed_data_key_phrases table...")
+        cursor.execute("""CREATE TABLE processed_data_key_phrases (
+            ConversationId varchar(255),
+            key_phrase varchar(500), 
+            sentiment varchar(255),
+            topic varchar(255), 
+            StartTime varchar(255)
+        );""")
+        
+        conn.commit()
+        logger.info("Database tables created successfully.")
+        
+    except Exception as e:
+        logger.error("Error creating database tables: %s", str(e))
+        logger.error("Error type: %s", type(e).__name__)
+        import traceback
+        logger.error("Table creation traceback: %s", traceback.format_exc())
+        raise
 
+logger.info("Starting table creation...")
 create_tables()
+logger.info("Table creation completed successfully.")
 
 # Process files and insert into DB and Search
 conversationIds, docs, counter = [], [], 0
@@ -374,10 +452,14 @@ bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_d
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
+logger.info("Starting topic mining and mapping...")
 cursor.execute('SELECT distinct topic FROM processed_data')
 rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
 df = pd.DataFrame(rows, columns=column_names)
+logger.info("Found %d unique topics", len(df))
+
+logger.info("Creating km_mined_topics table...")
 cursor.execute('DROP TABLE IF EXISTS km_mined_topics')
 cursor.execute("""CREATE TABLE km_mined_topics (
     label varchar(255) NOT NULL PRIMARY KEY,
@@ -385,7 +467,8 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 );""")
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
-print("Topic mining table prepared.")
+logger.info("Topic mining table prepared successfully.")
+logger.info("Topics to process: %s", topics_str)
 
 def call_gpt4(topics_str1, client=None):  # client parameter kept for compatibility
     """
@@ -486,6 +569,7 @@ conn.commit()
 print("Processed data mapped to mined topics.")
 
 # Update processed data for RAG
+logger.info("Creating km_processed_data table for RAG...")
 cursor.execute('DROP TABLE IF EXISTS km_processed_data')
 cursor.execute("""CREATE TABLE km_processed_data (
     ConversationId varchar(255) NOT NULL PRIMARY KEY,
@@ -500,23 +584,30 @@ cursor.execute("""CREATE TABLE km_processed_data (
     topic varchar(255)
 );""")
 conn.commit()
+logger.info("km_processed_data table created successfully.")
+
+logger.info("Populating km_processed_data table...")
 cursor.execute('''select ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment, 
 key_phrases as keyphrases, complaint, mined_topic as topic from processed_data''')
 rows = cursor.fetchall()
+logger.info("Retrieved %d rows from processed_data", len(rows))
+
 columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment", 
            "keyphrases", "complaint", "topic"]
 insert_sql = f"INSERT INTO km_processed_data ({', '.join(columns)}) VALUES ({', '.join(['?'] * len(columns))})"
 cursor.executemany(insert_sql, [list(row) for row in rows])
 conn.commit()
-print("km_processed_data table updated.")
+logger.info("km_processed_data table populated with %d records.", len(rows))
 
 # Update processed_data_key_phrases table
-print("Updating processed_data_key_phrases table")
+logger.info("Updating processed_data_key_phrases table...")
 cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
 rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
 df = pd.DataFrame(rows, columns=column_names)
 df = df[df['ConversationId'].isin(conversationIds)]
+logger.info("Processing %d rows for key phrases table", len(df))
+
 for _, row in df.iterrows():
     key_phrases = row['key_phrases'].split(',')
     for key_phrase in key_phrases:
@@ -524,19 +615,23 @@ for _, row in df.iterrows():
         cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
                        (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
 conn.commit()
-print("processed_data_key_phrases table updated.")
+logger.info("processed_data_key_phrases table updated successfully.")
 
 # Adjust dates to current date
+logger.info("Adjusting dates to current date...")
 today = datetime.today()
 cursor.execute("SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]")
 max_start_time = cursor.fetchone()[0]
 days_difference = (today - max_start_time).days - 1 if max_start_time else 0
+logger.info("Adjusting dates by %d days", days_difference)
+
 cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
 conn.commit()
-print("Dates adjusted to current date.")
+logger.info("Dates adjusted to current date successfully.")
 
 cursor.close()
 conn.close()
-print("All steps completed. Connection closed.")
+logger.info("=== COMPLETED 03_cu_process_data_text.py SUCCESSFULLY ===")
+logger.info("All steps completed. SQL connection closed.")
