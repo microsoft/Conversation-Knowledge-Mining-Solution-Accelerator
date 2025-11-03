@@ -47,7 +47,7 @@ def create_search_index():
     """
     Creates or updates an Azure Cognitive Search index configured for:
     - Text fields
-    - Vector search using Azure OpenAI embeddings
+    - Vector search using Azure AI Foundry embeddings
     - Semantic search using prioritized fields
     """
     # Shared credential
@@ -55,7 +55,7 @@ def create_search_index():
 
     # Retrieve secrets from Key Vault
     search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")
-    openai_resource_url = get_secrets_from_kv("AZURE-OPENAI-ENDPOINT")
+    azure_ai_model_endpoint = get_secrets_from_kv("AZURE-OPENAI-ENDPOINT")
     embedding_model = get_secrets_from_kv("AZURE-OPENAI-EMBEDDING-MODEL")
 
     index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
@@ -91,7 +91,7 @@ def create_search_index():
                 vectorizer_name="myOpenAI",
                 kind="azureOpenAI",
                 parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=openai_resource_url,
+                    resource_url=azure_ai_model_endpoint,
                     deployment_name=embedding_model,
                     model_name=embedding_model
                 )
