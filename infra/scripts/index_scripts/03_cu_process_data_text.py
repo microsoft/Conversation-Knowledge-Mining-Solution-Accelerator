@@ -15,7 +15,7 @@ from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-# Removed: from openai import AzureOpenAI (migrated to Azure AI Foundry)
+# Removed: 
 from azure.ai.projects import AIProjectClient
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
@@ -62,7 +62,7 @@ class AssistantsWrapper:
     
     def _get_headers(self) -> Dict[str, str]:
         """Get authorization headers for API calls."""
-        token = self.credential.get_token('https://ml.azure.com/.default').token
+        token = self.credential.get_token('https://ai.azure.com/.default').token
         return {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
@@ -191,17 +191,17 @@ def create_ai_foundry_client():
     try:
         credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
         
-        # Extract subscription ID and resource group from AI Foundry endpoint or use defaults
+        # Extract subscription ID and resource group from environment or use defaults
         subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID") or "1d5876cd-7603-407a-96d2-ae5ca9a9c5f3"
         resource_group_name = os.getenv("AZURE_RESOURCE_GROUP") or "rg-kmgensdkR041"
         
         # Create the base project client with required parameters
         project_client = AIProjectClient(
             endpoint=ai_foundry_endpoint,
-            credential=credential,
-            project_name=ai_foundry_project_name,
-            subscription_id=subscription_id,
-            resource_group_name=resource_group_name
+            credential=credential, 
+            subscription_id=subscription_id, 
+            resource_group_name=resource_group_name, 
+            project_name=ai_foundry_project_name
         )
         
         # Add our custom assistants wrapper to bypass the broken agents interface
@@ -226,8 +226,8 @@ def get_embeddings(text: str, ai_foundry_endpoint=None, ai_foundry_project=None)
         from azure.ai.inference import EmbeddingsClient
         from azure.identity import get_bearer_token_provider
         
-        # Use the AI Foundry endpoint for embeddings
-        endpoint = ai_foundry_endpoint or ai_foundry_endpoint
+        # Use the global AI Foundry endpoint for embeddings
+        endpoint = ai_foundry_endpoint or globals().get('ai_foundry_endpoint')
         model_id = "text-embedding-3-small"  # Updated to newer model
         
         credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
@@ -235,15 +235,11 @@ def get_embeddings(text: str, ai_foundry_endpoint=None, ai_foundry_project=None)
         # Create token provider with correct scope for Azure AI services
         token_provider = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
         
-        # Create AI Foundry EmbeddingsClient with token provider
-        client = EmbeddingsClient(
-            endpoint=f"{endpoint}/models",
-            token_provider=token_provider,
-            model=model_id
-        )
+        # Create AI Foundry EmbeddingsClient with credential (not token provider)
+        client = EmbeddingsClient(endpoint=endpoint, credential=credential)
         
         # Generate embedding using AI Foundry
-        response = client.embed(input=[text])
+        response = client.embed(input=[text], model=model_id)
         embedding = response.data[0].embedding
         
         logger.info("Successfully generated embedding using Azure AI Foundry")
@@ -636,7 +632,9 @@ try:
     credential = DefaultAzureCredential()
     ai_project_client = AIProjectClient(
         endpoint=ai_foundry_endpoint,
-        credential=credential,
+        credential=credential, 
+        subscription_id=os.getenv('AZURE_SUBSCRIPTION_ID'), 
+        resource_group_name=os.getenv('AZURE_RESOURCE_GROUP'), 
         project_name=ai_foundry_project_name
     )
     logger.info("✅ Azure AI Foundry client initialized successfully.")
