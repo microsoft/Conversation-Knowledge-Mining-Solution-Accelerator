@@ -15,7 +15,8 @@ from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-# Removed: from azure.ai.projects import AIProjectClient
+# Removed: from openai import AzureOpenAI (migrated to Azure AI Foundry)
+from azure.ai.projects import AIProjectClient
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
@@ -61,7 +62,7 @@ class AssistantsWrapper:
     
     def _get_headers(self) -> Dict[str, str]:
         """Get authorization headers for API calls."""
-        token = self.credential.get_token('https://ai.azure.com/.default').token
+        token = self.credential.get_token('https://ml.azure.com/.default').token
         return {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
@@ -614,3 +615,19 @@ conn.close()
 logger.info("=== COMPLETED 03_cu_process_data_text.py SUCCESSFULLY ===")
 logger.info("All steps completed. SQL connection closed.")
 print("All steps completed. Connection closed.")
+
+# Initialize Azure AI Foundry Client (Fixed Initialization)
+try:
+    from azure.ai.projects import AIProjectClient
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    ai_project_client = AIProjectClient(
+        endpoint=ai_foundry_endpoint,
+        credential=credential,
+        project_name=ai_foundry_project_name
+    )
+    logger.info("✅ Azure AI Foundry client initialized successfully.")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize AI Foundry client: {e}")
+    ai_project_client = None
