@@ -145,6 +145,8 @@ azure_ai_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-CU-ENDPOIN
 ai_foundry_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
 ai_foundry_project_name = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-PROJECT-NAME")
 azure_ai_api_version = "2024-12-01-preview"
+subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
+resource_group_name = os.getenv("AZURE_RESOURCE_GROUP")
 print("Secrets retrieved.")
 
 # Azure DataLake setup
@@ -189,11 +191,17 @@ def create_ai_foundry_client():
     try:
         credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
         
-        # Create the base project client
+        # Extract subscription ID and resource group from AI Foundry endpoint or use defaults
+        subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID") or "1d5876cd-7603-407a-96d2-ae5ca9a9c5f3"
+        resource_group_name = os.getenv("AZURE_RESOURCE_GROUP") or "rg-kmgensdkR041"
+        
+        # Create the base project client with required parameters
         project_client = AIProjectClient(
             endpoint=ai_foundry_endpoint,
             credential=credential,
-            project_name=ai_foundry_project_name
+            project_name=ai_foundry_project_name,
+            subscription_id=subscription_id,
+            resource_group_name=resource_group_name
         )
         
         # Add our custom assistants wrapper to bypass the broken agents interface
@@ -216,6 +224,7 @@ def get_embeddings(text: str, ai_foundry_endpoint=None, ai_foundry_project=None)
     """
     try:
         from azure.ai.inference import EmbeddingsClient
+        from azure.identity import get_bearer_token_provider
         
         # Use the AI Foundry endpoint for embeddings
         endpoint = ai_foundry_endpoint or ai_foundry_endpoint
@@ -223,10 +232,13 @@ def get_embeddings(text: str, ai_foundry_endpoint=None, ai_foundry_project=None)
         
         credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
         
-        # Create AI Foundry EmbeddingsClient
+        # Create token provider with correct scope for Azure AI services
+        token_provider = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
+        
+        # Create AI Foundry EmbeddingsClient with token provider
         client = EmbeddingsClient(
             endpoint=f"{endpoint}/models",
-            credential=credential,
+            token_provider=token_provider,
             model=model_id
         )
         
