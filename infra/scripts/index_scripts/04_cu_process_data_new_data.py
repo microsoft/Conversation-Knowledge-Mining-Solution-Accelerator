@@ -91,6 +91,7 @@ def create_search_index():
         SearchField(name="sourceurl", type=SearchFieldDataType.String),
         SearchField(name="url", type=SearchFieldDataType.String),
         SearchField(name="title", type=SearchFieldDataType.String),
+        SearchField(name="file_id", type=SearchFieldDataType.String),
         SearchField(
             name="contentVector",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
@@ -224,6 +225,7 @@ def prepare_search_doc(content, document_id, path_name):
             "sourceurl": path_name.split('/')[-1],
             "url": path_name.split('/')[-1],
             "title": chunk_id,
+            "file_id": chunk_id,
             "contentVector": v_contentVector
         })
     return docs

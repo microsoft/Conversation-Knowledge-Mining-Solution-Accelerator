@@ -68,6 +68,7 @@ def create_search_index():
         SearchField(name="sourceurl", type=SearchFieldDataType.String),
         SearchField(name="url", type=SearchFieldDataType.String),
         SearchField(name="title", type=SearchFieldDataType.String),
+        SearchField(name="file_id", type=SearchFieldDataType.String),
         SearchField(
             name="contentVector",
             type=SearchFieldDataType.Collection(SearchFieldDataType.Single),

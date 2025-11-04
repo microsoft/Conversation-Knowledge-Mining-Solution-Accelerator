@@ -152,6 +152,7 @@ def prepare_search_doc(content, document_id, path_name):
             "sourceurl": path_name.split('/')[-1],
             "url": path_name.split('/')[-1],
             "title": chunk_id,
+            "file_id": chunk_id,
             "contentVector": v_contentVector
         })
     return docs
