@@ -184,7 +184,7 @@ class ChatWithDataPlugin:
             print("Fetching chart agent from factory...")
             agent_info = await ChartAgentFactory.get_agent()
             print(f"Chart agent retrieved successfully. Agent ID: {agent_info['agent'].id if agent_info.get('agent') else 'Unknown'}")
-   
+
             agent = agent_info["agent"]
             project_client = agent_info["client"]
 

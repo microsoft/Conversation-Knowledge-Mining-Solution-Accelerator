@@ -119,7 +119,7 @@ async def conversation(request: Request):
         conversation_id = request_json.get("conversation_id")
         logger.info(f"Chat request received - Conversation ID: {conversation_id}")
         print(f"Chat request received - Conversation ID: {conversation_id}")
-        
+
         query = request_json.get("messages")[-1].get("content")
         chat_service = ChatService(request=request)
         result = await chat_service.stream_chat_request(request_json, conversation_id, query)
