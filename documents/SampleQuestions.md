@@ -3,7 +3,7 @@
 To help you get started, here are some **Sample Prompts** you can ask in the app:
 
 > Note: To avoid rate limit errors, pause for 2–3 seconds after a response before submitting the next question. <br>
-  Responses usually take 8–14 seconds to generate.
+Average response time is 8–14 seconds.
 
 1. Ask the following questions:
    - Total number of calls by date for last 7 days.
