@@ -208,8 +208,8 @@ class ChatService:
         """
         Completes a chat request by generating a chart from the RAG response.
         """
-        logger.info(f"GBC: Starting complete_chat_request in chat_Service.")
-        print(f"GBC: Starting complete_chat_request in chat_Service.")
+        logger.info("GBC: Starting complete_chat_request in chat_Service.")
+        print("GBC: Starting complete_chat_request in chat_Service.")
         if not last_rag_response:
             return {"error": "A previous RAG response is required to generate a chart."}
 
