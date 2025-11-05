@@ -89,9 +89,11 @@ class ChatWithDataPlugin:
             # Clean up
             project_client.agents.threads.delete(thread_id=thread.id)
 
-        except Exception:
+        except Exception as e:
+            print(f"Exception during database metrics retrieval from get_database_metrics: {e}")
             answer = 'Details could not be retrieved. Please try again later.'
 
+        print(f"Response from Plugin: Database metrics from get_database_metrics : %s", answer)
         return answer
 
     @kernel_function(name="GetCallInsights", description="Provides summaries, explanations, and insights from customer call transcripts.")
@@ -163,8 +165,10 @@ class ChatWithDataPlugin:
                         answer["answer"] = convert_citation_markers(answer["answer"])
                         break
                 project_client.agents.threads.delete(thread_id=thread.id)
-        except Exception:
+        except Exception as e:
+            print(f"Error in get_call_insights: %s", e)
             return "Details could not be retrieved. Please try again later."
+        print(f"Response from Plugin: Call insights data from get_call_insights : %s", answer)
         return answer
 
     @kernel_function(name="GenerateChartData", description="Generates Chart.js v4.4.4 compatible JSON data for data visualization requests using current and immediate previous context.")
@@ -174,8 +178,13 @@ class ChatWithDataPlugin:
     ):
         query = input
         query = query.strip()
+        print(f"Chart generation started for query: {query}")
+        
         try:
+            print("Fetching chart agent from factory...")
             agent_info = await ChartAgentFactory.get_agent()
+            print(f"Chart agent retrieved successfully. Agent ID: {agent_info['agent'].id if agent_info.get('agent') else 'Unknown'}")
+            
             agent = agent_info["agent"]
             project_client = agent_info["client"]
 
@@ -193,7 +202,8 @@ class ChatWithDataPlugin:
             )
 
             if run.status == "failed":
-                print(f"Run failed: {run.last_error}")
+                print(f"Chart generation run failed: {run.last_error}")
+                print(f"Run details - ID: {run.id}, Thread ID: {thread.id}")
                 return "Details could not be retrieved. Please try again later."
 
             chartdata = ""
@@ -205,6 +215,8 @@ class ChatWithDataPlugin:
             # Clean up
             project_client.agents.threads.delete(thread_id=thread.id)
 
-        except Exception:
+        except Exception as e:
+            print(f"Exception during chart data generation from generate_chart_data: {e}")
             chartdata = 'Details could not be retrieved. Please try again later.'
+        print(f"Response from Plugin: Chart data from generate_chart_data : %s", chartdata)
         return chartdata
