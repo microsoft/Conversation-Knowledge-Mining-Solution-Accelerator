@@ -117,7 +117,6 @@ async def conversation(request: Request):
         # Get the request JSON and last RAG response from the client
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-
         query = request_json.get("messages")[-1].get("content")
         chat_service = ChatService(request=request)
         result = await chat_service.stream_chat_request(request_json, conversation_id, query)

@@ -194,6 +194,7 @@ class ChatWithDataPlugin:
             )
 
             if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
                 return "Details could not be retrieved. Please try again later."
 
             chartdata = ""
