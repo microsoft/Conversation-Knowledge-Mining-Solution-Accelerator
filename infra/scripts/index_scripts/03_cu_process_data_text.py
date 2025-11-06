@@ -4,102 +4,17 @@ import time
 import struct
 import pyodbc
 import pandas as pd
-import logging
-import requests
-import sys
-import os
-from typing import Dict
 from datetime import datetime, timedelta
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-# Removed: 
-from azure.ai.projects import AIProjectClient
+# --- REPLACED: from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient  # Azure AI Foundry (Inference) SDK
+# ---------------------------------------------
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
-
-# Configure comprehensive logging
-# 
-# MIGRATION STATUS: COMPLETE ✅
-# - Chat Completions: Azure AI Foundry Assistants ✅
-# - Text Embeddings: Azure AI Foundry EmbeddingsClient ✅  
-# - Content Understanding: Azure AI ✅
-# - Search Integration: Azure AI Search ✅
-# - Architecture: Full Azure AI Foundry migration with no OpenAI dependencies ✅
-#
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('03_cu_process_data_text.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Also print startup message to ensure visibility
-print("=== STARTING 03_cu_process_data_text.py ===")
-print(f"Working directory: {os.getcwd()}")
-print(f"Python version: {sys.version}")
-logger.info("=== STARTING 03_cu_process_data_text.py ===")
-logger.info("Python version: %s", sys.version)
-logger.info("Working directory: %s", os.getcwd())
-
-
-class AssistantsWrapper:
-    """
-    Direct REST API wrapper for Azure AI Foundry Assistants.
-    The SDK's agents interface incorrectly calls /agents instead of /assistants.
-    """
-    
-    def __init__(self, endpoint: str, credential, project_name: str):
-        self.endpoint = endpoint
-        self.credential = credential  
-        self.project_name = project_name
-        self.base_url = f"{endpoint}/api/projects/{project_name}/assistants"
-    
-    def _get_headers(self) -> Dict[str, str]:
-        """Get authorization headers for API calls."""
-        token = self.credential.get_token('https://ai.azure.com/.default').token
-        return {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-    
-    def create(self, model: str, name: str, instructions: str) -> Dict:
-        """Create a new assistant."""
-        assistant_data = {
-            "model": model,
-            "name": name,
-            "instructions": instructions
-        }
-        
-        response = requests.post(
-            f"{self.base_url}?api-version=v1",
-            headers=self._get_headers(),
-            json=assistant_data,
-            timeout=30
-        )
-        
-        if response.status_code == 201:
-            return response.json()
-        else:
-            raise Exception(f"Failed to create assistant: {response.status_code} {response.text}")
-    
-    def delete(self, assistant_id: str) -> bool:
-        """Delete an assistant."""
-        response = requests.delete(
-            f"{self.base_url}/{assistant_id}?api-version=v1",
-            headers=self._get_headers(),
-            timeout=30
-        )
-        
-        if response.status_code == 204:
-            return True
-        else:
-            raise Exception(f"Failed to delete assistant: {response.status_code} {response.text}")
 
 # Constants and configuration
 KEY_VAULT_NAME = 'kv_to-be-replaced'
@@ -109,32 +24,13 @@ DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
 
-logger.info("Configuration loaded:")
-logger.info("KEY_VAULT_NAME: %s", KEY_VAULT_NAME)
-logger.info("MANAGED_IDENTITY_CLIENT_ID: %s", MANAGED_IDENTITY_CLIENT_ID)
-logger.info("INDEX_NAME: %s", INDEX_NAME)
-logger.info("DIRECTORY: %s", DIRECTORY)
-
 def get_secrets_from_kv(kv_name, secret_name):
-    try:
-        logger.info("Retrieving secret: %s from Key Vault: %s", secret_name, kv_name)
-        kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
-        secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
-        secret_value = secret_client.get_secret(secret_name).value
-        logger.info("Successfully retrieved secret: %s", secret_name)
-        return secret_value
-    except Exception as e:
-        logger.error("Error retrieving secret %s: %s", secret_name, str(e))
-        logger.error("Error type: %s", type(e).__name__)
-        import traceback
-        logger.error("Traceback: %s", traceback.format_exc())
-        raise
+    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
+    return secret_client.get_secret(secret_name).value
 
 # Retrieve secrets
-logger.info("Starting secrets retrieval...")
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
-# Note: The following Azure OpenAI secrets are kept for backwards compatibility only
-# Main functionality now uses Azure AI Foundry for both chat completions and embeddings
 openai_api_base = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")
 openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
 deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-DEPLOYMENT-MODEL")
@@ -142,11 +38,7 @@ account_name = get_secrets_from_kv(KEY_VAULT_NAME, "ADLS-ACCOUNT-NAME")
 server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
 database = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-DATABASE")
 azure_ai_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-CU-ENDPOINT")
-ai_foundry_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
-ai_foundry_project_name = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-PROJECT-NAME")
 azure_ai_api_version = "2024-12-01-preview"
-subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
-resource_group_name = os.getenv("AZURE_RESOURCE_GROUP")
 print("Secrets retrieved.")
 
 # Azure DataLake setup
@@ -186,70 +78,37 @@ cu_client = AzureContentUnderstandingClient(
 ANALYZER_ID = "ckm-json"
 print("Content Understanding client initialized.")
 
-def create_ai_foundry_client():
-    """Create Azure AI Foundry project client for assistant-based operations."""
-    try:
-        credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
-        
-        # Extract subscription ID and resource group from environment or use defaults
-        subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID") or "1d5876cd-7603-407a-96d2-ae5ca9a9c5f3"
-        resource_group_name = os.getenv("AZURE_RESOURCE_GROUP") or "rg-kmgensdkR041"
-        
-        # Create the base project client with required parameters
-        project_client = AIProjectClient(
-            endpoint=ai_foundry_endpoint,
-            credential=credential, 
-            subscription_id=subscription_id, 
-            resource_group_name=resource_group_name, 
-            project_name=ai_foundry_project_name
-        )
-        
-        # Add our custom assistants wrapper to bypass the broken agents interface
-        project_client.assistants = AssistantsWrapper(
-            endpoint=ai_foundry_endpoint,
-            credential=credential,
-            project_name=ai_foundry_project_name
-        )
-        
-        return project_client
-    except Exception as e:
-        logger.error("Failed to create AI Foundry client: %s", str(e))
-        return None
+# ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
+# For Azure OpenAI endpoints, the Inference SDK expects the deployment path and api_version + scopes.
+# chat deployment (already coming from Key Vault as `deployment`)
+chat_endpoint = f"{openai_api_base}/openai/deployments/{deployment}"
+chat_client = ChatCompletionsClient(
+    endpoint=chat_endpoint,
+    credential=credential,
+    credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    api_version=openai_api_version,
+)
+# embedding deployment name (assumes you deployed with the name below — change if different)
+embedding_deployment = "text-embedding-ada-002"
+embeddings_endpoint = f"{openai_api_base}/openai/deployments/{embedding_deployment}"
+embeddings_client = EmbeddingsClient(
+    endpoint=embeddings_endpoint,
+    credential=credential,
+    credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    api_version=openai_api_version,
+)
+# -----------------------------------------------------------------------------
 
 # Utility functions
-def get_embeddings(text: str, ai_foundry_endpoint=None, ai_foundry_project=None):
-    """
-    Generate text embeddings using Azure AI Foundry EmbeddingsClient.
-    Fully migrated from Azure OpenAI to Azure AI Foundry for consistent service usage.
-    """
+def get_embeddings(text: str):
+    # Uses Azure AI Inference EmbeddingsClient; returns the vector for `text`.
+    # NOTE: Endpoint includes the AOAI deployment name.
     try:
-        from azure.ai.inference import EmbeddingsClient
-        from azure.identity import get_bearer_token_provider
-        
-        # Use the global AI Foundry endpoint for embeddings
-        endpoint = ai_foundry_endpoint or globals().get('ai_foundry_endpoint')
-        model_id = "text-embedding-3-small"  # Updated to newer model
-        
-        credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
-        
-        # Create token provider with correct scope for Azure AI services
-        token_provider = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
-        
-        # Create AI Foundry EmbeddingsClient with credential (not token provider)
-        client = EmbeddingsClient(endpoint=endpoint, credential=credential)
-        
-        # Generate embedding using AI Foundry
-        response = client.embed(input=[text], model=model_id)
-        embedding = response.data[0].embedding
-        
-        logger.info("Successfully generated embedding using Azure AI Foundry")
-        return embedding
-        
+        resp = embeddings_client.embed(input=[text])
+        return resp.data[0].embedding
     except Exception as e:
-        logger.warning("Failed to get embeddings with AI Foundry: %s", str(e))
-        logger.warning("Using fallback embedding generation")
-        # Return a dummy embedding for testing (1536 dimensions for compatibility)
-        return [0.0] * 1536
+        print(f"Error getting embeddings: {e}")
+        raise
 
 # Function: Clean Spaces with Regex - 
 def clean_spaces_with_regex(text):
@@ -298,11 +157,11 @@ def prepare_search_doc(content, document_id, path_name):
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk), ai_foundry_endpoint, ai_foundry_project_name)
+            v_contentVector = get_embeddings(str(chunk))
         except:
             time.sleep(30)
             try: 
-                v_contentVector = get_embeddings(str(chunk), ai_foundry_endpoint, ai_foundry_project_name)
+                v_contentVector = get_embeddings(str(chunk))
             except: 
                 v_contentVector = []
         docs.append({
@@ -424,11 +283,7 @@ conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
 print("Topic mining table prepared.")
 
-def call_gpt4(topics_str1):
-    """
-    Extract key topics from text using Azure AI Foundry assistant.
-    Migrated from OpenAI to Azure AI Foundry for enhanced topic analysis.
-    """
+def call_gpt4(topics_str1, client):
     topic_prompt = f"""
         You are a data analysis assistant specialized in natural language processing and topic modeling. 
         Your task is to analyze the given text corpus and identify distinct topics present within the data.
@@ -443,77 +298,21 @@ def call_gpt4(topics_str1):
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
-    
-    instructions = "You are a helpful assistant specializing in topic modeling and data analysis. Always return well-formatted JSON with 'topics' node containing 'label' and 'description' attributes."
-    
-    response_content = call_ai_foundry_agent(
-        prompt=topic_prompt,
-        instructions=instructions,
-        agent_name="topic-analyzer"
+    # Inference client: Chat completions
+    response = client.complete(
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": topic_prompt},
+        ],
+        temperature=0,
     )
-    
-    if response_content:
-        try:
-            # Clean response and parse JSON
-            cleaned_response = response_content.replace("```json", '').replace("```", '')
-            return json.loads(cleaned_response)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON from agent response: {e}")
-            print(f"Response content: {response_content}")
-            return {"topics": []}
-    else:
-        print("No response from AI Foundry agent")
-        return {"topics": []}
+    res = response.choices[0].message.content
+    return json.loads(res.replace("```json", '').replace("```", ''))
 
-def call_ai_foundry_agent(prompt, instructions, agent_name):
-    """
-    Use Azure AI Foundry assistants for text generation tasks.
-    This replaces direct OpenAI chat completions with assistant-based approach.
-    """
-    try:
-        project_client = create_ai_foundry_client()
-        
-        # If client creation failed, return a fallback response
-        if project_client is None:
-            logger.warning("AI Foundry client not available, using fallback for %s", agent_name)
-            return f"Generated by {agent_name} (fallback mode): {prompt[:100]}..."
-        
-        # Create assistant for this specific task (using correct API)
-        try:
-            assistant = project_client.assistants.create(
-                model=deployment,
-                name=f"{agent_name}",
-                instructions=instructions,
-            )
-            logger.info("✅ Created assistant %s for task: %s", assistant['id'], agent_name)
-        except Exception as e:
-            logger.warning("Failed to create assistant %s: %s", agent_name, str(e))
-            logger.warning("This might be due to assistant functionality not being available in this AI Foundry deployment")
-            # Return a fallback response for testing
-            return f"AI Foundry assistant simulation for {agent_name}: Based on the prompt '{prompt[:100]}...', the system would analyze the topics and provide insights about: {', '.join(['customer service trends', 'technical support patterns', 'billing optimization', 'product feedback analysis'])}."
-        
-        # For now, since the assistant is created successfully, let's use a simple approach:
-        # Instead of complex thread/run management, return a success message with assistant details
-        # This confirms the functionality is working
-        response_content = f"✅ AI Foundry assistant '{assistant['name']}' (ID: {assistant['id']}) successfully created and ready for: {instructions[:100]}..."
-        
-        # Clean up the test assistant
-        try:
-            project_client.assistants.delete(assistant['id'])
-            logger.info("✅ Cleaned up assistant %s", assistant['id'])
-        except Exception as cleanup_error:
-            logger.warning("Failed to cleanup assistant %s: %s", assistant['id'], cleanup_error)
-        
-        return response_content
-        
-    except (ValueError, AttributeError, KeyError) as assistant_error:
-        print(f"Error in AI Foundry assistant call: {assistant_error}")
-        return None
-
-# Use Azure AI Foundry instead of OpenAI
+# --- REPLACED: AzureOpenAI(...) with ChatCompletionsClient (already created as `chat_client`) ---
 max_tokens = 3096
 
-res = call_gpt4(topics_str)
+res = call_gpt4(topics_str, chat_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
@@ -528,31 +327,17 @@ mined_topics = ", ".join(mined_topics_list)
 print("Mined topics loaded.")
 
 def get_mined_topic_mapping(input_text, list_of_topics):
-    """
-    Map input text to the closest topic from a predefined list using Azure AI Foundry agent.
-    Migrated from OpenAI to Azure AI Foundry for enhanced topic classification.
-    """
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
-    
-    instructions = "You are a helpful assistant specializing in topic classification. Always return only the exact topic name from the provided list without any additional text or explanation."
-    
-    response_content = call_ai_foundry_agent(
-        prompt=prompt,
-        instructions=instructions,
-        agent_name="topic-mapper"
+    response = chat_client.complete(
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0,
     )
-    
-    if response_content:
-        # Clean and return the mapped topic
-        return response_content.strip()
-    else:
-        # Fallback to first topic if AI Foundry fails
-        if isinstance(list_of_topics, list) and list_of_topics:
-            return list_of_topics[0]
-        else:
-            return "general"
+    return response.choices[0].message.content
 
 cursor.execute('SELECT * FROM processed_data')
 rows = [tuple(row) for row in cursor.fetchall()]
@@ -615,29 +400,8 @@ cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY
 cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
 conn.commit()
-logger.info("Dates adjusted to current date successfully.")
 print("Dates adjusted to current date.")
 
 cursor.close()
 conn.close()
-logger.info("=== COMPLETED 03_cu_process_data_text.py SUCCESSFULLY ===")
-logger.info("All steps completed. SQL connection closed.")
 print("All steps completed. Connection closed.")
-
-# Initialize Azure AI Foundry Client (Fixed Initialization)
-try:
-    from azure.ai.projects import AIProjectClient
-    from azure.identity import DefaultAzureCredential
-
-    credential = DefaultAzureCredential()
-    ai_project_client = AIProjectClient(
-        endpoint=ai_foundry_endpoint,
-        credential=credential, 
-        subscription_id=os.getenv('AZURE_SUBSCRIPTION_ID'), 
-        resource_group_name=os.getenv('AZURE_RESOURCE_GROUP'), 
-        project_name=ai_foundry_project_name
-    )
-    logger.info("✅ Azure AI Foundry client initialized successfully.")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize AI Foundry client: {e}")
-    ai_project_client = None
