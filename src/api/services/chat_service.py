@@ -140,8 +140,6 @@ class ChatService:
         Handles streaming chat requests.
         """
         history_metadata = request_body.get("history_metadata", {})
-        logger.info(f"History Metadata: {history_metadata}")
-        print(f"History Metadata: {history_metadata}")
 
         async def generate():
             try:
@@ -208,8 +206,6 @@ class ChatService:
         """
         Completes a chat request by generating a chart from the RAG response.
         """
-        logger.info("GBC: Starting complete_chat_request in chat_Service.")
-        print("GBC: Starting complete_chat_request in chat_Service.")
         if not last_rag_response:
             return {"error": "A previous RAG response is required to generate a chart."}
 
