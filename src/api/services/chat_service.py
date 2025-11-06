@@ -20,7 +20,8 @@ from pydantic import BaseModel
 
 from azure.ai.agents.models import TruncationObject
 from azure.ai.projects.aio import AIProjectClient
-from agent_framework import ChatAgent, HostedFileSearchTool
+from azure.ai.agents.aio import AgentsClient
+from agent_framework import ChatAgent
 from agent_framework.azure import AzureAIAgentClient
 from agent_framework.exceptions import ServiceResponseException
 
@@ -131,55 +132,61 @@ class ChatService:
             thread_id = None
 
             config = Config()
-            # Correctly await the credential before using it
             credential = await get_azure_credential_async(config.azure_client_id)
-            client = AIProjectClient(endpoint=config.ai_project_endpoint, credential=credential)
-            try:
-                custom_tool = SQLTool(conn=await get_db_connection())
+            async with (
+                get_azure_credential_async(config.azure_client_id) as credential,
+                AIProjectClient(endpoint=config.ai_project_endpoint, credential=credential) as project_client,
+                AgentsClient(endpoint=config.ai_project_endpoint, credential=credential) as agents_client
+            ):
 
-                search_tool = HostedFileSearchTool(
-                    description='Search for summaries, explanations, or insights from customer call transcripts.',
-                    additional_properties={
-                        "index_name": config.azure_ai_search_index,
-                        "query_type": "vector_semantic_hybrid",
-                        "top_k": 5
-                    }
-                )
+                try:
+                    custom_tool = SQLTool(conn=await get_db_connection())
 
-                truncation_strategy = TruncationObject(type="last_messages", last_messages=4)
+                    truncation_strategy = TruncationObject(type="last_messages", last_messages=4)
 
-                my_tools = [custom_tool.get_sql_response, search_tool]
+                    my_tools = [custom_tool.get_sql_response]
 
-                agent_ai_client = AzureAIAgentClient(
-                    project_client=client,
-                    agent_id=self.agent.id,
-                    project_endpoint=config.ai_project_endpoint
-                )
-                async with ChatAgent(
-                    chat_client=agent_ai_client,
-                    tools=my_tools,
-                    tool_choice="auto",
-                    project_endpoint=config.ai_project_endpoint,
-                    model_id=config.azure_openai_deployment_model,
-                ) as agent:
-                    if ChatService.thread_cache is not None:
-                        thread_id = ChatService.thread_cache.get(conversation_id, None)
-                    if thread_id:
-                        thread = agent.get_new_thread(service_thread_id=thread_id)
-                        assert thread.is_initialized
-                    else:
-                        service_thread = await client.agents.threads.create()
-                        thread = agent.get_new_thread(service_thread_id=service_thread.id)
-                        assert thread.is_initialized
+                    agent_ai_client = AzureAIAgentClient(
+                        agents_client=agents_client,
+                        agent_id=self.agent.id,
+                        project_endpoint=config.ai_project_endpoint
+                    )
+                    async with ChatAgent(
+                        chat_client=agent_ai_client,
+                        tools=my_tools,
+                        tool_choice="required",
+                        project_endpoint=config.ai_project_endpoint,
+                        model_id=config.azure_openai_deployment_model,
+                        store=True,
+                    ) as agent:
                         if ChatService.thread_cache is not None:
-                            ChatService.thread_cache[conversation_id] = service_thread.id
-
-                    async for response in agent.run_stream(messages=query, thread=thread, truncation_strategy=truncation_strategy):
-                        yield response.text
-
-            finally:
-                # Close the client properly after use
-                await client.close()
+                            thread_id = ChatService.thread_cache.get(conversation_id, None)
+                        if thread_id:
+                            thread = agent.get_new_thread(service_thread_id=thread_id)
+                            assert thread.is_initialized
+                        else:
+                            service_thread = await project_client.agents.threads.create()
+                            thread = agent.get_new_thread(service_thread_id=service_thread.id)
+                            assert thread.is_initialized
+                            if ChatService.thread_cache is not None:
+                                ChatService.thread_cache[conversation_id] = service_thread.id
+                        
+                        citations = []
+                        async for chunk in agent.run_stream(messages=query, thread=thread, truncation_strategy=truncation_strategy):
+                            # Collect citations from Azure AI Search responses
+                            if hasattr(chunk, "contents") and chunk.contents:
+                                for content in chunk.contents:
+                                    if hasattr(content, "annotations") and content.annotations:
+                                        citations.extend(content.annotations)
+                            yield chunk.text
+                        if citations:
+                            citation_list = [f"{{\"url\": \"{citation.url}\", \"title\": \"{citation.title}\"}}" for citation in citations]
+                            yield ", \"citations\": [" + ",".join(citation_list) + "]}"
+                        else:
+                            yield ", \"citations\": []}"
+                except Exception as e:
+                    logger.error("Error during agent interaction: %s", e)
+                    raise ServiceResponseException(f"An unexpected runtime error occurred: {str(e)}") from e
 
         except ServiceResponseException as e:
             if "Rate limit is exceeded" in str(e):
@@ -209,7 +216,10 @@ class ChatService:
                 async for chunk in self.stream_openai_text(conversation_id, query):
                     if isinstance(chunk, dict):
                         chunk = json.dumps(chunk)  # Convert dict to JSON string
-                    assistant_content += str(chunk)
+                    if (assistant_content == ""):
+                        assistant_content = "{ \"answer\": " + str(chunk)
+                    else:
+                        assistant_content += str(chunk)
 
                     if assistant_content:
                         chat_completion_chunk = {
