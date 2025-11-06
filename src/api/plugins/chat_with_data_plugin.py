@@ -174,7 +174,6 @@ class ChatWithDataPlugin:
     ):
         query = input
         query = query.strip()
-
         try:
             agent_info = await ChartAgentFactory.get_agent()
             agent = agent_info["agent"]
