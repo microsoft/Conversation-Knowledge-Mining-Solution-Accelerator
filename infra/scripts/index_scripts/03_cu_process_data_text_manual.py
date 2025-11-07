@@ -10,7 +10,7 @@ from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
@@ -78,20 +78,39 @@ cu_client = AzureContentUnderstandingClient(
 ANALYZER_ID = "ckm-json"
 print("Content Understanding client initialized.")
 
+
+# ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
+# For Azure OpenAI endpoints, the Inference SDK expects the deployment path and api_version + scopes.
+# chat deployment (already coming from Key Vault as `deployment`)
+chat_endpoint = f"{openai_api_base}/openai/deployments/{deployment}"
+chat_client = ChatCompletionsClient(
+    endpoint=chat_endpoint,
+    credential=credential,
+    credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    api_version=openai_api_version,
+)
+# embedding deployment name (assumes you deployed with the name below — change if different)
+embedding_deployment = "text-embedding-ada-002"
+embeddings_endpoint = f"{openai_api_base}/openai/deployments/{embedding_deployment}"
+embeddings_client = EmbeddingsClient(
+    endpoint=embeddings_endpoint,
+    credential=credential,
+    credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    api_version=openai_api_version,
+)
+# -----------------------------------------------------------------------------
+
+
 # Utility functions
-def get_embeddings(text: str, openai_api_base, openai_api_version):
-    model_id = "text-embedding-ada-002"
-    token_provider = get_bearer_token_provider(
-        get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-        "https://cognitiveservices.azure.com/.default"
-    )
-    client = AzureOpenAI(
-        api_version=openai_api_version,
-        azure_endpoint=openai_api_base,
-        azure_ad_token_provider=token_provider
-    )
-    embedding = client.embeddings.create(input=text, model=model_id).data[0].embedding
-    return embedding
+def get_embeddings(text: str):
+    # Uses Azure AI Inference EmbeddingsClient; returns the vector for `text`.
+    # NOTE: Endpoint includes the AOAI deployment name.
+    try:
+        resp = embeddings_client.embed(input=[text])
+        return resp.data[0].embedding
+    except Exception as e:
+        print(f"Error getting embeddings: {e}")
+        raise
 
 # Function: Clean Spaces with Regex - 
 def clean_spaces_with_regex(text):
@@ -281,8 +300,8 @@ def call_gpt4(topics_str1, client):
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
-    response = client.chat.completions.create(
-        model=deployment,
+    # Inference client: Chat completions
+    response = client.complete(
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": topic_prompt},
@@ -292,18 +311,9 @@ def call_gpt4(topics_str1, client):
     res = response.choices[0].message.content
     return json.loads(res.replace("```json", '').replace("```", ''))
 
-token_provider = get_bearer_token_provider(
-    get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-    "https://cognitiveservices.azure.com/.default"
-)
-openai_client = AzureOpenAI(
-    azure_endpoint=openai_api_base,
-    azure_ad_token_provider=token_provider,
-    api_version=openai_api_version,
-)
 max_tokens = 3096
 
-res = call_gpt4(topics_str, openai_client)
+res = call_gpt4(topics_str, chat_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
@@ -321,8 +331,7 @@ def get_mined_topic_mapping(input_text, list_of_topics):
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
-    response = openai_client.chat.completions.create(
-        model=deployment,
+    response = chat_client.complete(
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},

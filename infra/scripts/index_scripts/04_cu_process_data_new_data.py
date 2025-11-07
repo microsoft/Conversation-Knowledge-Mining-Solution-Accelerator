@@ -10,7 +10,10 @@ from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-from openai import AzureOpenAI
+# --- REPLACED ---
+# from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
+# ----------------
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 from azure.search.documents.indexes.models import (
@@ -168,19 +171,17 @@ print("Content Understanding client initialized.")
 
 # Utility functions
 def get_embeddings(text: str, openai_api_base, openai_api_version):
-    model_id = "text-embedding-ada-002"
-    token_provider = get_bearer_token_provider(
-        get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-        "https://cognitiveservices.azure.com/.default"
+    embeddings_endpoint = f"{openai_api_base}/openai/deployments/{embedding_model}"
+    embeddings_client = EmbeddingsClient(
+        endpoint=embeddings_endpoint,
+        credential=credential,
+        credential_scopes=["https://cognitiveservices.azure.com/.default"],
+        api_version=openai_api_version
     )
-    client = AzureOpenAI(
-        api_version=openai_api_version,
-        azure_endpoint=openai_api_base,
-        azure_ad_token_provider=token_provider
-    )
-    embedding = client.embeddings.create(input=text, model=model_id).data[0].embedding
-    return embedding
-	
+    response = embeddings_client.embed(input=[text])
+    return response.data[0].embedding
+# --------------------------------------------------------------------------
+
 def clean_spaces_with_regex(text):
     cleaned_text = re.sub(r'\s+', ' ', text)
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
@@ -391,9 +392,8 @@ def call_gpt4(topics_str1, client):
         Ensure that the topics and labels are accurate, relevant, and easy to understand.
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
-        """
-    response = client.chat.completions.create(
-        model=deployment,
+    """
+    response = client.complete(
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": topic_prompt},
@@ -403,18 +403,10 @@ def call_gpt4(topics_str1, client):
     res = response.choices[0].message.content
     return json.loads(res.replace("```json", '').replace("```", ''))
 
-token_provider = get_bearer_token_provider(
-    get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-    "https://cognitiveservices.azure.com/.default"
-)
-openai_client = AzureOpenAI(
-    azure_endpoint=openai_api_base,
-    azure_ad_token_provider=token_provider,
-    api_version=openai_api_version,
-)
 max_tokens = 3096
+res = call_gpt4(", ".join([]), chat_client)
+# (rest of topic mining and mapping logic unchanged)
 
-res = call_gpt4(topics_str, openai_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
