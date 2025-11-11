@@ -30,9 +30,7 @@ class HistoryService:
             and self.azure_cosmosdb_conversations_container
         )
 
-    
         self.azure_openai_deployment_name = config.azure_openai_deployment_model
-        
         self.azure_client_id = config.azure_client_id
 
         # AI Project configuration for Foundry SDK
@@ -58,7 +56,6 @@ class HistoryService:
         except Exception:
             logger.exception("Failed to initialize CosmosDB client")
             raise
-
 
     async def generate_title(self, conversation_messages):
         title_prompt = (
