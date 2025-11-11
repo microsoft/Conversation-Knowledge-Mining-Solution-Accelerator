@@ -10,10 +10,7 @@ from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-# --- REPLACED ---
-# from openai import AzureOpenAI
 from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
-# ----------------
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 from azure.search.documents.indexes.models import (
@@ -71,6 +68,17 @@ search_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
+
+# ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
+# For Azure OpenAI endpoints, the Inference SDK expects the deployment path and api_version + scopes.
+# chat deployment (already coming from Key Vault as `deployment`)
+chat_endpoint = f"{openai_api_base}/openai/deployments/{deployment}"
+chat_client = ChatCompletionsClient(
+    endpoint=chat_endpoint,
+    credential=credential,
+    credential_scopes=["https://cognitiveservices.azure.com/.default"],
+    api_version=openai_api_version,
+)
 
 # Delete the search index
 search_index_client = SearchIndexClient(search_endpoint, search_credential)
@@ -405,8 +413,6 @@ def call_gpt4(topics_str1, client):
 
 max_tokens = 3096
 res = call_gpt4(", ".join([]), chat_client)
-# (rest of topic mining and mapping logic unchanged)
-
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
@@ -424,8 +430,7 @@ def get_mined_topic_mapping(input_text, list_of_topics):
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
-    response = openai_client.chat.completions.create(
-        model=deployment,
+    response = chat_client.complete(
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt},

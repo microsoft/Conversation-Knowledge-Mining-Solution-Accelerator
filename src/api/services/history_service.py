@@ -2,7 +2,6 @@ import logging
 import uuid
 from typing import Optional
 from fastapi import HTTPException, status
-# from openai import AsyncAzureOpenAI  # Commented out - replaced with Foundry SDK
 from azure.ai.projects import AIProjectClient
 from azure.ai.agents.models import MessageRole, ListSortOrder
 from common.config.config import Config
@@ -31,11 +30,9 @@ class HistoryService:
             and self.azure_cosmosdb_conversations_container
         )
 
-        # OpenAI configuration (partially commented out - now using Foundry SDK)
-        # self.azure_openai_endpoint = config.azure_openai_endpoint  # Not needed for Foundry SDK
-        # self.azure_openai_api_version = config.azure_openai_api_version  # Not needed for Foundry SDK
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model  # Still needed for Foundry SDK model parameter
-        # self.azure_openai_resource = config.azure_openai_resource  # Not needed for Foundry SDK
+    
+        self.azure_openai_deployment_name = config.azure_openai_deployment_model
+        
         self.azure_client_id = config.azure_client_id
 
         # AI Project configuration for Foundry SDK
@@ -62,47 +59,8 @@ class HistoryService:
             logger.exception("Failed to initialize CosmosDB client")
             raise
 
-    # def init_openai_client(self):
-    #     """
-    #     COMMENTED OUT - Replaced with Foundry SDK in generate_title method
-    #     This method was used for direct OpenAI API calls, but we now use
-    #     Azure AI Foundry SDK with AIProjectClient for title generation
-    #     """
-    #     user_agent = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
-    #
-    #     try:
-    #         if not self.azure_openai_endpoint and not self.azure_openai_resource:
-    #             raise ValueError(
-    #                 "AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_RESOURCE is required")
-    #
-    #         endpoint = self.azure_openai_endpoint or f"https://{self.azure_openai_resource}.openai.azure.com/"
-    #         ad_token_provider = None
-    #
-    #         logger.debug("Using Azure AD authentication for OpenAI")
-    #         ad_token_provider = get_bearer_token_provider(
-    #             get_azure_credential(client_id=self.azure_client_id), "https://cognitiveservices.azure.com/.default")
-    #
-    #         if not self.azure_openai_deployment_name:
-    #             raise ValueError("AZURE_OPENAI_MODEL is required")
-    #
-    #         return AsyncAzureOpenAI(
-    #             api_version=self.azure_openai_api_version,
-    #             azure_ad_token_provider=ad_token_provider,
-    #             default_headers={"x-ms-useragent": user_agent},
-    #             azure_endpoint=endpoint,
-    #         )
-    #     except Exception:
-    #         logger.exception("Failed to initialize Azure OpenAI client")
-    #         raise
 
     async def generate_title(self, conversation_messages):
-        """
-        Generate a conversation title using Azure AI Foundry SDK.
-
-        This method has been migrated from direct OpenAI API calls to use
-        Azure AI Foundry SDK with AIProjectClient for better resource management
-        and integration with Azure AI services.
-        """
         title_prompt = (
             "Summarize the conversation so far into a 4-word or less title. "
             "Do not use any quotation marks or punctuation. "
