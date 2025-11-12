@@ -5,12 +5,14 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 from azure.search.documents.indexes.models import (
@@ -43,8 +45,7 @@ def get_secrets_from_kv(kv_name, secret_name):
 
 # Retrieve secrets
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
-openai_api_base = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")
-openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
+ai_project_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
 deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-DEPLOYMENT-MODEL")
 account_name = get_secrets_from_kv(KEY_VAULT_NAME, "ADLS-ACCOUNT-NAME")
 server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
@@ -70,14 +71,21 @@ index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_cre
 print("Azure Search setup complete.")
 
 # ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
-# For Azure OpenAI endpoints, the Inference SDK expects the deployment path and api_version + scopes.
-# chat deployment (already coming from Key Vault as `deployment`)
-chat_endpoint = f"{openai_api_base}/openai/deployments/{deployment}"
+# Project endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/api/projects/your-project-name
+# Inference endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/models
+# Strip the "/api/projects/your-project-name" part and replace with "/models":
+inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
+
 chat_client = ChatCompletionsClient(
-    endpoint=chat_endpoint,
+    endpoint=inference_endpoint,
     credential=credential,
-    credential_scopes=["https://cognitiveservices.azure.com/.default"],
-    api_version=openai_api_version,
+    credential_scopes=["https://ai.azure.com/.default"],
+)
+
+embeddings_client = EmbeddingsClient(
+    endpoint=inference_endpoint,
+    credential=credential,
+    credential_scopes=["https://ai.azure.com/.default"],
 )
 
 # Delete the search index
@@ -125,7 +133,7 @@ def create_search_index():
                 vectorizer_name="myOpenAI",
                 kind="azureOpenAI",
                 parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=openai_api_base,
+                    resource_url=ai_project_endpoint,
                     deployment_name=embedding_model,
                     model_name=embedding_model
                 )
@@ -178,16 +186,14 @@ cu_client = AzureContentUnderstandingClient(
 print("Content Understanding client initialized.")
 
 # Utility functions
-def get_embeddings(text: str, openai_api_base, openai_api_version):
-    embeddings_endpoint = f"{openai_api_base}/openai/deployments/{embedding_model}"
-    embeddings_client = EmbeddingsClient(
-        endpoint=embeddings_endpoint,
-        credential=credential,
-        credential_scopes=["https://cognitiveservices.azure.com/.default"],
-        api_version=openai_api_version
-    )
-    response = embeddings_client.embed(input=[text])
-    return response.data[0].embedding
+def get_embeddings(text: str):
+    # Uses Azure AI Inference EmbeddingsClient with the AI Foundry project inference endpoint.
+    try:
+        resp = embeddings_client.embed(model=embedding_model, input=[text])
+        return resp.data[0].embedding
+    except Exception as e:
+        print(f"Error getting embeddings: {e}")
+        raise
 # --------------------------------------------------------------------------
 
 def clean_spaces_with_regex(text):
@@ -217,12 +223,14 @@ def prepare_search_doc(content, document_id, path_name):
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
-        except:
+            v_contentVector = get_embeddings(str(chunk))
+        except Exception as e:
+            print(f"Error getting embeddings on first try: {e}")
             time.sleep(30)
             try: 
-                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
-            except: 
+                v_contentVector = get_embeddings(str(chunk))
+            except Exception as e: 
+                print(f"Error getting embeddings: {e}")
                 v_contentVector = []
         docs.append({
             "id": chunk_id,
@@ -402,9 +410,10 @@ def call_gpt4(topics_str1, client):
         Do not return anything else.
     """
     response = client.complete(
+        model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": topic_prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=topic_prompt),
         ],
         temperature=0,
     )
@@ -431,9 +440,10 @@ def get_mined_topic_mapping(input_text, list_of_topics):
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
     response = chat_client.complete(
+        model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=prompt),
         ],
         temperature=0,
     )

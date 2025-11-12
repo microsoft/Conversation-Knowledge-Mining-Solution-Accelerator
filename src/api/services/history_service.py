@@ -73,7 +73,6 @@ class HistoryService:
         final_prompt = f"{combined_content}\n\n{title_prompt}"
 
         try:
-            logger.info('Testing R01')
             project_client = AIProjectClient(
                 endpoint=self.ai_project_endpoint,
                 credential=get_azure_credential(client_id=self.azure_client_id),

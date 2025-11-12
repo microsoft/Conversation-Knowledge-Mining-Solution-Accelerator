@@ -5,12 +5,14 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
@@ -31,13 +33,15 @@ def get_secrets_from_kv(kv_name, secret_name):
 
 # Retrieve secrets
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
-openai_api_base = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")
+ai_project_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
 openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
 deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-DEPLOYMENT-MODEL")
+embedding_deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-EMBEDDING-MODEL")
 account_name = get_secrets_from_kv(KEY_VAULT_NAME, "ADLS-ACCOUNT-NAME")
 server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
 database = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-DATABASE")
 azure_ai_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-CU-ENDPOINT")
+azure_ai_api_version = "2024-12-01-preview"
 azure_ai_api_version = "2024-12-01-preview"
 print("Secrets retrieved.")
 
@@ -80,33 +84,30 @@ print("Content Understanding client initialized.")
 
 
 # ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
-# For Azure OpenAI endpoints, the Inference SDK expects the deployment path and api_version + scopes.
-# chat deployment (already coming from Key Vault as `deployment`)
-chat_endpoint = f"{openai_api_base}/openai/deployments/{deployment}"
+# Project endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/api/projects/your-project-name
+# Inference endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/models
+# Strip the "/api/projects/your-project-name" part and replace with "/models":
+inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
+
 chat_client = ChatCompletionsClient(
-    endpoint=chat_endpoint,
+    endpoint=inference_endpoint,
     credential=credential,
-    credential_scopes=["https://cognitiveservices.azure.com/.default"],
-    api_version=openai_api_version,
+    credential_scopes=["https://ai.azure.com/.default"],
 )
-# embedding deployment name (assumes you deployed with the name below — change if different)
-embedding_deployment = "text-embedding-ada-002"
-embeddings_endpoint = f"{openai_api_base}/openai/deployments/{embedding_deployment}"
+
 embeddings_client = EmbeddingsClient(
-    endpoint=embeddings_endpoint,
+    endpoint=inference_endpoint,
     credential=credential,
-    credential_scopes=["https://cognitiveservices.azure.com/.default"],
-    api_version=openai_api_version,
+    credential_scopes=["https://ai.azure.com/.default"],
 )
 # -----------------------------------------------------------------------------
 
 
 # Utility functions
 def get_embeddings(text: str):
-    # Uses Azure AI Inference EmbeddingsClient; returns the vector for `text`.
-    # NOTE: Endpoint includes the AOAI deployment name.
+    # Uses Azure AI Inference EmbeddingsClient with the AI Foundry project inference endpoint.
     try:
-        resp = embeddings_client.embed(input=[text])
+        resp = embeddings_client.embed(model=embedding_deployment, input=[text])
         return resp.data[0].embedding
     except Exception as e:
         print(f"Error getting embeddings: {e}")
@@ -159,11 +160,11 @@ def prepare_search_doc(content, document_id, path_name):
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
+            v_contentVector = get_embeddings(str(chunk))
         except:
             time.sleep(30)
             try: 
-                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
+                v_contentVector = get_embeddings(str(chunk))
             except: 
                 v_contentVector = []
         docs.append({
@@ -300,11 +301,12 @@ def call_gpt4(topics_str1, client):
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
-    # Inference client: Chat completions
+    # Inference client: Chat completions with model deployment name
     response = client.complete(
+        model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": topic_prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=topic_prompt),
         ],
         temperature=0,
     )
@@ -332,9 +334,10 @@ def get_mined_topic_mapping(input_text, list_of_topics):
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
     response = chat_client.complete(
+        model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=prompt),
         ],
         temperature=0,
     )
