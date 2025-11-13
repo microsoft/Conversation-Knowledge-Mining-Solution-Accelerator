@@ -5,12 +5,14 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
 from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 from azure.search.documents.indexes.models import (
@@ -43,8 +45,7 @@ def get_secrets_from_kv(kv_name, secret_name):
 
 # Retrieve secrets
 search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
-openai_api_base = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-ENDPOINT")
-openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
+ai_project_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
 deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-DEPLOYMENT-MODEL")
 account_name = get_secrets_from_kv(KEY_VAULT_NAME, "ADLS-ACCOUNT-NAME")
 server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
@@ -68,6 +69,21 @@ search_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
+
+# Azure AI Foundry (Inference) clients (Managed Identity)
+inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
+
+chat_client = ChatCompletionsClient(
+    endpoint=inference_endpoint,
+    credential=credential,
+    credential_scopes=["https://ai.azure.com/.default"],
+)
+
+embeddings_client = EmbeddingsClient(
+    endpoint=inference_endpoint,
+    credential=credential,
+    credential_scopes=["https://ai.azure.com/.default"],
+)
 
 # Delete the search index
 search_index_client = SearchIndexClient(search_endpoint, search_credential)
@@ -114,7 +130,7 @@ def create_search_index():
                 vectorizer_name="myOpenAI",
                 kind="azureOpenAI",
                 parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=openai_api_base,
+                    resource_url=ai_project_endpoint,
                     deployment_name=embedding_model,
                     model_name=embedding_model
                 )
@@ -167,20 +183,15 @@ cu_client = AzureContentUnderstandingClient(
 print("Content Understanding client initialized.")
 
 # Utility functions
-def get_embeddings(text: str, openai_api_base, openai_api_version):
-    model_id = "text-embedding-ada-002"
-    token_provider = get_bearer_token_provider(
-        get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-        "https://cognitiveservices.azure.com/.default"
-    )
-    client = AzureOpenAI(
-        api_version=openai_api_version,
-        azure_endpoint=openai_api_base,
-        azure_ad_token_provider=token_provider
-    )
-    embedding = client.embeddings.create(input=text, model=model_id).data[0].embedding
-    return embedding
-	
+def get_embeddings(text: str):
+    try:
+        resp = embeddings_client.embed(model=embedding_model, input=[text])
+        return resp.data[0].embedding
+    except Exception as e:
+        print(f"Error getting embeddings: {e}")
+        raise
+# --------------------------------------------------------------------------
+
 def clean_spaces_with_regex(text):
     cleaned_text = re.sub(r'\s+', ' ', text)
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
@@ -208,12 +219,14 @@ def prepare_search_doc(content, document_id, path_name):
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
-        except:
+            v_contentVector = get_embeddings(str(chunk))
+        except Exception as e:
+            print(f"Error getting embeddings on first try: {e}")
             time.sleep(30)
             try: 
-                v_contentVector = get_embeddings(str(chunk),openai_api_base,openai_api_version)
-            except: 
+                v_contentVector = get_embeddings(str(chunk))
+            except Exception as e: 
+                print(f"Error getting embeddings: {e}")
                 v_contentVector = []
         docs.append({
             "id": chunk_id,
@@ -391,30 +404,20 @@ def call_gpt4(topics_str1, client):
         Ensure that the topics and labels are accurate, relevant, and easy to understand.
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
-        """
-    response = client.chat.completions.create(
+    """
+    response = client.complete(
         model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": topic_prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=topic_prompt),
         ],
         temperature=0,
     )
     res = response.choices[0].message.content
     return json.loads(res.replace("```json", '').replace("```", ''))
 
-token_provider = get_bearer_token_provider(
-    get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID),
-    "https://cognitiveservices.azure.com/.default"
-)
-openai_client = AzureOpenAI(
-    azure_endpoint=openai_api_base,
-    azure_ad_token_provider=token_provider,
-    api_version=openai_api_version,
-)
 max_tokens = 3096
-
-res = call_gpt4(topics_str, openai_client)
+res = call_gpt4(", ".join([]), chat_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
@@ -432,11 +435,11 @@ def get_mined_topic_mapping(input_text, list_of_topics):
     prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
-    response = openai_client.chat.completions.create(
+    response = chat_client.complete(
         model=deployment,
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt},
+            SystemMessage(content="You are a helpful assistant."),
+            UserMessage(content=prompt),
         ],
         temperature=0,
     )
