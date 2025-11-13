@@ -70,10 +70,7 @@ search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
 
-# ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
-# Project endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/api/projects/your-project-name
-# Inference endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/models
-# Strip the "/api/projects/your-project-name" part and replace with "/models":
+# Azure AI Foundry (Inference) clients (Managed Identity)
 inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
 
 chat_client = ChatCompletionsClient(
@@ -187,7 +184,6 @@ print("Content Understanding client initialized.")
 
 # Utility functions
 def get_embeddings(text: str):
-    # Uses Azure AI Inference EmbeddingsClient with the AI Foundry project inference endpoint.
     try:
         resp = embeddings_client.embed(model=embedding_model, input=[text])
         return resp.data[0].embedding

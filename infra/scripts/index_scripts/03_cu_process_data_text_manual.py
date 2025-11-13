@@ -82,11 +82,7 @@ cu_client = AzureContentUnderstandingClient(
 ANALYZER_ID = "ckm-json"
 print("Content Understanding client initialized.")
 
-
-# ---------- Azure AI Foundry (Inference) clients (Managed Identity) ----------
-# Project endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/api/projects/your-project-name
-# Inference endpoint has the form: https://your-ai-services-account-name.services.ai.azure.com/models
-# Strip the "/api/projects/your-project-name" part and replace with "/models":
+# Azure AI Foundry (Inference) clients (Managed Identity)
 inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
 
 chat_client = ChatCompletionsClient(
@@ -100,12 +96,9 @@ embeddings_client = EmbeddingsClient(
     credential=credential,
     credential_scopes=["https://ai.azure.com/.default"],
 )
-# -----------------------------------------------------------------------------
-
 
 # Utility functions
 def get_embeddings(text: str):
-    # Uses Azure AI Inference EmbeddingsClient with the AI Foundry project inference endpoint.
     try:
         resp = embeddings_client.embed(model=embedding_deployment, input=[text])
         return resp.data[0].embedding
@@ -301,7 +294,6 @@ def call_gpt4(topics_str1, client):
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
-    # Inference client: Chat completions with model deployment name
     response = client.complete(
         model=deployment,
         messages=[
