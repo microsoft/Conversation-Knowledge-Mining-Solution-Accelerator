@@ -132,9 +132,8 @@ class ChatService:
             thread_id = None
 
             config = Config()
-            credential = await get_azure_credential_async(config.azure_client_id)
             async with (
-                get_azure_credential_async(config.azure_client_id) as credential,
+                await get_azure_credential_async(config.azure_client_id) as credential,
                 AIProjectClient(endpoint=config.ai_project_endpoint, credential=credential) as project_client,
                 AgentsClient(endpoint=config.ai_project_endpoint, credential=credential) as agents_client
             ):
