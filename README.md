@@ -14,7 +14,6 @@ Analysts working with large volumes of conversational data can use this solution
 
 </div>
 <br/>
-<br/>
  
 
 <h2><img src="./documents/Images/ReadMe/solution-overview.png" width="48" />
