@@ -14,7 +14,6 @@ Analysts working with large volumes of conversational data can use this solution
 
 </div>
 <br/>
- <br/>
  
  **Disclaimer:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md).
 <br/>
