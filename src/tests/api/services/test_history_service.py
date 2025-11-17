@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 
 # ---- Import service under test ----
 from services.history_service import HistoryService
+from azure.ai.agents.models import MessageRole
 
 
 @pytest.fixture
@@ -14,10 +15,12 @@ def mock_config_instance():
     config.azure_cosmosdb_account = "test-account"
     config.azure_cosmosdb_conversations_container = "test-container"
     config.azure_cosmosdb_enable_feedback = True
-    config.azure_openai_endpoint = "https://test-openai.openai.azure.com/"
-    config.azure_openai_api_version = "2024-02-15-preview"
-    config.azure_openai_deployment_model = "gpt-4o-mini"
-    config.azure_openai_resource = "test-resource"
+    # Azure AI Foundry SDK configuration
+    config.azure_openai_deployment_model = "gpt-4o-mini"  # Still needed for model parameter
+    config.azure_client_id = "test-client-id"
+    config.ai_project_endpoint = "https://test-aif.services.ai.azure.com/api/projects/test-project"
+    config.ai_project_api_version = "2025-05-01"
+    config.solution_name = "test-solution"
     return config
 
 
@@ -27,11 +30,9 @@ def history_service(mock_config_instance):
     with patch("services.history_service.Config", return_value=mock_config_instance):
         # Create patches for other dependencies used by HistoryService
         with patch("services.history_service.CosmosConversationClient"):
-            with patch("services.history_service.AsyncAzureOpenAI"):
-                with patch("helpers.azure_openai_helper.get_bearer_token_provider"):
-                    with patch("services.history_service.complete_chat_request"):
-                        service = HistoryService()
-                        return service
+            with patch("services.history_service.complete_chat_request"):
+                service = HistoryService()
+                return service
 
 
 @pytest.fixture
@@ -41,22 +42,17 @@ def mock_cosmos_client():
     return client
 
 
-@pytest.fixture
-def mock_openai_client():
-    client = AsyncMock()
-    chat_completions = AsyncMock()
-    client.chat.completions.create = AsyncMock()
-    client.chat.completions = chat_completions
-    return client
-
-
 class TestHistoryService:
     def test_init(self, history_service, mock_config_instance):
         """Test service initialization with config values"""
         assert history_service.use_chat_history_enabled == mock_config_instance.use_chat_history_enabled
         assert history_service.azure_cosmosdb_database == mock_config_instance.azure_cosmosdb_database
         assert history_service.azure_cosmosdb_account == mock_config_instance.azure_cosmosdb_account
-        assert history_service.azure_openai_endpoint == mock_config_instance.azure_openai_endpoint
+        assert history_service.azure_openai_deployment_name == mock_config_instance.azure_openai_deployment_model
+        assert history_service.ai_project_endpoint == mock_config_instance.ai_project_endpoint
+        assert history_service.ai_project_api_version == mock_config_instance.ai_project_api_version
+        assert history_service.solution_name == mock_config_instance.solution_name
+        assert history_service.azure_client_id == mock_config_instance.azure_client_id
         assert history_service.chat_history_enabled
 
     def test_init_cosmosdb_client_enabled(self, history_service):
@@ -77,62 +73,77 @@ class TestHistoryService:
             with pytest.raises(Exception):
                 history_service.init_cosmosdb_client()
 
-    def test_init_openai_client_with_endpoint(self, history_service):
-        """Test OpenAI client initialization with endpoint"""
-        with patch("services.history_service.AsyncAzureOpenAI", return_value="openai_client"):
-            client = history_service.init_openai_client()
-            assert client == "openai_client"
-
-    def test_init_openai_client_with_resource(self, history_service):
-        """Test OpenAI client initialization with resource"""
-        history_service.azure_openai_endpoint = None
-        with patch("services.history_service.AsyncAzureOpenAI", return_value="openai_client"):
-            client = history_service.init_openai_client()
-            assert client == "openai_client"
-
-    def test_init_openai_client_no_endpoint_no_resource(self, history_service):
-        """Test OpenAI client initialization with no endpoint or resource"""
-        history_service.azure_openai_endpoint = None
-        history_service.azure_openai_resource = None
-        with pytest.raises(ValueError, match="AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_RESOURCE is required"):
-            history_service.init_openai_client()
-
-    def test_init_openai_client_no_deployment_name(self, history_service):
-        """Test OpenAI client initialization with no deployment name"""
-        history_service.azure_openai_deployment_name = None
-        with pytest.raises(ValueError, match="AZURE_OPENAI_MODEL is required"):
-            history_service.init_openai_client()
-
-    def test_init_openai_client_no_api_key(self, history_service):
-        """Test OpenAI client initialization with no API key"""
-        with patch("helpers.azure_openai_helper.get_bearer_token_provider", return_value="token_provider"):
-            with patch("services.history_service.AsyncAzureOpenAI", return_value="openai_client"):
-                client = history_service.init_openai_client()
-                assert client == "openai_client"
-
     @pytest.mark.asyncio
     async def test_generate_title(self, history_service):
-        """Test generate title functionality"""
+        """Test generate title functionality using Azure AI Foundry SDK"""
         conversation_messages = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"}
         ]
+
+        # Mock the AIProjectClient and related objects
+        mock_project_client = MagicMock()
+        mock_agent = MagicMock()
+        mock_agent.id = "test-agent-id"
+        mock_thread = MagicMock()
+        mock_thread.id = "test-thread-id"
+        mock_run = MagicMock()
+        mock_run.status = "completed"
         
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "Generated Title"
+        # Mock message with agent response
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text_message = MagicMock()
+        mock_text_message.text.value = "Billing Help Request"
+        mock_message.text_messages = [mock_text_message]
+
+        mock_project_client.agents.create_agent.return_value = mock_agent
+        mock_project_client.agents.threads.create.return_value = mock_thread
+        mock_project_client.agents.runs.create_and_process.return_value = mock_run
+        mock_project_client.agents.messages.list.return_value = [mock_message]
+
+        with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
+            with patch("services.history_service.get_azure_credential"):
+                result = await history_service.generate_title(conversation_messages)
+                assert result == "Billing Help Request"                # Verify the agent was created with correct parameters
+                mock_project_client.agents.create_agent.assert_called_once()
+                create_agent_call = mock_project_client.agents.create_agent.call_args
+                assert create_agent_call[1]["model"] == "gpt-4o-mini"
+                assert "TitleAgent-test-solution" in create_agent_call[1]["name"]
+                
+                # Verify cleanup was called
+                mock_project_client.agents.threads.delete.assert_called_once_with(thread_id="test-thread-id")
+                mock_project_client.agents.delete_agent.assert_called_once_with("test-agent-id")
+
+    @pytest.mark.asyncio
+    async def test_generate_title_failed_run(self, history_service):
+        """Test generate title with failed AI run"""
+        conversation_messages = [{"role": "user", "content": "Test message"}]
         
-        with patch.object(history_service, "init_openai_client") as mock_init_client:
-            mock_client = AsyncMock()
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-            mock_init_client.return_value = mock_client
-            
+        # Mock failed run
+        mock_project_client = MagicMock()
+        mock_agent = MagicMock()
+        mock_thread = MagicMock()
+        mock_run = MagicMock()
+        mock_run.status = "failed"
+        mock_run.last_error = "Test error"
+        
+        mock_project_client.agents.create_agent.return_value = mock_agent
+        mock_project_client.agents.threads.create.return_value = mock_thread
+        mock_project_client.agents.runs.create_and_process.return_value = mock_run
+        
+        with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
+            with patch("services.history_service.get_azure_credential"):
+                result = await history_service.generate_title(conversation_messages)
+                assert result == "Test message"  # Should fall back to truncated user message
+
+    @pytest.mark.asyncio
+    async def test_generate_title_exception(self, history_service):
+        """Test generate title with exception"""
+        conversation_messages = [{"role": "user", "content": "Fallback content"}]
+        
+        with patch("services.history_service.AIProjectClient", side_effect=Exception("Test error")):
             result = await history_service.generate_title(conversation_messages)
-            assert result == "Generated Title"
-            
-            # Test title generation with exception
-            mock_client.chat.completions.create = AsyncMock(side_effect=Exception("Test error"))
-            result = await history_service.generate_title([{"role": "user", "content": "Fallback content"}])
             assert result == "Fallback content"
 
     @pytest.mark.asyncio
