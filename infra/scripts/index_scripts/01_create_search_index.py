@@ -19,7 +19,7 @@ from azure_credential_utils import get_azure_credential
 # === Configuration ===
 KEY_VAULT_NAME = 'kv_to-be-replaced'
 MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
-INDEX_NAME = "call_transcripts_index"
+INDEX_NAME = "call_transcripts_index_specificfield"
 
 print("calling create_search_index()....")
 

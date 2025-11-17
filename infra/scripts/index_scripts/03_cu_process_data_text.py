@@ -20,7 +20,7 @@ MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
-INDEX_NAME = "call_transcripts_index"
+INDEX_NAME = "call_transcripts_index_specificfield"
 
 def get_secrets_from_kv(kv_name, secret_name):
     kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
