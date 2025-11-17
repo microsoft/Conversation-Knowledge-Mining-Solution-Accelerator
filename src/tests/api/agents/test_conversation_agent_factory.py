@@ -1,6 +1,5 @@
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock, ANY
 
 from agents.conversation_agent_factory import ConversationAgentFactory
 
@@ -13,39 +12,43 @@ def reset_conversation_agent_factory():
 
 
 @pytest.mark.asyncio
-@patch("agents.conversation_agent_factory.AzureAIAgentSettings", autospec=True)
-@patch("agents.conversation_agent_factory.AzureAIAgent", autospec=True)
+@patch("agents.conversation_agent_factory.AIProjectClient", autospec=True)
 @patch("agents.conversation_agent_factory.get_azure_credential_async", new_callable=AsyncMock)
+@patch("agents.agent_factory_base.Config", autospec=True)
 async def test_get_agent_creates_new_instance(
+    mock_config_class,
     mock_get_azure_credential_async,
-    mock_azure_agent,
-    mock_azure_ai_agent_settings
+    mock_ai_project_client
 ):
-    mock_settings = MagicMock()
-    mock_settings.endpoint = "https://test-endpoint"
-    mock_settings.model_deployment_name = "test-model"
-    mock_azure_ai_agent_settings.return_value = mock_settings
+    # Set up config mock
+    mock_config = MagicMock()
+    mock_config.ai_project_endpoint = "https://test-endpoint"
+    mock_config.azure_openai_deployment_model = "test-model"
+    mock_config.solution_name = "test-solution"
+    mock_config_class.return_value = mock_config
 
+    # Set up credential mock
     mock_credential = AsyncMock()
     mock_get_azure_credential_async.return_value = mock_credential
 
-    mock_client = AsyncMock()
+    # Set up client mock
+    mock_client_instance = AsyncMock()
     mock_agent_definition = MagicMock()
-    mock_client.agents.create_agent.return_value = mock_agent_definition
-    mock_azure_agent.create_client.return_value = mock_client
-
-    agent_instance = MagicMock()
-    mock_azure_agent.return_value = agent_instance
+    mock_client_instance.agents.create_agent.return_value = mock_agent_definition
+    mock_ai_project_client.return_value = mock_client_instance
 
     result = await ConversationAgentFactory.get_agent()
 
-    assert result == agent_instance
-    mock_azure_agent.create_client.assert_called_once_with(
-        credential=mock_get_azure_credential_async.return_value,
+    assert result == mock_agent_definition
+    mock_ai_project_client.assert_called_once_with(
+        credential=mock_credential,
         endpoint="https://test-endpoint"
     )
-    mock_client.agents.create_agent.assert_awaited_once()
-    mock_azure_agent.assert_called_once()
+    mock_client_instance.agents.create_agent.assert_awaited_once_with(
+        model="test-model",
+        name="KM-ConversationKnowledgeAgent-test-solution",
+        instructions=ANY
+    )
 
 
 @pytest.mark.asyncio
@@ -56,53 +59,175 @@ async def test_get_agent_returns_existing_instance():
 
 
 @pytest.mark.asyncio
-@patch("agents.conversation_agent_factory.AzureAIAgentThread", autospec=True)
+@patch("agents.conversation_agent_factory.AIProjectClient", autospec=True)
 @patch("agents.conversation_agent_factory.ChatService", autospec=True)
+@patch("agents.agent_factory_base.Config", autospec=True)
 async def test_delete_agent_deletes_threads_and_agent(
+    mock_config_class,
     mock_chat_service,
-    mock_agent_thread
+    mock_ai_project_client
 ):
-    mock_client = AsyncMock()
+    # Set up config mock
+    mock_config = MagicMock()
+    mock_config.ai_project_endpoint = "https://test-endpoint"
+    mock_config_class.return_value = mock_config
+
+    # Set up agent and client mock
     mock_agent = MagicMock()
-    mock_agent.id = "agent-id"
-    mock_agent.client = mock_client
     ConversationAgentFactory._agent = mock_agent
+    
+    # Set up credential mock
+    mock_credential = AsyncMock()
+    with patch("agents.conversation_agent_factory.get_azure_credential_async", 
+              new_callable=AsyncMock, return_value=mock_credential):
+        
+        # Set up client mock
+        mock_client = AsyncMock()
+        mock_ai_project_client.return_value = mock_client
+        
+        # Set up thread cache
+        mock_chat_service.thread_cache = {
+            "c1": "t1",
+            "c2": "t2"
+        }
 
-    mock_chat_service.thread_cache = {
-        "c1": "t1",
-        "c2": "t2"
-    }
-
-    thread_mock = AsyncMock()
-    mock_agent_thread.side_effect = lambda client, thread_id: thread_mock
-
-    await ConversationAgentFactory.delete_agent()
-
-    mock_agent_thread.assert_any_call(client=mock_client, thread_id="t1")
-    mock_agent_thread.assert_any_call(client=mock_client, thread_id="t2")
-    assert thread_mock.delete.await_count == 2
-    mock_client.agents.delete_agent.assert_awaited_once_with("agent-id")
-    assert ConversationAgentFactory._agent is None
+        await ConversationAgentFactory.delete_agent()
+        
+        # Verify that threads were deleted
+        mock_client.agents.threads.delete.assert_any_call("t1")
+        mock_client.agents.threads.delete.assert_any_call("t2")
+        assert mock_client.agents.threads.delete.await_count == 2
+        
+        # Verify that agent was deleted
+        mock_client.agents.delete_agent.assert_awaited_once_with(mock_agent.id)
+        assert ConversationAgentFactory._agent is None
 
 
 @pytest.mark.asyncio
+@patch("agents.conversation_agent_factory.AIProjectClient", autospec=True)
 @patch("agents.conversation_agent_factory.ChatService", autospec=True)
-async def test_delete_agent_handles_missing_thread_cache(mock_chat_service):
-    mock_client = AsyncMock()
+@patch("agents.agent_factory_base.Config", autospec=True)
+async def test_delete_agent_handles_missing_thread_cache(
+    mock_config_class,
+    mock_chat_service,
+    mock_ai_project_client
+):
+    # Set up config mock
+    mock_config = MagicMock()
+    mock_config.ai_project_endpoint = "https://test-endpoint"
+    mock_config_class.return_value = mock_config
+    
+    # Set up agent mock
     mock_agent = MagicMock()
     mock_agent.id = "agent-id"
-    mock_agent.client = mock_client
     ConversationAgentFactory._agent = mock_agent
+    
+    # Set up credential mock
+    mock_credential = AsyncMock()
+    with patch("agents.conversation_agent_factory.get_azure_credential_async", 
+              new_callable=AsyncMock, return_value=mock_credential):
+        
+        # Set up client mock
+        mock_client = AsyncMock()
+        mock_ai_project_client.return_value = mock_client
+        
+        # Ensure thread_cache doesn't exist
+        if hasattr(mock_chat_service, 'thread_cache'):
+            delattr(mock_chat_service, 'thread_cache')
 
-    del mock_chat_service.thread_cache  # Simulate absence
+        await ConversationAgentFactory.delete_agent()
 
-    await ConversationAgentFactory.delete_agent()
-
-    mock_client.agents.delete_agent.assert_awaited_once_with("agent-id")
-    assert ConversationAgentFactory._agent is None
+        # Verify agent deletion (but no thread deletions)
+        mock_client.agents.delete_agent.assert_awaited_once_with(mock_agent.id)
+        assert ConversationAgentFactory._agent is None
 
 
 @pytest.mark.asyncio
 async def test_delete_agent_does_nothing_if_none():
     ConversationAgentFactory._agent = None
     await ConversationAgentFactory.delete_agent()
+    # No assertions needed - test passes if no exception is raised
+
+
+@pytest.mark.asyncio
+@patch("agents.conversation_agent_factory.AIProjectClient", autospec=True)
+@patch("agents.conversation_agent_factory.get_azure_credential_async", new_callable=AsyncMock)
+async def test_create_agent(
+    mock_get_azure_credential_async,
+    mock_ai_project_client
+):
+    # Set up config mock
+    mock_config = MagicMock()
+    mock_config.ai_project_endpoint = "https://test-endpoint"
+    mock_config.azure_openai_deployment_model = "test-model"
+    mock_config.solution_name = "test-solution"
+    
+    # Set up credential mock
+    mock_credential = AsyncMock()
+    mock_get_azure_credential_async.return_value = mock_credential
+    
+    # Set up client mock
+    mock_client_instance = AsyncMock()
+    mock_agent_definition = MagicMock()
+    mock_client_instance.agents.create_agent.return_value = mock_agent_definition
+    mock_ai_project_client.return_value = mock_client_instance
+    
+    result = await ConversationAgentFactory.create_agent(mock_config)
+    
+    assert result == mock_agent_definition
+    mock_ai_project_client.assert_called_once_with(
+        credential=mock_credential,
+        endpoint="https://test-endpoint"
+    )
+    mock_client_instance.agents.create_agent.assert_awaited_once_with(
+        model="test-model",
+        name="KM-ConversationKnowledgeAgent-test-solution",
+        instructions=ANY
+    )
+
+
+@pytest.mark.asyncio
+@patch("agents.conversation_agent_factory.AIProjectClient", autospec=True)
+@patch("agents.conversation_agent_factory.ChatService", autospec=True)
+@patch("agents.conversation_agent_factory.get_azure_credential_async", new_callable=AsyncMock)
+async def test_delete_agent_instance(
+    mock_get_azure_credential_async,
+    mock_chat_service,
+    mock_ai_project_client
+):
+    # Set up mock agent and config
+    mock_agent = MagicMock()
+    mock_agent.id = "agent-id"
+    
+    mock_config = MagicMock()
+    mock_config.ai_project_endpoint = "https://test-endpoint"
+    
+    # Set up credential mock
+    mock_credential = AsyncMock()
+    mock_get_azure_credential_async.return_value = mock_credential
+    
+    # Set up client mock
+    mock_client = AsyncMock()
+    mock_ai_project_client.return_value = mock_client
+    
+    # Set up thread cache
+    mock_chat_service.thread_cache = {
+        "c1": "t1",
+        "c2": "t2"
+    }
+    
+    await ConversationAgentFactory._delete_agent_instance(mock_agent, mock_config)
+    
+    # Verify AI Project Client was created with correct parameters
+    mock_ai_project_client.assert_called_once_with(
+        credential=mock_credential,
+        endpoint="https://test-endpoint"
+    )
+    
+    # Verify threads were deleted
+    mock_client.agents.threads.delete.assert_any_call("t1")
+    mock_client.agents.threads.delete.assert_any_call("t2")
+    assert mock_client.agents.threads.delete.await_count == 2
+    
+    # Verify agent was deleted
+    mock_client.agents.delete_agent.assert_awaited_once_with("agent-id")

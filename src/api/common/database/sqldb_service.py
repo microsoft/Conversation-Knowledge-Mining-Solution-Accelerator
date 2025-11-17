@@ -15,10 +15,7 @@ async def get_db_connection():
 
     server = config.sqldb_server
     database = config.sqldb_database
-    username = config.sqldb_username
-    password = config.sqldb_database
     driver = config.driver
-    # mid_id = config.mid_id
     mid_id = config.azure_client_id
 
     credential = None
@@ -40,14 +37,6 @@ async def get_db_connection():
         )
 
         logging.info("Connected using Azure Credential")
-        return conn
-    except pyodbc.Error as e:
-        logging.error("Failed with Azure Credential: %s", str(e))
-        conn = pyodbc.connect(
-            f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
-            timeout=5)
-
-        logging.info("Connected using Username & Password")
         return conn
     finally:
         if credential and hasattr(credential, "close"):

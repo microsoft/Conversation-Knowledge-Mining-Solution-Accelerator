@@ -1,3 +1,11 @@
+"""
+Base factory module for agent creation and management.
+
+This module provides abstract base classes for implementing the factory pattern
+for creating and managing agent instances. It ensures singleton behavior for agents
+and defines the interface for agent creation and cleanup operations.
+"""
+
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -24,7 +32,8 @@ class BaseAgentFactory(ABC):
         """Delete the current agent instance."""
         async with cls._lock:
             if cls._agent is not None:
-                await cls._delete_agent_instance(cls._agent)
+                config = Config()
+                await cls._delete_agent_instance(cls._agent, config)
                 cls._agent = None
 
     @classmethod
@@ -35,6 +44,6 @@ class BaseAgentFactory(ABC):
 
     @classmethod
     @abstractmethod
-    async def _delete_agent_instance(cls, agent: object):
+    async def _delete_agent_instance(cls, agent: object, config: Config) -> None:
         """Delete the specified agent instance."""
         pass

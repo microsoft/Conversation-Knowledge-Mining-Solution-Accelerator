@@ -11,12 +11,12 @@ RUN apk add --no-cache --virtual .build-deps \
     opus-dev \
     libvpx-dev
 
-# Download and install Microsoft ODBC Driver and MSSQL tools
-RUN curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk \
-    && curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk \
-    && apk add --allow-untrusted msodbcsql17_17.10.6.1-1_amd64.apk \
-    && apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk \
-    && rm msodbcsql17_17.10.6.1-1_amd64.apk mssql-tools_17.10.1.1-1_amd64.apk
+# Download and install Microsoft ODBC Driver 18 and MSSQL tools (latest release)
+RUN curl -O https://download.microsoft.com/download/fae28b9a-d880-42fd-9b98-d779f0fdd77f/msodbcsql18_18.5.1.1-1_amd64.apk \
+    && curl -O https://download.microsoft.com/download/7/6/d/76de322a-d860-4894-9945-f0cc5d6a45f8/mssql-tools18_18.4.1.1-1_amd64.apk \
+    && apk add --allow-untrusted msodbcsql18_18.5.1.1-1_amd64.apk \
+    && apk add --allow-untrusted mssql-tools18_18.4.1.1-1_amd64.apk \
+    && rm msodbcsql18_18.5.1.1-1_amd64.apk mssql-tools18_18.4.1.1-1_amd64.apk
 
 # Set the working directory inside the container
 WORKDIR /app
