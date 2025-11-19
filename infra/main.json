@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "13729415444270857669"
+      "templateHash": "14194719810689418497"
     }
   },
   "parameters": {
@@ -359,13 +359,8 @@
       "sqlServer": 9,
       "search": 10
     },
-    "aiRelatedDnsZoneIndices": [
-      "[variables('dnsZoneIndex').cognitiveServices]",
-      "[variables('dnsZoneIndex').openAI]",
-      "[variables('dnsZoneIndex').aiServices]"
-    ],
     "userAssignedIdentityResourceName": "[format('id-{0}', variables('solutionSuffix'))]",
-    "sqlUserAssignedIdentityResourceName": "[format('id-sql-{0}', variables('solutionSuffix'))]",
+    "backendUserAssignedIdentityResourceName": "[format('id-backend-{0}', variables('solutionSuffix'))]",
     "keyVaultName": "[format('kv-{0}', variables('solutionSuffix'))]",
     "existingOpenAIEndpoint": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), format('https://{0}.openai.azure.com/', split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8]), '')]",
     "existingProjEndpoint": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), format('https://{0}.services.ai.azure.com/api/projects/{1}', split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8], split(parameters('existingAiFoundryAiProjectResourceId'), '/')[10]), '')]",
@@ -20485,10 +20480,10 @@
         }
       }
     },
-    "sqlUserAssignedIdentity": {
+    "backendUserAssignedIdentity": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "[take(format('avm.res.managed-identity.user-assigned-identity.{0}', variables('sqlUserAssignedIdentityResourceName')), 64)]",
+      "name": "[take(format('avm.res.managed-identity.user-assigned-identity.{0}', variables('backendUserAssignedIdentityResourceName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -20496,7 +20491,7 @@
         "mode": "Incremental",
         "parameters": {
           "name": {
-            "value": "[variables('sqlUserAssignedIdentityResourceName')]"
+            "value": "[variables('backendUserAssignedIdentityResourceName')]"
           },
           "location": {
             "value": "[parameters('location')]"
@@ -24334,6 +24329,11 @@
                 "principalType": "ServicePrincipal"
               },
               {
+                "roleDefinitionIdOrName": "53ca6127-db72-4b80-b1b0-d745d6d5456d",
+                "principalId": "[reference('backendUserAssignedIdentity').outputs.principalId.value]",
+                "principalType": "ServicePrincipal"
+              },
+              {
                 "roleDefinitionIdOrName": "64702f94-c441-49e6-a78b-ef80e0188fee",
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
                 "principalType": "ServicePrincipal"
@@ -24341,6 +24341,16 @@
               {
                 "roleDefinitionIdOrName": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
+                "principalType": "ServicePrincipal"
+              },
+              {
+                "roleDefinitionIdOrName": "64702f94-c441-49e6-a78b-ef80e0188fee",
+                "principalId": "[reference('backendUserAssignedIdentity').outputs.principalId.value]",
+                "principalType": "ServicePrincipal"
+              },
+              {
+                "roleDefinitionIdOrName": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
+                "principalId": "[reference('backendUserAssignedIdentity').outputs.principalId.value]",
                 "principalType": "ServicePrincipal"
               }
             ]
@@ -30052,9 +30062,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
+        "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -32381,8 +32392,8 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -32446,6 +32457,11 @@
               {
                 "roleDefinitionIdOrName": "1407120a-92aa-4202-b7e9-c0e197c71c8f",
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
+                "principalType": "ServicePrincipal"
+              },
+              {
+                "roleDefinitionIdOrName": "1407120a-92aa-4202-b7e9-c0e197c71c8f",
+                "principalId": "[reference('backendUserAssignedIdentity').outputs.principalId.value]",
                 "principalType": "ServicePrincipal"
               },
               {
@@ -34771,6 +34787,7 @@
       "dependsOn": [
         "aiFoundryAiServices",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').search)]",
+        "backendUserAssignedIdentity",
         "existingAiFoundryAiServicesProject",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -40746,10 +40763,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -40802,7 +40819,7 @@
                 ],
                 "assignments": [
                   {
-                    "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]"
+                    "principalId": "[reference('backendUserAssignedIdentity').outputs.principalId.value]"
                   }
                 ]
               }
@@ -44587,9 +44604,9 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cosmosDB)]",
+        "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "storageAccount",
-        "userAssignedIdentity",
         "virtualNetwork"
       ]
     },
@@ -44645,7 +44662,8 @@
             "value": {
               "systemAssigned": true,
               "userAssignedResourceIds": [
-                "[reference('userAssignedIdentity').outputs.resourceId.value]"
+                "[reference('userAssignedIdentity').outputs.resourceId.value]",
+                "[reference('backendUserAssignedIdentity').outputs.resourceId.value]"
               ]
             }
           },
@@ -51230,6 +51248,7 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').sqlServer)]",
+        "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -52437,7 +52456,7 @@
             "value": true
           },
           "arguments": {
-            "value": "[join(createArray(format('-SqlServerName ''{0}''', variables('sqlServerResourceName')), format('-SqlDatabaseName ''{0}''', variables('sqlDbModuleName')), format('-ClientId ''{0}''', reference('sqlUserAssignedIdentity').outputs.clientId.value), format('-DisplayName ''{0}''', reference('sqlUserAssignedIdentity').outputs.name.value), format('-DatabaseRoles ''{0}''', join(variables('databaseRoles'), ','))), ' ')]"
+            "value": "[join(createArray(format('-SqlServerName ''{0}''', variables('sqlServerResourceName')), format('-SqlDatabaseName ''{0}''', variables('sqlDbModuleName')), format('-ClientId ''{0}''', reference('backendUserAssignedIdentity').outputs.clientId.value), format('-DisplayName ''{0}''', reference('backendUserAssignedIdentity').outputs.name.value), format('-DatabaseRoles ''{0}''', join(variables('databaseRoles'), ','))), ' ')]"
           },
           "scriptContent": {
             "value": "[variables('$fxv#0')]"
@@ -52985,8 +53004,8 @@
         }
       },
       "dependsOn": [
+        "backendUserAssignedIdentity",
         "sqlDBModule",
-        "sqlUserAssignedIdentity",
         "storageAccount",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -53022,7 +53041,7 @@
           },
           "diagnosticSettings": "[if(parameters('enableMonitoring'), createObject('value', createArray(createObject('workspaceResourceId', if(variables('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference('logAnalyticsWorkspace').outputs.resourceId.value)))), createObject('value', null()))]",
           "skuName": "[if(or(parameters('enableScalability'), parameters('enableRedundancy')), createObject('value', 'P1v3'), createObject('value', 'B3'))]",
-          "skuCapacity": "[if(parameters('enableScalability'), createObject('value', 3), createObject('value', 1))]",
+          "skuCapacity": "[if(parameters('enableScalability'), createObject('value', 1), createObject('value', 1))]",
           "zoneRedundant": "[if(parameters('enableRedundancy'), createObject('value', true()), createObject('value', false()))]"
         },
         "template": {
@@ -53592,7 +53611,7 @@
             "value": {
               "systemAssigned": true,
               "userAssignedResourceIds": [
-                "[reference('userAssignedIdentity').outputs.resourceId.value]"
+                "[reference('backendUserAssignedIdentity').outputs.resourceId.value]"
               ]
             }
           },
@@ -53622,7 +53641,7 @@
                   "AZURE_COSMOSDB_ENABLE_FEEDBACK": "True",
                   "SQLDB_DATABASE": "[format('sqldb-{0}', variables('solutionSuffix'))]",
                   "SQLDB_SERVER": "[format('{0}{1}', reference('sqlDBModule').outputs.name.value, environment().suffixes.sqlServerHostname)]",
-                  "SQLDB_USER_MID": "[reference('sqlUserAssignedIdentity').outputs.clientId.value]",
+                  "SQLDB_USER_MID": "[reference('backendUserAssignedIdentity').outputs.clientId.value]",
                   "AZURE_AI_SEARCH_ENDPOINT": "[format('https://{0}.search.windows.net', variables('aiSearchName'))]",
                   "AZURE_AI_SEARCH_INDEX": "call_transcripts_index",
                   "AZURE_AI_SEARCH_CONNECTION_NAME": "[variables('aiSearchName')]",
@@ -53632,7 +53651,9 @@
                   "DUMMY_TEST": "True",
                   "SOLUTION_NAME": "[variables('solutionSuffix')]",
                   "APP_ENV": "Prod",
-                  "AZURE_CLIENT_ID": "[reference('userAssignedIdentity').outputs.clientId.value]"
+                  "AZURE_CLIENT_ID": "[reference('backendUserAssignedIdentity').outputs.clientId.value]",
+                  "AZURE_BASIC_LOGGING_LEVEL": "INFO",
+                  "AZURE_PACKAGE_LOGGING_LEVEL": "WARNING"
                 },
                 "applicationInsightResourceId": "[if(parameters('enableMonitoring'), reference('applicationInsights').outputs.resourceId.value, null())]"
               }
@@ -55628,11 +55649,10 @@
       "dependsOn": [
         "aiFoundryAiServices",
         "applicationInsights",
+        "backendUserAssignedIdentity",
         "cosmosDb",
         "logAnalyticsWorkspace",
         "sqlDBModule",
-        "sqlUserAssignedIdentity",
-        "userAssignedIdentity",
         "virtualNetwork",
         "webServerFarm"
       ]
@@ -57876,7 +57896,7 @@
       "metadata": {
         "description": "Contains SQL database user managed identity client ID."
       },
-      "value": "[reference('sqlUserAssignedIdentity').outputs.clientId.value]"
+      "value": "[reference('backendUserAssignedIdentity').outputs.clientId.value]"
     },
     "USE_AI_PROJECT_CLIENT": {
       "type": "string",
