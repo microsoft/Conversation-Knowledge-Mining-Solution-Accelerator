@@ -150,38 +150,17 @@ class ChatService:
                     assistant_content += str(chunk)
 
                     if assistant_content:
-                        chat_completion_chunk = {
-                            "id": "",
-                            "model": "",
-                            "created": 0,
-                            "object": "",
+                        # Optimized response - only send fields used by frontend
+                        response = {
                             "choices": [
                                 {
-                                    "messages": [],
-                                    "delta": {},
+                                    "messages": [
+                                        {"role": "assistant", "content": assistant_content}
+                                    ]
                                 }
-                            ],
-                            "history_metadata": history_metadata,
-                            "apim-request-id": "",
+                            ]
                         }
-
-                        chat_completion_chunk["id"] = str(uuid.uuid4())
-                        chat_completion_chunk["model"] = "rag-model"
-                        chat_completion_chunk["created"] = int(time.time())
-                        chat_completion_chunk["object"] = "extensions.chat.completion.chunk"
-                        chat_completion_chunk["choices"][0]["messages"].append(
-                            {"role": "assistant", "content": assistant_content}
-                        )
-                        chat_completion_chunk["choices"][0]["delta"] = {
-                            "role": "assistant",
-                            "content": assistant_content,
-                        }
-
-                        completion_chunk_obj = json.loads(
-                            json.dumps(chat_completion_chunk),
-                            object_hook=lambda d: SimpleNamespace(**d),
-                        )
-                        yield json.dumps(format_stream_response(completion_chunk_obj, history_metadata, "")) + "\n\n"
+                        yield json.dumps(response) + "\n\n"
 
             except AgentException as e:
                 error_message = str(e)
