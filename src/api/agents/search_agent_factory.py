@@ -1,8 +1,6 @@
 from azure.ai.agents.models import AzureAISearchTool, AzureAISearchQueryType
 from azure.ai.projects import AIProjectClient
-
 from agents.agent_factory_base import BaseAgentFactory
-
 from helpers.azure_credential_utils import get_azure_credential
 
 
