@@ -56,9 +56,41 @@ sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_
 
 # Step 5: Execute the Python scripts
 echo "Running Python index scripts..."
-python 01_create_search_index.py
-python 02_create_cu_template_text.py
-python 02_create_cu_template_audio.py
-python 03_cu_process_data_text.py
 
-echo "Index script setup completed successfully."
+# Run 01_create_search_index.py
+echo "Running 01_create_search_index.py..."
+if python 01_create_search_index.py; then
+    echo "✓ Search index created successfully."
+else
+    echo "✗ ERROR: 01_create_search_index.py failed with exit code $?"
+    exit 1
+fi
+
+# Run 02_create_cu_template_text.py
+echo "Running 02_create_cu_template_text.py..."
+if python 02_create_cu_template_text.py; then
+    echo "✓ Content Understanding text template created successfully."
+else
+    echo "✗ ERROR: 02_create_cu_template_text.py failed with exit code $?"
+    exit 1
+fi
+
+# Run 02_create_cu_template_audio.py
+echo "Running 02_create_cu_template_audio.py..."
+if python 02_create_cu_template_audio.py; then
+    echo "✓ Content Understanding audio template created successfully."
+else
+    echo "✗ ERROR: 02_create_cu_template_audio.py failed with exit code $?"
+    exit 1
+fi
+
+# Run 03_cu_process_data_text.py
+echo "Running 03_cu_process_data_text.py..."
+if python 03_cu_process_data_text.py; then
+    echo "✓ Content Understanding data processing for text completed successfully."
+else
+    echo "✗ ERROR: 03_cu_process_data_text.py failed with exit code $?"
+    exit 1
+fi
+
+echo "✓ Index script setup completed successfully."

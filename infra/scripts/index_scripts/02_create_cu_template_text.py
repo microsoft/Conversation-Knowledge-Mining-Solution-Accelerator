@@ -41,5 +41,15 @@ client = AzureContentUnderstandingClient(
 )
 
 # Create Analyzer
-response = client.begin_create_analyzer(ANALYZER_ID, analyzer_template_path=ANALYZER_TEMPLATE_FILE)
-result = client.poll_result(response)
+if __name__ == "__main__":
+    try:
+        print(f"Creating analyzer '{ANALYZER_ID}' from template '{ANALYZER_TEMPLATE_FILE}'...")
+        response = client.begin_create_analyzer(ANALYZER_ID, analyzer_template_path=ANALYZER_TEMPLATE_FILE)
+        result = client.poll_result(response)
+        print(f"Analyzer '{ANALYZER_ID}' created successfully.")
+        print("Script completed successfully.")
+    except Exception as e:
+        print(f"ERROR: Script failed with exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        exit(1)

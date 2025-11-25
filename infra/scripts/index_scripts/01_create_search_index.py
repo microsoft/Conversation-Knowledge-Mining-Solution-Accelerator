@@ -123,4 +123,12 @@ def create_search_index():
     print(f"Search index '{result.name}' created or updated successfully.")
 
 
-create_search_index()
+if __name__ == "__main__":
+    try:
+        create_search_index()
+        print("Script completed successfully.")
+    except Exception as e:
+        print(f"ERROR: Script failed with exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
