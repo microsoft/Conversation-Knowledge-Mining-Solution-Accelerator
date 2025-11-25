@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.37.4.10188",
-      "templateHash": "14194719810689418497"
+      "templateHash": "11248839133370877384"
     }
   },
   "parameters": {
@@ -30062,9 +30062,9 @@
         }
       },
       "dependsOn": [
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -53653,7 +53653,8 @@
                   "APP_ENV": "Prod",
                   "AZURE_CLIENT_ID": "[reference('backendUserAssignedIdentity').outputs.clientId.value]",
                   "AZURE_BASIC_LOGGING_LEVEL": "INFO",
-                  "AZURE_PACKAGE_LOGGING_LEVEL": "WARNING"
+                  "AZURE_PACKAGE_LOGGING_LEVEL": "WARNING",
+                  "AZURE_LOGGING_PACKAGES": ""
                 },
                 "applicationInsightResourceId": "[if(parameters('enableMonitoring'), reference('applicationInsights').outputs.resourceId.value, null())]"
               }
