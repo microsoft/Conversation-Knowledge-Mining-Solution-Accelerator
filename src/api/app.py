@@ -26,18 +26,11 @@ from api.history_routes import router as history_router
 # Load environment variables
 load_dotenv()
 
-
-def _get_env_or_default(key: str, default: str) -> str:
-    """Get environment variable with fallback for empty/whitespace values."""
-    value = os.getenv(key)
-    return value.strip().upper() if value and value.strip() else default.upper()
-
-
 # Configure logging
 # Basic application logging (default: INFO level)
-AZURE_BASIC_LOGGING_LEVEL = _get_env_or_default("AZURE_BASIC_LOGGING_LEVEL", "INFO")
+AZURE_BASIC_LOGGING_LEVEL = os.getenv("AZURE_BASIC_LOGGING_LEVEL", "INFO").upper()
 # Azure package logging (default: WARNING level to suppress INFO)
-AZURE_PACKAGE_LOGGING_LEVEL = _get_env_or_default("AZURE_PACKAGE_LOGGING_LEVEL", "WARNING")
+AZURE_PACKAGE_LOGGING_LEVEL = os.getenv("AZURE_PACKAGE_LOGGING_LEVEL", "WARNING").upper()
 # Azure logging packages (default: empty list)
 AZURE_LOGGING_PACKAGES = [
     pkg.strip() for pkg in os.getenv("AZURE_LOGGING_PACKAGES", "").split(",") if pkg.strip()
