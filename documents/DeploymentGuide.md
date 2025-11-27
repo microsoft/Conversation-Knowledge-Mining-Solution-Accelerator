@@ -94,7 +94,7 @@ You can run this solution using GitHub Codespaces. The button will open a web-ba
 </details>
 
 <details>
-  <summary><b>Deploy in VS Code</b></summary>
+  <summary><b>Deploy in VS Code Dev Conatiners</b></summary>
 
 ### VS Code Dev Containers
 
@@ -107,6 +107,24 @@ You can run this solution in VS Code Dev Containers, which will open the project
 
 3. In the VS Code window that opens, once the project files show up (this may take several minutes), open a terminal window.
 4. Continue with the [deploying steps](#deploying-with-azd).
+
+</details>
+
+<details>
+  <summary><b>Deploy in VS Code Web</b></summary>
+
+### VS Code Web
+
+[![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=):
+
+1. Click the badge above (may take a few minutes to load)
+2. Sign in with your Azure account when prompted
+3. Select the subscription where you want to deploy the solution
+4. Wait for the environment to initialize (includes all deployment tools)
+5. When prompted in the VS Code Web terminal, choose one of the available options shown below:
+
+   ![VS Code Initial Prompt](./Images/vscodeweb_intialize.png)
+6. Continue with the [deploying steps](#deploying-with-azd).
 
 </details>
 
