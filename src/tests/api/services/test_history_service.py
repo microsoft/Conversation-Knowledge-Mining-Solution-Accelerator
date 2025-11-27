@@ -30,9 +30,8 @@ def history_service(mock_config_instance):
     with patch("services.history_service.Config", return_value=mock_config_instance):
         # Create patches for other dependencies used by HistoryService
         with patch("services.history_service.CosmosConversationClient"):
-            with patch("services.history_service.complete_chat_request"):
-                service = HistoryService()
-                return service
+            service = HistoryService()
+            return service
 
 
 @pytest.fixture

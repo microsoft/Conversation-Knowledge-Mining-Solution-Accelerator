@@ -180,27 +180,3 @@ class ChatService:
                 yield json.dumps({"error": "An error occurred while processing the request."}) + "\n\n"
 
         return generate()
-
-    async def complete_chat_request(self, query, last_rag_response=None):
-        """
-        Completes a chat request by generating a chart from the RAG response.
-        """
-        if not last_rag_response:
-            return {"error": "A previous RAG response is required to generate a chart."}
-
-        # Process RAG response to generate chart data
-        chart_data = await self.process_rag_response(last_rag_response, query)
-
-        if not chart_data or "error" in chart_data:
-            return {
-                "error": "Chart could not be generated from this data. Please ask a different question.",
-                "error_desc": str(chart_data),
-            }
-
-        logger.info("Successfully generated chart data.")
-        return {
-            "id": str(uuid.uuid4()),
-            "model": "azure-openai",
-            "created": int(time.time()),
-            "object": chart_data,
-        }
