@@ -287,9 +287,8 @@ export async function callConversationApi(
       "X-Ms-Client-Principal-Id": userId || "",
     },
     body: JSON.stringify({
-      messages: options.messages,
-      conversation_id: options.id,
-      last_rag_response: options.last_rag_response
+      query: options.query,
+      conversation_id: options.id
     }),
     signal: abortSignal,
   });
@@ -428,42 +427,6 @@ export const historyEnsure = async (): Promise<CosmosDBHealth> => {
         cosmosDB: false,
         status: err,
       };
-    });
-  return response;
-};
-
-export const historyGenerate = async (
-  options: ConversationRequest,
-  abortSignal: AbortSignal,
-  convId?: string
-): Promise<Response> => {
-  let body;
-  if (convId) {
-    body = JSON.stringify({
-      conversation_id: convId,
-      messages: options.messages,
-    });
-  } else {
-    body = JSON.stringify({
-      messages: options.messages,
-    });
-  }
-  const userId = getUserIdFromLocalStorage();
-  const response = await fetch(`${baseURL}/history/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Ms-Client-Principal-Id": userId || "",
-    },
-    body: body,
-    signal: abortSignal,
-  })
-    .then((res) => {
-      return res;
-    })
-    .catch((_err) => {
-      console.error("There was an issue fetching your data.");
-      return new Response();
     });
   return response;
 };
