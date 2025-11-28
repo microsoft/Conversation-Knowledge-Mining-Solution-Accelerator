@@ -8,9 +8,6 @@ Includes thread management, caching, and integration with Azure OpenAI and FastA
 
 import json
 import logging
-import time
-import uuid
-from types import SimpleNamespace
 import asyncio
 import random
 import re
@@ -25,7 +22,6 @@ from azure.ai.agents.models import TruncationObject
 
 from cachetools import TTLCache
 
-from helpers.utils import format_stream_response
 from common.config.config import Config
 
 # Constants
@@ -135,11 +131,10 @@ class ChatService:
                         ChatService.thread_cache[corrupt_key] = thread_id
                 yield "I cannot answer this question with the current data. Please rephrase or add more details."
 
-    async def stream_chat_request(self, request_body, conversation_id, query):
+    async def stream_chat_request(self, conversation_id, query):
         """
         Handles streaming chat requests.
         """
-        history_metadata = request_body.get("history_metadata", {})
 
         async def generate():
             try:

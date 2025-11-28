@@ -252,8 +252,7 @@ class TestChatService:
         
         chat_service.stream_openai_text = mock_stream_openai_text
         
-        request_body = {"history_metadata": {"test": "metadata"}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
         
         chunks = []
         async for chunk in generator:
@@ -280,8 +279,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_rate_limit_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
         
         chunks = []
         async for chunk in generator:
@@ -304,8 +302,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_generic_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
 
         chunks = []
         async for chunk in generator:
@@ -328,8 +325,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_generic_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
 
         chunks = []
         async for chunk in generator:
