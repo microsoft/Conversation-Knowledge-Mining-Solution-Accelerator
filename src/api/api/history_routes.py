@@ -27,32 +27,6 @@ else:
 history_service = HistoryService()
 
 
-@router.post("/generate")
-async def add_conversation(request: Request):
-    try:
-        authenticated_user = get_authenticated_user_details(
-            request_headers=request.headers)
-        user_id = authenticated_user["user_principal_id"]
-
-        # Parse request body
-        request_json = await request.json()
-
-        response = await history_service.add_conversation(user_id, request_json)
-        track_event_if_configured("ConversationCreated", {
-            "user_id": user_id,
-            "request": request_json,
-        })
-        return response
-
-    except Exception as e:
-        logger.exception("Exception in /generate: %s", str(e))
-        span = trace.get_current_span()
-        if span is not None:
-            span.record_exception(e)
-            span.set_status(Status(StatusCode.ERROR, str(e)))
-        return JSONResponse(content={"error": "An internal error has occurred!"}, status_code=500)
-
-
 @router.post("/update")
 async def update_conversation(request: Request):
     try:

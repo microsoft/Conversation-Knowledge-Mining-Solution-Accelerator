@@ -608,6 +608,10 @@ module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
         value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServicesResourceName}.openai.azure.com/'
       }
       {
+        name: 'AZURE-AI-AGENT-ENDPOINT'
+        value: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
+      }
+      {
         name: 'COG-SERVICES-ENDPOINT'
         value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
       }
