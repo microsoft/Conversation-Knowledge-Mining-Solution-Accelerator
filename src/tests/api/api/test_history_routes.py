@@ -29,19 +29,6 @@ async def client():
 
 @pytest.mark.asyncio
 @patch("auth.auth_utils.get_authenticated_user_details")
-@patch("services.history_service.HistoryService.add_conversation", new_callable=AsyncMock)
-@patch("common.logging.event_utils.track_event_if_configured")
-async def test_add_conversation(mock_track, mock_add, mock_auth, client, headers):
-    mock_auth.return_value = {"user_principal_id": "user123"}
-    mock_add.return_value = {"result": "ok"}
-
-    res = await client.post("/generate", json={"message": "hello"}, headers=headers)
-    assert res.status_code == 200
-    assert res.json() == {"result": "ok"}
-
-
-@pytest.mark.asyncio
-@patch("auth.auth_utils.get_authenticated_user_details")
 @patch("services.history_service.HistoryService.update_conversation", new_callable=AsyncMock)
 @patch("common.logging.event_utils.track_event_if_configured")
 async def test_update_conversation(mock_track, mock_update, mock_auth, client, headers, mock_user):
@@ -311,8 +298,3 @@ async def test_ensure_cosmos_unknown_error(mock_track, mock_ensure, client):
     assert res.json()["error"] == "CosmosDB is not configured or not working"
 
 
-@pytest.mark.asyncio
-@patch("auth.auth_utils.get_authenticated_user_details", side_effect=Exception("auth error"))
-async def test_add_conversation_exception(mock_auth, client, headers):
-    res = await client.post("/generate", json={"message": "hi"}, headers=headers)
-    assert res.status_code == 500

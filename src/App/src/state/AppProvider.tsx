@@ -28,7 +28,6 @@ export type AppState = {
     generatingResponse: boolean;
     messages: ChatMessage[];
     userMessage: string;
-    lastRagResponse: string | null;
     isStreamingInProgress: boolean;
     citations: string |null;
   };
@@ -71,7 +70,6 @@ const initialState: AppState = {
     generatingResponse: false,
     messages: [],
     userMessage: "",
-    lastRagResponse: null,
     citations: "",
     isStreamingInProgress: false,
   },
@@ -186,10 +184,6 @@ export type Action =
   | {
       type: typeof actionConstants.UPDATE_HISTORY_UPDATE_API_FLAG;
       payload: boolean;
-    }
-  | {
-      type: typeof actionConstants.SET_LAST_RAG_RESPONSE;
-      payload: string | null;
     }
   | {
       type: typeof actionConstants.UPDATE_MESSAGE_BY_ID;

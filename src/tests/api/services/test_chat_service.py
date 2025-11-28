@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException, status
 from semantic_kernel.exceptions.agent_exceptions import AgentException as RealAgentException
-from azure.ai.agents.models import MessageRole
 
 
 
@@ -244,16 +243,8 @@ class TestChatService:
         assert "I cannot answer this question with the current data" in chunks[0]
     
     @pytest.mark.asyncio
-    @patch('services.chat_service.uuid.uuid4')
-    @patch('services.chat_service.time.time')
-    @patch('services.chat_service.format_stream_response')
-    async def test_stream_chat_request_success(self, mock_format_stream, mock_time, mock_uuid, chat_service):
+    async def test_stream_chat_request_success(self, chat_service):
         """Test successful stream chat request."""
-        # Setup mocks
-        mock_uuid.return_value = "test-uuid"
-        mock_time.return_value = 1234567890
-        mock_format_stream.return_value = {"formatted": "response"}
-        
         # Mock stream_openai_text
         async def mock_stream_openai_text(conversation_id, query):
             yield "Hello"
@@ -261,8 +252,7 @@ class TestChatService:
         
         chat_service.stream_openai_text = mock_stream_openai_text
         
-        request_body = {"history_metadata": {"test": "metadata"}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
         
         chunks = []
         async for chunk in generator:
@@ -272,7 +262,11 @@ class TestChatService:
         # Verify the chunks contain expected structure
         for chunk in chunks:
             chunk_data = json.loads(chunk.strip())
-            assert "formatted" in chunk_data
+            assert "choices" in chunk_data
+            assert len(chunk_data["choices"]) > 0
+            assert "messages" in chunk_data["choices"][0]
+            assert len(chunk_data["choices"][0]["messages"]) > 0
+            assert chunk_data["choices"][0]["messages"][0]["role"] == "assistant"
     
     @pytest.mark.asyncio
     async def test_stream_chat_request_agent_exception_rate_limit(self, chat_service):
@@ -285,8 +279,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_rate_limit_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
         
         chunks = []
         async for chunk in generator:
@@ -309,8 +302,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_generic_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
 
         chunks = []
         async for chunk in generator:
@@ -333,8 +325,7 @@ class TestChatService:
 
         chat_service.stream_openai_text = mock_stream_openai_text_generic_error
         
-        request_body = {"history_metadata": {}}
-        generator = await chat_service.stream_chat_request(request_body, "conv_1", "Hello")
+        generator = await chat_service.stream_chat_request("conv_1", "Hello")
 
         chunks = []
         async for chunk in generator:
@@ -345,46 +336,4 @@ class TestChatService:
         error_data = json.loads(chunks[0].strip())
         assert "error" in error_data
         assert "An error occurred while processing the request." == error_data["error"]
-    
-    @pytest.mark.asyncio
-    async def test_complete_chat_request_success(self, chat_service):
-        mock_chart_data = {
-            "type": "bar",
-            "data": {
-             "labels": ["A"],
-             "datasets": [{"data": [1]}]
-            }
-        }
-
-        chat_service.process_rag_response = AsyncMock(return_value=mock_chart_data)
-
-        result = await chat_service.complete_chat_request("Query", last_rag_response="RAG response")
-
-        assert result["object"]["type"] == "bar"
-
-    
-    @pytest.mark.asyncio
-    async def test_complete_chat_request_no_rag_response(self, chat_service):
-        """Test complete chat request without RAG response."""
-        result = await chat_service.complete_chat_request("Query", last_rag_response=None)
-        
-        assert "error" in result
-        assert result["error"] == "A previous RAG response is required to generate a chart."
-    
-    @pytest.mark.asyncio
-    async def test_complete_chat_request_chart_error(self, chat_service):
-        chat_service.process_rag_response = AsyncMock(return_value={"error": "Chart generation failed"})
-
-        result = await chat_service.complete_chat_request("Query", last_rag_response="RAG response")
-
-        assert "error" in result
-
-    
-    @pytest.mark.asyncio
-    async def test_complete_chat_request_empty_chart_data(self, chat_service):
-        chat_service.process_rag_response = AsyncMock(return_value=None)
-
-        result = await chat_service.complete_chat_request("Query", last_rag_response="RAG response")
-
-        assert "error" in result
 

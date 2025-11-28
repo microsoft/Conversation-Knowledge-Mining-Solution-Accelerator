@@ -11,8 +11,6 @@ from opentelemetry.trace import Status, StatusCode
 
 router = APIRouter()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Check if the Application Insights Instrumentation Key is set in the environment variables
@@ -25,48 +23,8 @@ else:
     # Log a warning if the Instrumentation Key is not found
     logging.warning("No Application Insights Instrumentation Key found. Skipping configuration")
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-
-# Suppress INFO logs from 'azure.core.pipeline.policies.http_logging_policy'
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
-    logging.WARNING
-)
-logging.getLogger("azure.identity.aio._internal").setLevel(logging.WARNING)
-
-# Suppress info logs from OpenTelemetry exporter
-logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(
-    logging.WARNING
-)
-
 # Single instance of HistoryService (if applicable)
 history_service = HistoryService()
-
-
-@router.post("/generate")
-async def add_conversation(request: Request):
-    try:
-        authenticated_user = get_authenticated_user_details(
-            request_headers=request.headers)
-        user_id = authenticated_user["user_principal_id"]
-
-        # Parse request body
-        request_json = await request.json()
-
-        response = await history_service.add_conversation(user_id, request_json)
-        track_event_if_configured("ConversationCreated", {
-            "user_id": user_id,
-            "request": request_json,
-        })
-        return response
-
-    except Exception as e:
-        logger.exception("Exception in /generate: %s", str(e))
-        span = trace.get_current_span()
-        if span is not None:
-            span.record_exception(e)
-            span.set_status(Status(StatusCode.ERROR, str(e)))
-        return JSONResponse(content={"error": "An internal error has occurred!"}, status_code=500)
 
 
 @router.post("/update")

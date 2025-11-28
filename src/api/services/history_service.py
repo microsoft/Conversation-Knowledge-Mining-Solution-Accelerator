@@ -6,11 +6,8 @@ from azure.ai.projects import AIProjectClient
 from azure.ai.agents.models import MessageRole, ListSortOrder
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from helpers.chat_helper import complete_chat_request
 from helpers.azure_credential_utils import get_azure_credential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -122,41 +119,6 @@ class HistoryService:
             if user_messages:
                 return user_messages[-1]["content"][:50]
             return "New Conversation"
-
-    async def add_conversation(self, user_id: str, request_json: dict):
-        try:
-            conversation_id = request_json.get("conversation_id")
-            messages = request_json.get("messages", [])
-
-            history_metadata = {}
-
-            # make sure cosmos is configured
-            cosmos_conversation_client = self.init_cosmosdb_client()
-            if not cosmos_conversation_client:
-                raise ValueError("CosmosDB is not configured or unavailable")
-
-            if not conversation_id:
-                title = await self.generate_title(messages)
-                conversation_dict = await cosmos_conversation_client.create_conversation(user_id, title)
-                conversation_id = conversation_dict["id"]
-                history_metadata["title"] = title
-                history_metadata["date"] = conversation_dict["createdAt"]
-
-            if messages and messages[-1]["role"] == "user":
-                created_message = await cosmos_conversation_client.create_message(conversation_id, user_id, messages[-1])
-                if created_message == "Conversation not found":
-                    raise ValueError(
-                        f"Conversation not found for ID: {conversation_id}")
-            else:
-                raise ValueError("No user message found")
-
-            request_body = {
-                "messages": messages, "history_metadata": {
-                    "conversation_id": conversation_id}}
-            return await complete_chat_request(request_body)
-        except Exception:
-            logger.exception("Error in add_conversation")
-            raise
 
     async def update_conversation(self, user_id: str, request_json: dict):
         conversation_id = request_json.get("conversation_id")

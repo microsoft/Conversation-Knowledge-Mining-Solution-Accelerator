@@ -4,8 +4,6 @@ from fastapi import HTTPException, status
 from api.models.input_models import ChartFilters
 from common.database.sqldb_service import adjust_processed_data_dates, fetch_chart_data, fetch_filters_data
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
