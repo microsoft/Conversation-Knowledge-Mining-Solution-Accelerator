@@ -1,46 +1,24 @@
-# Stage 1: Build frontend
-FROM node:20-alpine AS frontend  
-RUN mkdir -p /home/node/app/node_modules && chown -R node:node /home/node/app
+FROM node:20-alpine AS build 
+WORKDIR /home/node/app  
 
-WORKDIR /home/node/app 
+COPY ./package*.json ./  
+  
+RUN npm ci --omit=dev 
+ 
+COPY . .  
+ 
+RUN npm run build  
+  
+FROM nginx:alpine  
 
-# Install dependencies
-COPY ./frontend/package*.json ./  
-USER node
-RUN npm ci  
+COPY --from=build /home/node/app/build /usr/share/nginx/html  
 
-# Copy source code and build
-COPY --chown=node:node ./frontend/ ./frontend  
-WORKDIR /home/node/app/frontend
-RUN npm run build
+COPY env.sh /docker-entrypoint.d/env.sh
+RUN chmod +x /docker-entrypoint.d/env.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.d/env.sh
 
-# Stage 2: Build backend with static files
-FROM python:3.11-alpine 
+# Expose the application port
+EXPOSE 3000
 
-# Install dependencies
-RUN apk add --no-cache --virtual .build-deps \  
-    build-base \  
-    libffi-dev \  
-    openssl-dev \  
-    curl \  
-    && apk add --no-cache \  
-    libpq 
-
-COPY requirements.txt /usr/src/app/  
-RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt \  
-    && rm -rf /root/.cache  
-
-# Copy backend source code
-COPY . /usr/src/app/
-
-# Copy static files from the frontend stage to the backend
-COPY --from=frontend /home/node/app/frontend/build/index.html /usr/src/app/static/
-COPY --from=frontend /home/node/app/frontend/build/favicon.ico /usr/src/app/static/
-COPY --from=frontend /home/node/app/frontend/build/static /usr/src/app/static/
-
-# Set working directory and expose port
-WORKDIR /usr/src/app  
-EXPOSE 80  
-
-# Start application
-CMD ["gunicorn", "-b", "0.0.0.0:80", "app:app"]
+# Start NGINX and run env.sh
+CMD ["/bin/sh", "-c", "/docker-entrypoint.d/env.sh && nginx -g 'daemon off;'"]

@@ -1,295 +1,201 @@
 # Conversation knowledge mining solution accelerator
 
-MENU: [**USER STORY**](#user-story) \| [**QUICK DEPLOY**](#quick-deploy)  \| [**SUPPORTING DOCUMENTATION**](#supporting-documentation) 
+Gain actionable insights from large volumes of conversational data by identifying key themes, patterns, and relationships. Using Azure AI Foundry, Azure AI Content Understanding, Azure OpenAI Service, and Azure AI Search, this solution analyzes unstructured dialogue and maps it to meaningful, structured insights.
 
-<h2><img src="./docs/Images/ReadMe/userStory.png" width="64">
+Capabilities such as topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat enable users to explore data naturally and make faster, more informed decisions.
+
+Analysts working with large volumes of conversational data can use this solution to extract insights through natural language interaction. It supports tasks like identifying customer support trends, improving contact center quality, and uncovering operational intelligence—enabling teams to spot patterns, act on feedback, and make informed decisions faster.
+
 <br/>
-User story
+
+<div align="center">
+  
+[**SOLUTION OVERVIEW**](#solution-overview)  \| [**QUICK DEPLOY**](#quick-deploy)  \| [**BUSINESS SCENARIO**](#business-scenario)  \| [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+
+</div>
+<br/>
+ 
+ **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md).
+<br/>
+
+<h2><img src="./documents/Images/ReadMe/solution-overview.png" width="48" />
+Solution overview
 </h2>
 
-### Overview
-
-This solution accelerator enables customers with large amounts of conversational data to improve decision-making by leveraging intelligence to uncover insights, relationships, and patterns from customer interactions. It empowers users to gain valuable knowledge and drive targeted business impact. 
-
-It leverages Azure AI Foundry, Azure AI Content Understanding, Azure OpenAI Service, and Azure AI Search to transform large volumes of conversational data into actionable insights through topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat experiences.
-
-
-### Technical key features
-
-![image](./docs/Images/ReadMe/techkeyfeatures.png)
-
-Below is an image of the solution accelerator.
-
-![image](./docs/Images/ReadMe/ckm-ui.png)
-
-### Use case / scenario
-
-An analyst managing large volumes of conversational data needs a solution to visualize key insights and uncover patterns using natural language. An interactive dashboard enables them to explore rich, actionable insights for faster, and more informed decision-making.
- 
-This solution empowers analysts with tools to ask questions and receive real-time, contextualized responses. It streamlines problem-solving, enhances collaboration, and fosters innovation by making data-driven insights accessible and shareable.
-
-The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+Leverages Azure AI Content Understanding, Azure AI Search, Azure OpenAI Service, Semantic Kernel, Azure SQL Database, and Cosmos DB to process large volumes of conversational data. Audio and text inputs are analyzed through event-driven pipelines to extract and vectorize key information, orchestrate intelligent responses, and power an interactive web front-end for exploring insights using natural language.
 
 ### Solution architecture
-![image](./docs/Images/ReadMe/ckm-sol-arch.png)
-
-
-<h2><img src="./docs/Images/ReadMe/quickDeploy.png" width="64">
-<br/>
-QUICK DEPLOY
-</h2>
-
-### **Prerequisites**
-
-To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in  [Azure Account Set Up](./docs/AzureAccountSetUp.md) 
-
-Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available:  
-
-- Azure AI Foundry 
-- Azure OpenAI Service 
-- Azure AI Search
-- Azure AI Content Understanding
-- Embedding Deployment Capacity  
-- GPT Model Capacity
-- [Azure Semantic Search](./docs/AzureSemanticSearchRegion.md)  
-
-Here are some example regions where the services are available: East US, East US2, Australia East, UK South, France Central.
-
-### ⚠️ Important: Check Azure OpenAI Quota Availability  
-
-➡️ To ensure sufficient quota is available in your subscription, please follow **[Quota check instructions guide](./docs/quota_check.md)** before you deploy the solution.
-
-| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) |
-|---|---|
-        
-### **Configurable Deployment Settings**  
-
-When you start the deployment, most parameters will have **default values**, but you can update the following settings:  
-
-| **Setting** | **Description** | **Default value** |
-|------------|----------------|------------|
-| **Azure Region** | The region where resources will be created. | eastus | 
-| **Environment Name** | A **3-20 character alphanumeric value** used to generate a unique ID to prefix the resources. | kmtemplate |
-| **Azure AI Content Understanding Location** | Select from a drop-down list of values. | swedencentral |
-| **Secondary Location** | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2 |
-| **Deployment Type** | Select from a drop-down list. | GlobalStandard |
-| **GPT Model** | Choose from **gpt-4, gpt-4o, gpt-4o-mini** | gpt-4o-mini |  
-| **GPT Model Deployment Capacity** | Configure capacity for **GPT models**. | 30k |
-| **Embedding Model** | Default: **text-embedding-ada-002**. | text-embedding-ada-002 |
-| **Embedding Model Capacity** | Set the capacity for **embedding models**. | 80k |
-
-
-### [Optional] Quota Recommendations  
-By default, the **GPT model capacity** in deployment is set to **30k tokens**.  
-> **We recommend increasing the capacity to 100k tokens for optimal performance.** 
-
-To adjust quota settings, follow these [steps](./docs/AzureGPTQuotaSettings.md)  
-
-### Deployment Options
-Pick from the options below to see step-by-step instructions for: GitHub Codespaces, VS Code Dev Containers, Local Environments, and Bicep deployments.
-
-<details>
-  <summary><b>Deploy in GitHub Codespaces</b></summary>
-
-### GitHub Codespaces
-
-You can run this solution using GitHub Codespaces. The button will open a web-based VS Code instance in your browser:
-
-1. Open the solution accelerator (this may take several minutes):
-
-    [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator)
-2. Accept the default values on the create Codespaces page
-3. Open a terminal window if it is not already open
-4. Continue with the [deploying steps](#deploying)
-
-</details>
-
-<details>
-  <summary><b>Deploy in VS Code</b></summary>
-
- ### VS Code Dev Containers
-
-You can run this solution in VS Code Dev Containers, which will open the project in your local VS Code using the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers):
-
-1. Start Docker Desktop (install it if not already installed)
-2. Open the project:
-
-    [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator)
-
-
-3. In the VS Code window that opens, once the project files show up (this may take several minutes), open a terminal window.
-4. Continue with the [deploying steps](#deploying)
-
-</details>
-
-<details>
-  <summary><b>Deploy in your local environment</b></summary>
-
- ### Local environment
-
-If you're not using one of the above options for opening the project, then you'll need to:
-
-1. Make sure the following tools are installed:
-
-    * [Azure Developer CLI (azd)](https://aka.ms/install-azd)
-    * [Python 3.9+](https://www.python.org/downloads/)
-    * [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-    * [Git](https://git-scm.com/downloads)
-
-2. Download the project code:
-
-    ```shell
-    azd init -t microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/
-    ```
-
-3. Open the project folder in your terminal or editor.
-
-4. Continue with the [deploying steps](#deploying).
-
-</details>
-
-<!--
-<details>
-  <summary><b>Deploy with Bicep/ARM template</b></summary>
-
-### Bicep
- 
-   Click the following deployment button to create the required resources for this solution directly in your Azure Subscription.
-
-   [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fmicrosoft%2FConversation-Knowledge-Mining-Solution-Accelerator%2Fmain%2Finfra%2Fmain.json)          
-
-</details>
--->
-
-### Deploying
-
-Once you've opened the project in [Codespaces](#github-codespaces) or in [Dev Containers](#vs-code-dev-containers) or [locally](#local-environment), you can deploy it to Azure following the following steps. 
-
-To change the azd parameters from the default values, follow the steps [here](./docs/CustomizingAzdParameters.md). 
-
-
-1. Login to Azure:
-
-    ```shell
-    azd auth login
-    ```
-
-    #### To authenticate with Azure Developer CLI (`azd`), use the following command with your **Tenant ID**:
-
-    ```sh
-    azd auth login --tenant-id <tenant-id>
-   ```
-
-2. Provision and deploy all the resources:
-
-    ```shell
-    azd up
-    ```
-
-3. Provide an `azd` environment name (like "ckmapp")
-4. Select a subscription from your Azure account, and select a location which has quota for all the resources. 
-    * This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data. 
-    * If you get an error or timeout with deployment, changing the location can help, as there may be availability constraints for the resources.
-
-5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service and get the app URL from `Default domain`.
-
-6. You can now delete the resources by running `azd down`, if you are done trying out the application. 
-<!-- 6. You can now proceed to run the [development server](#development-server) to test the app locally, or if you are done trying out the app, you can delete the resources by running `azd down`. -->
-
-<h2>
-Additional Steps
-</h2>
-
-1. **Add App Authentication**
-   
-    Follow steps in [App Authentication](./docs/AppAuthentication.md) to configure authenitcation in app service.
-
-    Note: Authentication changes can take up to 10 minutes 
-
-2. **Deleting Resources After a Failed Deployment**
-     Follow steps in [Delete Resource Group](./docs/DeleteResourceGroup.md) If your deployment fails and you need to clean up the resources.
-
-## Sample Questions
-
-To help you get started, here are some **Sample Questions** you can ask in the app:
-
-- Total number of calls by date for the last 7 days
-- Show average handling time by topics in minutes
-- What are the top 7 challenges users reported?
-- Give a summary of billing issues
-- When customers call in about unexpected charges, what types of charges are they seeing?
-
-These questions serve as a great starting point to explore insights from the data.
-
-<h2>
-Responsible AI Transparency FAQ 
-</h2>
-
-Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
-
-
-<h2>
-Supporting documentation
-</h2>
-
-### Costs
-
-Pricing varies per region and usage, so it isn't possible to predict exact costs for your usage.
-The majority of the Azure resources used in this infrastructure are on usage-based pricing tiers.
-However, Azure Container Registry has a fixed cost per registry per day.
-
-You can try the [Azure pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator) for the resources:
-
-* Azure AI Foundry: Free tier. [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/)
-* Azure AI Search: Standard tier, S1. Pricing is based on the number of documents and operations. [Pricing](https://azure.microsoft.com/pricing/details/search/)
-* Azure Storage Account: Standard tier, LRS. Pricing is based on storage and operations. [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/)
-* Azure Key Vault: Standard tier. Pricing is based on the number of operations. [Pricing](https://azure.microsoft.com/pricing/details/key-vault/)
-* Azure AI Services: S0 tier, defaults to gpt-4o-mini and text-embedding-ada-002 models. Pricing is based on token count. [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/)
-* Azure Container App: Consumption tier with 0.5 CPU, 1GiB memory/storage. Pricing is based on resource allocation, and each month allows for a certain amount of free usage. [Pricing](https://azure.microsoft.com/pricing/details/container-apps/)
-* Azure Container Registry: Basic tier. [Pricing](https://azure.microsoft.com/pricing/details/container-registry/)
-* Log analytics: Pay-as-you-go tier. Costs based on data ingested. [Pricing](https://azure.microsoft.com/pricing/details/monitor/)
-* Azure SQL Server: General Purpose Tier. [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/)
-* Azure Cosmos DB: [Pricing](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/)
-* Azure functions: Consumption tier [Pricing](https://azure.microsoft.com/en-us/pricing/details/functions/)
-
-⚠️ To avoid unnecessary costs, remember to take down your app if it's no longer in use,
-either by deleting the resource group in the Portal or running `azd down`.
-
-### Security guidelines
-
-This template uses Azure Key Vault to store all connections to communicate between resources.
-
-This template also uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for local development and deployment.
-
-To ensure continued best practices in your own repository, we recommend that anyone creating solutions based on our templates ensure that the [Github secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) setting is enabled.
-
-You may want to consider additional security measures, such as:
-
-* Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/azure/security-center/defender-for-cloud).
-* Protecting the Azure Container Apps instance with a [firewall](https://learn.microsoft.com/azure/container-apps/waf-app-gateway) and/or [Virtual Network](https://learn.microsoft.com/azure/container-apps/networking?tabs=workload-profiles-env%2Cazure-cli).
-
-<!-- ### How to customize 
-
-If you'd like to customize the solution accelerator, here are some ways you might do that:
-- Ingest your own [audio conversation files](./docs/ConversationalDataFormat.md) by uploading them into the storage account and run the process data scripts.
-- You can also scale the solution and process large volumes of data by deploying this to Microsoft Fabric by following the steps in [Fabric_deployment.md](./docs/Fabric_deployment.md) -->
+|![image](./documents/Images/ReadMe/solution-architecture.png)|
+|---|
 
 ### Additional resources
 
-<!-- - [Microsoft Fabric documentation - Microsoft Fabric | Microsoft Learn](https://learn.microsoft.com/en-us/fabric/) -->
-- [Azure AI Foundry documentation](https://learn.microsoft.com/en-us/azure/ai-studio/) 
-- [Azure AI Content Understanding documentation](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/) 
-- [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/use-your-data)
-- [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/) 
-- [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/)
-- [Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/)
-- [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/)
-- [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/)
-<!-- - [Microsoft Fabric](https://learn.microsoft.com/en-us/fabric/) -->
+[Technical Architecture](./documents/TechnicalArchitecture.md)
 
-<!-- - [Speech service documentation - Tutorials, API Reference - Azure AI services - Azure AI services | Microsoft Learn](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/) -->
+<br/>
+
+### Key features
+<details open>  
+<summary>Click to learn more about the key features this solution enables</summary>  
+
+- **Mined entities and relationships** <br/>  
+Azure AI Content Understanding and Azure OpenAI Service extract entities and relationships from unstructured data to create a knowledge base.
+
+- **Processed data at scale** <br/>  
+Microsoft Fabric processes conversation data at scale, generating vector embeddings for efficient retrieval using the RAG (Retrieval-Augmented Generation) pattern.
+
+- **Visualized insights** <br/>  
+An interactive dashboard delivers actionable insights and trends through rich data visualizations.
+
+- **Natural language interaction** <br/>  
+Azure OpenAI Service enables contextual question-answering, conversation capabilities, and chart generation, all powered by the RAG pattern.
+
+- **Actionable insights** <br/>  
+Summarized conversations, topic generation, and key phrase extraction support faster decision-making and improved productivity.
+
+</details>
 
 
+
+<br /><br />
+<h2><img src="./documents/Images/ReadMe/quick-deploy.png" width="48" />
+Quick deploy
+</h2>
+
+### How to install or deploy
+Follow the quick deploy steps on the deployment guide to deploy this solution to your own Azure subscription.
+
+[Click here to launch the deployment guide](./documents/DeploymentGuide.md)
+<br/><br/>
+
+
+| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=) | 
+|---|---|---|
+
+<br/>
+
+> ⚠️ **Important: Check Azure OpenAI Quota Availability**
+ <br/>To ensure sufficient quota is available in your subscription, please follow [quota check instructions guide](./documents/QuotaCheck.md) before you deploy the solution.
+
+<br/>
+
+### Prerequisites and costs
+To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups, resources, app registrations, and assign roles at the resource group level**. This should include Contributor role at the subscription level and  Role Based Access Control role on the subscription and/or resource group level. Follow the steps in [Azure Account Set Up](./documents/AzureAccountSetUp.md).
+
+Here are some example regions where the services are available: East US, East US2, Australia East, UK South, France Central.
+
+Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available.
+
+Pricing varies by region and usage, so it isn't possible to predict exact costs for your usage. The majority of Azure resources used in this infrastructure are on usage-based pricing tiers. However, some services—such as Azure Container Registry, which has a fixed cost per registry per day, and others like Cosmos DB or SQL Database when provisioned—may incur baseline charges regardless of actual usage.
+
+Use the [Azure pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator) to calculate the cost of this solution in your subscription. 
+
+Review a [sample pricing sheet](https://azure.com/e/67c83432524440d98ccb8c92ebd3e2f7) in the event you want to customize and scale usage.
+
+_Note: This is not meant to outline all costs as selected SKUs, scaled use, customizations, and integrations into your own tenant can affect the total consumption of this sample solution. The sample pricing sheet is meant to give you a starting point to customize the estimate for your specific needs._
+
+<br/>
+
+| Product | Description | Tier / Expected Usage Notes | Cost |
+|---|---|---|---|
+| [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
+| [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search) | Powers vector-based semantic search for retrieving indexed conversation data. | Standard S1; costs scale with document count and replica/partition settings. | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
+| [Azure Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview) | Stores transcripts, intermediate outputs, and application assets. | Standard LRS; usage-based cost by storage/operations. | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
+| [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) | Secures secrets, credentials, and keys used across the application. | Standard Tier; cost per operation (e.g., secret retrieval). | [Pricing](https://azure.microsoft.com/pricing/details/key-vault/) |
+| [Azure AI Services (OpenAI)](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/overview) | Enables language understanding, summarization, entity extraction, and chat capabilities using GPT models. | S0 Tier; pricing depends on token volume and model used (e.g., GPT-4o-mini). | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
+| [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/overview) | Hosts microservices and APIs powering the front-end and backend orchestration. | Consumption plan with 0.5 vCPU, 1GiB memory; includes a free usage tier. | [Pricing](https://azure.microsoft.com/pricing/details/container-apps/) |
+| [Azure Container Registry](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-intro) | Stores and serves container images used by Azure Container Apps. | Basic Tier; fixed daily cost per registry. | [Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
+| [Azure Monitor / Log Analytics](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview) | Collects and analyzes telemetry and logs from services and containers. | Pay-as-you-go; charges based on data ingestion volume. | [Pricing](https://azure.microsoft.com/pricing/details/monitor/) |
+| [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview) | Stores structured data including insights, metadata, and indexed results. | General Purpose Tier; can be provisioned or serverless. Fixed cost if provisioned. | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
+| [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction) | Used for fast, globally distributed NoSQL data storage for chat history and vector metadata. | Autoscale or provisioned throughput; fixed minimum cost if provisioned. | [Pricing](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/) |
+| [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview) | Executes lightweight, serverless backend logic and event-driven workflows. | Consumption Tier; billed per execution and duration. | [Pricing](https://azure.microsoft.com/en-us/pricing/details/functions/) |
+
+
+<br/>
+
+>⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
+either by deleting the resource group in the Portal or running `azd down`.
+
+<br /><br />
+<h2><img src="./documents/Images/ReadMe/business-scenario.png" width="48" />
+Business scenario
+</h2>
+
+
+|![image](./documents/Images/ReadMe/ui.png)|
+|---|
+
+<br/>
+
+Analysts often work with large volumes of unstructured conversational data, making it difficult to extract actionable insights quickly and accurately. Traditional tools limit interaction with data, making it hard to surface patterns or ask the right follow-up questions without extensive manual exploration.
+
+This solution addresses those challenges by enabling natural language interaction, dynamic data exploration, and contextual visualization. Analysts can identify key themes, clarify findings, and act with greater confidence—all within a streamlined, insight-driven experience.
+
+⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+
+
+### Business value
+<details>
+  <summary>Click to learn more about what value this solution provides</summary>
+
+  - **Better decision-making** 
+Summarized, contextualized data helps organizations make informed strategic decisions that drive operational improvements at scale.
+
+- **Time saved**
+Automated insight extraction and scalable data exploration reduce manual analysis efforts, leading to improved efficiency and cost savings.
+
+- **Interactive data insights**
+Employees can engage directly with conversational data using natural language, enabling quicker understanding and faster resolution of issues.
+
+- **Actionable insights** 
+Clear, contextual insights empower employees to take meaningful action based on data-driven evidence.
+
+     
+</details>
+
+<br /><br />
+
+<h2><img src="./documents/Images/ReadMe/supporting-documentation.png" width="48" />
+Supporting documentation
+</h2>
+
+### Security guidelines
+
+This solution uses [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) to securely store secrets, connection strings, and API keys required by application components.
+
+It also leverages [Managed Identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources during local development and production deployment, eliminating the need for hard-coded credentials.
+
+To maintain strong security practices, it is recommended that GitHub repositories built on this solution enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) to detect accidental secret exposure.
+
+Additional security considerations include:
+
+- Enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/en-us/azure/defender-for-cloud) to monitor and secure Azure resources.
+- Using [Virtual Networks](https://learn.microsoft.com/en-us/azure/container-apps/networking?tabs=workload-profiles-env%2Cazure-cli) or [firewall rules](https://learn.microsoft.com/en-us/azure/container-apps/waf-app-gateway) to protect Azure Container Apps from unauthorized access.
+
+<br/>
+
+### Cross references
+Check out similar solution accelerators
+
+| Solution Accelerator | Description |
+|---|---|
+| [Document&nbsp;knowledge&nbsp;mining](https://github.com/microsoft/Document-Knowledge-Mining-Solution-Accelerator) | 	Identify relevant documents, summarize unstructured information, and generate document templates. |
+| [Content&nbsp;processing](https://github.com/microsoft/document-generation-solution-accelerator) | Extracts data from multi-modal content, maps it to schemas with confidence scoring and user validation, and enables accurate processing of documents like contracts, claims, and invoices. |
+
+
+<br/>
+
+
+## Provide feedback
+
+Have questions, find a bug, or want to request a feature? [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) on this repo and we'll connect.
+
+<br/>
+
+## Responsible AI Transparency FAQ 
+Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
+
+<br/>
 
 ## Disclaimers
 
@@ -301,4 +207,4 @@ You acknowledge that the Software and Microsoft Products and Services (1) are no
 
 You acknowledge the Software is not subject to SOC 1 and SOC 2 compliance audits. No Microsoft technology, nor any of its component technologies, including the Software, is intended or made available as a substitute for the professional advice, opinion, or judgement of a certified financial services professional. Do not use the Software to replace, substitute, or provide professional financial advice or judgment.  
 
-BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, “HIGH-RISK USE”), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY. BY ACCESSING THE SOFTWARE, YOU FURTHER ACKNOWLEDGE THAT YOUR HIGH-RISK USE OF THE SOFTWARE IS AT YOUR OWN RISK.  
+BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, “HIGH-RISK USE”), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY. BY ACCESSING THE SOFTWARE, YOU FURTHER ACKNOWLEDGE THAT YOUR HIGH-RISK USE OF THE SOFTWARE IS AT YOUR OWN RISK.

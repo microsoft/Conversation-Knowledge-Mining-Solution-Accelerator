@@ -1,0 +1,66 @@
+name: "Create Release"
+
+on:
+  push:
+    branches: ["main"]
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        ref: ${{ github.sha }}
+
+    - uses: codfish/semantic-release-action@v4
+      id: semantic
+      with:
+        tag-format: 'v${version}'
+        additional-packages: |
+          ['conventional-changelog-conventionalcommits@7']
+        plugins: |
+          [
+            [
+              "@semantic-release/commit-analyzer",
+              {
+                "preset": "conventionalcommits"
+              }
+            ],
+            [
+              "@semantic-release/release-notes-generator",
+              {
+                "preset": "conventionalcommits",
+                "presetConfig": {
+                  "types": [
+                    { type: 'feat', section: 'Features', hidden: false },
+                    { type: 'fix', section: 'Bug Fixes', hidden: false },
+                    { type: 'perf', section: 'Performance Improvements', hidden: false },
+                    { type: 'revert', section: 'Reverts', hidden: false },
+                    { type: 'docs', section: 'Other Updates', hidden: false },
+                    { type: 'style', section: 'Other Updates', hidden: false },
+                    { type: 'chore', section: 'Other Updates', hidden: false },
+                    { type: 'refactor', section: 'Other Updates', hidden: false },
+                    { type: 'test', section: 'Other Updates', hidden: false },
+                    { type: 'build', section: 'Other Updates', hidden: false },
+                    { type: 'ci', section: 'Other Updates', hidden: false }
+                  ]
+                }
+              }
+            ],
+            '@semantic-release/github'
+          ]
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - run: echo ${{ steps.semantic.outputs.release-version }}
+
+    - run: echo "$OUTPUTS"
+      env:
+        OUTPUTS: ${{ toJson(steps.semantic.outputs) }}

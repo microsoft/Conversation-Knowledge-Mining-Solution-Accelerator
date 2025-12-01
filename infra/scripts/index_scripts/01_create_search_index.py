@@ -1,83 +1,105 @@
-from azure.keyvault.secrets import SecretClient  
-from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
+from azure.search.documents.indexes import SearchIndexClient
+from azure.search.documents.indexes.models import (
+    SearchField,
+    SearchFieldDataType,
+    VectorSearch,
+    HnswAlgorithmConfiguration,
+    VectorSearchProfile,
+    AzureOpenAIVectorizer,
+    AzureOpenAIVectorizerParameters,
+    SemanticConfiguration,
+    SemanticSearch,
+    SemanticPrioritizedFields,
+    SemanticField,
+    SearchIndex
+)
+from azure_credential_utils import get_azure_credential
 
-key_vault_name = 'kv_to-be-replaced'
-managed_identity_client_id = 'mici_to-be-replaced'
-index_name = "call_transcripts_index"
+# === Configuration ===
+KEY_VAULT_NAME = 'kv_to-be-replaced'
+MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
+INDEX_NAME = "call_transcripts_index"
 
-def get_secrets_from_kv(kv_name, secret_name):
+print("calling create_search_index()....")
 
-    # Set the name of the Azure Key Vault  
-    key_vault_name = kv_name 
-    credential = DefaultAzureCredential(managed_identity_client_id=managed_identity_client_id)
 
-    # Create a secret client object using the credential and Key Vault name  
-    secret_client =  SecretClient(vault_url=f"https://{key_vault_name}.vault.azure.net/", credential=credential)  
+def get_secrets_from_kv(secret_name: str) -> str:
+    """
+    Retrieves a secret value from Azure Key Vault.
 
-    # Retrieve the secret value  
-    return(secret_client.get_secret(secret_name).value)
+    Args:
+        secret_name (str): Name of the secret.
+        credential (ManagedIdentityCredential): Credential with access to Key Vault.
 
-search_endpoint = get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-ENDPOINT")
-search_key =  get_secrets_from_kv(key_vault_name,"AZURE-SEARCH-KEY")
-
-# Create the search index
-def create_search_index():
-    from azure.core.credentials import AzureKeyCredential 
-    search_credential = AzureKeyCredential(search_key)
-
-    from azure.search.documents.indexes import SearchIndexClient
-    from azure.search.documents.indexes.models import (
-        SimpleField,
-        SearchFieldDataType,
-        SearchableField,
-        SearchField,
-        VectorSearch,
-        HnswAlgorithmConfiguration,
-        VectorSearchProfile,
-        SemanticConfiguration,
-        SemanticPrioritizedFields,
-        SemanticField,
-        SemanticSearch,
-        SearchIndex
+    Returns:
+        str: The secret value.
+    """
+    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    secret_client = SecretClient(
+        vault_url=f"https://{KEY_VAULT_NAME}.vault.azure.net/",
+        credential=kv_credential
     )
+    return secret_client.get_secret(secret_name).value
 
-    # Create a search index 
-    index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 
-    # fields = [
-    #     SimpleField(name="id", type=SearchFieldDataType.String, key=True, sortable=True, filterable=True, facetable=True),
-    #     SearchableField(name="chunk_id", type=SearchFieldDataType.String),
-    #     SearchableField(name="content", type=SearchFieldDataType.String),
-    #     SearchableField(name="sourceurl", type=SearchFieldDataType.String),
-    #     SearchField(name="contentVector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-    #                 searchable=True, vector_search_dimensions=1536, vector_search_profile_name="myHnswProfile"),
-    # ]
+def create_search_index():
+    """
+    Creates or updates an Azure Cognitive Search index configured for:
+    - Text fields
+    - Vector search using Azure OpenAI embeddings
+    - Semantic search using prioritized fields
+    """
+    # Shared credential
+    credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
 
+    # Retrieve secrets from Key Vault
+    search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")
+    openai_resource_url = get_secrets_from_kv("AZURE-OPENAI-ENDPOINT")
+    embedding_model = get_secrets_from_kv("AZURE-OPENAI-EMBEDDING-MODEL")
+
+    index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+
+    # Define index schema
     fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True),
-        SimpleField(name="chunk_id", type=SearchFieldDataType.String),
+        SearchField(name="id", type=SearchFieldDataType.String, key=True),
+        SearchField(name="chunk_id", type=SearchFieldDataType.String),
         SearchField(name="content", type=SearchFieldDataType.String),
-        SimpleField(name="sourceurl", type=SearchFieldDataType.String),
-        SearchField(name="contentVector", type=SearchFieldDataType.Collection(SearchFieldDataType.Single), \
-        vector_search_dimensions=1536,vector_search_profile_name="myHnswProfile"
+        SearchField(name="sourceurl", type=SearchFieldDataType.String),
+        SearchField(
+            name="contentVector",
+            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+            vector_search_dimensions=1536,
+            vector_search_profile_name="myHnswProfile"
         )
     ]
 
-    # Configure the vector search configuration 
+    # Define vector search settings
     vector_search = VectorSearch(
         algorithms=[
-            HnswAlgorithmConfiguration(
-                name="myHnsw"
-            )
+            HnswAlgorithmConfiguration(name="myHnsw")
         ],
         profiles=[
             VectorSearchProfile(
                 name="myHnswProfile",
                 algorithm_configuration_name="myHnsw",
+                vectorizer_name="myOpenAI"
+            )
+        ],
+        vectorizers=[
+            AzureOpenAIVectorizer(
+                vectorizer_name="myOpenAI",
+                kind="azureOpenAI",
+                parameters=AzureOpenAIVectorizerParameters(
+                    resource_url=openai_resource_url,
+                    deployment_name=embedding_model,
+                    model_name=embedding_model
+                )
             )
         ]
     )
 
+    # Define semantic configuration
     semantic_config = SemanticConfiguration(
         name="my-semantic-config",
         prioritized_fields=SemanticPrioritizedFields(
@@ -89,10 +111,16 @@ def create_search_index():
     # Create the semantic settings with the configuration
     semantic_search = SemanticSearch(configurations=[semantic_config])
 
-    # Create the search index with the semantic settings
-    index = SearchIndex(name=index_name, fields=fields,
-                        vector_search=vector_search, semantic_search=semantic_search)
+    # Define and create the index
+    index = SearchIndex(
+        name=INDEX_NAME,
+        fields=fields,
+        vector_search=vector_search,
+        semantic_search=semantic_search
+    )
+
     result = index_client.create_or_update_index(index)
-    print(f' {result.name} created')
+    print(f"Search index '{result.name}' created or updated successfully.")
+
 
 create_search_index()

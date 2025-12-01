@@ -1,0 +1,69 @@
+{
+  "name": "km-chart-visualization",
+  "version": "0.1.0",
+  "private": true,
+  "proxy": "http://localhost:5000",
+  "dependencies": {
+    "@fluentui/react": "^8.123.6",
+    "@azure/msal-react": "^3.0.20",
+    "@azure/msal-browser": "^4.24.1",
+    "@testing-library/jest-dom": "^6.9.0",
+    "@fluentui/react-icons": "^2.0.311",
+    "@fluentui/react-components": "^9.70.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/d3": "^7.4.3",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.6.1",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "axios": "^1.12.2",
+    "chart.js": "^4.5.0",
+    "d3": "^7.9.0",
+    "d3-cloud": "^1.2.7",
+    "d3-color": "^3.1.0",
+    "lodash-es": "^4.17.21",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.0",
+    "react-d3-cloud": "^1.0.6",
+    "react-dom": "^18.3.1",
+    "d3-color": "^3.1.0",
+    "lodash-es": "^4.17.21",
+    "react-markdown": "^10.1.0",
+    "react-scripts": "^5.0.1",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-supersub": "^1.0.0",
+    "typescript": "^4.9.5",
+    "web-vitals": "^3.5.2"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@types/chart.js": "^4.0.1",
+    "@types/lodash-es": "^4.17.12",
+    "nth-check": "^2.0.1"
+  }
+}

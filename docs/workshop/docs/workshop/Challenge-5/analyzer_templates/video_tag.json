@@ -1,0 +1,41 @@
+{
+    "analyzerId": "video_tag_analyzer",
+    "name": "Video Content Understanding",
+    "description": "Generating content understanding from video.",
+    "scenario": "videoShot",
+    "config": {
+        "returnDetails": true,
+        "locales": [
+            "en-US",
+            "es-ES",
+            "es-MX",
+            "fr-FR",
+            "hi-IN",
+            "it-IT",
+            "ja-JP",
+            "ko-KR",
+            "pt-BR",
+            "zh-CN"
+        ],
+        "enableFace": false
+    },
+    "fieldSchema": {
+        "name": "Content Understanding",
+        "descriptions": "Generate content understanding from video.",
+        "fields": {
+            "segmentDescription": {
+                "type": "string",
+                "description": "Detailed summary of the video segment, focusing on people, places, and actions taking place."
+            },
+            "transcript": {
+                "type": "string",
+                "kind": "generate",
+                "description": "Include transcript in this segment."
+            },
+            "tags": {
+                "type": "string",
+                "description": "generate tags from the video segment."
+            }
+        }
+    }
+}

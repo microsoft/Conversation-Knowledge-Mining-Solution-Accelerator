@@ -1,7 +1,53 @@
 #!/bin/bash
+# VERBOSE=false
+
+MODELS=""
+REGIONS=""
+VERBOSE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --models)
+      MODELS="$2"
+      shift 2
+      ;;
+    --regions)
+      REGIONS="$2"
+      shift 2
+      ;;
+    --verbose)
+      VERBOSE=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
+# Fallback to defaults if not provided
+[[ -z "$MODELS" ]]
+[[ -z "$REGIONS" ]]
+
+echo "Models: $MODELS"
+echo "Regions: $REGIONS"
+echo "Verbose: $VERBOSE"
+
+for arg in "$@"; do
+  if [ "$arg" = "--verbose" ]; then
+    VERBOSE=true
+  fi
+done
+
+log_verbose() {
+  if [ "$VERBOSE" = true ]; then
+    echo "$1"
+  fi
+}
 
 # Default Models and Capacities (Comma-separated in "model:capacity" format)
-DEFAULT_MODEL_CAPACITY="gpt-4o:30,gpt-4o-mini:30,gpt-4:30,text-embedding-ada-002:80"
+DEFAULT_MODEL_CAPACITY="gpt-4o:150,gpt-4o-mini:150,gpt-4:150,text-embedding-ada-002:80"
 
 # Convert the comma-separated string into an array
 IFS=',' read -r -a MODEL_CAPACITY_PAIRS <<< "$DEFAULT_MODEL_CAPACITY"
@@ -47,12 +93,12 @@ az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 echo "🎯 Active Subscription: $(az account show --query '[name, id]' --output tsv)"
 
 # Default Regions to check (Comma-separated, now configurable)
-DEFAULT_REGIONS="eastus,uksouth,eastus2,northcentralus,swedencentral,westus,westus2,southcentralus,canadacentral"
+DEFAULT_REGIONS="eastus,eastus2,australiaeast,uksouth,francecentral,westus"
 IFS=',' read -r -a DEFAULT_REGION_ARRAY <<< "$DEFAULT_REGIONS"
 
 # Read parameters (if any)
-IFS=',' read -r -a USER_PROVIDED_PAIRS <<< "$1"
-USER_REGION="$2"
+IFS=',' read -r -a USER_PROVIDED_PAIRS <<< "$MODELS"
+USER_REGION="$REGIONS"
 
 IS_USER_PROVIDED_PAIRS=false
 
@@ -100,12 +146,12 @@ INDEX=1
 
 VALID_REGIONS=()
 for REGION in "${REGIONS[@]}"; do
-    echo "----------------------------------------"
-    echo "🔍 Checking region: $REGION"
+    log_verbose "----------------------------------------"
+    log_verbose "🔍 Checking region: $REGION"
 
     QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json | tr '[:upper:]' '[:lower:]')
     if [ -z "$QUOTA_INFO" ]; then
-        echo "⚠️ WARNING: Failed to retrieve quota for region $REGION. Skipping."
+        log_verbose "⚠️ WARNING: Failed to retrieve quota for region $REGION. Skipping."
         continue
     fi
 
@@ -119,16 +165,12 @@ for REGION in "${REGIONS[@]}"; do
         FOUND=false
         INSUFFICIENT_QUOTA=false
 
-        if [ "$MODEL_NAME" = "text-embedding-ada-002" ]; then
-            MODEL_TYPES=("openai.standard.$MODEL_NAME")
-        else
-            MODEL_TYPES=("openai.standard.$MODEL_NAME" "openai.globalstandard.$MODEL_NAME")
-        fi
+        MODEL_TYPES=("openai.standard.$MODEL_NAME" "openai.globalstandard.$MODEL_NAME")
 
         for MODEL_TYPE in "${MODEL_TYPES[@]}"; do
             FOUND=false
             INSUFFICIENT_QUOTA=false
-            echo "🔍 Checking model: $MODEL_NAME with required capacity: $REQUIRED_CAPACITY ($MODEL_TYPE)"
+            log_verbose "🔍 Checking model: $MODEL_NAME with required capacity: $REQUIRED_CAPACITY ($MODEL_TYPE)"
 
             MODEL_INFO=$(echo "$QUOTA_INFO" | awk -v model="\"value\": \"$MODEL_TYPE\"" '
                 BEGIN { RS="},"; FS="," }
@@ -137,7 +179,7 @@ for REGION in "${REGIONS[@]}"; do
 
             if [ -z "$MODEL_INFO" ]; then
                 FOUND=false
-                echo "⚠️ WARNING: No quota information found for model: $MODEL_NAME in region: $REGION for model type: $MODEL_TYPE."
+                log_verbose "⚠️ WARNING: No quota information found for model: $MODEL_NAME in region: $REGION for model type: $MODEL_TYPE."
                 continue
             fi
 
@@ -153,7 +195,7 @@ for REGION in "${REGIONS[@]}"; do
                 LIMIT=$(echo "$LIMIT" | cut -d'.' -f1)
 
                 AVAILABLE=$((LIMIT - CURRENT_VALUE))
-                echo "✅ Model: $MODEL_TYPE | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE"
+                log_verbose "✅ Model: $MODEL_TYPE | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE"
 
                 if [ "$AVAILABLE" -ge "$REQUIRED_CAPACITY" ]; then
                     FOUND=true
@@ -168,9 +210,10 @@ for REGION in "${REGIONS[@]}"; do
             fi
             
             if [ "$FOUND" = false ]; then
-                echo "❌ No models found for model: $MODEL_NAME in region: $REGION (${MODEL_TYPES[*]})"
+                log_verbose "❌ No models found for model: $MODEL_NAME in region: $REGION (${MODEL_TYPES[*]})"
+                
             elif [ "$INSUFFICIENT_QUOTA" = true ]; then
-                echo "⚠️ Model $MODEL_NAME in region: $REGION has insufficient quota (${MODEL_TYPES[*]})."
+                log_verbose "⚠️ Model $MODEL_NAME in region: $REGION has insufficient quota (${MODEL_TYPES[*]})."
             fi
         done
     done
