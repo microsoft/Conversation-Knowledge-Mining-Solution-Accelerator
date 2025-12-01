@@ -53,7 +53,7 @@ on:
         default: ''
         type: string
       existing_webapp_url:
-        description: 'Existing Container WebApp URL (Skips Deployment)'
+        description: 'Existing WebApp URL (Skips Deployment)'
         required: false
         default: ''
         type: string
