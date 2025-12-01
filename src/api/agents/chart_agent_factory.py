@@ -1,8 +1,10 @@
+import logging
 from azure.ai.projects import AIProjectClient
 
 from agents.agent_factory_base import BaseAgentFactory
 from helpers.azure_credential_utils import get_azure_credential
 
+logger = logging.getLogger(__name__)
 
 class ChartAgentFactory(BaseAgentFactory):
     """
@@ -13,8 +15,11 @@ class ChartAgentFactory(BaseAgentFactory):
     @classmethod
     async def create_agent(cls, config):
         """
-        Asynchronously creates an AI agent configured to convert structured data
+        Asynchronously creates or retrieves an AI agent configured to convert structured data
         into chart.js-compatible JSON using Azure AI Project.
+        
+        First checks if an agent with the expected name already exists and reuses it.
+        Only creates a new agent if one doesn't exist.
 
         Args:
             config: Configuration object containing AI project and model settings.
@@ -41,11 +46,28 @@ class ChartAgentFactory(BaseAgentFactory):
             api_version=config.ai_project_api_version,
         )
 
+        agent_name = f"KM-ChartAgent-{config.solution_name}"
+        
+        # Try to find an existing agent with the same name
+        try:
+            agents_list = project_client.agents.list_agents()
+            for existing_agent in agents_list:
+                if existing_agent.name == agent_name:
+                    logger.info(f"Reusing existing agent: {agent_name} (ID: {existing_agent.id})")
+                    return {
+                        "agent": existing_agent,
+                        "client": project_client
+                    }
+        except Exception as e:
+            logger.warning(f"Could not list existing agents: {e}. Creating new agent.")
+
+        # No existing agent found, create a new one
         agent = project_client.agents.create_agent(
             model=config.azure_openai_deployment_model,
-            name=f"KM-ChartAgent-{config.solution_name}",
+            name=agent_name,
             instructions=instructions,
         )
+        logger.info(f"Created new agent: {agent_name} (ID: {agent.id})")
 
         return {
             "agent": agent,
