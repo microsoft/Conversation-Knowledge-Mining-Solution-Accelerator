@@ -1,0 +1,85 @@
+name: Deploy-Test-Cleanup Windows
+on:
+  workflow_dispatch:
+    inputs:
+      azure_location:
+        description: 'Azure Location For Deployment'
+        required: false
+        default: 'australiaeast'
+        type: choice
+        options:
+          - 'australiaeast'
+          - 'centralus'
+          - 'eastasia'
+          - 'eastus2'
+          - 'japaneast'
+          - 'northeurope'
+          - 'southeastasia'
+          - 'uksouth'
+      resource_group_name:
+        description: 'Resource Group Name (Optional)'
+        required: false
+        default: ''
+        type: string
+      waf_enabled:
+        description: 'Enable WAF'
+        required: false
+        default: false
+        type: boolean
+      exp:
+        description: 'Enable EXP'
+        required: false
+        default: false
+        type: boolean
+      build_docker_image:
+        description: 'Build And Push Docker Image (Optional)'
+        required: false
+        default: false
+        type: boolean
+      cleanup_resources:
+        description: 'Cleanup Deployed Resources'
+        required: false
+        default: false
+        type: boolean
+      run_e2e_tests:
+        description: 'Run End-to-End Tests'
+        required: false
+        default: 'GoldenPath-Testing'
+        type: choice
+        options:
+          - 'GoldenPath-Testing'
+          - 'Smoke-Testing'
+          - 'None'
+      azure_env_log_anlytics_workspace_id:
+        description: 'Log Analytics Workspace ID (Optional)'
+        required: false
+        default: ''
+        type: string
+      azure_existing_ai_project_resource_id:
+        description: 'AI Project Resource ID (Optional)'
+        required: false
+        default: ''
+        type: string
+      existing_webapp_url:
+        description: 'Existing Container WebApp URL (Skips Deployment)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  Run:
+    uses: ./.github/workflows/deploy-orchestrator.yml
+    with:
+      runner_os: windows-latest
+      azure_location: ${{ github.event.inputs.azure_location || 'australiaeast' }}
+      resource_group_name: ${{ github.event.inputs.resource_group_name || '' }}
+      waf_enabled: ${{ github.event.inputs.waf_enabled == 'true' }}
+      exp: ${{ github.event.inputs.exp == 'true' }}
+      build_docker_image: ${{ github.event.inputs.build_docker_image == 'true' }}
+      cleanup_resources: ${{ github.event.inputs.cleanup_resources == 'true' }}
+      run_e2e_tests: ${{ github.event.inputs.run_e2e_tests || 'GoldenPath-Testing' }}
+      azure_env_log_anlytics_workspace_id: ${{ github.event.inputs.azure_env_log_anlytics_workspace_id || '' }}
+      azure_existing_ai_project_resource_id: ${{ github.event.inputs.azure_existing_ai_project_resource_id || '' }}
+      existing_webapp_url: ${{ github.event.inputs.existing_webapp_url || '' }}
+      trigger_type: ${{ github.event_name }}
+    secrets: inherit
