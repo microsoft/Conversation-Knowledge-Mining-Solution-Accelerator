@@ -1,4 +1,4 @@
-name: Deploy Job v2
+name: Deploy Job
 
 on:
   workflow_call:
@@ -66,28 +66,7 @@ on:
         required: false
         default: ''
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      ACR_TEST_LOGIN_SERVER:
-        required: true
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
-        required: false
-      AZURE_ENV_FOUNDRY_PROJECT_ID:
-        required: false
     outputs:
-      invoice_schema_id:
-        description: "Invoice Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.invoice_schema_id || jobs.deploy-windows.outputs.invoice_schema_id }}
-      propertydamageclaimform_schema_id:
-        description: "Property Damage Claim Form Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.propertydamageclaimform_schema_id || jobs.deploy-windows.outputs.propertydamageclaimform_schema_id }}
       RESOURCE_GROUP_NAME:
         description: "Resource Group Name"
         value: ${{ jobs.azure-setup.outputs.RESOURCE_GROUP_NAME }}
@@ -119,7 +98,7 @@ env:
   BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
   WAF_ENABLED: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.waf_enabled || false) || false }}
   EXP: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.exp || false) || false }}
-  CLEANUP_RESOURCES: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.cleanup_resources || true) || true }}
+  CLEANUP_RESOURCES: ${{ inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources }}
   RUN_E2E_TESTS: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.run_e2e_tests || 'GoldenPath-Testing') || 'GoldenPath-Testing' }}
   BUILD_DOCKER_IMAGE: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.build_docker_image || false) || false }}
 
@@ -366,14 +345,7 @@ jobs:
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
       AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.azure_env_log_anlytics_workspace_id }}
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.azure_existing_ai_project_resource_id }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-      AZURE_ENV_FOUNDRY_PROJECT_ID: ${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}
+    secrets: inherit
 
   deploy-windows:
     name: Deploy on Windows
@@ -391,11 +363,4 @@ jobs:
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
       AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.azure_env_log_anlytics_workspace_id }}
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.azure_existing_ai_project_resource_id }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-      AZURE_ENV_FOUNDRY_PROJECT_ID: ${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}
+    secrets: inherit

@@ -1,4 +1,4 @@
-name: Deploy Steps - Linux v2
+name: Deploy Steps - Linux
 
 on:
   workflow_call:
@@ -34,21 +34,6 @@ on:
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
         required: false
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      ACR_TEST_LOGIN_SERVER:
-        required: true
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
-        required: false
-      AZURE_ENV_FOUNDRY_PROJECT_ID:
-        required: false
     outputs:
       WEB_APP_URL:
         description: "Web App URL"
@@ -56,12 +41,6 @@ on:
       APP_API_URL:
         description: "API App URL"
         value: ${{ jobs.deploy-linux.outputs.APP_API_URL }}
-      invoice_schema_id:
-        description: "Invoice Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.invoice_schema_id }}
-      propertydamageclaimform_schema_id:
-        description: "Property Damage Claim Form Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.propertydamageclaimform_schema_id }}
 
 jobs:
   deploy-linux:
@@ -71,8 +50,7 @@ jobs:
     outputs:
       WEB_APP_URL: ${{ steps.get_output_linux.outputs.WEB_APP_URL }}
       APP_API_URL: ${{ steps.get_output_linux.outputs.APP_API_URL }}
-      invoice_schema_id: ${{ steps.register_linux.outputs.invoice_schema_id }}
-      propertydamageclaimform_schema_id: ${{ steps.register_linux.outputs.propertylossdamageclaimform_schema_id }}
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

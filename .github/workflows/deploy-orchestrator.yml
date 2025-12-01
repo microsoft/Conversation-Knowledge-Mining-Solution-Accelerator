@@ -1,4 +1,4 @@
-name: Deployment orchestrator v2
+name: Deployment orchestrator
 
 on:
   workflow_call:
@@ -61,34 +61,6 @@ on:
         description: 'Trigger type (workflow_dispatch, pull_request, schedule)'
         required: true
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      ACR_TEST_LOGIN_SERVER:
-        required: true
-      ACR_TEST_USERNAME:
-        required: true
-      ACR_TEST_PASSWORD:
-        required: true
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
-        required: false
-      AZURE_ENV_FOUNDRY_PROJECT_ID:
-        required: false
-      EMAILNOTIFICATION_LOGICAPP_URL_TA:
-        required: false
-    outputs:
-      WEB_APP_URL:
-        description: "Web App URL"
-        value: ${{ jobs.deploy.outputs.WEB_APP_URL }}
-      RESOURCE_GROUP_NAME:
-        description: "Resource Group Name"
-        value: ${{ jobs.deploy.outputs.RESOURCE_GROUP_NAME }}
 
 env:
   AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
@@ -99,10 +71,7 @@ jobs:
     with:
       trigger_type: ${{ inputs.trigger_type }}
       build_docker_image: ${{ inputs.build_docker_image }}
-    secrets:
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      ACR_TEST_USERNAME: ${{ secrets.ACR_TEST_USERNAME }}
-      ACR_TEST_PASSWORD: ${{ secrets.ACR_TEST_PASSWORD }}
+    secrets: inherit
 
   deploy:
     if: always() && (inputs.trigger_type != 'workflow_dispatch' || inputs.existing_webapp_url == '' || inputs.existing_webapp_url == null)
@@ -120,14 +89,9 @@ jobs:
       azure_env_log_anlytics_workspace_id: ${{ inputs.azure_env_log_anlytics_workspace_id }}
       azure_existing_ai_project_resource_id: ${{ inputs.azure_existing_ai_project_resource_id }}
       docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.azure_env_log_anlytics_workspace_id }}
-      AZURE_ENV_FOUNDRY_PROJECT_ID: ${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}
+      run_e2e_tests: ${{ inputs.run_e2e_tests }}
+      cleanup_resources: ${{ inputs.cleanup_resources }}
+    secrets: inherit
 
   e2e-test:
     if: always() && ((needs.deploy.result == 'success' && needs.deploy.outputs.WEB_APP_URL != '') || (inputs.existing_webapp_url != '' && inputs.existing_webapp_url != null)) && (inputs.trigger_type != 'workflow_dispatch' || (inputs.run_e2e_tests != 'None' && inputs.run_e2e_tests != '' && inputs.run_e2e_tests != null))
@@ -146,21 +110,20 @@ jobs:
     with:
       trigger_type: ${{ inputs.trigger_type }}
       waf_enabled: ${{ inputs.waf_enabled }}
-      EXP: ${{ inputs.exp }}
+      exp: ${{ inputs.exp }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
       deploy_result: ${{ needs.deploy.result }}
       e2e_test_result: ${{ needs.e2e-test.result }}
-      CONTAINER_WEB_APPURL: ${{ needs.deploy.outputs.CONTAINER_WEB_APPURL }}
-      RESOURCE_GROUP_NAME: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
-      QUOTA_FAILED: ${{ needs.deploy.outputs.QUOTA_FAILED }}
-      TEST_SUCCESS: ${{ needs.e2e-test.outputs.TEST_SUCCESS }}
-      TEST_REPORT_URL: ${{ needs.e2e-test.outputs.TEST_REPORT_URL }}
-    secrets:
-      EMAILNOTIFICATION_LOGICAPP_URL_TA: ${{ secrets.EMAILNOTIFICATION_LOGICAPP_URL_TA }}
+      web_app_url: ${{ needs.deploy.outputs.WEB_APP_URL }}
+      resource_group_name: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
+      quota_failed: ${{ needs.deploy.outputs.QUOTA_FAILED }}
+      test_success: ${{ needs.e2e-test.outputs.TEST_SUCCESS }}
+      test_report_url: ${{ needs.e2e-test.outputs.TEST_REPORT_URL }}
+    secrets: inherit
 
   cleanup-deployment:
-    if: always() && needs.deploy.result == 'success' && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources == true || inputs.cleanup_resources == null)
+    if: always() && needs.deploy.result == 'success' && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources)
     needs: [docker-build, deploy, e2e-test]
     uses: ./.github/workflows/job-cleanup-resources.yml
     with:
@@ -168,13 +131,9 @@ jobs:
       trigger_type: ${{ inputs.trigger_type }}
       cleanup_resources: ${{ inputs.cleanup_resources }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
-      RESOURCE_GROUP_NAME: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
-      AZURE_LOCATION: ${{ needs.deploy.outputs.AZURE_LOCATION }}
-      AZURE_ENV_OPENAI_LOCATION: ${{ needs.deploy.outputs.AZURE_ENV_OPENAI_LOCATION }}
-      ENV_NAME: ${{ needs.deploy.outputs.ENV_NAME }}
-      IMAGE_TAG: ${{ needs.deploy.outputs.IMAGE_TAG }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      resource_group_name: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
+      azure_location: ${{ needs.deploy.outputs.AZURE_LOCATION }}
+      azure_env_openai_location: ${{ needs.deploy.outputs.AZURE_ENV_OPENAI_LOCATION }}
+      env_name: ${{ needs.deploy.outputs.ENV_NAME }}
+      image_tag: ${{ needs.deploy.outputs.IMAGE_TAG }}
+    secrets: inherit

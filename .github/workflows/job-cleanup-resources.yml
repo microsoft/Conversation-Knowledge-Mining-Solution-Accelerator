@@ -1,4 +1,4 @@
-name: Cleanup Deployment Job v2
+name: Cleanup Deployment Resources
 
 on:
   workflow_call:
@@ -21,47 +21,37 @@ on:
         required: false
         default: ''
         type: string
-      RESOURCE_GROUP_NAME:
+      resource_group_name:
         description: 'Resource Group Name to cleanup'
         required: true
         type: string
-      AZURE_LOCATION:
+      azure_location:
         description: 'Azure Location'
         required: true
         type: string
-      AZURE_ENV_OPENAI_LOCATION:
+      azure_env_openai_location:
         description: 'Azure OpenAI Location'
         required: true
         type: string
-      ENV_NAME:
+      env_name:
         description: 'Environment Name'
         required: true
         type: string
-      IMAGE_TAG:
+      image_tag:
         description: 'Docker Image Tag'
         required: true
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
 
 jobs:
   cleanup-deployment:
-    if: inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources == true || inputs.cleanup_resources == null)
     runs-on: ${{ inputs.runner_os }}
     continue-on-error: true
     env:
-      RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
-      AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
-      AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
-      ENV_NAME: ${{ inputs.ENV_NAME }}
-      IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+      RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
+      AZURE_LOCATION: ${{ inputs.azure_location }}
+      AZURE_ENV_OPENAI_LOCATION: ${{ inputs.azure_env_openai_location }}
+      ENV_NAME: ${{ inputs.env_name }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
     steps:
       - name: Setup Azure CLI
         shell: bash
