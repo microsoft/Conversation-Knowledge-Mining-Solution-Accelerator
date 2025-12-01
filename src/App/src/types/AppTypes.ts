@@ -39,8 +39,7 @@ export type ChatMessage = {
 
 export type ConversationRequest = {
   id?: string;
-  messages: ChatMessage[];
-  last_rag_response: string | null;
+  query: string;
 };
 
 export type AskResponse = {
@@ -146,10 +145,6 @@ export type HistoryMetaData = {
 
 export type ParsedChunk = {
   error?: string;
-  id: string;
-  model: string;
-  created: number;
-  object: string;
   choices: [
     {
       messages: [
@@ -158,10 +153,8 @@ export type ParsedChunk = {
           role: string;
         }
       ];
-      history_metadata: object;
     }
   ];
-  "apim-request-id": string;
 };
 
 export type ToolMessageContent = {

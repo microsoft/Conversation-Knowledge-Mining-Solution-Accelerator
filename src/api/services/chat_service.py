@@ -8,9 +8,6 @@ Includes thread management, caching, and integration with Azure OpenAI and FastA
 
 import json
 import logging
-import time
-import uuid
-from types import SimpleNamespace
 import asyncio
 import random
 import re
@@ -25,15 +22,12 @@ from azure.ai.agents.models import TruncationObject
 
 from cachetools import TTLCache
 
-from helpers.utils import format_stream_response
 from common.config.config import Config
 
 # Constants
 HOST_NAME = "CKM"
 HOST_INSTRUCTIONS = "Answer questions about call center operations"
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -135,11 +129,10 @@ class ChatService:
                         ChatService.thread_cache[corrupt_key] = thread_id
                 yield "I cannot answer this question with the current data. Please rephrase or add more details."
 
-    async def stream_chat_request(self, request_body, conversation_id, query):
+    async def stream_chat_request(self, conversation_id, query):
         """
         Handles streaming chat requests.
         """
-        history_metadata = request_body.get("history_metadata", {})
 
         async def generate():
             try:
@@ -150,38 +143,17 @@ class ChatService:
                     assistant_content += str(chunk)
 
                     if assistant_content:
-                        chat_completion_chunk = {
-                            "id": "",
-                            "model": "",
-                            "created": 0,
-                            "object": "",
+                        # Optimized response - only send fields used by frontend
+                        response = {
                             "choices": [
                                 {
-                                    "messages": [],
-                                    "delta": {},
+                                    "messages": [
+                                        {"role": "assistant", "content": assistant_content}
+                                    ]
                                 }
-                            ],
-                            "history_metadata": history_metadata,
-                            "apim-request-id": "",
+                            ]
                         }
-
-                        chat_completion_chunk["id"] = str(uuid.uuid4())
-                        chat_completion_chunk["model"] = "rag-model"
-                        chat_completion_chunk["created"] = int(time.time())
-                        chat_completion_chunk["object"] = "extensions.chat.completion.chunk"
-                        chat_completion_chunk["choices"][0]["messages"].append(
-                            {"role": "assistant", "content": assistant_content}
-                        )
-                        chat_completion_chunk["choices"][0]["delta"] = {
-                            "role": "assistant",
-                            "content": assistant_content,
-                        }
-
-                        completion_chunk_obj = json.loads(
-                            json.dumps(chat_completion_chunk),
-                            object_hook=lambda d: SimpleNamespace(**d),
-                        )
-                        yield json.dumps(format_stream_response(completion_chunk_obj, history_metadata, "")) + "\n\n"
+                        yield json.dumps(response) + "\n\n"
 
             except AgentException as e:
                 error_message = str(e)
@@ -201,27 +173,3 @@ class ChatService:
                 yield json.dumps({"error": "An error occurred while processing the request."}) + "\n\n"
 
         return generate()
-
-    async def complete_chat_request(self, query, last_rag_response=None):
-        """
-        Completes a chat request by generating a chart from the RAG response.
-        """
-        if not last_rag_response:
-            return {"error": "A previous RAG response is required to generate a chart."}
-
-        # Process RAG response to generate chart data
-        chart_data = await self.process_rag_response(last_rag_response, query)
-
-        if not chart_data or "error" in chart_data:
-            return {
-                "error": "Chart could not be generated from this data. Please ask a different question.",
-                "error_desc": str(chart_data),
-            }
-
-        logger.info("Successfully generated chart data.")
-        return {
-            "id": str(uuid.uuid4()),
-            "model": "azure-openai",
-            "created": int(time.time()),
-            "object": chart_data,
-        }
