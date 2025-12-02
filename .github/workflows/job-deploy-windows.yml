@@ -135,7 +135,7 @@ jobs:
 
           # Set tags for deployment
           Write-Host "Setting deployment tags..."
-          azd env set AZURE_TAGS='{"SecurityControl":"Ignore"}'
+          azd env set AZURE_TAGS='{\"SecurityControl\":\"Ignore\"}'
 
           # Deploy using azd up
           azd up --no-prompt
