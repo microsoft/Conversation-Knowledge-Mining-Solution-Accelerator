@@ -34,6 +34,10 @@ on:
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
         required: false
         type: string
+      AZURE_TAGS:
+        required: false
+        type: string
+        description: 'Optional JSON string of tags to apply to Azure resources'
     outputs:
       WEB_APP_URL:
         description: "Web App URL"
@@ -135,7 +139,20 @@ jobs:
 
           # Set tags for deployment
           Write-Host "Setting deployment tags..."
-          azd env set AZURE_TAGS='{\"SecurityControl\":\"Ignore\"}'
+          if ("${{ inputs.AZURE_TAGS }}" -ne "") {
+            $AZURE_TAGS = "${{ inputs.AZURE_TAGS }}"
+            Write-Host "Using custom tags from input: $AZURE_TAGS"
+          } else {
+            $AZURE_TAGS = @{
+              "SecurityControl" = "Ignore"
+              "Environment" = "${{ inputs.ENV_NAME }}"
+              "Project" = "ConversationKnowledgeMining"
+              "DeployedBy" = "GitHubActions"
+              "Location" = "${{ inputs.AZURE_LOCATION }}"
+            } | ConvertTo-Json -Compress
+            Write-Host "Using default tags: $AZURE_TAGS"
+          }
+          azd env set AZURE_TAGS="$AZURE_TAGS"
 
           # Deploy using azd up
           azd up --no-prompt
