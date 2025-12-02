@@ -12,13 +12,6 @@ on:
         required: false
         default: false
         type: boolean
-    secrets:
-      ACR_TEST_LOGIN_SERVER:
-        required: true
-      ACR_TEST_USERNAME:
-        required: true
-      ACR_TEST_PASSWORD:
-        required: true
     outputs:
       IMAGE_TAG:
         description: "Generated Docker Image Tag"
@@ -61,41 +54,25 @@ jobs:
           username: ${{ secrets.ACR_TEST_USERNAME }}
           password: ${{ secrets.ACR_TEST_PASSWORD }}
 
-      # - name: Build and Push ContentProcessor Docker image
-      #   uses: docker/build-push-action@v6
-      #   env:
-      #     DOCKER_BUILD_SUMMARY: false
-      #   with:
-      #     context: ./src/ContentProcessor
-      #     file: ./src/ContentProcessor/Dockerfile
-      #     push: true
-      #     tags: |
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessor:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessor:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
+      - name: Build and Push Docker Image for WebApp
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/App
+          file: ./src/App/WebApp.Dockerfile
+          push: True
+          tags: |
+            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
+            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
 
-      # - name: Build and Push ContentProcessorAPI Docker image
-      #   uses: docker/build-push-action@v6
-      #   env:
-      #     DOCKER_BUILD_SUMMARY: false
-      #   with:
-      #     context: ./src/ContentProcessorAPI
-      #     file: ./src/ContentProcessorAPI/Dockerfile
-      #     push: true
-      #     tags: |
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessorapi:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessorapi:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
-
-      # - name: Build and Push ContentProcessorWeb Docker image
-      #   uses: docker/build-push-action@v6
-      #   env:
-      #     DOCKER_BUILD_SUMMARY: false
-      #   with:
-      #     context: ./src/ContentProcessorWeb
-      #     file: ./src/ContentProcessorWeb/Dockerfile
-      #     push: true
-      #     tags: |
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessorweb:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
-      #       ${{ secrets.ACR_TEST_LOGIN_SERVER }}/contentprocessorweb:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
+      - name: Build and Push Docker Image for API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/api
+          file: ./src/api/ApiApp.Dockerfile
+          push: True
+          tags: |
+            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
+            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
 
       - name: Verify Docker Image Build
         shell: bash
@@ -121,9 +98,8 @@ jobs:
             echo "Successfully built and pushed three Docker images to ACR:" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Built Images:**" >> $GITHUB_STEP_SUMMARY
-            echo "- \`${ACR_NAME}.azurecr.io/contentprocessor:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`${ACR_NAME}.azurecr.io/contentprocessorapi:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- \`${ACR_NAME}.azurecr.io/contentprocessorweb:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`${ACR_NAME}.azurecr.io/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- \`${ACR_NAME}.azurecr.io/km-web:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
             echo "- Docker build process encountered an error" >> $GITHUB_STEP_SUMMARY

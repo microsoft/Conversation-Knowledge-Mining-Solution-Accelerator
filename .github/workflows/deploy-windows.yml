@@ -1,5 +1,9 @@
 name: Deploy-Test-Cleanup Windows
 on:
+  push:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
     inputs:
       azure_location:
@@ -61,7 +65,7 @@ on:
         default: ''
         type: string
       existing_webapp_url:
-        description: 'Existing Container WebApp URL (Skips Deployment)'
+        description: 'Existing WebApp URL (Skips Deployment)'
         required: false
         default: ''
         type: string
@@ -74,7 +78,7 @@ jobs:
       azure_location: ${{ github.event.inputs.azure_location || 'australiaeast' }}
       resource_group_name: ${{ github.event.inputs.resource_group_name || '' }}
       waf_enabled: ${{ github.event.inputs.waf_enabled == 'true' }}
-      EXP: ${{ github.event.inputs.exp == 'true' }}
+      exp: ${{ github.event.inputs.exp == 'true' }}
       build_docker_image: ${{ github.event.inputs.build_docker_image == 'true' }}
       cleanup_resources: ${{ github.event.inputs.cleanup_resources == 'true' }}
       run_e2e_tests: ${{ github.event.inputs.run_e2e_tests || 'GoldenPath-Testing' }}

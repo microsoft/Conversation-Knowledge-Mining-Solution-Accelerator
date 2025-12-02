@@ -1,4 +1,4 @@
-name: Deploy Job v2
+name: Deploy Job
 
 on:
   workflow_call:
@@ -47,7 +47,7 @@ on:
         default: 'GoldenPath-Testing'
         type: string
       existing_webapp_url:
-        description: 'Existing Container WebApp URL (Skips Deployment)'
+        description: 'Existing WebApp URL (Skips Deployment)'
         required: false
         default: ''
         type: string
@@ -66,34 +66,16 @@ on:
         required: false
         default: ''
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_SUBSCRIPTION_ID:
-        required: true
-      ACR_TEST_LOGIN_SERVER:
-        required: true
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
-        required: false
-      AZURE_ENV_FOUNDRY_PROJECT_ID:
-        required: false
     outputs:
-      invoice_schema_id:
-        description: "Invoice Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.invoice_schema_id || jobs.deploy-windows.outputs.invoice_schema_id }}
-      propertydamageclaimform_schema_id:
-        description: "Property Damage Claim Form Schema ID"
-        value: ${{ jobs.deploy-linux.outputs.propertydamageclaimform_schema_id || jobs.deploy-windows.outputs.propertydamageclaimform_schema_id }}
       RESOURCE_GROUP_NAME:
         description: "Resource Group Name"
         value: ${{ jobs.azure-setup.outputs.RESOURCE_GROUP_NAME }}
-      CONTAINER_WEB_APPURL:
-        description: "Container Web App URL"
-        value: ${{ jobs.deploy-linux.outputs.CONTAINER_WEB_APPURL || jobs.deploy-windows.outputs.CONTAINER_WEB_APPURL }}
+      WEB_APP_URL:
+        description: "Web App URL"
+        value: ${{ jobs.deploy-linux.outputs.WEB_APP_URL || jobs.deploy-windows.outputs.WEB_APP_URL }}
+      API_APP_URL:
+        description: "API App URL"
+        value: ${{ jobs.deploy-linux.outputs.API_APP_URL || jobs.deploy-windows.outputs.API_APP_URL }}
       ENV_NAME:
         description: "Environment Name"
         value: ${{ jobs.azure-setup.outputs.ENV_NAME }}
@@ -112,10 +94,11 @@ on:
 
 env:
   GPT_MIN_CAPACITY: 100
+  TEXT_EMBEDDING_MIN_CAPACITY: 80
   BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
   WAF_ENABLED: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.waf_enabled || false) || false }}
   EXP: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.exp || false) || false }}
-  CLEANUP_RESOURCES: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.cleanup_resources || true) || true }}
+  CLEANUP_RESOURCES: ${{ inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources }}
   RUN_E2E_TESTS: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.run_e2e_tests || 'GoldenPath-Testing') || 'GoldenPath-Testing' }}
   BUILD_DOCKER_IMAGE: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.build_docker_image || false) || false }}
 
@@ -155,6 +138,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Setup Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az --version
+
       - name: Login to Azure
         shell: bash
         run: |
@@ -170,29 +158,25 @@ jobs:
           export AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}
           export AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           export GPT_MIN_CAPACITY=${{ env.GPT_MIN_CAPACITY }}
+          export TEXT_EMBEDDING_MIN_CAPACITY=${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
           export AZURE_REGIONS="${{ vars.AZURE_REGIONS }}"
 
-          chmod +x infra/scripts/checkquota.sh
-          if ! infra/scripts/checkquota.sh; then
-            if grep -q "No region with sufficient quota found" infra/scripts/checkquota.sh; then
+          chmod +x infra/scripts/checkquota_km.sh
+          if ! infra/scripts/checkquota_km.sh; then
+            if grep -q "No region with sufficient quota found" infra/scripts/checkquota_km.sh; then
               echo "QUOTA_FAILED=true" >> $GITHUB_ENV
             fi
             exit 1
           fi
-
-      - name: Set Quota Failure Output
-        id: quota_failure_output
-        if: env.QUOTA_FAILED == 'true'
-        shell: bash
-        run: |
-          echo "QUOTA_FAILED=true" >> $GITHUB_OUTPUT
-          echo "Quota check failed - will notify via separate notification job"
       
       - name: Fail Pipeline if Quota Check Fails
         if: env.QUOTA_FAILED == 'true'
         shell: bash
         run: exit 1
-      
+
+      - name: Install Bicep CLI
+        run: az bicep install
+
       - name: Set Deployment Region
         id: set_region
         shell: bash
@@ -222,16 +206,12 @@ jobs:
             echo "RESOURCE_GROUP_NAME=${{ inputs.resource_group_name }}" >> $GITHUB_ENV
           else
             echo "Generating a unique resource group name..."
-            ACCL_NAME="cp"  # Account name as specified
+            ACCL_NAME="kmgeneric"  # Account name as specified
             SHORT_UUID=$(uuidgen | cut -d'-' -f1)
             UNIQUE_RG_NAME="arg-${ACCL_NAME}-${SHORT_UUID}"
             echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
             echo "Generated RESOURCE_GROUP_NAME: ${UNIQUE_RG_NAME}"
           fi
-
-      - name: Install Bicep CLI
-        shell: bash
-        run: az bicep install
 
       - name: Check and Create Resource Group
         id: check_create_rg
@@ -255,7 +235,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          COMMON_PART="psldg"
+          COMMON_PART="pslkmg"
           TIMESTAMP=$(date +%s)  
           UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 6) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
@@ -365,14 +345,7 @@ jobs:
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
       AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.azure_env_log_anlytics_workspace_id }}
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.azure_existing_ai_project_resource_id }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-      AZURE_ENV_FOUNDRY_PROJECT_ID: ${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}
+    secrets: inherit
 
   deploy-windows:
     name: Deploy on Windows
@@ -390,11 +363,4 @@ jobs:
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
       AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.azure_env_log_anlytics_workspace_id }}
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.azure_existing_ai_project_resource_id }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ACR_TEST_LOGIN_SERVER: ${{ secrets.ACR_TEST_LOGIN_SERVER }}
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-      AZURE_ENV_FOUNDRY_PROJECT_ID: ${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}
+    secrets: inherit

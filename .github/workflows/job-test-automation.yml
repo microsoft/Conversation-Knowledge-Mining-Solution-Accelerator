@@ -1,4 +1,4 @@
-name: Test Automation KMGeneric v2
+name: Test Automation KMGeneric
 
 on:
   workflow_call:
