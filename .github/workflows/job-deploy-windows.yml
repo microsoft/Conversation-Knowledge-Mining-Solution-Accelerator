@@ -137,22 +137,9 @@ jobs:
             Write-Host "❌ EXP DISABLED - Skipping EXP parameters"
           }
 
-          # Set tags for deployment
+          # Set tags for deployment  
           Write-Host "Setting deployment tags..."
-          if ("${{ inputs.AZURE_TAGS }}" -ne "") {
-            $AZURE_TAGS = "${{ inputs.AZURE_TAGS }}"
-            Write-Host "Using custom tags from input: $AZURE_TAGS"
-          } else {
-            $AZURE_TAGS = @{
-              "SecurityControl" = "Ignore"
-              "Environment" = "${{ inputs.ENV_NAME }}"
-              "Project" = "ConversationKnowledgeMining"
-              "DeployedBy" = "GitHubActions"
-              "Location" = "${{ inputs.AZURE_LOCATION }}"
-            } | ConvertTo-Json -Compress
-            Write-Host "Using default tags: $AZURE_TAGS"
-          }
-          azd env set AZURE_TAGS="$AZURE_TAGS"
+          azd env set AZURE_TAG_SECURITY_CONTROL="Ignore"
 
           # Deploy using azd up
           azd up --no-prompt

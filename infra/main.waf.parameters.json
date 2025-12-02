@@ -45,7 +45,9 @@
       "value": "${AZURE_ENV_IMAGETAG=latest_waf}"
     },
     "tags": {
-      "value": "${AZURE_TAGS}"
+      "value": {
+        "SecurityControl": "${AZURE_TAG_SECURITY_CONTROL=Ignore}"
+      }
     },
     "enableTelemetry": {
       "value": "${AZURE_ENV_ENABLE_TELEMETRY}"
