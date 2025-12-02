@@ -145,6 +145,10 @@ jobs:
             echo "❌ EXP DISABLED - Skipping EXP parameters"
           fi
 
+          # Set tags for deployment  
+          Write-Host "Setting deployment tags..."
+          azd env set AZURE_TAG_SECURITY_CONTROL="Ignore"
+          
           azd up --no-prompt
           
           echo "✅ Deployment succeeded."
@@ -159,10 +163,11 @@ jobs:
             exit 1
           fi
 
-          export API_APP_URL="https://$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
+          export API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
           echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
+          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
 
-          export WEB_APP_URL="https://$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
+          export WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
           echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
           echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
 
