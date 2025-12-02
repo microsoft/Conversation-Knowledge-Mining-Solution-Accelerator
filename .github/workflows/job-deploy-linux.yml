@@ -146,7 +146,7 @@ jobs:
           fi
 
           # Set tags for deployment  
-          Write-Host "Setting deployment tags..."
+          echo "Setting deployment tags..."
           azd env set AZURE_TAG_SECURITY_CONTROL="Ignore"
           
           azd up --no-prompt
