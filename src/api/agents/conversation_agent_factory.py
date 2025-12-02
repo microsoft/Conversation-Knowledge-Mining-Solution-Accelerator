@@ -9,6 +9,7 @@ from helpers.azure_credential_utils import get_azure_credential_async
 
 logger = logging.getLogger(__name__)
 
+
 class ConversationAgentFactory(BaseAgentFactory):
     """Factory class for creating conversation agents with semantic kernel integration."""
 
@@ -17,7 +18,7 @@ class ConversationAgentFactory(BaseAgentFactory):
         """
         Asynchronously creates or retrieves an AzureAIAgent instance configured with
         the appropriate model, instructions, and plugin for conversation support.
-        
+
         First checks if an agent with the expected name already exists and reuses it.
         Only creates a new agent if one doesn't exist.
 

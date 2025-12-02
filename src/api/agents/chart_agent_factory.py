@@ -6,6 +6,7 @@ from helpers.azure_credential_utils import get_azure_credential
 
 logger = logging.getLogger(__name__)
 
+
 class ChartAgentFactory(BaseAgentFactory):
     """
     Factory class for creating Chart agents that generate chart.js compatible JSON
@@ -17,7 +18,7 @@ class ChartAgentFactory(BaseAgentFactory):
         """
         Asynchronously creates or retrieves an AI agent configured to convert structured data
         into chart.js-compatible JSON using Azure AI Project.
-        
+
         First checks if an agent with the expected name already exists and reuses it.
         Only creates a new agent if one doesn't exist.
 
@@ -47,7 +48,7 @@ class ChartAgentFactory(BaseAgentFactory):
         )
 
         agent_name = f"KM-ChartAgent-{config.solution_name}"
-        
+
         # Try to find an existing agent with the same name
         try:
             agents_list = project_client.agents.list_agents()

@@ -8,6 +8,7 @@ from helpers.azure_credential_utils import get_azure_credential
 
 logger = logging.getLogger(__name__)
 
+
 class SQLAgentFactory(BaseAgentFactory):
     """
     Factory class for creating SQL agents that generate T-SQL queries using Azure AI Project.
@@ -18,7 +19,7 @@ class SQLAgentFactory(BaseAgentFactory):
         """
         Asynchronously creates or retrieves an AI agent configured to generate T-SQL queries
         based on a predefined schema and user instructions.
-        
+
         First checks if an agent with the expected name already exists and reuses it.
         Only creates a new agent if one doesn't exist.
 
@@ -46,7 +47,7 @@ class SQLAgentFactory(BaseAgentFactory):
         )
 
         agent_name = f"KM-ChatWithSQLDatabaseAgent-{config.solution_name}"
-        
+
         # Try to find an existing agent with the same name
         try:
             agents_list = project_client.agents.list_agents()
