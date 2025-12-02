@@ -38,9 +38,9 @@ on:
       WEB_APP_URL:
         description: "Web App URL"
         value: ${{ jobs.deploy-linux.outputs.WEB_APP_URL }}
-      APP_API_URL:
+      API_APP_URL:
         description: "API App URL"
-        value: ${{ jobs.deploy-linux.outputs.APP_API_URL }}
+        value: ${{ jobs.deploy-linux.outputs.API_APP_URL }}
 
 jobs:
   deploy-linux:
@@ -49,7 +49,7 @@ jobs:
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     outputs:
       WEB_APP_URL: ${{ steps.get_output_linux.outputs.WEB_APP_URL }}
-      APP_API_URL: ${{ steps.get_output_linux.outputs.APP_API_URL }}
+      API_APP_URL: ${{ steps.get_output_linux.outputs.API_APP_URL }}
 
     steps:
       - name: Checkout Code

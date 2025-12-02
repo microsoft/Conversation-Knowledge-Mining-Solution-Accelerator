@@ -73,9 +73,9 @@ on:
       WEB_APP_URL:
         description: "Web App URL"
         value: ${{ jobs.deploy-linux.outputs.WEB_APP_URL || jobs.deploy-windows.outputs.WEB_APP_URL }}
-      APP_API_URL:
-        description: "Web App URL"
-        value: ${{ jobs.deploy-linux.outputs.APP_API_URL || jobs.deploy-windows.outputs.APP_API_URL }}
+      API_APP_URL:
+        description: "API App URL"
+        value: ${{ jobs.deploy-linux.outputs.API_APP_URL || jobs.deploy-windows.outputs.API_APP_URL }}
       ENV_NAME:
         description: "Environment Name"
         value: ${{ jobs.azure-setup.outputs.ENV_NAME }}

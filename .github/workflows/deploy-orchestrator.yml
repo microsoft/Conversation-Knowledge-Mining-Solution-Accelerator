@@ -99,7 +99,7 @@ jobs:
     uses: ./.github/workflows/job-test-automation.yml
     with:
       KMGENERIC_URL: ${{ needs.deploy.outputs.WEB_APP_URL || inputs.existing_webapp_url }}
-      KMGENERIC_URL_API: ${{ needs.deploy.outputs.APP_API_URL || inputs.existing_webapp_url }}
+      KMGENERIC_URL_API: ${{ needs.deploy.outputs.API_APP_URL || inputs.existing_webapp_url }}
       TEST_SUITE: ${{ inputs.trigger_type == 'workflow_dispatch' && inputs.run_e2e_tests || 'GoldenPath-Testing' }}
     secrets: inherit
 
