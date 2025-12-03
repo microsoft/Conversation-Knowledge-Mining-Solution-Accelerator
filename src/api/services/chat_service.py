@@ -28,8 +28,6 @@ from common.config.config import Config
 HOST_NAME = "CKM"
 HOST_INSTRUCTIONS = "Answer questions about call center operations"
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

@@ -460,12 +460,6 @@ var dnsZoneIndex = {
   sqlServer: 9
   search: 10
 }
-// List of DNS zone indices that correspond to AI-related services.
-var aiRelatedDnsZoneIndices = [
-  dnsZoneIndex.cognitiveServices
-  dnsZoneIndex.openAI
-  dnsZoneIndex.aiServices
-]
 
 // ===================================================
 // DEPLOY PRIVATE DNS ZONES
@@ -1575,6 +1569,9 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           SOLUTION_NAME: solutionSuffix
           APP_ENV: 'Prod'
           AZURE_CLIENT_ID: backendUserAssignedIdentity.outputs.clientId
+          AZURE_BASIC_LOGGING_LEVEL: 'INFO'
+          AZURE_PACKAGE_LOGGING_LEVEL: 'WARNING'
+          AZURE_LOGGING_PACKAGES: ''
         }
         // WAF aligned configuration for Monitoring
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null

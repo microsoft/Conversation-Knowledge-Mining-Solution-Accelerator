@@ -8,8 +8,6 @@ from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from helpers.azure_credential_utils import get_azure_credential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
