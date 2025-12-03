@@ -8,17 +8,19 @@ on:
       azure_location:
         description: 'Azure Location For Deployment'
         required: false
-        default: 'australiaeast'
+        default: 'none'
         type: choice
         options:
+          - 'none'
           - 'australiaeast'
-          - 'centralus'
-          - 'eastasia'
+          - 'eastus'
           - 'eastus2'
+          - 'francecentral'
           - 'japaneast'
-          - 'northeurope'
-          - 'southeastasia'
+          - 'swedencentral'
           - 'uksouth'
+          - 'westus'
+          - 'westus3'
       resource_group_name:
         description: 'Resource Group Name (Optional)'
         required: false
@@ -74,7 +76,7 @@ jobs:
     uses: ./.github/workflows/deploy-orchestrator.yml
     with:
       runner_os: windows-latest
-      azure_location: ${{ github.event.inputs.azure_location || 'australiaeast' }}
+      azure_location: ${{ github.event.inputs.azure_location }}
       resource_group_name: ${{ github.event.inputs.resource_group_name || '' }}
       waf_enabled: ${{ github.event.inputs.waf_enabled == 'true' }}
       exp: ${{ github.event.inputs.exp == 'true' }}
