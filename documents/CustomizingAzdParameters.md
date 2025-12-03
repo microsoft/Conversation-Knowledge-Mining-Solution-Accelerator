@@ -26,6 +26,7 @@ By default this template will use the environment name as the prefix to prevent 
 | `AZURE_EXISTING_AI_PROJECT_RESOURCE_ID`    | string  | `<Existing AI Project resource Id>`            | Reuses an existing AIFoundry and AIFoundryProject instead of creating a new one.  |
 | `AZURE_ENV_VM_ADMIN_USERNAME`  | string | `take(newGuid(), 20)`               | The administrator username for the virtual machine.         |
 | `AZURE_ENV_VM_ADMIN_PASSWORD`  | string | `newGuid()`               | The administrator password for the virtual machine.         |
+| `AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT`  | string | `<Container Registry Endpoint>`               | The hostname/endpoint for the container registry used by both backend and frontend containers.         |
 
 
 ## How to Set a Parameter
