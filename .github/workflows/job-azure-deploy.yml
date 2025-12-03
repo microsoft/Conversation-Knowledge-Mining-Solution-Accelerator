@@ -14,7 +14,7 @@ on:
       azure_location:
         description: 'Azure Location For Deployment'
         required: false
-        default: 'australiaeast'
+        default: ''
         type: string
       resource_group_name:
         description: 'Resource Group Name (Optional)'
@@ -159,7 +159,7 @@ jobs:
           export AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           export GPT_MIN_CAPACITY=${{ env.GPT_MIN_CAPACITY }}
           export TEXT_EMBEDDING_MIN_CAPACITY=${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
-          export AZURE_REGIONS="${{ vars.AZURE_REGIONS }}"
+          export AZURE_REGIONS="${{ inputs.azure_location || vars.AZURE_REGIONS }}"
 
           chmod +x infra/scripts/checkquota_km.sh
           if ! infra/scripts/checkquota_km.sh; then
@@ -185,7 +185,7 @@ jobs:
           echo "AZURE_ENV_OPENAI_LOCATION=$VALID_REGION" >> $GITHUB_ENV
           echo "AZURE_ENV_OPENAI_LOCATION=$VALID_REGION" >> $GITHUB_OUTPUT
           
-          if [[ "${{ inputs.trigger_type }}" == "workflow_dispatch" && -n "${{ inputs.azure_location }}" ]]; then
+          if [[ "${{ inputs.trigger_type }}" == "workflow_dispatch" && -n "${{ inputs.azure_location }}" && "${{ inputs.azure_location }}" != "none" ]]; then
             USER_SELECTED_LOCATION="${{ inputs.azure_location }}"
             echo "Using user-selected Azure location: $USER_SELECTED_LOCATION"
             echo "AZURE_LOCATION=$USER_SELECTED_LOCATION" >> $GITHUB_ENV
@@ -311,7 +311,7 @@ jobs:
           echo "| **Cleanup Resources** | ${{ env.CLEANUP_RESOURCES == 'true' && '✅ Yes' || '❌ No' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Build Docker Image** | ${{ env.BUILD_DOCKER_IMAGE == 'true' && '✅ Yes' || '❌ No' }} |" >> $GITHUB_STEP_SUMMARY
           
-          if [[ "${{ inputs.trigger_type }}" == "workflow_dispatch" && -n "${{ inputs.azure_location }}" ]]; then
+          if [[ "${{ inputs.trigger_type }}" == "workflow_dispatch" && -n "${{ inputs.azure_location }}" && "${{ inputs.azure_location }}" != "none" ]]; then
             echo "| **Azure Location** | \`${{ inputs.azure_location }}\` (User Selected) |" >> $GITHUB_STEP_SUMMARY
           fi
           
