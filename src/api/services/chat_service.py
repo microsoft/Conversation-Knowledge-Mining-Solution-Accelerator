@@ -157,8 +157,9 @@ class ChatService:
                                     citations.extend(content.annotations)
                         
                         if first_chunk:
-                            yield "{ \"answer\": " + str(chunk.text)
-                            first_chunk = False
+                            if chunk is not None and chunk.text != "":
+                                first_chunk = False
+                                yield "{ \"answer\": " + str(chunk.text)
                         else:
                             complete_response += str(chunk.text)
                             yield str(chunk.text)
