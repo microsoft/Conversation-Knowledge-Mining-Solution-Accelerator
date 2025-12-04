@@ -18,7 +18,6 @@ async def get_db_connection():
     username = config.sqldb_username
     password = config.sqldb_database
     driver = config.driver
-    # mid_id = config.mid_id
     mid_id = config.azure_client_id
 
     credential = None
