@@ -39,12 +39,15 @@ AZURE_LOGGING_PACKAGES = [
 # Basic config: logging.basicConfig(level=logging.INFO)
 logging.basicConfig(
     level=getattr(logging, AZURE_BASIC_LOGGING_LEVEL, logging.INFO),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # This ensures the configuration is applied
 )
 
 # Package config: Azure loggers set to WARNING to suppress INFO
 for logger_name in AZURE_LOGGING_PACKAGES:
     logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
+
+logging.info(f"Logging configured - Basic: {AZURE_BASIC_LOGGING_LEVEL}, Azure packages: {AZURE_PACKAGE_LOGGING_LEVEL}, Packages: {AZURE_LOGGING_PACKAGES}")
 
 
 @asynccontextmanager
