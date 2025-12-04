@@ -102,7 +102,7 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
-        chat_service = ChatService(request=request)
+        chat_service = ChatService()
         result = await chat_service.stream_chat_request(conversation_id, query)
         track_event_if_configured(
             "ChatStreamSuccess",

@@ -6,19 +6,23 @@ generation for visualization in a call center knowledge mining solution.
 Includes thread management, caching, and integration with Azure OpenAI and FastAPI.
 """
 
+import asyncio
 import json
 import logging
-import asyncio
-import random
 import re
+import os
 
-from fastapi import HTTPException, Request, status
+from helpers.azure_credential_utils import get_azure_credential_async
+from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
+
+from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
 
-from semantic_kernel.agents import AzureAIAgentThread
-from semantic_kernel.exceptions.agent_exceptions import AgentException
+from azure.ai.projects.aio import AIProjectClient
 
-from azure.ai.agents.models import TruncationObject
+from agent_framework import ChatAgent
+from agent_framework.azure import AzureAIClient
+from agent_framework.exceptions import ServiceResponseException
 
 from cachetools import TTLCache
 
@@ -32,36 +36,56 @@ logger = logging.getLogger(__name__)
 
 
 class ExpCache(TTLCache):
-    """
-    Extended TTLCache that associates an agent and deletes Azure AI agent threads when items expire or are evicted (LRU).
-    """
-    def __init__(self, *args, agent=None, **kwargs):
+    """Extended TTLCache that deletes Azure AI agent threads when items expire."""
+
+    def __init__(self, *args, **kwargs):
+        """Initialize cache without creating persistent client connections."""
         super().__init__(*args, **kwargs)
-        self.agent = agent
 
     def expire(self, time=None):
+        """Remove expired items and delete associated Azure AI threads."""
         items = super().expire(time)
-        for key, thread_id in items:
+        for key, thread_conversation_id in items:
             try:
-                if self.agent:
-                    thread = AzureAIAgentThread(client=self.agent.client, thread_id=thread_id)
-                    asyncio.create_task(thread.delete())
-                    print(f"Thread deleted : {thread_id}")
+                # Create task for async deletion with proper session management
+                asyncio.create_task(self._delete_thread_async(thread_conversation_id))
+                logger.info("Scheduled thread deletion: %s", thread_conversation_id)
             except Exception as e:
-                logger.error("Failed to delete thread for key %s: %s", key, e)
+                logger.error("Failed to schedule thread deletion for key %s: %s", key, e)
         return items
 
     def popitem(self):
-        key, thread_id = super().popitem()
+        """Remove item using LRU eviction and delete associated Azure AI thread."""
+        key, thread_conversation_id = super().popitem()
         try:
-            if self.agent:
-                thread = AzureAIAgentThread(client=self.agent.client, thread_id=thread_id)
-                asyncio.create_task(thread.delete())
-                print(f"Thread deleted (LRU evict): {thread_id}")
+            # Create task for async deletion with proper session management
+            asyncio.create_task(self._delete_thread_async(thread_conversation_id))
+            logger.info("Scheduled thread deletion (LRU evict): %s", thread_conversation_id)
         except Exception as e:
-            logger.error("Failed to delete thread for key %s (LRU evict): %s", key, e)
-        return key, thread_id
+            logger.error("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
+        return key, thread_conversation_id
 
+    async def _delete_thread_async(self, thread_conversation_id: str):
+        """Asynchronously delete a thread using a properly managed Azure AI Project Client."""
+        credential = None
+        config = Config()
+        try:
+            if thread_conversation_id:
+                # Get credential and use async context managers to ensure proper cleanup
+                credential = await get_azure_credential_async()
+                async with AIProjectClient(
+                    endpoint=config.ai_project_endpoint,
+                    credential=credential
+                ) as project_client:
+                    openai_client = project_client.get_openai_client()
+                    await openai_client.conversations.delete(conversation_id=thread_conversation_id)
+                    logger.info("Thread deleted successfully: %s", thread_conversation_id)
+        except Exception as e:
+            logger.error("Failed to delete thread %s: %s", thread_conversation_id, e)
+        finally:
+            # Close credential to prevent unclosed client session warnings
+            if credential is not None:
+                await credential.close()
 
 class ChatService:
     """
@@ -71,63 +95,101 @@ class ChatService:
 
     thread_cache = None
 
-    def __init__(self, request : Request):
-        config = Config()
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model
-        self.agent = request.app.state.agent
+    def __init__(self):
+        self.config = Config()
+        self.azure_openai_deployment_name = self.config.azure_openai_deployment_model
+        self.orchestrator_agent_name = self.config.orchestrator_agent_name
 
         if ChatService.thread_cache is None:
-            ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0, agent=self.agent)
+            ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
 
     async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
         """
         Get a streaming text response from OpenAI.
         """
-        thread = None
-        complete_response = ""
-        try:
-            if not query:
-                query = "Please provide a query."
+        async with (
+            await get_azure_credential_async() as credential,
+            AIProjectClient(endpoint=self.config.ai_project_endpoint, credential=credential) as project_client,
+        ):
+            thread = None
+            complete_response = ""
+            try:
+                if not query:
+                    query = "Please provide a query."
 
-            thread_id = None
-            if ChatService.thread_cache is not None:
-                thread_id = ChatService.thread_cache.get(conversation_id, None)
-            if thread_id:
-                thread = AzureAIAgentThread(client=self.agent.client, thread_id=thread_id)
+                # Create chat client with existing agent
+                chat_client = AzureAIClient(
+                    project_client=project_client,
+                    agent_name=self.orchestrator_agent_name,
+                    use_latest_version=True,
+                )
 
-            truncation_strategy = TruncationObject(type="last_messages", last_messages=4)
+                custom_tool = SQLTool(conn=await get_sqldb_connection())
+                my_tools = [custom_tool.get_sql_response]
 
-            async for response in self.agent.invoke_stream(messages=query, thread=thread, truncation_strategy=truncation_strategy):
+                thread_conversation_id = None
                 if ChatService.thread_cache is not None:
-                    ChatService.thread_cache[conversation_id] = response.thread.id
-                complete_response += str(response.content)
-                yield response.content
+                    thread_conversation_id = ChatService.thread_cache.get(conversation_id, None)
 
-        except RuntimeError as e:
-            complete_response = str(e)
-            if "Rate limit is exceeded" in str(e):
-                logger.error("Rate limit error: %s", e)
-                raise AgentException(f"Rate limit is exceeded. {str(e)}") from e
-            else:
-                logger.error("RuntimeError: %s", e)
-                raise AgentException(f"An unexpected runtime error occurred: {str(e)}") from e
+                async with ChatAgent(
+                    chat_client=chat_client,
+                    tools=my_tools,
+                    tool_choice="auto",
+                    store=True,
+                ) as chat_agent:
+                    citations = []
+                    first_chunk = True
 
-        except Exception as e:
-            complete_response = str(e)
-            logger.error("Error in stream_openai_text: %s", e)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error streaming OpenAI text") from e
+                    if thread_conversation_id:
+                        thread = chat_agent.get_new_thread(service_thread_id=thread_conversation_id)
+                    else:
+                        # Create a conversation using OpenAI client
+                        openai_client = project_client.get_openai_client()
+                        conversation = await openai_client.conversations.create()
+                        thread_conversation_id = conversation.id
+                        thread = chat_agent.get_new_thread(service_thread_id=thread_conversation_id)
 
-        finally:
-            # Provide a fallback response when no data is received from OpenAI.
-            if complete_response == "":
-                logger.info("No response received from OpenAI.")
-                thread_id = None
-                if ChatService.thread_cache is not None:
-                    thread_id = ChatService.thread_cache.pop(conversation_id, None)
-                    if thread_id is not None:
-                        corrupt_key = f"{conversation_id}_corrupt_{random.randint(1000, 9999)}"
-                        ChatService.thread_cache[corrupt_key] = thread_id
-                yield "I cannot answer this question with the current data. Please rephrase or add more details."
+                    async for chunk in chat_agent.run_stream(messages=query, thread=thread):
+                        # Collect citations from Azure AI Search responses
+                        if hasattr(chunk, "contents") and chunk.contents:
+                            for content in chunk.contents:
+                                if hasattr(content, "annotations") and content.annotations:
+                                    citations.extend(content.annotations)
+                        
+                        if first_chunk:
+                            yield "{ \"answer\": " + str(chunk.text)
+                            first_chunk = False
+                        else:
+                            complete_response += str(chunk.text)
+                            yield str(chunk.text)
+
+                    if ChatService.thread_cache is not None and thread is not None:
+                        ChatService.thread_cache[conversation_id] = thread_conversation_id
+                    if citations:
+                        citation_list = [f"{{\"url\": \"{citation.url}\", \"title\": \"{citation.title}\"}}" for citation in citations]
+                        yield ", \"citations\": [" + ",".join(citation_list) + "]}"
+                    else:
+                        yield ", \"citations\": []}"
+
+            except ServiceResponseException as e:
+                complete_response = str(e)
+                if "Rate limit is exceeded" in str(e):
+                    logger.error("Rate limit error: %s", e)
+                    raise ServiceResponseException(f"Rate limit is exceeded. {str(e)}") from e
+                else:
+                    logger.error("RuntimeError: %s", e)
+                    raise ServiceResponseException(f"An unexpected runtime error occurred: {str(e)}") from e
+
+            except Exception as e:
+                complete_response = str(e)
+                logger.error("Error in stream_openai_text: %s", e)
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error streaming OpenAI text") from e
+
+            finally:
+                # Provide a fallback response when no data is received from OpenAI.
+                if complete_response == "":
+                    logger.info("No response received from OpenAI.")
+                    yield "I cannot answer this question with the current data. Please rephrase or add more details."
 
     async def stream_chat_request(self, conversation_id, query):
         """
@@ -155,21 +217,22 @@ class ChatService:
                         }
                         yield json.dumps(response) + "\n\n"
 
-            except AgentException as e:
+            except ServiceResponseException as e:
                 error_message = str(e)
                 retry_after = "sometime"
                 if "Rate limit is exceeded" in error_message:
-                    match = re.search(r"Try again in (\d+) seconds", error_message)
+                    match = re.search(r"Try again in (\d+) seconds.", error_message)
                     if match:
                         retry_after = f"{match.group(1)} seconds"
                     logger.error("Rate limit error: %s", error_message)
                     yield json.dumps({"error": f"Rate limit is exceeded. Try again in {retry_after}."}) + "\n\n"
                 else:
-                    logger.error("AgentInvokeException: %s", error_message)
+                    logger.error("ServiceResponseException: %s", error_message)
                     yield json.dumps({"error": "An error occurred. Please try again later."}) + "\n\n"
 
             except Exception as e:
-                logger.error("Error in stream_chat_request: %s", e, exc_info=True)
-                yield json.dumps({"error": "An error occurred while processing the request."}) + "\n\n"
+                logger.error("Unexpected error: %s", e)
+                error_response = {"error": "An error occurred while processing the request."}
+                yield json.dumps(error_response) + "\n\n"
 
         return generate()

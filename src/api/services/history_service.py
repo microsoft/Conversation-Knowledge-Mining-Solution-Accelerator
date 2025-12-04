@@ -2,11 +2,14 @@ import logging
 import uuid
 from typing import Optional
 from fastapi import HTTPException, status
-from azure.ai.projects import AIProjectClient
-from azure.ai.agents.models import MessageRole, ListSortOrder
+from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from helpers.azure_credential_utils import get_azure_credential
+from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
+
+from agent_framework import ChatAgent
+from agent_framework.azure import AzureAIClient
+from agent_framework.exceptions import ServiceResponseException
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,7 @@ class HistoryService:
 
         self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.azure_client_id = config.azure_client_id
+        self.title_agent_name = config.title_agent_name
 
         # AI Project configuration for Foundry SDK
         self.ai_project_endpoint = config.ai_project_endpoint
@@ -55,64 +59,41 @@ class HistoryService:
             raise
 
     async def generate_title(self, conversation_messages):
-        title_prompt = (
-            "Summarize the conversation so far into a 4-word or less title. "
-            "Do not use any quotation marks or punctuation. "
-            "Do not include any other commentary or description."
-        )
-
         # Filter user messages and prepare content
         user_messages = [{"role": msg["role"], "content": msg["content"]}
                          for msg in conversation_messages if msg["role"] == "user"]
 
         # Combine all user messages with the title prompt
         combined_content = "\n".join([msg["content"] for msg in user_messages])
-        final_prompt = f"{combined_content}\n\n{title_prompt}"
+        final_prompt = f"Generate a title for:\n{combined_content}"
 
         try:
-            project_client = AIProjectClient(
-                endpoint=self.ai_project_endpoint,
-                credential=get_azure_credential(client_id=self.azure_client_id),
-                api_version=self.ai_project_api_version,
-            )
+            async with (
+                await get_azure_credential_async() as credential,
+                AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
+            ):
+                # Create chat client with title agent
+                chat_client = AzureAIClient(
+                    project_client=project_client,
+                    agent_name=self.title_agent_name,
+                    use_latest_version=True,
+                )
 
-            agent = project_client.agents.create_agent(
-                model=self.azure_openai_deployment_name,
-                name=f"TitleAgent-{self.solution_name}",
-                instructions=title_prompt,
-            )
+                # Use ChatAgent to generate title
+                async with ChatAgent(
+                    chat_client=chat_client,
+                    tool_choice="none",
+                ) as chat_agent:
+                    thread = chat_agent.get_new_thread()
+                    result = await chat_agent.run(messages=final_prompt, thread=thread)
+                    return str(result).strip() if result is not None else "New Conversation"
 
-            thread = project_client.agents.threads.create()
-
-            project_client.agents.messages.create(
-                thread_id=thread.id,
-                role=MessageRole.USER,
-                content=final_prompt,
-            )
-
-            run = project_client.agents.runs.create_and_process(
-                thread_id=thread.id,
-                agent_id=agent.id
-            )
-
-            if run.status == "failed":
-                logger.error(f"Title generation failed: {run.last_error}")
-                return user_messages[-1]["content"][:50] if user_messages else "New Conversation"
-
-            # Extract the title from agent response
-            title = "New Conversation"
-            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
-            for msg in messages:
-                if msg.role == MessageRole.AGENT and msg.text_messages:
-                    title = msg.text_messages[-1].text.value
-                    break
-
-            # Clean up
-            project_client.agents.threads.delete(thread_id=thread.id)
-            project_client.agents.delete_agent(agent.id)
-
-            return title.strip()
-
+        except ServiceResponseException as e:
+            logger.error(f"ServiceResponseException generating title: {e}")
+            # Fallback to user message or default
+            if user_messages:
+                return user_messages[-1]["content"][:50]
+            return "New Conversation"
         except Exception as e:
             logger.error(f"Error generating title: {e}")
             # Fallback to user message or default

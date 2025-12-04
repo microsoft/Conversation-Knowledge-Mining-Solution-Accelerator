@@ -2,12 +2,30 @@ from datetime import datetime
 import struct
 
 import pandas as pd
+from pydantic import BaseModel
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
 from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
 
+class SQLTool(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    conn: pyodbc.Connection
+
+    async def get_sql_response(self, sql_query: str) -> str:
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(sql_query)
+            result = ''.join(str(row) for row in cursor.fetchall())
+            return result
+        except Exception as e:
+            logging.error("Error executing SQL query: %s", e)
+            return f"Error executing SQL query: {str(e)}"
+        finally:
+            if cursor:
+                cursor.close()
 
 async def get_db_connection():
     """Get a connection to the SQL database"""
