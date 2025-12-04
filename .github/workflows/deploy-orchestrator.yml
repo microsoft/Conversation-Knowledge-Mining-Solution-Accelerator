@@ -10,7 +10,7 @@ on:
       azure_location:
         description: 'Azure Location For Deployment'
         required: false
-        default: ''
+        default: 'australiaeast'
         type: string
       resource_group_name:
         description: 'Resource Group Name (Optional)'
