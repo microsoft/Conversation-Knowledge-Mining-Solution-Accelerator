@@ -169,7 +169,7 @@ var solutionSuffix = toLower(trim(replace(
 )))
 
 var acrName = 'kmcontainerreg'
-var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/'
+var baseUrl = 'https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/rc-audiodatabug/'
 // @description('Optional. Key vault reference and secret settings for the module\'s secrets export.')
 // param secretsExportConfiguration secretsExportConfigurationType?
 // Replica regions list based on article in [Azure regions list](https://learn.microsoft.com/azure/reliability/regions-list) and [Enhance resilience by replicating your Log Analytics workspace across regions](https://learn.microsoft.com/azure/azure-monitor/logs/workspace-replication#supported-regions) for supported regions for Log Analytics Workspace.
@@ -1350,7 +1350,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     retentionInterval: 'P1D'
     runOnce: true
     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
-    arguments: '${storageAccount.outputs.name} data ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
+    arguments: '${storageAccount.outputs.name} ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
     storageAccountResourceId: storageAccount.outputs.resourceId
     subnetResourceIds: enablePrivateNetworking ? [
       virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
