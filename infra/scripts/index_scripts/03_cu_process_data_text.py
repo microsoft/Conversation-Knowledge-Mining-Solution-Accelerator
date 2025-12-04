@@ -241,26 +241,26 @@ if docs:
 print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
-def bulk_import_json_to_table(json_file, table_name):
-    with open(json_file, "r") as f:
-        data = json.load(f)
-    data_list = [tuple(record.values()) for record in data]
-    columns = ", ".join(data[0].keys())
-    placeholders = ", ".join(["?"] * len(data[0]))
-    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-    cursor.executemany(sql, data_list)
-    conn.commit()
-    print(f"Imported {len(data)} records into {table_name}.")
+# def bulk_import_json_to_table(json_file, table_name):
+#     with open(json_file, "r") as f:
+#         data = json.load(f)
+#     data_list = [tuple(record.values()) for record in data]
+#     columns = ", ".join(data[0].keys())
+#     placeholders = ", ".join(["?"] * len(data[0]))
+#     sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+#     cursor.executemany(sql, data_list)
+#     conn.commit()
+#     print(f"Imported {len(data)} records into {table_name}.")
 
-with open('sample_search_index_data.json', 'r') as file:
-    documents = json.load(file)
-batch = [{"@search.action": "upload", **doc} for doc in documents]
-search_client.upload_documents(documents=batch)
-print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
+# with open('sample_search_index_data.json', 'r') as file:
+#     documents = json.load(file)
+# batch = [{"@search.action": "upload", **doc} for doc in documents]
+# search_client.upload_documents(documents=batch)
+# print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
 
-bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
-bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
-print("Sample data loaded to DB and Search.")
+# bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
+# bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+# print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
 cursor.execute('SELECT distinct topic FROM processed_data')
