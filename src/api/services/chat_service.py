@@ -9,6 +9,7 @@ Includes thread management, caching, and integration with Azure OpenAI and FastA
 import asyncio
 import json
 import logging
+import random
 import re
 
 from helpers.azure_credential_utils import get_azure_credential_async
@@ -87,21 +88,26 @@ class ExpCache(TTLCache):
                 await credential.close()
 
 
+thread_cache = None
+
+
 class ChatService:
     """
     Service for handling chat interactions, including streaming responses,
     processing RAG responses, and generating chart data for visualization.
     """
 
-    thread_cache = None
-
     def __init__(self):
         self.config = Config()
         self.azure_openai_deployment_name = self.config.azure_openai_deployment_model
         self.orchestrator_agent_name = self.config.orchestrator_agent_name
 
-        if ChatService.thread_cache is None:
-            ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
+    def get_thread_cache(self):
+        """Get or create the global thread cache."""
+        global thread_cache
+        if thread_cache is None:
+            thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
+        return thread_cache
 
     async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
         """
@@ -128,8 +134,8 @@ class ChatService:
                 my_tools = [custom_tool.get_sql_response]
 
                 thread_conversation_id = None
-                if ChatService.thread_cache is not None:
-                    thread_conversation_id = ChatService.thread_cache.get(conversation_id, None)
+                cache = self.get_thread_cache()
+                thread_conversation_id = cache.get(conversation_id, None)
 
                 async with ChatAgent(
                     chat_client=chat_client,
@@ -164,8 +170,7 @@ class ChatService:
                             complete_response += str(chunk.text)
                             yield str(chunk.text)
 
-                    if ChatService.thread_cache is not None and thread is not None:
-                        ChatService.thread_cache[conversation_id] = thread_conversation_id
+                    cache[conversation_id] = thread_conversation_id
 
                     if citations:
                         citation_list = [f"{{\"url\": \"{citation.url}\", \"title\": \"{citation.title}\"}}" for citation in citations]
@@ -185,6 +190,11 @@ class ChatService:
             except Exception as e:
                 complete_response = str(e)
                 logger.error("Error in stream_openai_text: %s", e)
+                cache = self.get_thread_cache()
+                thread_conversation_id = cache.pop(conversation_id, None)
+                if thread_conversation_id is not None:
+                    corrupt_key = f"{conversation_id}_corrupt_{random.randint(1000, 9999)}"
+                    cache[corrupt_key] = thread_conversation_id
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error streaming OpenAI text") from e
 
             finally:
