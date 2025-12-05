@@ -72,7 +72,7 @@ class ExpCache(TTLCache):
         try:
             if thread_conversation_id:
                 # Get credential and use async context managers to ensure proper cleanup
-                credential = await get_azure_credential_async()
+                credential = await get_azure_credential_async(client_id=config.azure_client_id)
                 async with AIProjectClient(
                     endpoint=config.ai_project_endpoint,
                     credential=credential
@@ -98,9 +98,11 @@ class ChatService:
     """
 
     def __init__(self):
-        self.config = Config()
-        self.azure_openai_deployment_name = self.config.azure_openai_deployment_model
-        self.orchestrator_agent_name = self.config.orchestrator_agent_name
+        config = Config()
+        self.azure_openai_deployment_name = config.azure_openai_deployment_model
+        self.orchestrator_agent_name = config.orchestrator_agent_name
+        self.azure_client_id = config.azure_client_id
+        self.ai_project_endpoint = config.ai_project_endpoint
 
     def get_thread_cache(self):
         """Get or create the global thread cache."""
@@ -114,8 +116,8 @@ class ChatService:
         Get a streaming text response from OpenAI.
         """
         async with (
-            await get_azure_credential_async() as credential,
-            AIProjectClient(endpoint=self.config.ai_project_endpoint, credential=credential) as project_client,
+            await get_azure_credential_async(client_id=self.azure_client_id) as credential,
+            AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
         ):
             thread = None
             complete_response = ""

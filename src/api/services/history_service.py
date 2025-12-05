@@ -69,7 +69,7 @@ class HistoryService:
 
         try:
             async with (
-                await get_azure_credential_async() as credential,
+                await get_azure_credential_async(client_id=self.azure_client_id) as credential,
                 AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
             ):
                 # Create chat client with title agent
