@@ -446,8 +446,8 @@ Now that your deployment is complete and tested, explore these resources to enha
 ## Need Help?
 
 - 🐛 **Issues:** Check [Troubleshooting Guide](./TroubleShootingSteps.md)
-- 💬 **Support:** Review [Support Guidelines](../.github/SUPPORT.md)
 - 🔧 **Development:** See [Contributing Guide](../CONTRIBUTING.md)
+- 🔒 **Security:** Review [Security Policy](../SECURITY.md)
 
 ---
 
