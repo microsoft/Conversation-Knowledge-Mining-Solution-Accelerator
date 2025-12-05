@@ -1544,6 +1544,10 @@ module webSiteBackend 'modules/web-sites.bicep' = {
         name: 'appsettings'
         properties: {
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
+          AGENT_NAME_CONVERSATION: ''
+          AGENT_NAME_TITLE: ''
+          API_APP_NAME: 'api-${solutionSuffix}'
+          AZURE_AI_FOUNDRY_RESOURCE_ID: !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
@@ -1741,3 +1745,15 @@ output API_APP_URL string = 'https://api-${solutionSuffix}.azurewebsites.net'
 
 @description('Contains web application URL.')
 output WEB_APP_URL string = 'https://app-${solutionSuffix}.azurewebsites.net'
+
+@description('Contains API application name.')
+output API_APP_NAME string = 'api-${solutionSuffix}'
+
+@description('Contains AI Foundry resource ID.')
+output AZURE_AI_FOUNDRY_RESOURCE_ID string = !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
+
+@description('Contains Conversation Agent name.')
+output AGENT_NAME_CONVERSATION string = ''
+
+@description('Contains Title Agent name.')
+output AGENT_NAME_TITLE string = ''

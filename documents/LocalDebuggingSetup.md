@@ -70,6 +70,9 @@ If you don't have an existing environment, you must first deploy the Azure resou
 |-------------|-------|------|
 | `SOLUTION_NAME` |  | Prefix used to uniquely identify resources in the deployment |
 | `RESOURCE_GROUP_NAME` |  | Name of the Azure Resource Group |
+| `AGENT_NAME_CONVERSATION` | | Name of the conversation agent |
+| `AGENT_NAME_TITLE` |  | Name of the title agent |
+| `API_APP_NAME` |  | Name of the Azure App Service for the API |
 | `APP_ENV` | `dev` | Set APP_ENV in your .env file to control Azure authentication. Set the environment variable to dev to use Azure CLI credentials, or to prod to use Managed Identity for production. Ensure you're logged in via az login when using dev in local. |
 | `APPINSIGHTS_INSTRUMENTATIONKEY` |  | Instrumentation Key for Azure Application Insights |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` |  | Connection string for Application Insights |
@@ -80,6 +83,7 @@ If you don't have an existing environment, you must first deploy the Azure resou
 | `AZURE_AI_SEARCH_INDEX` | `call_transcripts_index` | Name of the Azure AI Search index |
 | `AZURE_AI_SEARCH_CONNECTION_NAME` |  | Connection name for Azure AI Search |
 | `AZURE_AI_FOUNDRY_NAME` |  | Name of the Azure AI Foundry resource |
+| `AZURE_AI_FOUNDRY_RESOURCE_ID` | | Resource ID of the Azure AI Foundry resource |
 | `AZURE_AI_SEARCH_NAME` |  | Name of the Azure AI Search service |
 | `AZURE_EXISTING_AI_PROJECT_RESOURCE_ID` |  | Resource ID of existing AI project (if using existing foundry project) |
 | `AZURE_COSMOSDB_ACCOUNT` |  | Name of the Azure Cosmos DB account |
