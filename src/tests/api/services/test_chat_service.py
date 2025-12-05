@@ -3,6 +3,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from agent_framework.exceptions import ServiceResponseException
 from fastapi import HTTPException, status
 from semantic_kernel.exceptions.agent_exceptions import AgentException as RealAgentException
 
@@ -64,21 +65,11 @@ with patch("common.config.config.Config") as mock_config, \
 
 
 @pytest.fixture
-def mock_request():
-    """Create a mock FastAPI Request object."""
-    mock_request = MagicMock()
-    mock_request.app.state.agent = MagicMock()
-    mock_request.app.state.agent.client = MagicMock()
-    mock_request.app.state.agent.invoke_stream = AsyncMock()
-    return mock_request
-
-
-@pytest.fixture
-def chat_service(mock_request):
+def chat_service():
     """Create a ChatService instance for testing."""
     # Reset class-level cache before each test
     ChatService.thread_cache = None
-    return ChatService(mock_request)
+    return ChatService()
 
 
 @pytest.fixture
@@ -93,23 +84,16 @@ def mock_agent():
 class TestExpCache:
     """Test cases for ExpCache class."""
     
-    def test_init_with_agent(self, mock_agent):
-        """Test ExpCache initialization with agent."""
-        cache = ExpCache(maxsize=10, ttl=60, agent=mock_agent)
-        assert cache.agent == mock_agent
+    def test_init(self):
+        """Test ExpCache initialization."""
+        cache = ExpCache(maxsize=10, ttl=60)
         assert cache.maxsize == 10
         assert cache.ttl == 60
     
-    def test_init_without_agent(self):
-        """Test ExpCache initialization without agent."""
-        cache = ExpCache(maxsize=10, ttl=60)
-        assert cache.agent is None
-    
     @patch('asyncio.create_task')
-    @patch('services.chat_service.AzureAIAgentThread')
-    def test_expire_with_agent(self, mock_thread_class, mock_create_task, mock_agent):
-        """Test expire method when agent is present."""
-        cache = ExpCache(maxsize=2, ttl=0.01, agent=mock_agent)
+    def test_expire(self, mock_create_task):
+        """Test expire method."""
+        cache = ExpCache(maxsize=2, ttl=0.01)
         cache['key1'] = 'thread_id_1'
         cache['key2'] = 'thread_id_2'
         
@@ -123,23 +107,10 @@ class TestExpCache:
         assert len(expired_items) == 2
         assert mock_create_task.call_count == 2
     
-    def test_expire_without_agent(self):
-        """Test expire method when agent is None."""
-        cache = ExpCache(maxsize=2, ttl=0.01, agent=None)
-        cache['key1'] = 'thread_id_1'
-        
-        # Wait for expiration
-        time.sleep(0.02)
-        
-        # Should not raise error
-        expired_items = cache.expire()
-        assert len(expired_items) == 1
-    
     @patch('asyncio.create_task')
-    @patch('services.chat_service.AzureAIAgentThread')
-    def test_popitem_with_agent(self, mock_thread_class, mock_create_task, mock_agent):
-        """Test popitem method when agent is present."""
-        cache = ExpCache(maxsize=2, ttl=60, agent=mock_agent)
+    def test_popitem(self, mock_create_task):
+        """Test popitem method."""
+        cache = ExpCache(maxsize=2, ttl=60)
         cache['key1'] = 'thread_id_1'
         cache['key2'] = 'thread_id_2'
         cache['key3'] = 'thread_id_3'  
@@ -152,7 +123,7 @@ class TestChatService:
     """Test cases for ChatService class."""
     
     @patch("services.chat_service.Config")
-    def test_init(self, mock_config_class, mock_request):
+    def test_init(self, mock_config_class):
         """Test ChatService initialization."""
         # Configure mock Config
         mock_config_instance = MagicMock()
@@ -160,180 +131,433 @@ class TestChatService:
         mock_config_instance.azure_openai_api_version = "2024-02-15-preview"
         mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
         mock_config_instance.azure_ai_project_conn_string = "test_conn_string"
+        mock_config_instance.orchestrator_agent_name = "test-agent"
         mock_config_class.return_value = mock_config_instance
         
         # Reset class-level cache for test isolation
         ChatService.thread_cache = None
         
-        service = ChatService(mock_request)
+        service = ChatService()
         
         assert service.azure_openai_deployment_name == "gpt-4o-mini"
-        assert service.agent == mock_request.app.state.agent
         assert ChatService.thread_cache is not None
-    
+
     @pytest.mark.asyncio
-    @patch('services.chat_service.AzureAIAgentThread')
-    @patch('services.chat_service.TruncationObject')
-    async def test_stream_openai_text_empty_query(self, mock_truncation_class, mock_thread_class, chat_service):
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_success(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class, 
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test successful streaming with valid query."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_openai_client = MagicMock()
+        mock_conversation = MagicMock()
+        mock_conversation.id = "test-conversation-id"
+        mock_openai_client.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_project_client.get_openai_client.return_value = mock_openai_client
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(return_value=None)
+        mock_thread = MagicMock()
+        mock_agent.get_new_thread.return_value = mock_thread
+        
+        # Create mock chunks with text
+        mock_chunk1 = MagicMock()
+        mock_chunk1.text = "Hello"
+        mock_chunk1.contents = []
+        mock_chunk2 = MagicMock()
+        mock_chunk2.text = " World"
+        mock_chunk2.contents = []
+        
+        async def mock_stream(*args, **kwargs):
+            yield mock_chunk1
+            yield mock_chunk2
+        
+        mock_agent.run_stream = mock_stream
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", "test query"):
+            result_chunks.append(chunk)
+
+        # Verify
+        assert len(result_chunks) > 0
+        assert "Hello" in "".join(result_chunks)
+
+    @pytest.mark.asyncio
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_empty_query(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class,
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
         """Test streaming with empty query."""
-        mock_response = MagicMock()
-        mock_response.content = "Please provide a query."
-        mock_response.thread.id = "thread_id"
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_openai_client = MagicMock()
+        mock_conversation = MagicMock()
+        mock_conversation.id = "test-conversation-id"
+        mock_openai_client.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_project_client.get_openai_client.return_value = mock_openai_client
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(return_value=None)
+        mock_thread = MagicMock()
+        mock_agent.get_new_thread.return_value = mock_thread
         
-        async def mock_invoke_stream(*args, **kwargs):
-            yield mock_response
+        # Create mock chunks
+        mock_chunk = MagicMock()
+        mock_chunk.text = "query."
+        mock_chunk.contents = []
         
-        chat_service.agent.invoke_stream = mock_invoke_stream
+        async def mock_stream(*args, **kwargs):
+            yield mock_chunk
         
-        chunks = []
-        async for chunk in chat_service.stream_openai_text("conversation_1", ""):
-            chunks.append(chunk)
-        
-        assert len(chunks) == 1
-        assert chunks[0] == "Please provide a query."
-    
+        mock_agent.run_stream = mock_stream
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute with empty query
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", ""):
+            result_chunks.append(chunk)
+
+        # Verify - should handle empty query gracefully
+        assert len(result_chunks) > 0
+
     @pytest.mark.asyncio
-    @patch('services.chat_service.AgentException')
-    async def test_stream_openai_text_rate_limit_error(self, mock_agent_exception_class, chat_service):
-        """Test streaming with rate limit error."""
-        # Setup agent to raise RuntimeError with rate limit message
-        async def mock_invoke_stream(*args, **kwargs):
-            raise RuntimeError("Rate limit is exceeded. Try again in 30 seconds")
-            yield
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_with_citations(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class,
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test streaming with citations in response."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_openai_client = MagicMock()
+        mock_conversation = MagicMock()
+        mock_conversation.id = "test-conversation-id"
+        mock_openai_client.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_project_client.get_openai_client.return_value = mock_openai_client
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(return_value=None)
+        mock_thread = MagicMock()
+        mock_agent.get_new_thread.return_value = mock_thread
         
-        chat_service.agent.invoke_stream = mock_invoke_stream
-        mock_agent_exception_class.side_effect = lambda msg: Exception(msg)
+        # Create mock chunks with citations
+        mock_annotation = MagicMock()
+        mock_annotation.url = "http://example.com"
+        mock_annotation.title = "Test Citation"
         
-        with pytest.raises(Exception) as exc_info:
-            async for chunk in chat_service.stream_openai_text("conversation_1", "Hello"):
+        mock_content = MagicMock()
+        mock_content.annotations = [mock_annotation]
+        
+        mock_chunk = MagicMock()
+        mock_chunk.text = "Answer with citation"
+        mock_chunk.contents = [mock_content]
+        
+        async def mock_stream(*args, **kwargs):
+            yield mock_chunk
+        
+        mock_agent.run_stream = mock_stream
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+
+        # Execute
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", "test query"):
+            result_chunks.append(chunk)
+
+        # Verify citations are included
+        full_response = "".join(result_chunks)
+        assert "citations" in full_response
+        assert "http://example.com" in full_response
+
+    @pytest.mark.asyncio
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_rate_limit_error(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class,
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test handling of rate limit errors."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(
+            side_effect=ServiceResponseException("Rate limit is exceeded. Try again in 30 seconds")
+        )
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute and verify exception
+        with pytest.raises(ServiceResponseException) as exc_info:
+            async for chunk in chat_service.stream_openai_text("conv123", "test query"):
                 pass
         
         assert "Rate limit is exceeded" in str(exc_info.value)
-    
+
     @pytest.mark.asyncio
-    async def test_stream_openai_text_general_exception(self, chat_service):
-        """Test streaming with general exception."""
-        # Setup agent to raise general exception
-        async def mock_invoke_stream(*args, **kwargs):
-            raise Exception("General error")
-        
-        chat_service.agent.invoke_stream = mock_invoke_stream
-        
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_general_exception(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class,
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test handling of general exceptions."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(side_effect=Exception("General error"))
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute and verify exception
         with pytest.raises(HTTPException) as exc_info:
-            async for chunk in chat_service.stream_openai_text("conversation_1", "Hello"):
+            async for chunk in chat_service.stream_openai_text("conv123", "test query"):
                 pass
         
         assert exc_info.value.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    
-    @pytest.mark.asyncio
-    async def test_stream_openai_text_no_response(self, chat_service):
-        """Test streaming when no response is received."""
-        # Setup agent to return empty response
-        async def mock_invoke_stream(*args, **kwargs):
-            return
-            yield  # This makes it an async generator but yields nothing
-        
-        chat_service.agent.invoke_stream = mock_invoke_stream
-        
-        chunks = []
-        async for chunk in chat_service.stream_openai_text("conversation_1", "Hello"):
-            chunks.append(chunk)
-        
-        assert len(chunks) == 1
-        assert "I cannot answer this question with the current data" in chunks[0]
-    
+
     @pytest.mark.asyncio
     async def test_stream_chat_request_success(self, chat_service):
-        """Test successful stream chat request."""
-        # Mock stream_openai_text
-        async def mock_stream_openai_text(conversation_id, query):
-            yield "Hello"
-            yield " world"
+        """Test successful stream_chat_request."""
+        # Mock stream_openai_text to return chunks
+        async def mock_stream(*args, **kwargs):
+            yield '{ "answer": "Hello'
+            yield ' World'
+            yield ', "citations": []}'
         
-        chat_service.stream_openai_text = mock_stream_openai_text
-        
-        generator = await chat_service.stream_chat_request("conv_1", "Hello")
+        chat_service.stream_openai_text = mock_stream
+
+        # Execute
+        generator = await chat_service.stream_chat_request("conv123", "test query")
         
         chunks = []
         async for chunk in generator:
             chunks.append(chunk)
-        
+
+        # Verify
         assert len(chunks) > 0
-        # Verify the chunks contain expected structure
         for chunk in chunks:
-            chunk_data = json.loads(chunk.strip())
-            assert "choices" in chunk_data
-            assert len(chunk_data["choices"]) > 0
-            assert "messages" in chunk_data["choices"][0]
-            assert len(chunk_data["choices"][0]["messages"]) > 0
-            assert chunk_data["choices"][0]["messages"][0]["role"] == "assistant"
-    
-    @pytest.mark.asyncio
-    async def test_stream_chat_request_agent_exception_rate_limit(self, chat_service):
-        """Test stream_chat_request with AgentException for rate limiting."""
-        error_message = "Rate limit is exceeded. Try again in 60 seconds"
-        
-        async def mock_stream_openai_text_rate_limit_error(conversation_id, query):
-            raise RealAgentException(error_message)
-            yield  # Needs to be an async generator
+            data = json.loads(chunk.strip())
+            assert "choices" in data
+            assert isinstance(data["choices"], list)
 
-        chat_service.stream_openai_text = mock_stream_openai_text_rate_limit_error
+    @pytest.mark.asyncio
+    async def test_stream_chat_request_rate_limit_exception(self, chat_service):
+        """Test stream_chat_request with rate limit exception."""
+        # Mock stream_openai_text to raise rate limit error
+        async def mock_stream(*args, **kwargs):
+            raise ServiceResponseException("Rate limit is exceeded. Try again in 60 seconds.")
+            yield
         
-        generator = await chat_service.stream_chat_request("conv_1", "Hello")
+        chat_service.stream_openai_text = mock_stream
+
+        # Execute
+        generator = await chat_service.stream_chat_request("conv123", "test query")
         
         chunks = []
         async for chunk in generator:
             chunks.append(chunk)
-            break  # We only expect one error chunk
-            
+
+        # Verify error response
         assert len(chunks) == 1
         error_data = json.loads(chunks[0].strip())
         assert "error" in error_data
-        assert "Rate limit is exceeded. Try again in 60 seconds." == error_data["error"]
-
-    @pytest.mark.asyncio
-    async def test_stream_chat_request_agent_exception_generic(self, chat_service):
-        """Test stream_chat_request with a generic AgentException."""
-        error_message = "Some other agent error"
-
-        async def mock_stream_openai_text_generic_error(conversation_id, query):
-            raise RealAgentException(error_message)
-            yield # Needs to be an async generator
-
-        chat_service.stream_openai_text = mock_stream_openai_text_generic_error
-        
-        generator = await chat_service.stream_chat_request("conv_1", "Hello")
-
-        chunks = []
-        async for chunk in generator:
-            chunks.append(chunk)
-            break  # We only expect one error chunk
-            
-        assert len(chunks) == 1
-        error_data = json.loads(chunks[0].strip())
-        assert "error" in error_data
-        assert "An error occurred. Please try again later." == error_data["error"]
+        assert "Rate limit is exceeded" in error_data["error"]
 
     @pytest.mark.asyncio
     async def test_stream_chat_request_generic_exception(self, chat_service):
-        """Test stream_chat_request with a generic Exception."""
-        error_message = "Some other error"
-
-        async def mock_stream_openai_text_generic_error(conversation_id, query):
-            raise Exception(error_message)
-            yield # Needs to be an async generator
-
-        chat_service.stream_openai_text = mock_stream_openai_text_generic_error
+        """Test stream_chat_request with generic exception."""
+        # Mock stream_openai_text to raise generic error
+        async def mock_stream(*args, **kwargs):
+            raise Exception("Unexpected error")
+            yield
         
-        generator = await chat_service.stream_chat_request("conv_1", "Hello")
+        chat_service.stream_openai_text = mock_stream
 
+        # Execute
+        generator = await chat_service.stream_chat_request("conv123", "test query")
+        
         chunks = []
         async for chunk in generator:
             chunks.append(chunk)
-            break  # We only expect one error chunk
-            
+
+        # Verify error response
         assert len(chunks) == 1
         error_data = json.loads(chunks[0].strip())
         assert "error" in error_data
-        assert "An error occurred while processing the request." == error_data["error"]
+        assert "An error occurred while processing the request" in error_data["error"]
+
+    @pytest.mark.asyncio
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.ChatAgent")
+    @patch("services.chat_service.AzureAIClient")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async")
+    async def test_stream_openai_text_with_cached_thread(
+        self, mock_credential, mock_project_client_class, mock_azure_client_class,
+        mock_chat_agent_class, mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test streaming with cached thread ID."""
+        # Pre-populate cache
+        ChatService.thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
+        ChatService.thread_cache["conv123"] = "cached-thread-id"
+
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_cred.close = AsyncMock()
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_project_client_class.return_value = mock_project_client
+
+        mock_chat_client = MagicMock()
+        mock_azure_client_class.return_value = mock_chat_client
+
+        mock_agent = AsyncMock()
+        mock_agent.__aenter__ = AsyncMock(return_value=mock_agent)
+        mock_agent.__aexit__ = AsyncMock(return_value=None)
+        mock_thread = MagicMock()
+        mock_agent.get_new_thread.return_value = mock_thread
+        
+        mock_chunk = MagicMock()
+        mock_chunk.text = "Response"
+        mock_chunk.contents = []
+        
+        async def mock_stream(*args, **kwargs):
+            yield mock_chunk
+        
+        mock_agent.run_stream = mock_stream
+        mock_chat_agent_class.return_value = mock_agent
+
+        mock_sqldb_conn.return_value = MagicMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", "test query"):
+            result_chunks.append(chunk)
+
+        # Verify cached thread was used
+        mock_agent.get_new_thread.assert_called_with(service_thread_id="cached-thread-id")
+        assert len(result_chunks) > 0
 

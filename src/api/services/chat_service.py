@@ -10,7 +10,6 @@ import asyncio
 import json
 import logging
 import re
-import os
 
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
@@ -87,6 +86,7 @@ class ExpCache(TTLCache):
             if credential is not None:
                 await credential.close()
 
+
 class ChatService:
     """
     Service for handling chat interactions, including streaming responses,
@@ -155,7 +155,7 @@ class ChatService:
                             for content in chunk.contents:
                                 if hasattr(content, "annotations") and content.annotations:
                                     citations.extend(content.annotations)
-                        
+
                         if first_chunk:
                             if chunk is not None and chunk.text != "":
                                 first_chunk = False
@@ -166,6 +166,7 @@ class ChatService:
 
                     if ChatService.thread_cache is not None and thread is not None:
                         ChatService.thread_cache[conversation_id] = thread_conversation_id
+
                     if citations:
                         citation_list = [f"{{\"url\": \"{citation.url}\", \"title\": \"{citation.title}\"}}" for citation in citations]
                         yield ", \"citations\": [" + ",".join(citation_list) + "]}"

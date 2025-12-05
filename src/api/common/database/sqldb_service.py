@@ -9,6 +9,7 @@ import logging
 from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
 
+
 class SQLTool(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
     conn: pyodbc.Connection
@@ -26,6 +27,7 @@ class SQLTool(BaseModel):
         finally:
             if cursor:
                 cursor.close()
+
 
 async def get_db_connection():
     """Get a connection to the SQL database"""

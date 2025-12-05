@@ -74,45 +74,36 @@ class TestHistoryService:
 
     @pytest.mark.asyncio
     async def test_generate_title(self, history_service):
-        """Test generate title functionality using Azure AI Foundry SDK"""
+        """Test generate title functionality using Azure AI Foundry SDK v2"""
         conversation_messages = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"}
         ]
 
-        # Mock the AIProjectClient and related objects
-        mock_project_client = MagicMock()
-        mock_agent = MagicMock()
-        mock_agent.id = "test-agent-id"
-        mock_thread = MagicMock()
-        mock_thread.id = "test-thread-id"
-        mock_run = MagicMock()
-        mock_run.status = "completed"
+        # Mock the new v2 agent framework components
+        mock_credential = AsyncMock()
+        mock_credential.__aenter__ = AsyncMock(return_value=mock_credential)
+        mock_credential.__aexit__ = AsyncMock(return_value=None)
         
-        # Mock message with agent response
-        mock_message = MagicMock()
-        mock_message.role = MessageRole.AGENT
-        mock_text_message = MagicMock()
-        mock_text_message.text.value = "Billing Help Request"
-        mock_message.text_messages = [mock_text_message]
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        
+        mock_chat_client = MagicMock()
+        mock_chat_agent = AsyncMock()
+        mock_chat_agent.__aenter__ = AsyncMock(return_value=mock_chat_agent)
+        mock_chat_agent.__aexit__ = AsyncMock(return_value=None)
+        mock_thread = MagicMock()
+        mock_chat_agent.get_new_thread.return_value = mock_thread
+        mock_chat_agent.run = AsyncMock(return_value="Billing Help Request")
 
-        mock_project_client.agents.create_agent.return_value = mock_agent
-        mock_project_client.agents.threads.create.return_value = mock_thread
-        mock_project_client.agents.runs.create_and_process.return_value = mock_run
-        mock_project_client.agents.messages.list.return_value = [mock_message]
-
-        with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
-            with patch("services.history_service.get_azure_credential"):
-                result = await history_service.generate_title(conversation_messages)
-                assert result == "Billing Help Request"                # Verify the agent was created with correct parameters
-                mock_project_client.agents.create_agent.assert_called_once()
-                create_agent_call = mock_project_client.agents.create_agent.call_args
-                assert create_agent_call[1]["model"] == "gpt-4o-mini"
-                assert "TitleAgent-test-solution" in create_agent_call[1]["name"]
-                
-                # Verify cleanup was called
-                mock_project_client.agents.threads.delete.assert_called_once_with(thread_id="test-thread-id")
-                mock_project_client.agents.delete_agent.assert_called_once_with("test-agent-id")
+        with patch("services.history_service.get_azure_credential_async", return_value=mock_credential):
+            with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
+                with patch("services.history_service.AzureAIClient", return_value=mock_chat_client):
+                    with patch("services.history_service.ChatAgent", return_value=mock_chat_agent):
+                        result = await history_service.generate_title(conversation_messages)
+                        assert result == "Billing Help Request"
+                        mock_chat_agent.run.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_generate_title_failed_run(self, history_service):
