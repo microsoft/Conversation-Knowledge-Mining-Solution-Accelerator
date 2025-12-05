@@ -150,11 +150,11 @@ class ChatService:
                         thread = chat_agent.get_new_thread(service_thread_id=thread_conversation_id)
 
                     async for chunk in chat_agent.run_stream(messages=query, thread=thread):
-                        # Collect citations from Azure AI Search responses
-                        if hasattr(chunk, "contents") and chunk.contents:
-                            for content in chunk.contents:
-                                if hasattr(content, "annotations") and content.annotations:
-                                    citations.extend(content.annotations)
+                        # # Collect citations from Azure AI Search responses
+                        # if hasattr(chunk, "contents") and chunk.contents:
+                        #     for content in chunk.contents:
+                        #         if hasattr(content, "annotations") and content.annotations:
+                        #             citations.extend(content.annotations)
 
                         if first_chunk:
                             if chunk is not None and chunk.text != "":
