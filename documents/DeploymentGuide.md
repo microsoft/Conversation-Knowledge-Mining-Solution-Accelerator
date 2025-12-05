@@ -36,7 +36,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 3. If you can access this page, you have the required permissions
 4. Cancel without creating an app registration
 
-📖 **Detailed Setup:** Follow [Azure Account Set Up](./AzureAccountSetup.md) for complete configuration.
+📖 **Detailed Setup:** Follow [Azure Account Set Up](./AzureAccountSetUp.md) for complete configuration.
 
 ### 1.2 Check Service Availability & Quota
 
@@ -215,7 +215,7 @@ azd env set AZURE_ENV_VM_ADMIN_PASSWORD <your-password>
 
 You can customize various deployment settings before running `azd up`, including Azure regions, AI model configurations (deployment type, version, capacity), container registry settings, and resource names.
 
-📖 **Complete Guide:** See [Parameter Customization Guide](../docs/CustomizingAzdParameters.md) for the full list of available parameters and their usage.
+📖 **Complete Guide:** See [Parameter Customization Guide](./CustomizingAzdParameters.md) for the full list of available parameters and their usage.
 
 </details>
 
@@ -446,7 +446,7 @@ Now that your deployment is complete and tested, explore these resources to enha
 ## Need Help?
 
 - 🐛 **Issues:** Check [Troubleshooting Guide](./TroubleShootingSteps.md)
-- 💬 **Support:** Review [Support Guidelines](../SUPPORT.md)
+- 💬 **Support:** Review [Support Guidelines](../.github/SUPPORT.md)
 - 🔧 **Development:** See [Contributing Guide](../CONTRIBUTING.md)
 
 ---
