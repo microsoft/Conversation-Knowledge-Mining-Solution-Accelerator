@@ -18,6 +18,9 @@ hooks:
       run: |
         Write-Host "Web app URL: "
         Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
+
+        Write-Host "`nRun the following command in the bash terminal to create agents:"
+        Write-Host "bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh" -ForegroundColor Cyan
       shell: pwsh
       continueOnError: false
       interactive: true
@@ -25,6 +28,9 @@ hooks:
       run: |
         echo "Web app URL: "
         echo $WEB_APP_URL
+
+        echo "\nRun the following command in the bash terminal to create agents:"
+        echo "bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh"
       shell: sh
       continueOnError: false
       interactive: true

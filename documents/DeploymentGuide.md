@@ -238,9 +238,45 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     -- This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh`) for later use.
 
-6. If you are done trying out the application, you can delete the resources by running `azd down`.
+> **Note**: If you are running this deployment in GitHub Codespaces or VS Code Dev Container or Visual Studio Code (WEB) skip to step 7.
+
+6. Create and activate a virtual environment in bash terminal:
+  
+    ```shell
+    python -m venv .venv
+    ```
+
+    ```shell
+    source .venv/Scripts/activate
+    ```
+
+7. Login to Azure:
+
+    ```shell
+    az login
+    ```
+
+    Alternatively, login to Azure using a device code (recommended when using VS Code Web):
+
+    ```shell
+    az login --use-device-code
+    ```
+
+8. Run the bash script from the output of the azd deployment. The script will look like the following:
+    ```Shell
+    bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh
+    ```
+
+    If you don't have azd env then you need to pass parameters along with the command. Then the command will look like the following:
+    ```Shell
+    bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh <project-endpoint> <solution-name> <gpt-model-name> <ai-foundry-resource-id> <api-app-name> <azure-ai-search-connection-name> <azure-ai-search-index> <resource-group>
+    ```
+
+9. Once the script has run successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+
+10. If you are done trying out the application, you can delete the resources by running `azd down`.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
 ### 🛠️ Troubleshooting
