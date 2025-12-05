@@ -1,0 +1,49 @@
+environment:
+  name: conversation-knowledge-mining
+  location: eastus
+
+name: conversation-knowledge-mining
+
+metadata:
+  template: conversation-knowledge-mining@1.0
+
+requiredVersions:
+  azd: '>= 1.18.0'
+
+parameters:
+  solutionName:
+    type: string
+    default: ckmapp  
+  secondaryLocation:
+    type: string
+    default: eastus2
+  baseUrl:
+    type: string
+    default: 'https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator'
+
+services:
+  webapp:
+    project: ./src
+    language: py
+    host: appservice
+    dist: ./dist
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          run: ../infra/scripts/package_webapp.ps1
+          interactive: true
+          continueOnError: false
+        posix:
+          shell: sh
+          run: bash ../infra/scripts/package_webapp.sh
+          interactive: true
+          continueOnError: false
+
+deployment:
+  mode: Incremental
+  template: ./infra/main.bicep # Path to the main.bicep file inside the 'deployment' folder
+  parameters:
+    solutionName: ${parameters.solutionName}
+    secondaryLocation: ${parameters.secondaryLocation}
+    baseUrl: ${parameters.baseUrl}
