@@ -2,16 +2,15 @@
 
 # Variables
 storageAccount="$1"
-fileSystem="$2"
-baseUrl="$3"
-managedIdentityClientId="$4"
+baseUrl="$2"
+managedIdentityClientId="$3"
 
 zipFileName1="call_transcripts.zip"
 extractedFolder1="call_transcripts"
 zipUrl1=${baseUrl}"infra/data/call_transcripts.zip"
 
 zipFileName2="audio_data.zip"
-extractedFolder2="audiodata"
+extractedFolder2="audio_data"
 zipUrl2=${baseUrl}"infra/data/audio_data.zip"
 
 # Create folders if they do not exist
