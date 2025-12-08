@@ -876,7 +876,7 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.10.1'
       ipRules: []
     }
     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
-    disableLocalAuth: false //Added this in order to retrieve the keys. Evaluate alternatives
+    disableLocalAuth: true //Added this in order to retrieve the keys. Evaluate alternatives
     customSubDomainName: aiServicesName_cu
     apiProperties: {
       // staticsEnabled: false
@@ -1096,7 +1096,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.20.0' = {
       virtualNetworkRules: []
     }
     allowSharedKeyAccess: true
-    allowBlobPublicAccess: true
+    allowBlobPublicAccess: enablePrivateNetworking ? false : true
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking ? [
       {
@@ -1586,6 +1586,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
     publicNetworkAccess: 'Enabled'
+    e2eEncryptionEnabled: true
   }
 }
 
@@ -1619,6 +1620,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     publicNetworkAccess: 'Enabled'
+    e2eEncryptionEnabled: true
   }
 }
 
