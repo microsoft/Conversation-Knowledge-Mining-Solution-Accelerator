@@ -232,7 +232,7 @@ jobs:
 
       - name: Generate Unique Solution Prefix
         id: generate_solution_prefix
-        shell: bash.
+        shell: bash
         run: |
           set -e
           COMMON_PART="pslkmg"
