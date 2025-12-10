@@ -288,3 +288,7 @@ The frontend will run on `http://localhost:3000` and automatically proxy API req
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://127.0.0.1:8000
+
+
+For reference, see the image below:
+![Localhost](./images/CKM%20Localhost.png)
