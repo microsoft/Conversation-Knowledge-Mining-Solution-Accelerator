@@ -110,9 +110,11 @@ For convenience, you can use the provided startup scripts that handle environmen
 **Windows:**
 ```cmd
 cd src
-.\start.cmd
 ```
 
+```cmd
+.\start.cmd
+```
 **macOS/Linux:**
 ```bash
 cd src
@@ -270,7 +272,13 @@ To run the React frontend in development mode:
 
 ```bash
 cd src/App
+```
+
+```bash
 npm install
+```
+
+```bash
 npm start
 ```
 
