@@ -1,8 +1,24 @@
 name: Deploy-Test-Cleanup Linux
 on:
-  push:
+  pull_request:
     branches:
       - main
+    paths:
+      - 'src/App/**/*.js'
+      - 'src/App/**/*.jsx'
+      - 'src/App/**/*.ts'
+      - 'src/App/**/*.tsx'
+      - 'src/App/**/*.html'
+      - 'src/App/**/*.css'
+      - 'src/App/**/*.scss'
+      - 'src/App/**/*.json'
+      - 'src/**/*.py'
+      - 'src/api/requirements.txt'
+      - 'src/**/*.Dockerfile'
+      - 'infra/**/*.bicep'
+      - 'infra/**/*.json'
+      - 'azure.yaml'
+      - '.github/workflows/deploy-*.yml'
   workflow_dispatch:
     inputs:
       azure_location:
@@ -12,13 +28,14 @@ on:
         type: choice
         options:
           - 'australiaeast'
-          - 'centralus'
-          - 'eastasia'
+          - 'eastus'
           - 'eastus2'
+          - 'francecentral'
           - 'japaneast'
-          - 'northeurope'
-          - 'southeastasia'
+          - 'swedencentral'
           - 'uksouth'
+          - 'westus'
+          - 'westus2'
       resource_group_name:
         description: 'Resource Group Name (Optional)'
         required: false

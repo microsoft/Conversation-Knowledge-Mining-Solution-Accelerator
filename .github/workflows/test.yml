@@ -7,6 +7,11 @@ on:
       - dev
       - demo
       - psl-backend-unittest
+    paths:
+      - 'src/**/*.py'
+      - 'src/tests/**'
+      - 'src/api/requirements*.txt'
+      - '.github/workflows/test.yml'
   pull_request:
     types:
       - opened
@@ -17,6 +22,11 @@ on:
       - main
       - dev
       - demo
+    paths:
+      - 'src/**/*.py'
+      - 'src/tests/**'
+      - 'src/api/requirements*.txt'
+      - '.github/workflows/test.yml'
 
 jobs:
   #   frontend_tests:

@@ -1,8 +1,8 @@
 name: Deploy-Test-Cleanup Windows
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
     inputs:
       azure_location:
@@ -12,13 +12,14 @@ on:
         type: choice
         options:
           - 'australiaeast'
-          - 'centralus'
-          - 'eastasia'
+          - 'eastus'
           - 'eastus2'
+          - 'francecentral'
           - 'japaneast'
-          - 'northeurope'
-          - 'southeastasia'
+          - 'swedencentral'
           - 'uksouth'
+          - 'westus'
+          - 'westus2'
       resource_group_name:
         description: 'Resource Group Name (Optional)'
         required: false
