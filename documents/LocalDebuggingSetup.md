@@ -110,9 +110,11 @@ For convenience, you can use the provided startup scripts that handle environmen
 **Windows:**
 ```cmd
 cd src
-.\start.cmd
 ```
 
+```cmd
+.\start.cmd
+```
 **macOS/Linux:**
 ```bash
 cd src
@@ -270,7 +272,13 @@ To run the React frontend in development mode:
 
 ```bash
 cd src/App
+```
+
+```bash
 npm install
+```
+
+```bash
 npm start
 ```
 
@@ -280,3 +288,7 @@ The frontend will run on `http://localhost:3000` and automatically proxy API req
 
 - **Frontend**: http://localhost:3000
 - **Backend API**: http://127.0.0.1:8000
+
+
+For reference, see the image below:
+![Localhost](./Images/CKM%20Localhost.png)
