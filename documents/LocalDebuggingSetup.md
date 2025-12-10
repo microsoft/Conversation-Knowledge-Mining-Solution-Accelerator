@@ -291,4 +291,4 @@ The frontend will run on `http://localhost:3000` and automatically proxy API req
 
 
 For reference, see the image below:
-![Localhost](./images/CKM%20Localhost.png)
+![Localhost](./Images/CKM%20Localhost.png)
