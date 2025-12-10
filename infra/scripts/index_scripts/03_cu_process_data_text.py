@@ -2,11 +2,13 @@ import json
 import re
 import time
 import struct
+import os
+import sys
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-from azure.identity import get_bearer_token_provider
+from azure.identity import AzureCliCredential, get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -14,18 +16,19 @@ from azure.storage.filedatalake import DataLakeServiceClient
 from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
 from content_understanding_client import AzureContentUnderstandingClient
-from azure_credential_utils import get_azure_credential
 
-# Constants and configuration
-KEY_VAULT_NAME = 'kv_to-be-replaced'
-MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
+KEY_VAULT_NAME=sys.argv[1]
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
 INDEX_NAME = "call_transcripts_index"
 
+SAMPLE_IMPORT_FILE = 'infra/data/sample_search_index_data.json'
+SAMPLE_PROCESSED_DATA_FILE = 'infra/data/sample_processed_data.json'
+SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/sample_processed_data_key_phrases.json'
+
 def get_secrets_from_kv(kv_name, secret_name):
-    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = AzureCliCredential()
     secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
     return secret_client.get_secret(secret_name).value
 
@@ -40,11 +43,12 @@ server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
 database = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-DATABASE")
 azure_ai_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-CU-ENDPOINT")
 azure_ai_api_version = "2024-12-01-preview"
+azure_ai_api_version = "2024-12-01-preview"
 print("Secrets retrieved.")
 
 # Azure DataLake setup
 account_url = f"https://{account_name}.dfs.core.windows.net"
-credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+credential = AzureCliCredential()
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
@@ -52,7 +56,7 @@ paths = list(file_system_client.get_paths(path=directory_name))
 print("Azure DataLake setup complete.")
 
 # Azure Search setup
-search_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+search_credential = AzureCliCredential()
 search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
 print("Azure Search setup complete.")
@@ -67,9 +71,19 @@ conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN:
 cursor = conn.cursor()
 print("SQL Server connection established.")
 
+# SQL data type mapping for pandas to SQL conversion
+sql_data_types = {
+    'int64': 'INT',
+    'float64': 'DECIMAL(10,2)',
+    'object': 'NVARCHAR(MAX)',
+    'bool': 'BIT',
+    'datetime64[ns]': 'DATETIME2(6)',
+    'timedelta[ns]': 'TIME'
+}
+
 
 # Content Understanding client
-cu_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=azure_ai_endpoint,
@@ -242,24 +256,76 @@ print("File processing and DB/Search insertion complete.")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
-    with open(json_file, "r") as f:
+    with open(file=json_file, mode="r") as f:
         data = json.load(f)
-    data_list = [tuple(record.values()) for record in data]
-    columns = ", ".join(data[0].keys())
-    placeholders = ", ".join(["?"] * len(data[0]))
-    sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
-    cursor.executemany(sql, data_list)
+    
+    if not data:
+        print(f"No data to import into {table_name}.")
+        return
+    
+    # Convert to DataFrame for easier processing
+    df = pd.DataFrame(data)
+    
+    # Prepare output directory
+    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'index_scripts', 'sql_files'))
+    os.makedirs(sql_output_dir, exist_ok=True)
+    output_file_path = os.path.join(sql_output_dir, f'{table_name}_import.sql')
+    
+    # Generate INSERT statements
+    insert_sql = f"INSERT INTO {table_name} ([{'],['.join(df.columns)}]) VALUES "
+    values_list = []
+    sql_commands = []
+    count = 0
+    
+    for index, row in df.iterrows():
+        values = []
+        for value in row:
+            if pd.isna(value) or value is None:
+                values.append('NULL')
+            elif isinstance(value, str):
+                str_value = value.replace("'", "''")
+                values.append(f"'{str_value}'")
+            elif isinstance(value, bool):
+                values.append("1" if value else "0")
+            else:
+                values.append(str(value))
+        
+        count += 1
+        values_list.append(f"({', '.join(values)})")
+        
+        # Batch inserts in groups of 1000 for performance
+        if count == 1000:
+            insert_sql += ",\n".join(values_list) + ";\n"
+            sql_commands.append(insert_sql)
+            # Reset for next batch
+            insert_sql = f"INSERT INTO {table_name} ([{'],['.join(df.columns)}]) VALUES "
+            values_list = []
+            count = 0
+    
+    # Handle remaining records
+    if values_list:
+        insert_sql += ",\n".join(values_list) + ";\n"
+        sql_commands.append(insert_sql)
+    
+    # Write SQL script to file
+    with open(output_file_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(sql_commands))
+    
+    # Execute SQL script
+    with open(output_file_path, 'r', encoding='utf-8') as f:
+        sql_script = f.read()
+        cursor.execute(sql_script)
     conn.commit()
-    print(f"Imported {len(data)} records into {table_name}.")
+    print(f"Imported {len(data)} records into {table_name} using optimized SQL script.")
 
-with open('sample_search_index_data.json', 'r') as file:
+with open(file=SAMPLE_IMPORT_FILE, mode='r') as file:
     documents = json.load(file)
 batch = [{"@search.action": "upload", **doc} for doc in documents]
 search_client.upload_documents(documents=batch)
 print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
 
-bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
-bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+bulk_import_json_to_table(SAMPLE_PROCESSED_DATA_FILE, 'processed_data')
+bulk_import_json_to_table(SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE, 'processed_data_key_phrases')
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping
@@ -291,7 +357,6 @@ def call_gpt4(topics_str1, client):
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
         """
-    
     response = client.complete(
         model=deployment,
         messages=[
@@ -364,10 +429,55 @@ key_phrases as keyphrases, complaint, mined_topic as topic from processed_data''
 rows = cursor.fetchall()
 columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment", 
            "keyphrases", "complaint", "topic"]
-insert_sql = f"INSERT INTO km_processed_data ({', '.join(columns)}) VALUES ({', '.join(['?'] * len(columns))})"
-cursor.executemany(insert_sql, [list(row) for row in rows])
-conn.commit()
-print("km_processed_data table updated.")
+
+df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
+if not df_km.empty:
+    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fabric_scripts', 'sql_files'))
+    os.makedirs(sql_output_dir, exist_ok=True)
+    output_file_path = os.path.join(sql_output_dir, 'km_processed_data_insert.sql')
+    
+    insert_sql = f"INSERT INTO km_processed_data ([{'],['.join(columns)}]) VALUES "
+    values_list = []
+    sql_commands = []
+    count = 0
+    
+    for _, row in df_km.iterrows():
+        values = []
+        for value in row:
+            if pd.isna(value) or value is None:
+                values.append('NULL')
+            elif isinstance(value, str):
+                str_value = value.replace("'", "''")
+                values.append(f"'{str_value}'")
+            elif isinstance(value, bool):
+                values.append("1" if value else "0")
+            else:
+                values.append(str(value))
+        
+        count += 1
+        values_list.append(f"({', '.join(values)})")
+        
+        if count == 1000:
+            insert_sql += ",\n".join(values_list) + ";\n"
+            sql_commands.append(insert_sql)
+            insert_sql = f"INSERT INTO km_processed_data ([{'],['.join(columns)}]) VALUES "
+            values_list = []
+            count = 0
+    
+    if values_list:
+        insert_sql += ",\n".join(values_list) + ";\n"
+        sql_commands.append(insert_sql)
+    
+    with open(output_file_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(sql_commands))
+    
+    with open(output_file_path, 'r', encoding='utf-8') as f:
+        sql_script = f.read()
+        cursor.execute(sql_script)
+    conn.commit()
+    print(f"km_processed_data table updated with {len(df_km)} records using optimized SQL script.")
+else:
+    print("No data to insert into km_processed_data table.")
 
 # Update processed_data_key_phrases table
 print("Updating processed_data_key_phrases table")

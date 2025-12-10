@@ -2,7 +2,7 @@
 
 # === Configuration ===
 resourceGroupName="$1"
-bicepFile="./../process_data_scripts.bicep"
+bicepFile="./../process_custom_data_scripts.bicep"
 
 # If resourcegroup not provided as an argument, get it from AZD environment
 if [ -z "$resourceGroupName" ]; then

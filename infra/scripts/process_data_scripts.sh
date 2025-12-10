@@ -1,40 +1,93 @@
 #!/bin/bash
-echo "started the script"
 
-# Variables
-baseUrl="$1"
-keyvaultName="$2"
+# === Configuration Parameters ===
+storageAccountName="$1"
+containerName="$2"
 managedIdentityClientId="$3"
-requirementFile="requirements.txt"
-requirementFileUrl=${baseUrl}"infra/scripts/index_scripts/requirements.txt"
+keyvaultName="$4"
+sqlServerName="$5"
+sqlDbName="$6"
+resourceGroupName="$7"
+apiAppManagedIdentityClientId="$8"
+apiAppManagedIdentityName="$9"
 
-echo "Script Started"
+# Get parameters from azd env, if not provided
+if [ -z "$storageAccountName" ]; then
+    storageAccountName=$(azd env get-value STORAGE_ACCOUNT_NAME)
+fi
 
-curl --output "04_cu_process_data_new_data.py" ${baseUrl}"infra/scripts/index_scripts/04_cu_process_data_new_data.py"
-curl --output "content_understanding_client.py" ${baseUrl}"infra/scripts/index_scripts/content_understanding_client.py"
-curl --output "azure_credential_utils.py" ${baseUrl}"infra/scripts/index_scripts/azure_credential_utils.py"
-curl --output "ckm-analyzer_config_text.json" ${baseUrl}"infra/data/ckm-analyzer_config_text.json"
-curl --output "ckm-analyzer_config_audio.json" ${baseUrl}"infra/data/ckm-analyzer_config_audio.json"
+if [ -z "$containerName" ]; then
+    containerName=$(azd env get-value STORAGE_CONTAINER_NAME)
+fi
 
-############################################
-echo "Installing system packages..."    
-apk add --no-cache --virtual .build-deps build-base unixodbc-dev
-#Download the desired package(s)
-curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk
-curl -O https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk
-#Install the package(s)    
-apk add --allow-untrusted msodbcsql17_17.10.6.1-1_amd64.apk
-apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
-############################################
+if [ -z "$managedIdentityClientId" ]; then
+    managedIdentityClientId=$(azd env get-value MANAGED_IDENTITY_CLIENT_ID)
+fi
 
-# Download the requirement file
-curl --output "$requirementFile" "$requirementFileUrl"
+if [ -z "$keyvaultName" ]; then
+    keyvaultName=$(azd env get-value KEY_VAULT_NAME)
+fi
 
-echo "Download completed"
+if [ -z "$sqlServerName" ]; then
+    sqlServerName=$(azd env get-value SQLDB_SERVER)
+fi
 
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "04_cu_process_data_new_data.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "04_cu_process_data_new_data.py"
+if [ -z "$sqlDbName" ]; then
+    sqlDbName=$(azd env get-value SQLDB_DATABASE)
+fi
 
-pip install -r requirements.txt
+if [ -z "$resourceGroupName" ]; then
+    resourceGroupName=$(azd env get-value RESOURCE_GROUP_NAME)
+fi
 
-python 04_cu_process_data_new_data.py
+if [ -z "$apiAppManagedIdentityClientId" ]; then
+    apiAppManagedIdentityClientId=$(azd env get-value API_APP_MANAGED_IDENTITY_CLIENT_ID)
+fi
+
+if [ -z "$apiAppManagedIdentityName" ]; then
+    apiAppManagedIdentityName=$(azd env get-value API_APP_MANAGED_IDENTITY_NAME)
+fi
+
+# Check if all required arguments are provided
+if [ -z "$storageAccountName" ] || [ -z "$containerName" ] || [ -z "$managedIdentityClientId" ] || [ -z "$keyvaultName" ] || [ -z "$sqlServerName" ] || [ -z "$sqlDbName" ] || [ -z "$resourceGroupName" ] || [ -z "$apiAppManagedIdentityClientId" ] || [ -z "$apiAppManagedIdentityName" ]; then
+    echo "Usage: $0 <storageAccountName> <containerName> <managedIdentityClientId> <keyvaultName> <sqlServerName> <sqlDbName> <resourceGroupName> <apiAppManagedIdentityClientId> <apiAppManagedIdentityName>"
+    exit 1
+fi
+
+# Extract the SQL server name without the domain
+sqlServerName=$(echo "$sqlServerName" | cut -d'.' -f1)
+
+# === Functions ===
+log() {
+    echo -e "\033[1;32m[INFO]\033[0m $1"
+}
+
+error() {
+    echo -e "\033[1;31m[ERROR]\033[0m $1" >&2
+    exit 1
+}
+
+trap 'error "An unexpected error occurred. Please check the logs."' ERR
+
+# === Step 1: Copy KB files ===
+log "Running copy_kb_files.sh"
+bash infra/scripts/copy_kb_files.sh "$storageAccountName" "$containerName" "$managedIdentityClientId" "$keyvaultName"
+if [ $? -ne 0 ]; then
+    error "copy_kb_files.sh failed."
+fi
+log "copy_kb_files.sh completed successfully."
+
+# === Step 2: Run create index scripts ===
+log "Creating indexes..."
+log "Running run_create_index_scripts.sh"
+bash infra/scripts/run_create_index_scripts.sh "$keyvaultName" "$managedIdentityClientId" "$sqlServerName" "$resourceGroupName"
+if [ $? -ne 0 ]; then
+    error "run_create_index_scripts.sh failed."
+fi
+log "run_create_index_scripts.sh completed successfully."
+
+# === Step 3: SQL User & Role Setup ===
+log "Setting up SQL users and roles..."
+bash infra/scripts/add_user_scripts/create_sql_user_and_role.sh "$sqlServerName" "$sqlDbName" "$apiAppManagedIdentityClientId" "$apiAppManagedIdentityName" "$apiAppManagedIdentityClientId" "db_datareader, db_datawriter"
+
+log "Sample data processing completed successfully!"

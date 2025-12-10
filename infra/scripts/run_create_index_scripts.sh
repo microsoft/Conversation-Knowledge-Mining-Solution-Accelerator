@@ -1,64 +1,121 @@
 #!/bin/bash
-echo "Started the index script setup..."
+echo "started the script"
 
 # Variables
-baseUrl="$1"
-keyvaultName="$2"
-managedIdentityClientId="$3"
-requirementFile="requirements.txt"
-requirementFileUrl="${baseUrl}infra/scripts/index_scripts/requirements.txt"
+keyvaultName="$1"
+managedIdentityClientId="$2"
+serverName="$3"
+resourceGroup="$4"
 
-# Step 1: Install system dependencies (Alpine Linux style)
-echo "Installing system dependencies..."
-apk update
-apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev
-apk add --no-cache --virtual .build-deps build-base unixodbc-dev
+echo "Script Started"
 
-# Install Microsoft ODBC and SQL tools
-echo "Installing MS ODBC drivers and tools..."
-curl -s -o msodbcsql17_17.10.6.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk
-curl -s -o mssql-tools_17.10.1.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk
-apk add --allow-untrusted msodbcsql17_17.10.6.1-1_amd64.apk
-apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
+# Authenticate with Azure
+if az account show &> /dev/null; then
+    echo "Already authenticated with Azure."
+else
+    if [ -n "$managedIdentityClientId" ]; then
+        echo "Authenticating with Managed Identity..."
+        if ! az login --identity --client-id "$managedIdentityClientId" &> /dev/null; then
+            echo "Failed to authenticate with Managed Identity. Falling back to Azure CLI login."
+            az login
+            if [ $? -ne 0 ]; then
+                echo "Azure CLI login failed. Please authenticate manually and rerun the script."
+                exit 1
+            fi
+        fi
+    else
+        echo "No Managed Identity Client ID provided. Attempting Azure CLI login..."
+        az login
+        if [ $? -ne 0 ]; then
+            echo "Azure CLI login failed. Please authenticate manually and rerun the script."
+            exit 1
+        fi
+    fi
+fi
 
-# Step 2: Download index scripts
-echo "Downloading index scripts..."
-curl --output "01_create_search_index.py" "${baseUrl}infra/scripts/index_scripts/01_create_search_index.py"
-curl --output "02_create_cu_template_text.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_text.py"
-curl --output "02_create_cu_template_audio.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_audio.py"
-curl --output "03_cu_process_data_text.py" "${baseUrl}infra/scripts/index_scripts/03_cu_process_data_text.py"
-curl --output "content_understanding_client.py" "${baseUrl}infra/scripts/index_scripts/content_understanding_client.py"
-curl --output "azure_credential_utils.py" "${baseUrl}infra/scripts/index_scripts/azure_credential_utils.py"
-curl --output "ckm-analyzer_config_text.json" "${baseUrl}infra/data/ckm-analyzer_config_text.json"
-curl --output "ckm-analyzer_config_audio.json" "${baseUrl}infra/data/ckm-analyzer_config_audio.json"
-curl --output "sample_processed_data.json" "${baseUrl}infra/data/sample_processed_data.json"
-curl --output "sample_processed_data_key_phrases.json" "${baseUrl}infra/data/sample_processed_data_key_phrases.json"
-curl --output "sample_search_index_data.json" "${baseUrl}infra/data/sample_search_index_data.json"
+echo "Getting signed in user id"
+signed_user_id=$(az ad signed-in-user show --query id --output tsv)
 
-# Step 3: Download and install Python requirements
-echo "Installing Python requirements..."
-curl --output "$requirementFile" "$requirementFileUrl"
-pip install --upgrade pip
-pip install -r "$requirementFile"
+echo "Getting key vault resource id"
+key_vault_resource_id=$(az keyvault show --name $keyvaultName --query id --output tsv)
 
-# Step 4: Replace placeholder values with actuals
-echo "Substituting key vault and identity details..."
-#Replace key vault name 
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "01_create_search_index.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "01_create_search_index.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_text.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_text.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_audio.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_audio.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "03_cu_process_data_text.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_text.py"
+echo "Checking if user has the Key Vault Administrator role"
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Key Vault Administrator" --scope $key_vault_resource_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "User does not have the Key Vault Administrator role. Assigning the role."
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Key Vault Administrator" --scope $key_vault_resource_id --output none
+    if [ $? -eq 0 ]; then
+        echo "Key Vault Administrator role assigned successfully."
+    else
+        echo "Failed to assign Key Vault Administrator role."
+        exit 1
+    fi
+else
+    echo "User already has the Key Vault Administrator role."
+fi
 
 
-# Step 5: Execute the Python scripts
-echo "Running Python index scripts..."
-python 01_create_search_index.py
-python 02_create_cu_template_text.py
-python 02_create_cu_template_audio.py
-python 03_cu_process_data_text.py
+# create virtual environment
+# Check if the virtual environment already exists
+if [ -d "infra/scripts/scriptenv" ]; then
+    echo "Virtual environment already exists. Skipping creation."
+else
+    echo "Creating virtual environment"
+    python -m venv infra/scripts/scriptenv
+fi
 
-echo "Index script setup completed successfully."
+# handling virtual environment activation for different OS
+activate_env_output=$(source infra/scripts/scriptenv/bin/activate 2>&1)
+if [ -n "$activate_env_output" ]; then
+    source infra/scripts/scriptenv/Scripts/activate
+fi
+
+# Install the requirements
+echo "Installing requirements"
+pip install --quiet -r infra/scripts/index_scripts/requirements.txt
+echo "Requirements installed"
+
+echo "Running the python scripts"
+echo "Creating the search index"
+python infra/scripts/index_scripts/01_create_search_index_manual.py "$keyvaultName" "$managedIdentityClientId"
+if [ $? -ne 0 ]; then
+    echo "Error: 01_create_search_index_manual.py failed."
+    exit 1
+fi
+
+echo "Processing the data"
+python infra/scripts/index_scripts/02_create_cu_template_text_manual.py "$keyvaultName" "$managedIdentityClientId"
+if [ $? -ne 0 ]; then
+    echo "Error: 02_create_cu_template_text_manual.py failed."
+    exit 1
+fi
+
+echo "Processing the data"
+python infra/scripts/index_scripts/02_create_cu_template_audio_manual.py "$keyvaultName" "$managedIdentityClientId"
+if [ $? -ne 0 ]; then
+    echo "Error: 02_create_cu_template_audio_manual.py failed."
+    exit 1
+fi
+
+echo "Processing the data"
+
+user=$(az account show --query user.name --output tsv)
+
+# Get the signed-in user's object ID
+objectId=$(az ad signed-in-user show --query id --output tsv)
+
+az sql server ad-admin create \
+  --resource-group "$resourceGroup" \
+  --server "$serverName" \
+  --display-name "$user" \
+  --object-id "$objectId"
+  
+echo "✅ Set $user as Azure SQL Server AAD admin."
+
+python infra/scripts/index_scripts/03_cu_process_data_text_manual.py "$keyvaultName" "$managedIdentityClientId"
+if [ $? -ne 0 ]; then
+    echo "Error: 03_cu_process_data_text_manual.py failed."
+    exit 1
+fi
+
+echo "Scripts completed"

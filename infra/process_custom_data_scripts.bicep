@@ -12,7 +12,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
   name: take('avm.res.resources.deployment-script.uploadFiles', 64)
   params: {
     kind: 'AzureCLI'
-    name: 'process_data_scripts'
+    name: 'process_custom_data_scripts'
     azCliVersion: '2.52.0'
     cleanupPreference: 'Always'
     location: solutionLocation
@@ -23,7 +23,7 @@ module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
     }
     retentionInterval: 'P1D'
     runOnce: true
-    primaryScriptUri: '${baseUrl}infra/scripts/process_data_scripts.sh'
+    primaryScriptUri: '${baseUrl}infra/scripts/process_custom_data_scripts.sh'
     arguments: '${baseUrl} ${keyVaultName} ${managedIdentityClientId}'
     storageAccountResourceId: storageAccount
     subnetResourceIds: (enablePrivateNetworking && !empty(subnetId)) ? [

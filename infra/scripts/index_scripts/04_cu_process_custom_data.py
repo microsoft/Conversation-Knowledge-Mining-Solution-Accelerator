@@ -395,12 +395,12 @@ def call_gpt4(topics_str1, client):
         You are a data analysis assistant specialized in natural language processing and topic modeling. 
         Your task is to analyze the given text corpus and identify distinct topics present within the data.
         {topics_str1}
-        1. Identify the key topics in the text using topic modeling techniques. 
+        1. Identify the key topics in the text using topic modeling techniques.
         2. Choose the right number of topics based on data. Try to keep it up to 8 topics.
         3. Assign a clear and concise label to each topic based on its content.
         4. Provide a brief description of each topic along with its label.
         5. Add parental controls, billing issues like topics to the list of topics if the data includes calls related to them.
-        If the input data is insufficient for reliable topic modeling, indicate that more data is needed rather than making assumptions. 
+        If the input data is insufficient for reliable topic modeling, indicate that more data is needed rather than making assumptions.
         Ensure that the topics and labels are accurate, relevant, and easy to understand.
         Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
         Do not return anything else.
@@ -415,6 +415,7 @@ def call_gpt4(topics_str1, client):
     )
     res = response.choices[0].message.content
     return json.loads(res.replace("```json", '').replace("```", ''))
+
 
 max_tokens = 3096
 res = call_gpt4(", ".join([]), chat_client)
@@ -431,8 +432,9 @@ mined_topics_list = df_topics['label'].tolist()
 mined_topics = ", ".join(mined_topics_list)
 print("Mined topics loaded.")
 
+
 def get_mined_topic_mapping(input_text, list_of_topics):
-    prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text} 
+    prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text}
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
     response = chat_client.complete(
@@ -444,6 +446,7 @@ def get_mined_topic_mapping(input_text, list_of_topics):
         temperature=0,
     )
     return response.choices[0].message.content
+
 
 cursor.execute('SELECT * FROM processed_data')
 rows = [tuple(row) for row in cursor.fetchall()]
@@ -467,14 +470,14 @@ cursor.execute("""CREATE TABLE km_processed_data (
     satisfied varchar(255),
     sentiment varchar(255),
     keyphrases nvarchar(max),
-    complaint varchar(255), 
+    complaint varchar(255),
     topic varchar(255)
 );""")
 conn.commit()
-cursor.execute('''select ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment, 
+cursor.execute('''select ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment,
 key_phrases as keyphrases, complaint, mined_topic as topic from processed_data''')
 rows = cursor.fetchall()
-columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment", 
+columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment",
            "keyphrases", "complaint", "topic"]
 insert_sql = f"INSERT INTO km_processed_data ({', '.join(columns)}) VALUES ({', '.join(['?'] * len(columns))})"
 cursor.executemany(insert_sql, [list(row) for row in rows])

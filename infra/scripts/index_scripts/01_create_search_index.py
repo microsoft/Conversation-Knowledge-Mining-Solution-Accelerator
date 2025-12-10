@@ -1,4 +1,6 @@
+import sys
 from azure.keyvault.secrets import SecretClient
+from azure.identity import AzureCliCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
     SearchField,
@@ -14,11 +16,8 @@ from azure.search.documents.indexes.models import (
     SemanticField,
     SearchIndex
 )
-from azure_credential_utils import get_azure_credential
 
-# === Configuration ===
-KEY_VAULT_NAME = 'kv_to-be-replaced'
-MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
+KEY_VAULT_NAME=sys.argv[1]
 INDEX_NAME = "call_transcripts_index"
 
 print("calling create_search_index()....")
@@ -35,7 +34,7 @@ def get_secrets_from_kv(secret_name: str) -> str:
     Returns:
         str: The secret value.
     """
-    kv_credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    kv_credential = AzureCliCredential()
     secret_client = SecretClient(
         vault_url=f"https://{KEY_VAULT_NAME}.vault.azure.net/",
         credential=kv_credential
@@ -51,7 +50,7 @@ def create_search_index():
     - Semantic search using prioritized fields
     """
     # Shared credential
-    credential = get_azure_credential(client_id=MANAGED_IDENTITY_CLIENT_ID)
+    credential = AzureCliCredential()
 
     # Retrieve secrets from Key Vault
     search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")
