@@ -2,9 +2,8 @@
 
 # Variables
 storageAccount="$1"
-fileSystem="$2"
-baseUrl="$3"
-managedIdentityClientId="$4"
+baseUrl="$2"
+managedIdentityClientId="$3"
 
 # zipFileName1="../data/call_transcripts.zip"
 # extractedFolder1="call_transcripts"

@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "15240636549235044717"
+      "templateHash": "18323178973416331220"
     }
   },
   "parameters": {
@@ -51298,7 +51298,7 @@
             "value": "[format('{0}infra/scripts/copy_kb_files.sh', variables('baseUrl'))]"
           },
           "arguments": {
-            "value": "[format('{0} data {1} {2}', reference('storageAccount').outputs.name.value, variables('baseUrl'), reference('userAssignedIdentity').outputs.clientId.value)]"
+            "value": "[format('{0} {1} {2}', reference('storageAccount').outputs.name.value, variables('baseUrl'), reference('userAssignedIdentity').outputs.clientId.value)]"
           },
           "storageAccountResourceId": {
             "value": "[reference('storageAccount').outputs.resourceId.value]"
