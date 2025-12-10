@@ -81,6 +81,79 @@ sql_data_types = {
     'timedelta[ns]': 'TIME'
 }
 
+# Helper function to generate and execute optimized SQL insert scripts
+def generate_sql_insert_script(df, table_name, columns, sql_file_name):
+    """
+    Generate and execute optimized SQL INSERT script from DataFrame.
+    
+    Args:
+        df: pandas DataFrame with data to insert
+        table_name: Target SQL table name
+        columns: List of column names
+        sql_file_name: Output SQL file name
+    
+    Returns:
+        Number of records inserted
+    """
+    if df.empty:
+        print(f"No data to insert into {table_name}.")
+        return 0
+    
+    # Prepare output directory
+    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fabric_scripts', 'sql_files'))
+    os.makedirs(sql_output_dir, exist_ok=True)
+    output_file_path = os.path.join(sql_output_dir, sql_file_name)
+    
+    # Generate INSERT statements
+    insert_sql = f"INSERT INTO {table_name} ([{'],['.join(columns)}]) VALUES "
+    values_list = []
+    sql_commands = []
+    count = 0
+    
+    for _, row in df.iterrows():
+        values = []
+        for value in row:
+            if pd.isna(value) or value is None:
+                values.append('NULL')
+            elif isinstance(value, str):
+                str_value = value.replace("'", "''")
+                values.append(f"'{str_value}'")
+            elif isinstance(value, bool):
+                values.append("1" if value else "0")
+            else:
+                values.append(str(value))
+        
+        count += 1
+        values_list.append(f"({', '.join(values)})")
+        
+        # Batch inserts in groups of 1000 for performance
+        if count == 1000:
+            insert_sql += ",\n".join(values_list) + ";\n"
+            sql_commands.append(insert_sql)
+            # Reset for next batch
+            insert_sql = f"INSERT INTO {table_name} ([{'],['.join(columns)}]) VALUES "
+            values_list = []
+            count = 0
+    
+    # Handle remaining records
+    if values_list:
+        insert_sql += ",\n".join(values_list) + ";\n"
+        sql_commands.append(insert_sql)
+    
+    # Write SQL script to file
+    with open(output_file_path, 'w', encoding='utf-8') as f:
+        f.write("\n".join(sql_commands))
+    
+    # Execute SQL script
+    with open(output_file_path, 'r', encoding='utf-8') as f:
+        sql_script = f.read()
+        cursor.execute(sql_script)
+    conn.commit()
+    
+    record_count = len(df)
+    print(f"Inserted {record_count} records into {table_name} using optimized SQL script.")
+    return record_count
+
 
 # Content Understanding client
 cu_credential = AzureCliCredential()
@@ -263,60 +336,8 @@ def bulk_import_json_to_table(json_file, table_name):
         print(f"No data to import into {table_name}.")
         return
     
-    # Convert to DataFrame for easier processing
     df = pd.DataFrame(data)
-    
-    # Prepare output directory
-    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'index_scripts', 'sql_files'))
-    os.makedirs(sql_output_dir, exist_ok=True)
-    output_file_path = os.path.join(sql_output_dir, f'{table_name}_import.sql')
-    
-    # Generate INSERT statements
-    insert_sql = f"INSERT INTO {table_name} ([{'],['.join(df.columns)}]) VALUES "
-    values_list = []
-    sql_commands = []
-    count = 0
-    
-    for index, row in df.iterrows():
-        values = []
-        for value in row:
-            if pd.isna(value) or value is None:
-                values.append('NULL')
-            elif isinstance(value, str):
-                str_value = value.replace("'", "''")
-                values.append(f"'{str_value}'")
-            elif isinstance(value, bool):
-                values.append("1" if value else "0")
-            else:
-                values.append(str(value))
-        
-        count += 1
-        values_list.append(f"({', '.join(values)})")
-        
-        # Batch inserts in groups of 1000 for performance
-        if count == 1000:
-            insert_sql += ",\n".join(values_list) + ";\n"
-            sql_commands.append(insert_sql)
-            # Reset for next batch
-            insert_sql = f"INSERT INTO {table_name} ([{'],['.join(df.columns)}]) VALUES "
-            values_list = []
-            count = 0
-    
-    # Handle remaining records
-    if values_list:
-        insert_sql += ",\n".join(values_list) + ";\n"
-        sql_commands.append(insert_sql)
-    
-    # Write SQL script to file
-    with open(output_file_path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(sql_commands))
-    
-    # Execute SQL script
-    with open(output_file_path, 'r', encoding='utf-8') as f:
-        sql_script = f.read()
-        cursor.execute(sql_script)
-    conn.commit()
-    print(f"Imported {len(data)} records into {table_name} using optimized SQL script.")
+    generate_sql_insert_script(df, table_name, list(df.columns), f'{table_name}_import.sql')
 
 with open(file=SAMPLE_IMPORT_FILE, mode='r') as file:
     documents = json.load(file)
@@ -431,53 +452,7 @@ columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "sati
            "keyphrases", "complaint", "topic"]
 
 df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
-if not df_km.empty:
-    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fabric_scripts', 'sql_files'))
-    os.makedirs(sql_output_dir, exist_ok=True)
-    output_file_path = os.path.join(sql_output_dir, 'km_processed_data_insert.sql')
-    
-    insert_sql = f"INSERT INTO km_processed_data ([{'],['.join(columns)}]) VALUES "
-    values_list = []
-    sql_commands = []
-    count = 0
-    
-    for _, row in df_km.iterrows():
-        values = []
-        for value in row:
-            if pd.isna(value) or value is None:
-                values.append('NULL')
-            elif isinstance(value, str):
-                str_value = value.replace("'", "''")
-                values.append(f"'{str_value}'")
-            elif isinstance(value, bool):
-                values.append("1" if value else "0")
-            else:
-                values.append(str(value))
-        
-        count += 1
-        values_list.append(f"({', '.join(values)})")
-        
-        if count == 1000:
-            insert_sql += ",\n".join(values_list) + ";\n"
-            sql_commands.append(insert_sql)
-            insert_sql = f"INSERT INTO km_processed_data ([{'],['.join(columns)}]) VALUES "
-            values_list = []
-            count = 0
-    
-    if values_list:
-        insert_sql += ",\n".join(values_list) + ";\n"
-        sql_commands.append(insert_sql)
-    
-    with open(output_file_path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(sql_commands))
-    
-    with open(output_file_path, 'r', encoding='utf-8') as f:
-        sql_script = f.read()
-        cursor.execute(sql_script)
-    conn.commit()
-    print(f"km_processed_data table updated with {len(df_km)} records using optimized SQL script.")
-else:
-    print("No data to insert into km_processed_data table.")
+generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
 
 # Update processed_data_key_phrases table
 print("Updating processed_data_key_phrases table")
