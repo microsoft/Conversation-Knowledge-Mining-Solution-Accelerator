@@ -1,7 +1,7 @@
-# === Imports ===
 import argparse
 
-from azure.identity import get_bearer_token_provider, AzureCliCredential
+from azure.identity import AzureCliCredential, get_bearer_token_provider
+
 from content_understanding_client import AzureContentUnderstandingClient
 
 # Get parameters from command line

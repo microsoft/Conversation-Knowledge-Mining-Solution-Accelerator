@@ -189,16 +189,6 @@ if [ $? -ne 0 ]; then
     error_flag=true
 fi
 
-# Create SQL tables if script exists
-if [ -f "${pythonScriptPath}create_sql_tables.py" ]; then
-    echo "Creating SQL tables..."
-    python ${pythonScriptPath}create_sql_tables.py "$sqlServerName" "$sqlDatabaseName"
-    if [ $? -ne 0 ]; then
-        echo "Error: Failed to create SQL tables."
-        error_flag=true
-    fi
-fi
-
 # Assign SQL roles to managed identity using Python (pyodbc + azure-identity)
 if [ -n "$sqlManagedIdentityClientId" ] && [ -n "$sqlManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
     mi_display_name="$sqlManagedIdentityDisplayName"

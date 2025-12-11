@@ -495,27 +495,21 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-# Call copy_kb_files.sh
-echo "Running copy_kb_files.sh"
-bash infra/scripts/copy_kb_files.sh "$storageAccount" "$fileSystem" "$resourceGroupName"
+# Run 04_cu_process_custom_data.py
+echo "Running 04_cu_process_custom_data.py..."
+python infra/scripts/index_scripts/04_cu_process_custom_data.py \
+    --search_endpoint "$searchEndpoint" \
+    --ai_project_endpoint "$aiAgentEndpoint" \
+    --openai_api_version "$openaiPreviewApiVersion" \
+    --deployment_model "$deploymentModel" \
+    --embedding_model "$embeddingModel" \
+    --storage_account "$storageAccount" \
+    --sql_server "$sqlServerName" \
+    --sql_database "$SqlDatabaseName" \
+    --cu_endpoint "$cuEndpoint"
+
 if [ $? -ne 0 ]; then
-	echo "Error: copy_kb_files.sh failed."
+	echo "Error: 04_cu_process_custom_data.py failed."
 	exit 1
 fi
-echo "copy_kb_files.sh completed successfully."
-
-# Call run_create_index_scripts.sh
-echo "Running run_create_index_scripts.sh"
-# Pass all required environment variables and SQL managed identity info for role assignment
-bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$sqlServerName" "$aiSearchName" "$aif_resource_id" "$SqlDatabaseName" "$sqlManagedIdentityDisplayName" "$sqlManagedIdentityClientId" "$cu_foundry_resource_id" "$searchEndpoint" "$openaiEndpoint" "$embeddingModel" "$cuEndpoint" "$aiAgentEndpoint" "$openaiPreviewApiVersion" "$deploymentModel" "$storageAccount"
-if [ $? -ne 0 ]; then
-	echo "Error: run_create_index_scripts.sh failed."
-	exit 1
-fi
-echo "run_create_index_scripts.sh completed successfully."
-
-## SQL role assignment now centralized in run_create_index_scripts.sh; removed local duplicate block.
-
-echo "All scripts executed successfully."
-echo "Network access will be restored to original settings..."
-# Note: cleanup_on_exit will be called automatically via the trap
+echo "04_cu_process_custom_data.py completed successfully."

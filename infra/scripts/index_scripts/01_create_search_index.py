@@ -1,19 +1,20 @@
 import argparse
+
 from azure.identity import AzureCliCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
-    SearchField,
-    SearchFieldDataType,
-    VectorSearch,
-    HnswAlgorithmConfiguration,
-    VectorSearchProfile,
     AzureOpenAIVectorizer,
     AzureOpenAIVectorizerParameters,
+    HnswAlgorithmConfiguration,
+    SearchField,
+    SearchFieldDataType,
+    SearchIndex,
     SemanticConfiguration,
-    SemanticSearch,
-    SemanticPrioritizedFields,
     SemanticField,
-    SearchIndex
+    SemanticPrioritizedFields,
+    SemanticSearch,
+    VectorSearch,
+    VectorSearchProfile,
 )
 
 # Get parameters from command line

@@ -1,19 +1,21 @@
-import json
-import re
-import time
-import struct
-import os
 import argparse
-import pyodbc
-import pandas as pd
+import json
+import os
+import re
+import struct
+import time
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+
+import pandas as pd
+import pyodbc
+from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
 from azure.identity import AzureCliCredential, get_bearer_token_provider
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
-from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+
 from content_understanding_client import AzureContentUnderstandingClient
 
 # Get parameters from command line
