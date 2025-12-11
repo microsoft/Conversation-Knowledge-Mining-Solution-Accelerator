@@ -152,6 +152,9 @@ fi
 activate_env_output=$(source infra/scripts/scriptenv/bin/activate 2>&1)
 if [ -n "$activate_env_output" ]; then
     source infra/scripts/scriptenv/Scripts/activate
+    echo "Activated virtual environment for Windows"
+else
+    echo "Activated virtual environment for Unix/Linux"
 fi
 
 # Install the requirements
