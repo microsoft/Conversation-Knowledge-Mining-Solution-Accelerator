@@ -79,26 +79,16 @@ def assign_sql_roles(server, database, roles_json):
             user_exists = cursor.fetchone()[0] > 0
             
             if not user_exists:
-                # Create user from external provider with SID
-                # For managed identity, use the client ID as SID
-                create_user_sql = f"CREATE USER [{display_name}] WITH SID = 0x{client_id.replace('-', '')}, TYPE = E"
+                # Create user from external provider
+                create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
                 print(f"  Creating user: {display_name}")
                 try:
                     cursor.execute(create_user_sql)
                     conn.commit()
-                    print(f"  ✓ User created successfully")
+                    print("  ✓ User created successfully")
                 except Exception as e:
                     print(f"  ✗ Failed to create user: {e}")
-                    # Try alternative syntax for managed identity
-                    try:
-                        create_user_alt_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
-                        print(f"  Trying alternative syntax...")
-                        cursor.execute(create_user_alt_sql)
-                        conn.commit()
-                        print(f"  ✓ User created successfully (alternative method)")
-                    except Exception as e2:
-                        print(f"  ✗ Failed with alternative syntax: {e2}")
-                        continue
+                    continue
             else:
                 print(f"  User already exists: {display_name}")
             
@@ -120,7 +110,7 @@ def assign_sql_roles(server, database, roles_json):
                 try:
                     cursor.execute(add_role_sql)
                     conn.commit()
-                    print(f"  ✓ Role assigned successfully")
+                    print("  ✓ Role assigned successfully")
                 except Exception as e:
                     print(f"  ✗ Failed to assign role: {e}")
                     continue
