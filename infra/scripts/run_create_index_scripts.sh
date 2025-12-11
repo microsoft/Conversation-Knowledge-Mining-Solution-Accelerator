@@ -13,6 +13,8 @@ sqlManagedIdentityDisplayName="${9}"
 sqlManagedIdentityClientId="${10}"
 cu_foundry_resource_id="${11}"
 
+pythonScriptPath="infra/scripts/index_scripts/"
+
 echo "Script Started"
 
 # Authenticate with Azure
@@ -139,66 +141,76 @@ else
 fi
 
 
+# Determine the correct Python command
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "Python is not installed on this system. Or it is not added in the PATH."
+    exit 1
+fi
+
 # create virtual environment
 # Check if the virtual environment already exists
-if [ -d "infra/scripts/index_scripts/scriptenv" ]; then
+if [ -d $pythonScriptPath"scriptenv" ]; then
     echo "Virtual environment already exists. Skipping creation."
 else
     echo "Creating virtual environment"
-    python -m venv "infra/scripts/index_scripts/scriptenv"
+    $PYTHON_CMD -m venv $pythonScriptPath"scriptenv"
 fi
 
 # Activate the virtual environment
-if [ -f "infra/scripts/index_scripts/scriptenv/bin/activate" ]; then
+if [ -f $pythonScriptPath"scriptenv/bin/activate" ]; then
     echo "Activating virtual environment (Linux/macOS)"
-    source "infra/scripts/index_scripts/scriptenv/bin/activate"
-elif [ -f "infra/scripts/index_scripts/scriptenv/Scripts/activate" ]; then
+    source $pythonScriptPath"scriptenv/bin/activate"
+elif [ -f $pythonScriptPath"scriptenv/Scripts/activate" ]; then
     echo "Activating virtual environment (Windows)"
-    source "infra/scripts/index_scripts/scriptenv/Scripts/activate"
+    source $pythonScriptPath"scriptenv/Scripts/activate"
 else
     echo "Error activating virtual environment. Requirements may be installed globally."
 fi
 
 # Install the requirements
 echo "Installing requirements"
-pip install --quiet -r infra/scripts/index_scripts/requirements.txt
+pip install --quiet -r ${pythonScriptPath}requirements.txt
 echo "Requirements installed"
 
 error_flag=false
 
 echo "Running the python scripts"
 echo "Creating the search index"
-python infra/scripts/index_scripts/01_create_search_index.py "$keyvaultName"
+python ${pythonScriptPath}01_create_search_index.py "$keyvaultName"
 if [ $? -ne 0 ]; then
     echo "Error: 01_create_search_index.py failed."
     error_flag=true
 fi
 
 echo "Creating CU template for text"
-python infra/scripts/index_scripts/02_create_cu_template_text.py "$keyvaultName"
+python ${pythonScriptPath}02_create_cu_template_text.py "$keyvaultName"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
 fi
 
 echo "Creating CU template for audio"
-python infra/scripts/index_scripts/02_create_cu_template_audio.py "$keyvaultName"
+python ${pythonScriptPath}02_create_cu_template_audio.py "$keyvaultName"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_audio.py failed."
     error_flag=true
 fi
 
 echo "Processing data with CU"
-python infra/scripts/index_scripts/03_cu_process_data_text.py "$keyvaultName"
+python ${pythonScriptPath}03_cu_process_data_text.py "$keyvaultName"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true
 fi
 
 # Create SQL tables if script exists
-if [ -f "infra/scripts/index_scripts/create_sql_tables.py" ]; then
+if [ -f "${pythonScriptPath}create_sql_tables.py" ]; then
     echo "Creating SQL tables..."
-    python infra/scripts/index_scripts/create_sql_tables.py "$keyvaultName"
+    python ${pythonScriptPath}create_sql_tables.py "$keyvaultName"
     if [ $? -ne 0 ]; then
         echo "Error: Failed to create SQL tables."
         error_flag=true
