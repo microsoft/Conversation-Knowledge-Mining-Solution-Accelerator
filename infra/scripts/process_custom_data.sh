@@ -495,6 +495,23 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+# Create Content Understanding analyzers
+echo "Creating Content Understanding analyzer templates..."
+echo "Running 02_create_cu_template_text.py"
+python infra/scripts/index_scripts/02_create_cu_template_text.py --cu_endpoint="$cuEndpoint"
+if [ $? -ne 0 ]; then
+	echo "Error: 02_create_cu_template_text.py failed."
+	exit 1
+fi
+
+echo "Running 02_create_cu_template_audio.py"
+python infra/scripts/index_scripts/02_create_cu_template_audio.py --cu_endpoint="$cuEndpoint"
+if [ $? -ne 0 ]; then
+	echo "Error: 02_create_cu_template_audio.py failed."
+	exit 1
+fi
+echo "Content Understanding analyzers created successfully."
+
 # Run 04_cu_process_custom_data.py
 echo "Running 04_cu_process_custom_data.py..."
 sql_server_fqdn="$sqlServerName.database.windows.net"
