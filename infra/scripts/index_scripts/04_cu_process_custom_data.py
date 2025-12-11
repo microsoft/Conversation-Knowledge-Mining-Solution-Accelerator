@@ -183,6 +183,7 @@ cursor = conn.cursor()
 print("SQL Server connection established.")
 
 # Content Understanding client
+AZURE_AI_API_VERSION = "2024-12-01-preview"
 cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
