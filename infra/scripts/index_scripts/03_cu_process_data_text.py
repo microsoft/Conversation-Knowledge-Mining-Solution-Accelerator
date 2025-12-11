@@ -5,6 +5,7 @@ import struct
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
+from pathlib import Path
 from urllib.parse import urlparse
 from azure.identity import get_bearer_token_provider
 from azure.keyvault.secrets import SecretClient
@@ -17,8 +18,8 @@ from content_understanding_client import AzureContentUnderstandingClient
 from azure_credential_utils import get_azure_credential
 
 # Constants and configuration
-KEY_VAULT_NAME = 'kv_to-be-replaced'
-MANAGED_IDENTITY_CLIENT_ID = 'mici_to-be-replaced'
+KEY_VAULT_NAME = 'kv-ckmpocdsapi15xyh6'
+MANAGED_IDENTITY_CLIENT_ID = 'f6a5c843-6e09-4a87-a9f8-d12c9691ccfd'
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 AUDIO_DIRECTORY = 'audiodata'
@@ -93,6 +94,11 @@ embeddings_client = EmbeddingsClient(
     credential=credential,
     credential_scopes=["https://ai.azure.com/.default"],
 )
+
+# Resolve data directory relative to this script's location
+_script_dir = Path(__file__).resolve().parent
+_infra_dir = _script_dir.parents[1]
+DATA_DIR = _infra_dir / 'data'
 
 # Utility functions
 def get_embeddings(text: str):
@@ -252,14 +258,14 @@ def bulk_import_json_to_table(json_file, table_name):
     conn.commit()
     print(f"Imported {len(data)} records into {table_name}.")
 
-with open('sample_search_index_data.json', 'r') as file:
+with open(DATA_DIR / 'sample_search_index_data.json', 'r', encoding='utf-8') as file:
     documents = json.load(file)
 batch = [{"@search.action": "upload", **doc} for doc in documents]
 search_client.upload_documents(documents=batch)
 print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
 
-bulk_import_json_to_table('sample_processed_data.json', 'processed_data')
-bulk_import_json_to_table('sample_processed_data_key_phrases.json', 'processed_data_key_phrases')
+bulk_import_json_to_table(str(DATA_DIR / 'sample_processed_data.json'), 'processed_data')
+bulk_import_json_to_table(str(DATA_DIR / 'sample_processed_data_key_phrases.json'), 'processed_data_key_phrases')
 print("Sample data loaded to DB and Search.")
 
 # Topic mining and mapping

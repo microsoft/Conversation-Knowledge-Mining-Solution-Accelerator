@@ -1,4 +1,23 @@
-azure-storage-file-datalake==12.20.0
+# Core Azure SDKs used by the index pipeline
+azure-identity>=1.17.0
+azure-keyvault-secrets>=4.7.0
+azure-search-documents==11.5.2
+azure-storage-file-datalake>=12.12.0
+
+# Azure AI Inference (Foundry) clients
+azure-ai-inference>=1.0.0b6
+
+# Database + data processing
+pyodbc>=5.1.0
+pandas>=2.2.0
+
+# Utilities
+requests>=2.32.0
+python-dotenv>=1.0.1
+
+# Optional (only if you plan to wire a FastAPI route in this repo)
+# fastapi>=0.115.0
+# uvicorn[standard]>=0.30.0azure-storage-file-datalake==12.20.0
 # langchain
 openai==1.84.0
 azure-ai-projects==1.0.0b5

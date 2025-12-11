@@ -20,6 +20,7 @@ from agents.sql_agent_factory import SQLAgentFactory
 from agents.chart_agent_factory import ChartAgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
+from api.deployment_routes import router as deployment_router
 
 load_dotenv()
 
@@ -68,6 +69,7 @@ def build_app() -> FastAPI:
     # Include routers
     fastapi_app.include_router(backend_router, prefix="/api", tags=["backend"])
     fastapi_app.include_router(history_router, prefix="/history", tags=["history"])
+    fastapi_app.include_router(deployment_router, prefix="/deployment", tags=["deployment"])
 
     @fastapi_app.get("/health")
     async def health_check():

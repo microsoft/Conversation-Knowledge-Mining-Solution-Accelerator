@@ -17,6 +17,9 @@ azure-search-documents==11.7.0b1
 azure-ai-projects==1.0.0
 azure-ai-inference==1.0.0b9
 azure-cosmos==4.9.0
+azure-keyvault-secrets==4.9.0
+azure-storage-blob==12.23.1
+azure-storage-file-datalake==12.17.0
 
 # Additional utilities
 semantic-kernel[azure]==1.32.2

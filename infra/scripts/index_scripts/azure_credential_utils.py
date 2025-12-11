@@ -1,6 +1,6 @@
 from azure.identity import ManagedIdentityCredential, AzureCliCredential
 
-APP_ENV = 'prod'  # Change to 'dev' for local development
+APP_ENV = 'dev'  # Change to 'dev' for local development
 
 def get_azure_credential(client_id=None):
     """

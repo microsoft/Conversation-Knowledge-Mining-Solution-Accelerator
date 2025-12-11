@@ -1336,105 +1336,105 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
 
 //========== AVM WAF ========== //
 //========== Deployment script to upload data ========== //
-module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
-  name: take('avm.res.resources.deployment-script.uploadFiles', 64)
-  params: {
-    kind: 'AzureCLI'
-    name: 'copy_demo_Data-${enablePrivateNetworking ? location : secondaryLocation}'
-    azCliVersion: '2.52.0'
-    cleanupPreference: 'Always'
-    location: enablePrivateNetworking ? location : secondaryLocation
-    managedIdentities: {
-      userAssignedResourceIds: [
-        userAssignedIdentity.outputs.resourceId
-      ]
-    }
-    retentionInterval: 'P1D'
-    runOnce: true
-    primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
-    arguments: '${storageAccount.outputs.name} data ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
-    storageAccountResourceId: storageAccount.outputs.resourceId
-    subnetResourceIds: enablePrivateNetworking ? [
-      virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
-    ] : null
-    tags: tags
-    timeout: 'PT1H'
-  }
-}
+// module uploadFiles 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+//   name: take('avm.res.resources.deployment-script.uploadFiles', 64)
+//   params: {
+//     kind: 'AzureCLI'
+//     name: 'copy_demo_Data-${enablePrivateNetworking ? location : secondaryLocation}'
+//     azCliVersion: '2.52.0'
+//     cleanupPreference: 'Always'
+//     location: enablePrivateNetworking ? location : secondaryLocation
+//     managedIdentities: {
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     retentionInterval: 'P1D'
+//     runOnce: true
+//     primaryScriptUri: '${baseUrl}infra/scripts/copy_kb_files.sh'
+//     arguments: '${storageAccount.outputs.name} data ${baseUrl} ${userAssignedIdentity.outputs.clientId}'
+//     storageAccountResourceId: storageAccount.outputs.resourceId
+//     subnetResourceIds: enablePrivateNetworking ? [
+//       virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
+//     ] : null
+//     tags: tags
+//     timeout: 'PT1H'
+//   }
+// }
 
-//========== AVM WAF ========== //
-//========== Deployment script to create index ========== //
-module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
-  name: take('avm.res.resources.deployment-script.createIndex', 64)
-  params: {
-    // Required parameters
-    kind: 'AzureCLI'
-    name: 'create_search_indexes-${enablePrivateNetworking ? location : secondaryLocation}'
-    // Non-required parameters
-    azCliVersion: '2.52.0'
-    location: enablePrivateNetworking ? location : secondaryLocation
-    managedIdentities: {
-      userAssignedResourceIds: [
-        userAssignedIdentity.outputs.resourceId
-      ]
-    }
-    runOnce: true
-    primaryScriptUri: '${baseUrl}infra/scripts/run_create_index_scripts.sh'
-    arguments: '${baseUrl} ${keyvault.outputs.name} ${userAssignedIdentity.outputs.clientId}'
-    tags: tags
-    timeout: 'PT1H'
-    retentionInterval: 'P1D'
-    cleanupPreference: 'OnSuccess'
-    storageAccountResourceId: storageAccount.outputs.resourceId
-    subnetResourceIds: enablePrivateNetworking ? [
-      virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
-    ] : null
-  }
-  dependsOn:[sqlDBModule,uploadFiles]
-}
+// //========== AVM WAF ========== //
+// //========== Deployment script to create index ========== //
+// module createIndex 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+//   name: take('avm.res.resources.deployment-script.createIndex', 64)
+//   params: {
+//     // Required parameters
+//     kind: 'AzureCLI'
+//     name: 'create_search_indexes-${enablePrivateNetworking ? location : secondaryLocation}'
+//     // Non-required parameters
+//     azCliVersion: '2.52.0'
+//     location: enablePrivateNetworking ? location : secondaryLocation
+//     managedIdentities: {
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     runOnce: true
+//     primaryScriptUri: '${baseUrl}infra/scripts/run_create_index_scripts.sh'
+//     arguments: '${baseUrl} ${keyvault.outputs.name} ${userAssignedIdentity.outputs.clientId}'
+//     tags: tags
+//     timeout: 'PT1H'
+//     retentionInterval: 'P1D'
+//     cleanupPreference: 'OnSuccess'
+//     storageAccountResourceId: storageAccount.outputs.resourceId
+//     subnetResourceIds: enablePrivateNetworking ? [
+//       virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
+//     ] : null
+//   }
+//   dependsOn:[sqlDBModule,uploadFiles]
+// }
 
-var databaseRoles = [
-  'db_datareader'
-  'db_datawriter'
-]
-//========== Deployment script to create Sql User and Role  ========== //
-module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1' = {
-  name: take('avm.res.resources.deployment-script.createSqlUserAndRole', 64)
-  params: {
-    // Required parameters
-    kind: 'AzurePowerShell'
-    name: 'create_sql_user_and_role-${enablePrivateNetworking ? location : secondaryLocation}'
-    // Non-required parameters
-    azPowerShellVersion: '11.0'
-    location: enablePrivateNetworking ? location : secondaryLocation
-    managedIdentities: {
-      userAssignedResourceIds: [
-        userAssignedIdentity.outputs.resourceId
-      ]
-    }
-    runOnce: true
-    arguments: join(
-      [
-        '-SqlServerName \'${sqlServerResourceName}\''
-        '-SqlDatabaseName \'${sqlDbModuleName}\''
-        '-ClientId \'${backendUserAssignedIdentity.outputs.clientId}\''
-        '-DisplayName \'${backendUserAssignedIdentity.outputs.name}\''
-        '-DatabaseRoles \'${join(databaseRoles, ',')}\''
-      ],
-      ' '
-    )
-    scriptContent: loadTextContent('./scripts/add_user_scripts/create-sql-user-and-role.ps1')
-    tags: tags
-    timeout: 'PT1H'
-    retentionInterval: 'PT1H'
-    cleanupPreference: 'OnSuccess'
-    storageAccountResourceId: storageAccount.outputs.resourceId
-    subnetResourceIds: enablePrivateNetworking ? [
-      virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
-    ] : null
-  }
-  dependsOn:[sqlDBModule]
-}
+// var databaseRoles = [
+//   'db_datareader'
+//   'db_datawriter'
+// ]
+// //========== Deployment script to create Sql User and Role  ========== //
+// module createSqlUserAndRole 'br/public:avm/res/resources/deployment-script:0.5.1' = {
+//   name: take('avm.res.resources.deployment-script.createSqlUserAndRole', 64)
+//   params: {
+//     // Required parameters
+//     kind: 'AzurePowerShell'
+//     name: 'create_sql_user_and_role-${enablePrivateNetworking ? location : secondaryLocation}'
+//     // Non-required parameters
+//     azPowerShellVersion: '11.0'
+//     location: enablePrivateNetworking ? location : secondaryLocation
+//     managedIdentities: {
+//       userAssignedResourceIds: [
+//         userAssignedIdentity.outputs.resourceId
+//       ]
+//     }
+//     runOnce: true
+//     arguments: join(
+//       [
+//         '-SqlServerName \'${sqlServerResourceName}\''
+//         '-SqlDatabaseName \'${sqlDbModuleName}\''
+//         '-ClientId \'${backendUserAssignedIdentity.outputs.clientId}\''
+//         '-DisplayName \'${backendUserAssignedIdentity.outputs.name}\''
+//         '-DatabaseRoles \'${join(databaseRoles, ',')}\''
+//       ],
+//       ' '
+//     )
+//     scriptContent: loadTextContent('./scripts/add_user_scripts/create-sql-user-and-role.ps1')
+//     tags: tags
+//     timeout: 'PT1H'
+//     retentionInterval: 'PT1H'
+//     cleanupPreference: 'OnSuccess'
+//     storageAccountResourceId: storageAccount.outputs.resourceId
+//     subnetResourceIds: enablePrivateNetworking ? [
+//       virtualNetwork!.outputs.deploymentScriptsSubnetResourceId
+//     ] : null
+//   }
+//   dependsOn:[sqlDBModule]
+// }
 
 // ========== AVM WAF server farm ========== //
 // WAF best practices for Web Application Services: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/app-service-web-apps
