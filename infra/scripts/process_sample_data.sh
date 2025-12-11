@@ -1,19 +1,19 @@
 #!/bin/bash
 
 # Variables
-resourceGroupName="$1"
+resourceGroupName="${1}"
 
-storageAccount=""
-fileSystem=""
-keyvaultName=""
-sqlServerName=""
-SqlDatabaseName=""
-sqlManagedIdentityClientId=""
-sqlManagedIdentityDisplayName=""
-aiSearchName=""
-aif_resource_id=""
-cu_foundry_resource_id=""
-azSubscriptionId=""
+storageAccount="${2}"
+fileSystem="${3}"
+keyvaultName="${4}"
+sqlServerName="${5}"
+SqlDatabaseName="${6}"
+sqlManagedIdentityClientId="${7}"
+sqlManagedIdentityDisplayName="${8}"
+aiSearchName="${9}"
+aif_resource_id="${10}"
+cu_foundry_resource_id="${11}"
+azSubscriptionId="${12}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
@@ -41,32 +41,42 @@ enable_public_access() {
 		--resource-group "$resourceGroupName" \
 		--query "publicNetworkAccess" \
 		-o tsv)
-	
-	if [ "$original_storage_public_access" != "Enabled" ]; then
-		az storage account update \
-			--name "$storageAccount" \
-			--resource-group "$resourceGroupName" \
-			--public-network-access "Enabled" \
-			--output none
-		echo "✓ Storage Account public access enabled"
-	else
-		echo "✓ Storage Account public access already enabled"
-	fi
-	
-	# Enable public access for Storage Account network default action
 	original_storage_default_action=$(az storage account show \
 		--name "$storageAccount" \
 		--resource-group "$resourceGroupName" \
 		--query "networkRuleSet.defaultAction" \
 		-o tsv)
 	
-	if [ "$original_storage_default_action" != "Allow" ]; then
+	if [ "$original_storage_public_access" != "Enabled" ]; then
 		az storage account update \
 			--name "$storageAccount" \
 			--resource-group "$resourceGroupName" \
-			--default-action "Allow" \
+			--public-network-access Enabled \
 			--output none
-		echo "✓ Storage Account network default action set to Allow"
+		if [ $? -eq 0 ]; then
+			echo "✓ Storage Account public access enabled"
+		else
+			echo "✗ Failed to enable Storage Account public access"
+			return 1
+		fi
+	else
+		echo "✓ Storage Account public access already enabled"
+	fi
+	
+	# Also ensure the default network action allows access
+	if [ "$original_storage_default_action" != "Allow" ]; then
+		echo "Setting Storage Account network default action to Allow"
+		az storage account update \
+			--name "$storageAccount" \
+			--resource-group "$resourceGroupName" \
+			--default-action Allow \
+			--output none
+		if [ $? -eq 0 ]; then
+			echo "✓ Storage Account network default action set to Allow"
+		else
+			echo "✗ Failed to set Storage Account network default action"
+			return 1
+		fi
 	else
 		echo "✓ Storage Account network default action already set to Allow"
 	fi

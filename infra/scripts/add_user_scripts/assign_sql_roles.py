@@ -10,54 +10,32 @@ import struct
 import pyodbc
 from azure.identity import AzureCliCredential
 
-def get_connection_string(server, database):
+SQL_COPT_SS_ACCESS_TOKEN = 1256
+
+def connect_with_token(server: str, database: str, credential: AzureCliCredential):
     """
-    Build SQL Server connection string using Azure CLI authentication.
+    Connect to SQL Server using Azure CLI credential token.
     
     Args:
-        server: Fully qualified SQL Server name (e.g., server.database.windows.net)
+        server: SQL Server fully qualified name
         database: Database name
-    
+        credential: Azure CLI credential for authentication
+        
     Returns:
-        Connection string and access token
+        pyodbc.Connection: Database connection object
+        
+    Raises:
+        RuntimeError: If unable to connect with available ODBC drivers
     """
-    # Get access token using Azure CLI credential
-    credential = AzureCliCredential()
-    token = credential.get_token("https://database.windows.net/.default")
-    
-    # Extract the token value
-    access_token = token.token
-    
-    # Try to find an available ODBC driver
-    available_drivers = [d for d in pyodbc.drivers() if 'SQL Server' in d]
-    
-    if not available_drivers:
-        raise RuntimeError("No SQL Server ODBC driver found. Please install ODBC Driver 17 or 18 for SQL Server.")
-    
-    # Prefer ODBC Driver 18, then 17, then any SQL Server driver
-    driver = None
-    for preferred in ['ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server']:
-        if preferred in available_drivers:
-            driver = preferred
-            break
-    
-    if not driver:
-        driver = available_drivers[0]
-    
-    print(f"Using driver: {driver}")
-    
-    # Build connection string with access token
-    # ODBC Driver 18 requires TrustServerCertificate=yes for Azure SQL or specific certificate validation
-    conn_str = (
-        f"Driver={{{driver}}};"
-        f"Server=tcp:{server},1433;"
-        f"Database={database};"
-        f"Encrypt=yes;"
-        f"TrustServerCertificate=yes;"
-        f"Connection Timeout=30;"
-    )
-    
-    return conn_str, access_token
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-le")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
+        try:
+            conn_str = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+            return pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+        except pyodbc.Error:
+            continue
+    raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
 
 
 def assign_sql_roles(server, database, roles_json):
@@ -73,24 +51,12 @@ def assign_sql_roles(server, database, roles_json):
     try:
         # Parse roles JSON
         roles = json.loads(roles_json)
-        
-        # Get connection string and token
-        conn_str, access_token = get_connection_string(server, database)
+
+        credential = AzureCliCredential()
         
         # Connect to SQL Server
         print(f"Connecting to {server}/{database}...")
-        
-        # Create connection with access token (matching sqldb_service.py pattern)
-        # SQL_COPT_SS_ACCESS_TOKEN is 1256
-        token_bytes = access_token.encode("utf-16-LE")
-        token_struct = struct.pack(
-            f"<I{len(token_bytes)}s",
-            len(token_bytes),
-            token_bytes
-        )
-        SQL_COPT_SS_ACCESS_TOKEN = 1256
-        
-        conn = pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+        conn = connect_with_token(server, database, credential)
         cursor = conn.cursor()
         
         print("Connected successfully.")
