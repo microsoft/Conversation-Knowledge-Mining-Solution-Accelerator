@@ -1,17 +1,22 @@
 #!/bin/bash
 
 # Variables
-keyvaultName="$1"
-baseUrl="$2"
-managedIdentityClientId="$3"
-resourceGroupName="$4"
-sqlServerName="$5"
-aiSearchName="$6"
-aif_resource_id="$7"
-sqlDatabaseName="$8"
-sqlManagedIdentityDisplayName="${9}"
-sqlManagedIdentityClientId="${10}"
-cu_foundry_resource_id="${11}"
+resourceGroupName="$1"
+sqlServerName="$2"
+aiSearchName="$3"
+aif_resource_id="$4"
+sqlDatabaseName="$5"
+sqlManagedIdentityDisplayName="${6}"
+sqlManagedIdentityClientId="${7}"
+cu_foundry_resource_id="${8}"
+search_endpoint="${9}"
+openai_endpoint="${10}"
+embedding_model="${11}"
+cu_endpoint="${12}"
+ai_agent_endpoint="${13}"
+openai_preview_api_version="${14}"
+deployment_model="${15}"
+storage_account="${16}"
 
 pythonScriptPath="infra/scripts/index_scripts/"
 
@@ -22,15 +27,9 @@ if az account show &> /dev/null; then
     echo "Already authenticated with Azure."
 else
     echo "Not authenticated with Azure. Attempting to authenticate..."
-    if [ -n "$managedIdentityClientId" ]; then
-        # Use managed identity if running in Azure
-        echo "Authenticating with Managed Identity..."
-        az login --identity --client-id ${managedIdentityClientId}
-    else
-        # Use Azure CLI login if running locally
-        echo "Authenticating with Azure CLI..."
-        az login
-    fi
+    # Use Azure CLI login
+    echo "Authenticating with Azure CLI..."
+    az login
 fi
 
 # Get signed in user and store the output
@@ -39,25 +38,7 @@ signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName
 signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
 signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
 
-### Assign Key Vault Administrator role to the signed in user ###
-
-echo "Getting key vault resource id"
-key_vault_resource_id=$(az keyvault show --name $keyvaultName --query id --output tsv)
-
-echo "Checking if user has the Key Vault Administrator role"
-role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Key Vault Administrator" --scope $key_vault_resource_id --query "[].roleDefinitionId" -o tsv)
-if [ -z "$role_assignment" ]; then
-    echo "User does not have the Key Vault Administrator role. Assigning the role."
-    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Key Vault Administrator" --scope $key_vault_resource_id --output none
-    if [ $? -eq 0 ]; then
-        echo "Key Vault Administrator role assigned successfully."
-    else
-        echo "Failed to assign Key Vault Administrator role."
-        exit 1
-    fi
-else
-    echo "User already has the Key Vault Administrator role."
-fi
+# Note: Environment variables are now passed as parameters from process_sample_data.sh
 
 ### Assign Azure AI User role to the signed in user for AI Foundry ###
 
@@ -180,28 +161,29 @@ error_flag=false
 
 echo "Running the python scripts"
 echo "Creating the search index"
-python ${pythonScriptPath}01_create_search_index.py "$keyvaultName"
+python ${pythonScriptPath}01_create_search_index.py --search_endpoint="$search_endpoint" --openai_endpoint="$openai_endpoint" --embedding_model="$embedding_model"
 if [ $? -ne 0 ]; then
     echo "Error: 01_create_search_index.py failed."
     error_flag=true
 fi
 
 echo "Creating CU template for text"
-python ${pythonScriptPath}02_create_cu_template_text.py "$keyvaultName"
+python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
 fi
 
 echo "Creating CU template for audio"
-python ${pythonScriptPath}02_create_cu_template_audio.py "$keyvaultName"
+python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_audio.py failed."
     error_flag=true
 fi
 
 echo "Processing data with CU"
-python ${pythonScriptPath}03_cu_process_data_text.py "$keyvaultName"
+sql_server_fqdn="$sqlServerName.database.windows.net"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --openai_api_version="$openai_preview_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account="$storage_account" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true
@@ -210,7 +192,7 @@ fi
 # Create SQL tables if script exists
 if [ -f "${pythonScriptPath}create_sql_tables.py" ]; then
     echo "Creating SQL tables..."
-    python ${pythonScriptPath}create_sql_tables.py "$keyvaultName"
+    python ${pythonScriptPath}create_sql_tables.py "$sqlServerName" "$sqlDatabaseName"
     if [ $? -ne 0 ]; then
         echo "Error: Failed to create SQL tables."
         error_flag=true

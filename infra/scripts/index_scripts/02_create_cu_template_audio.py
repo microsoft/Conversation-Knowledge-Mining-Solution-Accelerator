@@ -1,46 +1,31 @@
 from pathlib import Path
+import argparse
 import sys
 
 from azure.identity import get_bearer_token_provider, AzureCliCredential
-from azure.keyvault.secrets import SecretClient
 
 from content_understanding_client import AzureContentUnderstandingClient
 
-KEY_VAULT_NAME=sys.argv[1]
+# Get parameters from command line
+p = argparse.ArgumentParser()
+p.add_argument("--cu_endpoint", required=True)
+args = p.parse_args()
+
+CU_ENDPOINT = args.cu_endpoint
+
 AZURE_AI_API_VERSION = "2024-12-01-preview"
 ANALYZER_ID = "ckm-audio"
 
 ANALYZER_TEMPLATE_FILE = 'infra/data/ckm-analyzer_config_audio.json'
 
-# === Helper Functions ===
-def get_secrets_from_kv(secret_name: str, vault_name: str) -> str:
-    """
-    Retrieve a secret value from Azure Key Vault.
-
-    Args:
-        secret_name (str): The name of the secret to retrieve.
-        vault_name (str): The name of the Azure Key Vault.
-
-    Returns:
-        str: The value of the secret.
-    """
-    kv_credential = AzureCliCredential()
-    secret_client = SecretClient(
-        vault_url=f"https://{vault_name}.vault.azure.net/",
-        credential=kv_credential
-    )
-    return secret_client.get_secret(secret_name).value
-
 # Add parent directory to path for module access
 sys.path.append(str(Path.cwd().parent))
-# Fetch endpoint from Key Vault
-endpoint = get_secrets_from_kv("AZURE-OPENAI-CU-ENDPOINT", KEY_VAULT_NAME)
 
 credential = AzureCliCredential()
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 client = AzureContentUnderstandingClient(
-    endpoint=endpoint,
+    endpoint=CU_ENDPOINT,
     api_version=AZURE_AI_API_VERSION,
     token_provider=token_provider
 )

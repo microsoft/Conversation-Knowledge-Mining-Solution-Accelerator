@@ -130,9 +130,6 @@ param enableRedundancy bool = false
 @description('Optional. Enable scalability for applicable resources, aligned with the Well Architected Framework recommendations. Defaults to false.')
 param enableScalability bool = false
 
-@description('Optional. Enable purge protection for the Key Vault')
-param enablePurgeProtection bool = false
-
 @description('Optional. Admin username for the Jumpbox Virtual Machine. Set to custom value if enablePrivateNetworking is true.')
 @secure()
 param vmAdminUsername string?
@@ -169,8 +166,6 @@ var solutionSuffix = toLower(trim(replace(
 )))
 
 var acrName = 'kmcontainerreg'
-// @description('Optional. Key vault reference and secret settings for the module\'s secrets export.')
-// param secretsExportConfiguration secretsExportConfigurationType?
 // Replica regions list based on article in [Azure regions list](https://learn.microsoft.com/azure/reliability/regions-list) and [Enhance resilience by replicating your Log Analytics workspace across regions](https://learn.microsoft.com/azure/azure-monitor/logs/workspace-replication#supported-regions) for supported regions for Log Analytics Workspace.
 var replicaRegionPairs = {
   australiaeast: 'australiasoutheast'
@@ -455,9 +450,8 @@ var dnsZoneIndex = {
   storageFile: 5
   storageDfs: 6
   cosmosDB: 7
-  keyVault: 8
-  sqlServer: 9
-  search: 10
+  sqlServer: 8
+  search: 9
 }
 
 // ===================================================
@@ -511,166 +505,6 @@ module backendUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assi
 }
 
 // ========== AVM WAF ========== //
-// ========== Key Vault Module ========== //
-var keyVaultName = 'kv-${solutionSuffix}'
-module keyvault 'br/public:avm/res/key-vault/vault:0.12.1' = {
-  name: take('avm.res.key-vault.vault.${keyVaultName}', 64)
-  params: {
-    name: keyVaultName
-    location: location
-    tags: tags
-    sku: 'premium'
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    networkAcls: {
-      defaultAction: 'Allow'
-    }
-    enablePurgeProtection: enablePurgeProtection
-    enableVaultForDeployment: true
-    enableVaultForDiskEncryption: true
-    enableVaultForTemplateDeployment: true
-    enableRbacAuthorization: true
-    enableSoftDelete: true
-    softDeleteRetentionInDays: 7
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : []
-    // WAF aligned configuration for Private Networking
-    privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            name: 'pep-${keyVaultName}'
-            customNetworkInterfaceName: 'nic-${keyVaultName}'
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.keyVault]!.outputs.resourceId }
-              ]
-            }
-            service: 'vault'
-            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-          }
-        ]
-      : []
-    // WAF aligned configuration for Role-based Access Control
-    roleAssignments: [
-      {
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-        roleDefinitionIdOrName: 'Key Vault Administrator'
-      }
-      {
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      }
-    ]
-    secrets: [
-      {
-        name: 'AZURE-COSMOSDB-ACCOUNT'
-        value: cosmosDb.outputs.name
-      }
-      {
-        name: 'AZURE-COSMOSDB-ACCOUNT-KEY'
-        value: cosmosDb.outputs.primaryReadWriteKey
-      }
-      {
-        name: 'AZURE-COSMOSDB-DATABASE'
-        value: cosmosDbDatabaseName
-      }
-      {
-        name: 'AZURE-COSMOSDB-CONVERSATIONS-CONTAINER'
-        value: collectionName
-      }
-      {
-        name: 'AZURE-COSMOSDB-ENABLE-FEEDBACK'
-        value: 'True'
-      }
-      {
-        name: 'ADLS-ACCOUNT-NAME'
-        value: storageAccountName
-      }
-      {
-        name: 'ADLS-ACCOUNT-CONTAINER'
-        value: 'data'
-      }
-      {
-        name: 'ADLS-ACCOUNT-KEY'
-        value: storageAccount.outputs.primaryAccessKey
-      }
-      {
-        name: 'AZURE-SEARCH-ENDPOINT'
-        value: 'https://${searchSearchServices.outputs.name}.search.windows.net'
-      }
-      {
-        name: 'AZURE-SEARCH-SERVICE'
-        value: searchSearchServices.outputs.name
-      }
-      {
-        name: 'AZURE-OPENAI-ENDPOINT'
-        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServicesResourceName}.openai.azure.com/'
-      }
-      {
-        name: 'AZURE-AI-AGENT-ENDPOINT'
-        value: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
-      }
-      {
-        name: 'COG-SERVICES-ENDPOINT'
-        value: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : aiFoundryAiServices.outputs.endpoint
-      }
-      {
-        name: 'AZURE-OPENAI-SEARCH-PROJECT'
-        value: !empty(existingAiFoundryAiProjectResourceId) ? existingAIProjectName : aiFoundryAiServicesAiProjectResourceName
-      }
-      {
-        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
-        value: ''
-      }
-      {
-        name: 'AZURE-OPENAI-DEPLOYMENT-MODEL'
-        value: gptModelName
-      }
-      {
-        name: 'AZURE-OPENAI-PREVIEW-API-VERSION'
-        value: azureOpenAIApiVersion
-      }
-      {
-        name: 'AZURE-OPENAI-CU-ENDPOINT'
-        value: cognitiveServicesCu.outputs.endpoints['OpenAI Language Model Instance API']
-      }
-      {
-        name: 'AZURE-OPENAI-CU-VERSION'
-        value: '?api-version=2024-12-01-preview'
-      }
-      {
-        name: 'AZURE-SEARCH-INDEX'
-        value: 'transcripts_index'
-      }
-      {
-        name: 'COG-SERVICES-NAME'
-        value: aiFoundryAiServicesResourceName
-      }
-      {
-        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
-        value: ''
-      }
-      {
-        name: 'AZURE-OPENAI-INFERENCE-ENDPOINT'
-        value: ''
-      }
-      {
-        name: 'AZURE-OPENAI-EMBEDDING-MODEL'
-        value: embeddingModel
-      }
-      {
-        name: 'SQLDB-SERVER'
-        value: 'sql-${solutionSuffix}${environment().suffixes.sqlServerHostname}'
-      }
-      {
-        name: 'SQLDB-DATABASE'
-        value: 'sqldb-${solutionSuffix}'
-      }
-    ]
-    enableTelemetry: enableTelemetry
-  }
-}
-
 // ==========AI Foundry and related resources ========== //
 // ========== AI Foundry: AI Services ========== //
 // WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
@@ -1591,6 +1425,9 @@ output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
 @description('Contains Azure OpenAI API version.')
 output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
 
+@description('Contains Azure OpenAI Preview API version.')
+output AZURE_OPENAI_PREVIEW_API_VERSION string = azureAiAgentApiVersion
+
 @description('Contains Azure OpenAI resource name.')
 output AZURE_OPENAI_RESOURCE string = aiFoundryAiServices.outputs.name
 
@@ -1642,11 +1479,6 @@ output API_APP_URL string = 'https://api-${solutionSuffix}.azurewebsites.net'
 @description('Contains web application URL.')
 output WEB_APP_URL string = 'https://app-${solutionSuffix}.azurewebsites.net'
 
-// ========== Additional outputs for process_sample_data.sh script ========== //
-
-@description('Name of the Key Vault.')
-output KEY_VAULT_NAME string = keyvault.outputs.name
-
 @description('Name of the Storage Account.')
 output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
 
@@ -1658,3 +1490,6 @@ output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAIservicesEnabled ? aiFoundryAiS
 
 @description('Resource ID of the Content Understanding AI Foundry.')
 output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
+
+@description('Azure OpenAI Content Understanding endpoint URL.')
+output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint

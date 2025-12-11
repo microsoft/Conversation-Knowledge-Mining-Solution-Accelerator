@@ -3,24 +3,29 @@
 # Variables
 resourceGroupName="${1}"
 
-storageAccount="${2}"
-fileSystem="${3}"
-keyvaultName="${4}"
-sqlServerName="${5}"
-SqlDatabaseName="${6}"
-sqlManagedIdentityClientId="${7}"
-sqlManagedIdentityDisplayName="${8}"
-aiSearchName="${9}"
-aif_resource_id="${10}"
-cu_foundry_resource_id="${11}"
-azSubscriptionId="${12}"
+storageAccount=""
+fileSystem=""
+sqlServerName=""
+SqlDatabaseName=""
+sqlManagedIdentityClientId=""
+sqlManagedIdentityDisplayName=""
+aiSearchName=""
+aif_resource_id=""
+cu_foundry_resource_id=""
+searchEndpoint=""
+openaiEndpoint=""
+embeddingModel=""
+cuEndpoint=""
+aiAgentEndpoint=""
+openaiPreviewApiVersion=""
+deploymentModel=""
+azSubscriptionId=""
 
 # Global variables to track original network access states
 original_storage_public_access=""
 original_storage_default_action=""
 original_foundry_public_access=""
 original_cu_foundry_public_access=""
-original_keyvault_public_access=""
 aif_resource_group=""
 aif_account_resource_id=""
 cu_resource_group=""
@@ -145,25 +150,6 @@ enable_public_access() {
 		else
 			echo "✓ CU Foundry public access already enabled"
 		fi
-	fi
-	
-	# Enable public access for Key Vault
-	echo "Enabling public access for Key Vault: $keyvaultName"
-	original_keyvault_public_access=$(az keyvault show \
-		--name "$keyvaultName" \
-		--resource-group "$resourceGroupName" \
-		--query "properties.publicNetworkAccess" \
-		-o tsv)
-	
-	if [ "$original_keyvault_public_access" != "Enabled" ]; then
-		az keyvault update \
-			--name "$keyvaultName" \
-			--resource-group "$resourceGroupName" \
-			--public-network-access "Enabled" \
-			--output none
-		echo "✓ Key Vault public access enabled"
-	else
-		echo "✓ Key Vault public access already enabled"
 	fi
 	
 	# Enable public access for SQL Server
@@ -316,28 +302,7 @@ restore_network_access() {
 	else
 		echo "CU Foundry access unchanged (already at desired state)"
 	fi
-		
-	# Restore Key Vault access
-	if [ -n "$original_keyvault_public_access" ] && [ "$original_keyvault_public_access" != "Enabled" ]; then
-		echo "Restoring Key Vault public access to: $original_keyvault_public_access"
-		case "$original_keyvault_public_access" in
-			"enabled"|"Enabled") restore_value="Enabled" ;;
-			"disabled"|"Disabled") restore_value="Disabled" ;;
-			*) restore_value="$original_keyvault_public_access" ;;
-		esac
-		az keyvault update \
-			--name "$keyvaultName" \
-			--resource-group "$resourceGroupName" \
-			--public-network-access "$restore_value" \
-			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ Key Vault access restored"
-		else
-			echo "✗ Failed to restore Key Vault access"
-		fi
-	else
-		echo "Key Vault access unchanged (already at desired state)"
-	fi
+	
 	
 	# Restore SQL Server public access
 	if [ -n "$original_sql_public_access" ] && [ "$original_sql_public_access" != "Enabled" ]; then
@@ -408,7 +373,6 @@ get_values_from_azd_env() {
 	resourceGroupName=$(azd env get-value RESOURCE_GROUP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	storageAccount=$(azd env get-value STORAGE_ACCOUNT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	fileSystem=$(azd env get-value STORAGE_CONTAINER_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	keyvaultName=$(azd env get-value KEY_VAULT_NAME 2>&1 | grep -E '^[a-zA-Z0-9_-]+$')
 	sqlServerName=$(azd env get-value SQLDB_SERVER 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	SqlDatabaseName=$(azd env get-value SQLDB_DATABASE 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	sqlManagedIdentityClientId=$(azd env get-value SQLDB_USER_MID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
@@ -416,12 +380,19 @@ get_values_from_azd_env() {
 	aiSearchName=$(azd env get-value AZURE_AI_SEARCH_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aif_resource_id=$(azd env get-value AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	cu_foundry_resource_id=$(azd env get-value CU_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	searchEndpoint=$(azd env get-value AZURE_AI_SEARCH_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
+	openaiEndpoint=$(azd env get-value AZURE_OPENAI_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+/?$')
+	embeddingModel=$(azd env get-value AZURE_OPENAI_EMBEDDING_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	cuEndpoint=$(azd env get-value AZURE_OPENAI_CU_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
+	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
+	openaiPreviewApiVersion=$(azd env get-value AZURE_OPENAI_PREVIEW_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
+	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$keyvaultName" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	else
@@ -453,11 +424,6 @@ get_values_from_az_deployment() {
     fileSystem=$(echo "$deploymentOutputs" | grep -A 3 '"storagE_CONTAINER_NAME"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
     if [ -z "$fileSystem" ]; then
         fileSystem=$(echo "$deploymentOutputs" | grep -A 3 '"storageContainerName"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
-    fi
-    
-    keyvaultName=$(echo "$deploymentOutputs" | grep -A 3 '"keY_VAULT_NAME"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
-    if [ -z "$keyvaultName" ]; then
-        keyvaultName=$(echo "$deploymentOutputs" | grep -A 3 '"keyVaultName"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
     fi
     
     sqlServerName=$(echo "$deploymentOutputs" | grep -A 3 '"sqlDb_SERVER"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
@@ -494,12 +460,48 @@ get_values_from_az_deployment() {
     if [ -z "$cu_foundry_resource_id" ]; then
         cu_foundry_resource_id=$(echo "$deploymentOutputs" | grep -A 3 '"cuFoundryResourceId"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
     fi
+    
+    # Extract Python script parameters from deployment outputs
+    searchEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_AI_SEARCH_ENDPOINT"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$searchEndpoint" ]; then
+        searchEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azureAiSearchEndpoint"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    openaiEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_OPENAI_ENDPOINT"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$openaiEndpoint" ]; then
+        openaiEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azureOpenaiEndpoint"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    embeddingModel=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_OPENAI_EMBEDDING_MODEL"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$embeddingModel" ]; then
+        embeddingModel=$(echo "$deploymentOutputs" | grep -A 3 '"azureOpenaiEmbeddingModel"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    cuEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_OPENAI_CU_ENDPOINT"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$cuEndpoint" ]; then
+        cuEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azureOpenaiCuEndpoint"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    aiAgentEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_AI_AGENT_ENDPOINT"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$aiAgentEndpoint" ]; then
+        aiAgentEndpoint=$(echo "$deploymentOutputs" | grep -A 3 '"azureAiAgentEndpoint"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    openaiPreviewApiVersion=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_OPENAI_PREVIEW_API_VERSION"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$openaiPreviewApiVersion" ]; then
+        openaiPreviewApiVersion=$(echo "$deploymentOutputs" | grep -A 3 '"azureOpenaiPreviewApiVersion"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
+    
+    deploymentModel=$(echo "$deploymentOutputs" | grep -A 3 '"azurE_OPENAI_DEPLOYMENT_MODEL"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    if [ -z "$deploymentModel" ]; then
+        deploymentModel=$(echo "$deploymentOutputs" | grep -A 3 '"azureOpenaiDeploymentModel"' | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+    fi
  
     # Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
     sqlServerName="${sqlServerName%.database.windows.net}"
  
     # Validate that we extracted all required values
-    if [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$keyvaultName" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+    if [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$searchEndpoint" ] || [ -z "$openaiEndpoint" ] || [ -z "$embeddingModel" ] || [ -z "$cuEndpoint" ] || [ -z "$aiAgentEndpoint" ] || [ -z "$openaiPreviewApiVersion" ] || [ -z "$deploymentModel" ]; then
         echo "Error: One or more required values could not be retrieved from deployment outputs."
         return 1
     else
@@ -512,7 +514,6 @@ get_values_from_user() {
     echo "Please enter required values manually."
 	read -rp "Enter Storage Account Name: " storageAccount
 	read -rp "Enter Storage Container Name: " fileSystem
-	read -rp "Enter Key Vault Name: " keyvaultName
 	read -rp "Enter SQL Server Name: " sqlServerName
 	read -rp "Enter SQL Database Name: " SqlDatabaseName
 	read -rp "Enter SQL Managed Identity Display Name: " sqlManagedIdentityDisplayName
@@ -520,9 +521,16 @@ get_values_from_user() {
 	read -rp "Enter AI Search Service Name: " aiSearchName
 	read -rp "Enter AI Foundry Resource ID: " aif_resource_id
 	read -rp "Enter CU Foundry Resource ID: " cu_foundry_resource_id
+	read -rp "Enter Search Endpoint: " searchEndpoint
+	read -rp "Enter OpenAI Endpoint: " openaiEndpoint
+	read -rp "Enter Embedding Model: " embeddingModel
+	read -rp "Enter CU Endpoint: " cuEndpoint
+	read -rp "Enter AI Agent Endpoint: " aiAgentEndpoint
+	read -rp "Enter OpenAI Preview API Version: " openaiPreviewApiVersion
+	read -rp "Enter Deployment Model: " deploymentModel
 
 	# Validate that all required values are provided
-	if [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$keyvaultName" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$searchEndpoint" ] || [ -z "$openaiEndpoint" ] || [ -z "$embeddingModel" ] || [ -z "$cuEndpoint" ] || [ -z "$aiAgentEndpoint" ] || [ -z "$openaiPreviewApiVersion" ] || [ -z "$deploymentModel" ]; then
 		echo "Error: All values are required. Please try again."
 		return 1
 	else
@@ -531,13 +539,12 @@ get_values_from_user() {
 	fi
 }
 
-# Authenticate with Azure
+# Use Azure CLI login if running locally
 echo ""
-echo "Attempting to authenticate with Azure..."
 echo "Authenticating with Azure CLI..."
 az login --use-device-code
-
 echo ""
+
 if check_azd_installed; then
     azSubscriptionId=$(azd env get-value AZURE_SUBSCRIPTION_ID) || azSubscriptionId="$AZURE_SUBSCRIPTION_ID" || azSubscriptionId=""
 fi
@@ -564,6 +571,7 @@ if [ "$currentSubscriptionId" != "$azSubscriptionId" ]; then
 				selectedSubscription=$(echo "$availableSubscriptions" | sed -n "${subscriptionIndex}p")
 				selectedSubscriptionName=$(echo "$selectedSubscription" | cut -f1)
 				selectedSubscriptionId=$(echo "$selectedSubscription" | cut -f2)
+
 				# Set the selected subscription
 				if  az account set --subscription "$selectedSubscriptionId"; then
 					echo "Switched to subscription: $selectedSubscriptionName ( $selectedSubscriptionId )"
@@ -583,6 +591,7 @@ else
 	echo "Proceeding with the subscription: $currentSubscriptionName ( $currentSubscriptionId )"
 	az account set --subscription "$currentSubscriptionId"
 fi
+echo ""
 
 echo ""
 if [ -z "$resourceGroupName" ]; then
@@ -625,7 +634,6 @@ echo "==============================================="
 echo "Resource Group Name: $resourceGroupName"
 echo "Storage Account Name: $storageAccount"
 echo "Storage Container Name: $fileSystem"
-echo "Key Vault Name: $keyvaultName"
 echo "SQL Server Name: $sqlServerName"
 echo "SQL Database Name: $SqlDatabaseName"
 echo "SQL Managed Identity Display Name: $sqlManagedIdentityDisplayName"
@@ -633,6 +641,13 @@ echo "SQL Managed Identity Client ID: $sqlManagedIdentityClientId"
 echo "AI Search Service Name: $aiSearchName"
 echo "AI Foundry Resource ID: $aif_resource_id"
 echo "CU Foundry Resource ID: $cu_foundry_resource_id"
+echo "Search Endpoint: $searchEndpoint"
+echo "OpenAI Endpoint: $openaiEndpoint"
+echo "Embedding Model: $embeddingModel"
+echo "CU Endpoint: $cuEndpoint"
+echo "AI Agent Endpoint: $aiAgentEndpoint"
+echo "OpenAI Preview API Version: $openaiPreviewApiVersion"
+echo "Deployment Model: $deploymentModel"
 echo "==============================================="
 echo ""
 
@@ -654,8 +669,8 @@ echo "copy_kb_files.sh completed successfully."
 
 # Call run_create_index_scripts.sh
 echo "Running run_create_index_scripts.sh"
-# Pass SQL managed identity client id and display name so index script can perform role assignment centrally
-bash infra/scripts/run_create_index_scripts.sh "$keyvaultName" "" "" "$resourceGroupName" "$sqlServerName" "$aiSearchName" "$aif_resource_id" "$SqlDatabaseName" "$sqlManagedIdentityDisplayName" "$sqlManagedIdentityClientId" "$cu_foundry_resource_id"
+# Pass all required environment variables and SQL managed identity info for role assignment
+bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$sqlServerName" "$aiSearchName" "$aif_resource_id" "$SqlDatabaseName" "$sqlManagedIdentityDisplayName" "$sqlManagedIdentityClientId" "$cu_foundry_resource_id" "$searchEndpoint" "$openaiEndpoint" "$embeddingModel" "$cuEndpoint" "$aiAgentEndpoint" "$openaiPreviewApiVersion" "$deploymentModel" "$storageAccount"
 if [ $? -ne 0 ]; then
 	echo "Error: run_create_index_scripts.sh failed."
 	exit 1

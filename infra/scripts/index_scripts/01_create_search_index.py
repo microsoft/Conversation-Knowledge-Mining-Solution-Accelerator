@@ -1,5 +1,4 @@
-import sys
-from azure.keyvault.secrets import SecretClient
+import argparse
 from azure.identity import AzureCliCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -17,29 +16,20 @@ from azure.search.documents.indexes.models import (
     SearchIndex
 )
 
-KEY_VAULT_NAME=sys.argv[1]
+# Get parameters from command line
+p = argparse.ArgumentParser()
+p.add_argument("--search_endpoint", required=True)
+p.add_argument("--openai_endpoint", required=True)
+p.add_argument("--embedding_model", required=True)
+args = p.parse_args()
+
+SEARCH_ENDPOINT = args.search_endpoint
+OPENAI_ENDPOINT = args.openai_endpoint
+EMBEDDING_MODEL = args.embedding_model
+
 INDEX_NAME = "call_transcripts_index"
 
 print("calling create_search_index()....")
-
-
-def get_secrets_from_kv(secret_name: str) -> str:
-    """
-    Retrieves a secret value from Azure Key Vault.
-
-    Args:
-        secret_name (str): Name of the secret.
-        credential (ManagedIdentityCredential): Credential with access to Key Vault.
-
-    Returns:
-        str: The secret value.
-    """
-    kv_credential = AzureCliCredential()
-    secret_client = SecretClient(
-        vault_url=f"https://{KEY_VAULT_NAME}.vault.azure.net/",
-        credential=kv_credential
-    )
-    return secret_client.get_secret(secret_name).value
 
 
 def create_search_index():
@@ -52,12 +42,7 @@ def create_search_index():
     # Shared credential
     credential = AzureCliCredential()
 
-    # Retrieve secrets from Key Vault
-    search_endpoint = get_secrets_from_kv("AZURE-SEARCH-ENDPOINT")
-    openai_resource_url = get_secrets_from_kv("AZURE-OPENAI-ENDPOINT")
-    embedding_model = get_secrets_from_kv("AZURE-OPENAI-EMBEDDING-MODEL")
-
-    index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
+    index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
 
     # Define index schema
     fields = [
@@ -90,9 +75,9 @@ def create_search_index():
                 vectorizer_name="myOpenAI",
                 kind="azureOpenAI",
                 parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=openai_resource_url,
-                    deployment_name=embedding_model,
-                    model_name=embedding_model
+                    resource_url=OPENAI_ENDPOINT,
+                    deployment_name=EMBEDDING_MODEL,
+                    model_name=EMBEDDING_MODEL
                 )
             )
         ]

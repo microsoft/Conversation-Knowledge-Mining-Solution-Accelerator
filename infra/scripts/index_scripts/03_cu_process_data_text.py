@@ -3,13 +3,12 @@ import re
 import time
 import struct
 import os
-import sys
+import argparse
 import pyodbc
 import pandas as pd
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 from azure.identity import AzureCliCredential, get_bearer_token_provider
-from azure.keyvault.secrets import SecretClient
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
@@ -17,7 +16,29 @@ from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
 from azure.ai.inference.models import SystemMessage, UserMessage
 from content_understanding_client import AzureContentUnderstandingClient
 
-KEY_VAULT_NAME=sys.argv[1]
+# Get parameters from command line
+p = argparse.ArgumentParser()
+p.add_argument("--search_endpoint", required=True)
+p.add_argument("--ai_project_endpoint", required=True)
+p.add_argument("--openai_api_version", required=True)
+p.add_argument("--deployment_model", required=True)
+p.add_argument("--embedding_model", required=True)
+p.add_argument("--storage_account", required=True)
+p.add_argument("--sql_server", required=True)
+p.add_argument("--sql_database", required=True)
+p.add_argument("--cu_endpoint", required=True)
+args = p.parse_args()
+
+SEARCH_ENDPOINT = args.search_endpoint
+AI_PROJECT_ENDPOINT = args.ai_project_endpoint
+OPENAI_API_VERSION = args.openai_api_version
+DEPLOYMENT_MODEL = args.deployment_model
+EMBEDDING_MODEL = args.embedding_model
+STORAGE_ACCOUNT = args.storage_account
+SQL_SERVER = args.sql_server
+SQL_DATABASE = args.sql_database
+CU_ENDPOINT = args.cu_endpoint
+
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 INDEX_NAME = "call_transcripts_index"
@@ -26,28 +47,10 @@ SAMPLE_IMPORT_FILE = 'infra/data/sample_search_index_data.json'
 SAMPLE_PROCESSED_DATA_FILE = 'infra/data/sample_processed_data.json'
 SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/sample_processed_data_key_phrases.json'
 
-
-def get_secrets_from_kv(kv_name, secret_name):
-    kv_credential = AzureCliCredential()
-    secret_client = SecretClient(vault_url=f"https://{kv_name}.vault.azure.net/", credential=kv_credential)
-    return secret_client.get_secret(secret_name).value
-
-
-# Retrieve secrets
-search_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-SEARCH-ENDPOINT")
-ai_project_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-AI-AGENT-ENDPOINT")
-openai_api_version = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-PREVIEW-API-VERSION")
-deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-DEPLOYMENT-MODEL")
-embedding_deployment = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-EMBEDDING-MODEL")
-account_name = get_secrets_from_kv(KEY_VAULT_NAME, "ADLS-ACCOUNT-NAME")
-server = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-SERVER")
-database = get_secrets_from_kv(KEY_VAULT_NAME, "SQLDB-DATABASE")
-azure_ai_endpoint = get_secrets_from_kv(KEY_VAULT_NAME, "AZURE-OPENAI-CU-ENDPOINT")
-azure_ai_api_version = "2024-12-01-preview"
-print("Secrets retrieved.")
+print("Parameters received.")
 
 # Azure DataLake setup
-account_url = f"https://{account_name}.dfs.core.windows.net"
+account_url = f"https://{STORAGE_ACCOUNT}.dfs.core.windows.net"
 credential = AzureCliCredential()
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
@@ -57,8 +60,8 @@ print("Azure DataLake setup complete.")
 
 # Azure Search setup
 search_credential = AzureCliCredential()
-search_client = SearchClient(search_endpoint, INDEX_NAME, search_credential)
-index_client = SearchIndexClient(endpoint=search_endpoint, credential=search_credential)
+search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
+index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
 print("Azure Search setup complete.")
 
 # SQL Server setup
@@ -66,10 +69,14 @@ driver = "{ODBC Driver 17 for SQL Server}"
 token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
 token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
 SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
 conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
 cursor = conn.cursor()
 print("SQL Server connection established.")
+
+# CU API setup
+azure_ai_api_version = "2024-12-01-preview"
+print("Setup complete.")
 
 # SQL data type mapping for pandas to SQL conversion
 sql_data_types = {
@@ -160,7 +167,7 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
 cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
-    endpoint=azure_ai_endpoint,
+    endpoint=CU_ENDPOINT,
     api_version=azure_ai_api_version,
     token_provider=cu_token_provider
 )
@@ -168,7 +175,7 @@ ANALYZER_ID = "ckm-json"
 print("Content Understanding client initialized.")
 
 # Azure AI Foundry (Inference) clients (Managed Identity)
-inference_endpoint = f"https://{urlparse(ai_project_endpoint).netloc}/models"
+inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
 
 chat_client = ChatCompletionsClient(
     endpoint=inference_endpoint,
@@ -186,7 +193,7 @@ embeddings_client = EmbeddingsClient(
 # Utility functions
 def get_embeddings(text: str):
     try:
-        resp = embeddings_client.embed(model=embedding_deployment, input=[text])
+        resp = embeddings_client.embed(model=EMBEDDING_MODEL, input=[text])
         return resp.data[0].embedding
     except Exception as e:
         print(f"Error getting embeddings: {e}")
@@ -388,7 +395,7 @@ def call_gpt4(topics_str1, client):
         Do not return anything else.
         """
     response = client.complete(
-        model=deployment,
+        model=DEPLOYMENT_MODEL,
         messages=[
             SystemMessage(content="You are a helpful assistant."),
             UserMessage(content=topic_prompt),
@@ -421,7 +428,7 @@ def get_mined_topic_mapping(input_text, list_of_topics):
                 from a list of topics - {list_of_topics}.
                 ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
     response = chat_client.complete(
-        model=deployment,
+        model=DEPLOYMENT_MODEL,
         messages=[
             SystemMessage(content="You are a helpful assistant."),
             UserMessage(content=prompt),
