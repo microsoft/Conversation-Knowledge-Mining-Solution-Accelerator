@@ -207,8 +207,8 @@ if [ -n "$sqlManagedIdentityClientId" ] && [ -n "$sqlManagedIdentityDisplayName"
     roles_json="[{\"clientId\":\"$sqlManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$sqlManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
     echo "[RoleAssign] Invoking assign_sql_roles.py for roles: db_datareader, db_datawriter"
 
-    if [ -f "infra/scripts/index_scripts/assign_sql_roles.py" ]; then
-        python infra/scripts/index_scripts/assign_sql_roles.py --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
+    if [ -f "infra/scripts/add_user_scripts/assign_sql_roles.py" ]; then
+        python infra/scripts/add_user_scripts/assign_sql_roles.py --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
         if [ $? -ne 0 ]; then
             echo "[RoleAssign] Warning: SQL role assignment failed."
             error_flag=true
