@@ -141,20 +141,22 @@ fi
 
 # create virtual environment
 # Check if the virtual environment already exists
-if [ -d "infra/scripts/scriptenv" ]; then
+if [ -d "infra/scripts/index_scripts/scriptenv" ]; then
     echo "Virtual environment already exists. Skipping creation."
 else
     echo "Creating virtual environment"
-    python -m venv infra/scripts/scriptenv
+    python -m venv "infra/scripts/index_scripts/scriptenv"
 fi
 
-# handling virtual environment activation for different OS
-activate_env_output=$(source infra/scripts/scriptenv/bin/activate 2>&1)
-if [ -n "$activate_env_output" ]; then
-    source infra/scripts/scriptenv/Scripts/activate
-    echo "Activated virtual environment for Windows"
+# Activate the virtual environment
+if [ -f "infra/scripts/index_scripts/scriptenv/bin/activate" ]; then
+    echo "Activating virtual environment (Linux/macOS)"
+    source "infra/scripts/index_scripts/scriptenv/bin/activate"
+elif [ -f "infra/scripts/index_scripts/scriptenv/Scripts/activate" ]; then
+    echo "Activating virtual environment (Windows)"
+    source "infra/scripts/index_scripts/scriptenv/Scripts/activate"
 else
-    echo "Activated virtual environment for Unix/Linux"
+    echo "Error activating virtual environment. Requirements may be installed globally."
 fi
 
 # Install the requirements
