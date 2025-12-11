@@ -101,7 +101,7 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
         return 0
 
     # Prepare output directory
-    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'fabric_scripts', 'sql_files'))
+    sql_output_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'index_scripts', 'sql_files'))
     os.makedirs(sql_output_dir, exist_ok=True)
     output_file_path = os.path.join(sql_output_dir, sql_file_name)
 
