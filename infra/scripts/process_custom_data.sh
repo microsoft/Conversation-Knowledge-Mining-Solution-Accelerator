@@ -497,6 +497,7 @@ fi
 
 # Run 04_cu_process_custom_data.py
 echo "Running 04_cu_process_custom_data.py..."
+sql_server_fqdn="$sqlServerName.database.windows.net"
 python infra/scripts/index_scripts/04_cu_process_custom_data.py \
     --search_endpoint "$searchEndpoint" \
     --ai_project_endpoint "$aiAgentEndpoint" \
@@ -504,7 +505,7 @@ python infra/scripts/index_scripts/04_cu_process_custom_data.py \
     --deployment_model "$deploymentModel" \
     --embedding_model "$embeddingModel" \
     --storage_account "$storageAccount" \
-    --sql_server "$sqlServerName" \
+    --sql_server "$sql_server_fqdn" \
     --sql_database "$SqlDatabaseName" \
     --cu_endpoint "$cuEndpoint"
 
