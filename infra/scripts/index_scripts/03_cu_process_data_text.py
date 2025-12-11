@@ -77,7 +77,7 @@ cursor = conn.cursor()
 print("SQL Server connection established.")
 
 # CU API setup
-azure_ai_api_version = "2024-12-01-preview"
+AZURE_AI_API_VERSION = "2024-12-01-preview"
 print("Setup complete.")
 
 # SQL data type mapping for pandas to SQL conversion
@@ -170,7 +170,7 @@ cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=CU_ENDPOINT,
-    api_version=azure_ai_api_version,
+    api_version=AZURE_AI_API_VERSION,
     token_provider=cu_token_provider
 )
 ANALYZER_ID = "ckm-json"
