@@ -507,6 +507,42 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+# Determine the correct Python command
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    PYTHON_CMD="python"
+else
+    echo "Python is not installed on this system. Or it is not added in the PATH."
+    exit 1
+fi
+
+pythonScriptPath="infra/scripts/index_scripts/"
+# create virtual environment
+# Check if the virtual environment already exists
+if [ -d $pythonScriptPath"scriptenv" ]; then
+    echo "Virtual environment already exists. Skipping creation."
+else
+    echo "Creating virtual environment"
+    $PYTHON_CMD -m venv $pythonScriptPath"scriptenv"
+fi
+
+# Activate the virtual environment
+if [ -f $pythonScriptPath"scriptenv/bin/activate" ]; then
+    echo "Activating virtual environment (Linux/macOS)"
+    source $pythonScriptPath"scriptenv/bin/activate"
+elif [ -f $pythonScriptPath"scriptenv/Scripts/activate" ]; then
+    echo "Activating virtual environment (Windows)"
+    source $pythonScriptPath"scriptenv/Scripts/activate"
+else
+    echo "Error activating virtual environment. Requirements may be installed globally."
+fi
+
+# Install the requirements
+echo "Installing requirements"
+pip install --quiet -r ${pythonScriptPath}requirements.txt
+echo "Requirements installed"
+
 # Create Content Understanding analyzers
 echo "Creating Content Understanding analyzer templates..."
 echo "Running 02_create_cu_template_text.py"
