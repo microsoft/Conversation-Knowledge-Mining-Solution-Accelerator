@@ -1428,9 +1428,6 @@ output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
 @description('Contains Azure OpenAI API version.')
 output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
 
-@description('Contains Azure OpenAI Preview API version.')
-output AZURE_OPENAI_PREVIEW_API_VERSION string = azureAiAgentApiVersion
-
 @description('Contains Content Understanding API version.')
 output AZURE_CONTENT_UNDERSTANDING_API_VERSION string = azureContentUnderstandingApiVersion
 
