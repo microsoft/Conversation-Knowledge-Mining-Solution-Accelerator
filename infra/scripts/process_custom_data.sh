@@ -1,25 +1,37 @@
 #!/bin/bash
 
-# Variables
+# Variables - Grouped by service for clarity
+# General Azure
 resourceGroupName="${1}"
+azSubscriptionId="${2}"
 
-storageAccount=""
-fileSystem=""
-sqlServerName=""
-SqlDatabaseName=""
-sqlManagedIdentityClientId=""
-sqlManagedIdentityDisplayName=""
-aiSearchName=""
-aif_resource_id=""
-cu_foundry_resource_id=""
-searchEndpoint=""
-openaiEndpoint=""
-embeddingModel=""
-cuEndpoint=""
-aiAgentEndpoint=""
-openaiPreviewApiVersion=""
-deploymentModel=""
-azSubscriptionId=""
+# Storage
+storageAccount="${3}"
+fileSystem="${4}"
+
+# SQL Database
+sqlServerName="${5}"
+SqlDatabaseName="${6}"
+sqlManagedIdentityClientId="${7}"
+sqlManagedIdentityDisplayName="${8}"
+
+# AI Search
+aiSearchName="${9}"
+searchEndpoint="${10}"
+
+# AI Foundry
+aif_resource_id="${11}"
+cu_foundry_resource_id="${12}"
+
+# OpenAI
+openaiEndpoint="${13}"
+embeddingModel="${14}"
+deploymentModel="${15}"
+openaiPreviewApiVersion="${16}"
+
+# Content Understanding & AI Agent
+cuEndpoint="${17}"
+aiAgentEndpoint="${18}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
@@ -517,6 +529,7 @@ echo "Running 04_cu_process_custom_data.py..."
 sql_server_fqdn="$sqlServerName.database.windows.net"
 python infra/scripts/index_scripts/04_cu_process_custom_data.py \
     --search_endpoint "$searchEndpoint" \
+    --openai_endpoint "$openaiEndpoint" \
     --ai_project_endpoint "$aiAgentEndpoint" \
     --openai_api_version "$openaiPreviewApiVersion" \
     --deployment_model "$deploymentModel" \

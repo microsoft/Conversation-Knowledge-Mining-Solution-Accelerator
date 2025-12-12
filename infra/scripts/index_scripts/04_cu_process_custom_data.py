@@ -41,6 +41,7 @@ INDEX_NAME = "call_transcripts_index"
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Process custom data for knowledge mining')
 parser.add_argument('--search_endpoint', required=True, help='Azure AI Search endpoint')
+parser.add_argument('--openai_endpoint', required=True, help='Azure OpenAI endpoint')
 parser.add_argument('--ai_project_endpoint', required=True, help='Azure AI Project endpoint')
 parser.add_argument('--openai_api_version', required=True, help='Azure OpenAI API version')
 parser.add_argument('--deployment_model', required=True, help='Azure OpenAI deployment model name')
@@ -54,6 +55,7 @@ args = parser.parse_args()
 
 # Assign arguments to variables
 SEARCH_ENDPOINT = args.search_endpoint
+OPENAI_ENDPOINT = args.openai_endpoint
 AI_PROJECT_ENDPOINT = args.ai_project_endpoint
 AZURE_AI_API_VERSION = args.openai_api_version
 DEPLOYMENT_MODEL = args.deployment_model
@@ -140,7 +142,7 @@ def create_search_index():
                 vectorizer_name="myOpenAI",
                 kind="azureOpenAI",
                 parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=AI_PROJECT_ENDPOINT,
+                    resource_url=OPENAI_ENDPOINT,
                     deployment_name=EMBEDDING_MODEL,
                     model_name=EMBEDDING_MODEL
                 )

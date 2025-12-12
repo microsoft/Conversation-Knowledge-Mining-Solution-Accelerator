@@ -14,15 +14,24 @@ If you would like to update the solution to leverage your own data please follow
 > **Note for WAF-aligned deployments:** If your deployment uses private networking, you'll need to log into a VM within the virtual network to upload files. See [VM login instructions](#how-to-login-to-vm-using-azure-bastion) below.
 
 3. If you have audio files, upload them to `custom_audiodata` folder. If you have call transcript files, upload them to `custom_transcripts` folder.
-4. Navigate to the terminal and run the `run_process_custom_data_scripts.sh` to process the new data into the solution with the following commands. 
-    ```shell
-    cd infra/scripts
-
-    az login
-
-    bash run_process_custom_data_scripts.sh resourcegroupname_param
+4. Navigate to the terminal and run the `process_custom_data.sh` script to process the new data into the solution with the following commands:
+    
+    ```bash
+    bash ./infra/scripts/process_custom_data.sh
     ```
-    a. resourcegroupname_param - the name of the resource group.
+    
+    If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_custom_data.sh \
+      <Resource-Group-Name> <Azure-Subscription-ID> \
+      <Storage-Account-Name> <Storage-Container-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <SQL-Managed-Identity-Client-ID> <SQL-Managed-Identity-Display-Name> \
+      <AI-Search-Name> <Search-Endpoint> \
+      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> <OpenAI-Preview-API-Version> \
+      <CU-Endpoint> <AI-Agent-Endpoint>
+    ```
 
 ## How to Login to VM Using Azure Bastion
 

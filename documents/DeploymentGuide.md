@@ -235,12 +235,31 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
-    -- This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data.
+    - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+5. Once the deployment has completed successfully and you would like to use the **sample data**, please open a **Git Bash terminal** and run the bash command printed below. The bash command will look like the following:
 
-6. If you are done trying out the application, you can delete the resources by running `azd down`.
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh
+    ```
+
+    If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh \
+      <Resource-Group-Name> <Azure-Subscription-ID> \
+      <Storage-Account-Name> <Storage-Container-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <SQL-Managed-Identity-Client-ID> <SQL-Managed-Identity-Display-Name> \
+      <AI-Search-Name> <Search-Endpoint> \
+      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> <OpenAI-Preview-API-Version> \
+      <CU-Endpoint> <AI-Agent-Endpoint>
+    ```
+
+6. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+
+7. You can now delete the resources by running `azd down`, if you are done trying out the application.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
 ### 🛠️ Troubleshooting
