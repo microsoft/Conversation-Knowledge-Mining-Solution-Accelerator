@@ -22,24 +22,24 @@ from content_understanding_client import AzureContentUnderstandingClient
 p = argparse.ArgumentParser()
 p.add_argument("--search_endpoint", required=True)
 p.add_argument("--ai_project_endpoint", required=True)
-p.add_argument("--openai_api_version", required=True)
 p.add_argument("--deployment_model", required=True)
 p.add_argument("--embedding_model", required=True)
-p.add_argument("--storage_account", required=True)
+p.add_argument("--storage_account_name", required=True)
 p.add_argument("--sql_server", required=True)
 p.add_argument("--sql_database", required=True)
 p.add_argument("--cu_endpoint", required=True)
+p.add_argument("--cu_api_version", required=True)
 args = p.parse_args()
 
 SEARCH_ENDPOINT = args.search_endpoint
 AI_PROJECT_ENDPOINT = args.ai_project_endpoint
-OPENAI_API_VERSION = args.openai_api_version
 DEPLOYMENT_MODEL = args.deployment_model
 EMBEDDING_MODEL = args.embedding_model
-STORAGE_ACCOUNT = args.storage_account
+STORAGE_ACCOUNT_NAME = args.storage_account_name
 SQL_SERVER = args.sql_server
 SQL_DATABASE = args.sql_database
 CU_ENDPOINT = args.cu_endpoint
+CU_API_VERSION = args.cu_api_version
 
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
@@ -52,7 +52,7 @@ SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/sample_processed_data_key_p
 print("Parameters received.")
 
 # Azure DataLake setup
-account_url = f"https://{STORAGE_ACCOUNT}.dfs.core.windows.net"
+account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
 credential = AzureCliCredential()
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
@@ -75,10 +75,6 @@ connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE
 conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
 cursor = conn.cursor()
 print("SQL Server connection established.")
-
-# CU API setup
-AZURE_AI_API_VERSION = "2024-12-01-preview"
-print("Setup complete.")
 
 # SQL data type mapping for pandas to SQL conversion
 sql_data_types = {
@@ -170,7 +166,7 @@ cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=CU_ENDPOINT,
-    api_version=AZURE_AI_API_VERSION,
+    api_version=CU_API_VERSION,
     token_provider=cu_token_provider
 )
 ANALYZER_ID = "ckm-json"

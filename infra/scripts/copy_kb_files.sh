@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-storageAccount="$1"
+storageAccountName="$1"
 containerName="$2"
 resourceGroupName="$3"
 
@@ -12,14 +12,14 @@ zipFileName2="infra/data/audio_data.zip"
 extractedFolder2="audio_data"
 
 echo "Script Started"
-echo "Storage Account: $storageAccount"
+echo "Storage Account: $storageAccountName"
 echo "Container Name: $containerName"
 echo "Resource Group: $resourceGroupName"
 
 # Validate required parameters
-if [ -z "$storageAccount" ] || [ -z "$containerName" ] || [ -z "$resourceGroupName" ]; then
+if [ -z "$storageAccountName" ] || [ -z "$containerName" ] || [ -z "$resourceGroupName" ]; then
     echo "Error: Missing required parameters."
-    echo "Usage: $0 <storageAccount> <containerName> <resourceGroupName>"
+    echo "Usage: $0 <storageAccountName> <containerName> <resourceGroupName>"
     exit 1
 fi
 
@@ -49,7 +49,7 @@ fi
 # Check and assign Storage Blob Data Contributor role to current user
 echo "Checking Storage Blob Data Contributor role assignment..."
 signed_user_id=$(az ad signed-in-user show --query id --output tsv)
-storage_resource_id=$(az storage account show --name "$storageAccount" --resource-group "$resourceGroupName" --query id --output tsv)
+storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$resourceGroupName" --query id --output tsv)
 
 role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Storage Blob Data Contributor" --scope $storage_resource_id --query "[].roleDefinitionId" -o tsv)
 if [ -z "$role_assignment" ]; then
@@ -73,7 +73,7 @@ fi
 echo "Uploading call transcripts to storage account..."
 if [ -d "$extractedFolder1" ]; then
 	az storage blob upload-batch \
-		--account-name "$storageAccount" \
+		--account-name "$storageAccountName" \
 		--destination "$containerName/$extractedFolder1" \
 		--source "$extractedFolder1" \
 		--auth-mode login \
@@ -92,7 +92,7 @@ fi
 echo "Uploading audio data to storage account..."
 if [ -d "$extractedFolder2" ]; then
 	az storage blob upload-batch \
-		--account-name "$storageAccount" \
+		--account-name "$storageAccountName" \
 		--destination "$containerName/$extractedFolder2" \
 		--source "$extractedFolder2" \
 		--auth-mode login \
@@ -111,13 +111,13 @@ fi
 # Create custom data directories for user uploads
 echo "Creating custom data directories..."
 az storage fs directory create \
-	--account-name "$storageAccount" \
+	--account-name "$storageAccountName" \
 	--file-system "$containerName" \
 	--name custom_audiodata \
 	--auth-mode login 2>/dev/null || echo "custom_audiodata directory may already exist"
 
 az storage fs directory create \
-	--account-name "$storageAccount" \
+	--account-name "$storageAccountName" \
 	--file-system "$containerName" \
 	--name custom_transcripts \
 	--auth-mode login 2>/dev/null || echo "custom_transcripts directory may already exist"

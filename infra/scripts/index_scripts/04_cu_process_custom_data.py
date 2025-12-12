@@ -43,13 +43,13 @@ parser = argparse.ArgumentParser(description='Process custom data for knowledge 
 parser.add_argument('--search_endpoint', required=True, help='Azure AI Search endpoint')
 parser.add_argument('--openai_endpoint', required=True, help='Azure OpenAI endpoint')
 parser.add_argument('--ai_project_endpoint', required=True, help='Azure AI Project endpoint')
-parser.add_argument('--openai_api_version', required=True, help='Azure OpenAI API version')
 parser.add_argument('--deployment_model', required=True, help='Azure OpenAI deployment model name')
 parser.add_argument('--embedding_model', required=True, help='Azure OpenAI embedding model name')
-parser.add_argument('--storage_account', required=True, help='Azure Storage Account name')
+parser.add_argument('--storage_account_name', required=True, help='Azure Storage Account name')
 parser.add_argument('--sql_server', required=True, help='Azure SQL Server name')
 parser.add_argument('--sql_database', required=True, help='Azure SQL Database name')
 parser.add_argument('--cu_endpoint', required=True, help='Azure Content Understanding endpoint')
+parser.add_argument('--cu_api_version', required=True, help='Azure Content Understanding API version')
 
 args = parser.parse_args()
 
@@ -57,13 +57,13 @@ args = parser.parse_args()
 SEARCH_ENDPOINT = args.search_endpoint
 OPENAI_ENDPOINT = args.openai_endpoint
 AI_PROJECT_ENDPOINT = args.ai_project_endpoint
-AZURE_AI_API_VERSION = args.openai_api_version
 DEPLOYMENT_MODEL = args.deployment_model
 EMBEDDING_MODEL = args.embedding_model
-STORAGE_ACCOUNT_NAME = args.storage_account
+STORAGE_ACCOUNT_NAME = args.storage_account_name
 SQL_SERVER = args.sql_server
 SQL_DATABASE = args.sql_database
 CU_ENDPOINT = args.cu_endpoint
+CU_API_VERSION = args.cu_api_version
 
 print("Command-line arguments parsed.")
 
@@ -185,12 +185,11 @@ cursor = conn.cursor()
 print("SQL Server connection established.")
 
 # Content Understanding client
-AZURE_AI_API_VERSION = "2024-12-01-preview"
 cu_credential = AzureCliCredential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=CU_ENDPOINT,
-    api_version=AZURE_AI_API_VERSION,
+    api_version=CU_API_VERSION,
     token_provider=cu_token_provider
 )
 print("Content Understanding client initialized.")

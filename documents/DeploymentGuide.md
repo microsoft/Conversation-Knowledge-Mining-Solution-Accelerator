@@ -138,7 +138,7 @@ If you're not using one of the above options for opening the project, then you'l
 1. Make sure the following tools are installed:
     - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) <small>(v7.0+)</small> - available for Windows, macOS, and Linux.
     - [Azure Developer CLI (azd)](https://aka.ms/install-azd) <small>(v1.18.0+)</small> - version
-    - [Python 3.9+](https://www.python.org/downloads/)
+    - [Python 3.9 to 3.11](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
 
@@ -250,11 +250,11 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     bash ./infra/scripts/process_sample_data.sh \
       <Resource-Group-Name> <Azure-Subscription-ID> \
       <Storage-Account-Name> <Storage-Container-Name> \
-      <SQL-Server-Name> <SQL-Database-Name> <SQL-Managed-Identity-Client-ID> <SQL-Managed-Identity-Display-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
       <AI-Search-Name> <Search-Endpoint> \
       <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
-      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> <OpenAI-Preview-API-Version> \
-      <CU-Endpoint> <AI-Agent-Endpoint>
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
     ```
 
 6. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.

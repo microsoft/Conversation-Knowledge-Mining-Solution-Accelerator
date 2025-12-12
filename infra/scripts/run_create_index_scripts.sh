@@ -2,21 +2,21 @@
 
 # Variables
 resourceGroupName="$1"
-sqlServerName="$2"
-aiSearchName="$3"
-aif_resource_id="$4"
+aiSearchName="$2"
+search_endpoint="${3}"
+sqlServerName="$4"
 sqlDatabaseName="$5"
-sqlManagedIdentityDisplayName="${6}"
-sqlManagedIdentityClientId="${7}"
-cu_foundry_resource_id="${8}"
-search_endpoint="${9}"
-openai_endpoint="${10}"
+backendManagedIdentityDisplayName="${6}"
+backendManagedIdentityClientId="${7}"
+storageAccountName="${8}"
+openai_endpoint="${9}"
+deployment_model="${10}"
 embedding_model="${11}"
 cu_endpoint="${12}"
-ai_agent_endpoint="${13}"
-openai_preview_api_version="${14}"
-deployment_model="${15}"
-storage_account="${16}"
+cu_api_version="${13}"
+aif_resource_id="${14}"
+cu_foundry_resource_id="${15}"
+ai_agent_endpoint="${16}"
 
 pythonScriptPath="infra/scripts/index_scripts/"
 
@@ -168,14 +168,14 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Creating CU template for text"
-python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint"
+python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
 fi
 
 echo "Creating CU template for audio"
-python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint"
+python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_audio.py failed."
     error_flag=true
@@ -183,17 +183,17 @@ fi
 
 echo "Processing data with CU"
 sql_server_fqdn="$sqlServerName.database.windows.net"
-python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --openai_api_version="$openai_preview_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account="$storage_account" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true
 fi
 
 # Assign SQL roles to managed identity using Python (pyodbc + azure-identity)
-if [ -n "$sqlManagedIdentityClientId" ] && [ -n "$sqlManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
-    mi_display_name="$sqlManagedIdentityDisplayName"
+if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
+    mi_display_name="$backendManagedIdentityDisplayName"
     server_fqdn="$sqlServerName.database.windows.net"
-    roles_json="[{\"clientId\":\"$sqlManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$sqlManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
+    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
     echo "[RoleAssign] Invoking assign_sql_roles.py for roles: db_datareader, db_datawriter"
 
     if [ -f "infra/scripts/add_user_scripts/assign_sql_roles.py" ]; then

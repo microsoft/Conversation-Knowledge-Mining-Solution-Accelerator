@@ -6,14 +6,14 @@ resourceGroupName="${1}"
 azSubscriptionId="${2}"
 
 # Storage
-storageAccount="${3}"
+storageAccountName="${3}"
 fileSystem="${4}"
 
 # SQL Database
 sqlServerName="${5}"
 SqlDatabaseName="${6}"
-sqlManagedIdentityClientId="${7}"
-sqlManagedIdentityDisplayName="${8}"
+backendUserMidClientId="${7}"
+backendUserMidDisplayName="${8}"
 
 # AI Search
 aiSearchName="${9}"
@@ -27,10 +27,10 @@ cu_foundry_resource_id="${12}"
 openaiEndpoint="${13}"
 embeddingModel="${14}"
 deploymentModel="${15}"
-openaiPreviewApiVersion="${16}"
 
 # Content Understanding & AI Agent
-cuEndpoint="${17}"
+cuEndpoint="${16}"
+cuApiVersion="${17}"
 aiAgentEndpoint="${18}"
 
 # Global variables to track original network access states
@@ -52,21 +52,21 @@ enable_public_access() {
 	echo "=== Temporarily enabling public network access for services ==="
 	
 	# Enable public access for Storage Account
-	echo "Enabling public access for Storage Account: $storageAccount"
+	echo "Enabling public access for Storage Account: $storageAccountName"
 	original_storage_public_access=$(az storage account show \
-		--name "$storageAccount" \
+		--name "$storageAccountName" \
 		--resource-group "$resourceGroupName" \
 		--query "publicNetworkAccess" \
 		-o tsv)
 	original_storage_default_action=$(az storage account show \
-		--name "$storageAccount" \
+		--name "$storageAccountName" \
 		--resource-group "$resourceGroupName" \
 		--query "networkRuleSet.defaultAction" \
 		-o tsv)
 	
 	if [ "$original_storage_public_access" != "Enabled" ]; then
 		az storage account update \
-			--name "$storageAccount" \
+			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--public-network-access Enabled \
 			--output none
@@ -84,7 +84,7 @@ enable_public_access() {
 	if [ "$original_storage_default_action" != "Allow" ]; then
 		echo "Setting Storage Account network default action to Allow"
 		az storage account update \
-			--name "$storageAccount" \
+			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--default-action Allow \
 			--output none
@@ -247,7 +247,7 @@ restore_network_access() {
 			*) restore_value="$original_storage_public_access" ;;
 		esac
 		az storage account update \
-			--name "$storageAccount" \
+			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--public-network-access "$restore_value" \
 			--output none
@@ -264,7 +264,7 @@ restore_network_access() {
 	if [ -n "$original_storage_default_action" ] && [ "$original_storage_default_action" != "Allow" ]; then
 		echo "Restoring Storage Account network default action to: $original_storage_default_action"
 		az storage account update \
-			--name "$storageAccount" \
+			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--default-action "$original_storage_default_action" \
 			--output none
@@ -383,12 +383,12 @@ get_values_from_azd_env() {
 	echo "Getting values from azd environment variables..."
 	# Use grep with a regex to ensure we're only capturing sanitized values to avoid command injection
 	resourceGroupName=$(azd env get-value RESOURCE_GROUP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	storageAccount=$(azd env get-value STORAGE_ACCOUNT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	storageAccountName=$(azd env get-value STORAGE_ACCOUNT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	fileSystem=$(azd env get-value STORAGE_CONTAINER_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	sqlServerName=$(azd env get-value SQLDB_SERVER 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	SqlDatabaseName=$(azd env get-value SQLDB_DATABASE 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	sqlManagedIdentityClientId=$(azd env get-value SQLDB_USER_MID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	sqlManagedIdentityDisplayName=$(azd env get-value SQLDB_USER_MID_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	backendUserMidClientId=$(azd env get-value BACKEND_USER_MID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	backendUserMidDisplayName=$(azd env get-value BACKEND_USER_MID_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aiSearchName=$(azd env get-value AZURE_AI_SEARCH_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aif_resource_id=$(azd env get-value AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	cu_foundry_resource_id=$(azd env get-value CU_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
@@ -397,14 +397,14 @@ get_values_from_azd_env() {
 	embeddingModel=$(azd env get-value AZURE_OPENAI_EMBEDDING_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	cuEndpoint=$(azd env get-value AZURE_OPENAI_CU_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
-	openaiPreviewApiVersion=$(azd env get-value AZURE_OPENAI_PREVIEW_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
+	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
 	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccount" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$sqlManagedIdentityClientId" ] || [ -z "$sqlManagedIdentityDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	else
@@ -481,12 +481,12 @@ echo "==============================================="
 echo "Values to be used:"
 echo "==============================================="
 echo "Resource Group Name: $resourceGroupName"
-echo "Storage Account Name: $storageAccount"
+echo "Storage Account Name: $storageAccountName"
 echo "Storage Container Name: $fileSystem"
 echo "SQL Server Name: $sqlServerName"
 echo "SQL Database Name: $SqlDatabaseName"
-echo "SQL Managed Identity Display Name: $sqlManagedIdentityDisplayName"
-echo "SQL Managed Identity Client ID: $sqlManagedIdentityClientId"
+echo "Backend User-Assigned Managed Identity Display Name: $backendUserMidDisplayName"
+echo "Backend User-Assigned Managed Identity Client ID: $backendUserMidClientId"
 echo "AI Search Service Name: $aiSearchName"
 echo "AI Foundry Resource ID: $aif_resource_id"
 echo "CU Foundry Resource ID: $cu_foundry_resource_id"
@@ -494,8 +494,8 @@ echo "Search Endpoint: $searchEndpoint"
 echo "OpenAI Endpoint: $openaiEndpoint"
 echo "Embedding Model: $embeddingModel"
 echo "CU Endpoint: $cuEndpoint"
+echo "CU API Version: $cuApiVersion"
 echo "AI Agent Endpoint: $aiAgentEndpoint"
-echo "OpenAI Preview API Version: $openaiPreviewApiVersion"
 echo "Deployment Model: $deploymentModel"
 echo "==============================================="
 echo ""
@@ -509,7 +509,7 @@ fi
 
 # Call copy_kb_files.sh
 echo "Running copy_kb_files.sh"
-bash infra/scripts/copy_kb_files.sh "$storageAccount" "$fileSystem" "$resourceGroupName"
+bash infra/scripts/copy_kb_files.sh "$storageAccountName" "$fileSystem" "$resourceGroupName"
 if [ $? -ne 0 ]; then
 	echo "Error: copy_kb_files.sh failed."
 	exit 1
@@ -518,8 +518,8 @@ echo "copy_kb_files.sh completed successfully."
 
 # Call run_create_index_scripts.sh
 echo "Running run_create_index_scripts.sh"
-# Pass all required environment variables and SQL managed identity info for role assignment
-bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$sqlServerName" "$aiSearchName" "$aif_resource_id" "$SqlDatabaseName" "$sqlManagedIdentityDisplayName" "$sqlManagedIdentityClientId" "$cu_foundry_resource_id" "$searchEndpoint" "$openaiEndpoint" "$embeddingModel" "$cuEndpoint" "$aiAgentEndpoint" "$openaiPreviewApiVersion" "$deploymentModel" "$storageAccount"
+# Pass all required environment variables and backend managed identity info for role assignment
+bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint"
 if [ $? -ne 0 ]; then
 	echo "Error: run_create_index_scripts.sh failed."
 	exit 1

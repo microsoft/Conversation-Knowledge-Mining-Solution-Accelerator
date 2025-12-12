@@ -77,6 +77,9 @@ param azureOpenAIApiVersion string = '2025-01-01-preview'
 @description('Optional. Version of AI Agent API.')
 param azureAiAgentApiVersion string = '2025-05-01'
 
+@description('Optional. Version of Content Understanding API.')
+param azureContentUnderstandingApiVersion string = '2024-12-01-preview'
+
 // You can increase this, but capacity is limited per model/region, so you will get errors if you go over
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
 @minValue(10)
@@ -1428,6 +1431,9 @@ output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
 @description('Contains Azure OpenAI Preview API version.')
 output AZURE_OPENAI_PREVIEW_API_VERSION string = azureAiAgentApiVersion
 
+@description('Contains Content Understanding API version.')
+output AZURE_CONTENT_UNDERSTANDING_API_VERSION string = azureContentUnderstandingApiVersion
+
 @description('Contains Azure OpenAI resource name.')
 output AZURE_OPENAI_RESOURCE string = aiFoundryAiServices.outputs.name
 
@@ -1440,11 +1446,11 @@ output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 @description('Contains SQL server name.')
 output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
 
-@description('Display name of the SQL managed identity.')
-output SQLDB_USER_MID_NAME string = backendUserAssignedIdentity.outputs.name
+@description('Display name of the backend API user-assigned managed identity (also used for SQL database access).')
+output BACKEND_USER_MID_NAME string = backendUserAssignedIdentity.outputs.name
 
-@description('Contains SQL database user managed identity client ID.')
-output SQLDB_USER_MID string = backendUserAssignedIdentity.outputs.clientId
+@description('Client ID of the backend API user-assigned managed identity (also used for SQL database access).')
+output BACKEND_USER_MID string = backendUserAssignedIdentity.outputs.clientId
 
 @description('Contains AI project client usage setting.')
 output USE_AI_PROJECT_CLIENT string = 'False'

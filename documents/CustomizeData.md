@@ -26,11 +26,11 @@ If you would like to update the solution to leverage your own data please follow
     bash ./infra/scripts/process_custom_data.sh \
       <Resource-Group-Name> <Azure-Subscription-ID> \
       <Storage-Account-Name> <Storage-Container-Name> \
-      <SQL-Server-Name> <SQL-Database-Name> <SQL-Managed-Identity-Client-ID> <SQL-Managed-Identity-Display-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
       <AI-Search-Name> <Search-Endpoint> \
       <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
-      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> <OpenAI-Preview-API-Version> \
-      <CU-Endpoint> <AI-Agent-Endpoint>
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
     ```
 
 ## How to Login to VM Using Azure Bastion
