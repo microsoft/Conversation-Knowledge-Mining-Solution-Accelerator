@@ -371,8 +371,14 @@ for path in paths:
         start_timestamp = datetime.strptime(start_time, timestamp_format)
         conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
         conversationIds.append(conversation_id)
+
         fields = result['result']['contents'][0]['fields']
-        duration = int(get_field_value(fields, 'Duration', '0'))
+        duration_str = get_field_value(fields, 'Duration', '0')
+        try:
+            duration = int(duration_str)
+        except (ValueError, TypeError):
+            duration = 0
+
         end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
         start_timestamp = str(start_timestamp).split(".")[0]
         summary = get_field_value(fields, 'summary')
@@ -422,11 +428,15 @@ for path in paths:
         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
         start_timestamp = datetime.strptime(start_time, timestamp_format)
 
-        conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
         conversationIds.append(conversation_id)
 
         fields = result['result']['contents'][0]['fields']
-        duration = int(get_field_value(fields, 'Duration', '0'))
+        duration_str = get_field_value(fields, 'Duration', '0')
+        try:
+            duration = int(duration_str)
+        except (ValueError, TypeError):
+            duration = 0
+
         end_timestamp = str(start_timestamp + timedelta(seconds=duration))
         end_timestamp = end_timestamp.split(".")[0]
         start_timestamp = str(start_timestamp).split(".")[0]
