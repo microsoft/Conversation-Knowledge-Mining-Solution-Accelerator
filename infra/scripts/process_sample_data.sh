@@ -179,7 +179,12 @@ enable_public_access() {
 			--resource-group "$resourceGroupName" \
 			--enable-public-network true \
 			--output none
-		echo "✓ SQL Server public access enabled"
+		if [ $? -eq 0 ]; then
+			echo "✓ SQL Server public access enabled"
+		else
+			echo "✗ Failed to enable SQL Server public access"
+			return 1
+		fi
 	else
 		echo "✓ SQL Server public access already enabled"
 	fi
@@ -336,17 +341,6 @@ restore_network_access() {
 		fi
 	else
 		echo "SQL Server access unchanged (already at desired state)"
-	fi
-	
-	# Remove temporary allow-all firewall rule if we created it
-	if [ "$created_sql_allow_all_firewall_rule" = "true" ] && [ "$original_full_range_rule_present" != "true" ]; then
-		echo "Removing temporary allow-all firewall rule..."
-		az sql server firewall-rule delete \
-			--resource-group "$resourceGroupName" \
-			--server "$sqlServerName" \
-			--name "TempAllowAll" \
-			--output none 2>/dev/null
-		echo "✓ Temporary firewall rule removed"
 	fi
 	
 	echo "=== Network access restoration completed ==="
