@@ -17,7 +17,6 @@ async def get_db_connection():
     database = config.sqldb_database
     username = config.sqldb_username
     password = config.sqldb_database
-    driver = config.driver
     # mid_id = config.mid_id
     mid_id = config.azure_client_id
 
@@ -33,22 +32,35 @@ async def get_db_connection():
         )
         SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-        # Set up the connection
-        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
-        conn = pyodbc.connect(
-            connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
-        )
+        # Try both ODBC Driver 18 and 17
+        conn = None
+        for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
+            try:
+                connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+                conn = pyodbc.connect(
+                    connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+                )
+                logging.info(f"Connected using Azure Credential with {driver}")
+                return conn
+            except pyodbc.Error:
+                continue
 
-        logging.info("Connected using Azure Credential")
-        return conn
-    except pyodbc.Error as e:
+        if conn is None:
+            raise RuntimeError("Unable to connect using ODBC Driver 18 or 17 with Azure Credential")
+    except Exception as e:
         logging.error("Failed with Azure Credential: %s", str(e))
-        conn = pyodbc.connect(
-            f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
-            timeout=5)
+        # Try username/password authentication with both drivers
+        for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
+            try:
+                conn = pyodbc.connect(
+                    f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
+                    timeout=5)
+                logging.info(f"Connected using Username & Password with {driver}")
+                return conn
+            except pyodbc.Error:
+                continue
 
-        logging.info("Connected using Username & Password")
-        return conn
+        raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
     finally:
         if credential and hasattr(credential, "close"):
             await credential.close()

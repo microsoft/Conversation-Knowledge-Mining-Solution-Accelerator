@@ -147,9 +147,10 @@ If you're not using one of the above options for opening the project, then you'l
 1. Make sure the following tools are installed:
     - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) <small>(v7.0+)</small> - available for Windows, macOS, and Linux.
     - [Azure Developer CLI (azd)](https://aka.ms/install-azd) <small>(v1.18.0+)</small> - version
-    - [Python 3.9+](https://www.python.org/downloads/)
+    - [Python 3.9 to 3.11](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
+    - [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
 
 2. Clone the repository or download the project code via command-line:
 
@@ -244,12 +245,31 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
-    -- This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data.
+    - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+5. Once the deployment has completed successfully and you would like to use the **sample data**, please open a **Git Bash terminal** and run the bash command printed below. The bash command will look like the following:
 
-6. If you are done trying out the application, you can delete the resources by running `azd down`.
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh
+    ```
+
+    If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh \
+      <Resource-Group-Name> <Azure-Subscription-ID> \
+      <Storage-Account-Name> <Storage-Container-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+      <AI-Search-Name> <Search-Endpoint> \
+      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+    ```
+
+6. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+
+7. You can now delete the resources by running `azd down`, if you are done trying out the application.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
 ### 🛠️ Troubleshooting

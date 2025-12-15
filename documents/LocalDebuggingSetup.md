@@ -11,12 +11,12 @@ Install these tools before you start:
   - [Azure Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-node-azure-pack)
   - [Bicep](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-bicep)
   - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
-- [Python 3.11](https://www.python.org/downloads/). **Important:** Check "Add Python to PATH" during installation.
+- [Python 3.9 to 3.11](https://www.python.org/downloads/). **Important:** Check "Add Python to PATH" during installation.
 - [PowerShell 7.0+](https://github.com/PowerShell/PowerShell#get-powershell).
 - [Node.js (LTS)](https://nodejs.org/en).
 - [Git](https://git-scm.com/downloads).
 - [Azure Developer CLI (azd) v1.18.0+](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
-- [Microsoft ODBC Driver 17](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
+- [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
 
 
 ## Setup Steps
