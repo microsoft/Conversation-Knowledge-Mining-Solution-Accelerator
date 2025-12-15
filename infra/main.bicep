@@ -1136,22 +1136,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
       ]
     }
     primaryUserAssignedIdentityResourceId: userAssignedIdentity.outputs.resourceId
-    privateEndpoints: enablePrivateNetworking
-      ? [
-          {
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                {
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.sqlServer]!.outputs.resourceId
-                }
-              ]
-            }
-            service: 'sqlServer'
-            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-            tags: tags
-          }
-        ]
-      : []
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     firewallRules: (!enablePrivateNetworking) ? [
       {
         endIpAddress: '255.255.255.255'
@@ -1165,6 +1150,35 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.20.1' = {
       }
     ] : []
     tags: tags
+  }
+}
+
+// ========== SQL Server Private Endpoint (separated) ========== //
+module sqlDbPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.11.1' = if (enablePrivateNetworking) {
+  name: take('avm.res.network.private-endpoint.sql-${solutionSuffix}', 64)
+  params: {
+    name: 'pep-sql-${solutionSuffix}'
+    location: location
+    tags: tags
+    enableTelemetry: enableTelemetry
+    subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+    customNetworkInterfaceName: 'nic-sql-${solutionSuffix}'
+    privateLinkServiceConnections: [
+      {
+        name: 'pl-sqlserver-${solutionSuffix}'
+        properties: {
+          privateLinkServiceId: sqlDBModule.outputs.resourceId
+          groupIds: ['sqlServer']
+        }
+      }
+    ]
+    privateDnsZoneGroup: {
+      privateDnsZoneGroupConfigs: [
+        {
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.sqlServer]!.outputs.resourceId
+        }
+      ]
+    }
   }
 }
 
