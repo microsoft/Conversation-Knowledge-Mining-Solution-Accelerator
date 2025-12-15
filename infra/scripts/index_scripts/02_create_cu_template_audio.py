@@ -22,7 +22,7 @@ ANALYZER_TEMPLATE_FILE = 'infra/data/ckm-analyzer_config_audio.json'
 # Add parent directory to path for imports
 sys.path.append(str(Path.cwd().parent))
 
-credential = AzureCliCredential()
+credential = AzureCliCredential(process_timeout=30)
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 client = AzureContentUnderstandingClient(

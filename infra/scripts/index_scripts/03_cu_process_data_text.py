@@ -53,7 +53,7 @@ print("Parameters received.")
 
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
-credential = AzureCliCredential()
+credential = AzureCliCredential(process_timeout=30)
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
@@ -61,7 +61,7 @@ paths = list(file_system_client.get_paths(path=directory_name))
 print("Azure DataLake setup complete.")
 
 # Azure Search setup
-search_credential = AzureCliCredential()
+search_credential = AzureCliCredential(process_timeout=30)
 search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
 print("Azure Search setup complete.")
@@ -162,7 +162,7 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
 
 
 # Content Understanding client
-cu_credential = AzureCliCredential()
+cu_credential = AzureCliCredential(process_timeout=30)
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=CU_ENDPOINT,

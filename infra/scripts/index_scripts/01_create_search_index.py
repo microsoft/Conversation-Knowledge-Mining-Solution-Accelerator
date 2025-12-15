@@ -41,7 +41,7 @@ def create_search_index():
     - Semantic search using prioritized fields
     """
     # Shared credential
-    credential = AzureCliCredential()
+    credential = AzureCliCredential(process_timeout=30)
 
     index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
 
