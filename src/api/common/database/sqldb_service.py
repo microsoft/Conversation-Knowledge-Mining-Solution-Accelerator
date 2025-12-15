@@ -44,7 +44,7 @@ async def get_db_connection():
                 return conn
             except pyodbc.Error:
                 continue
-        
+
         if conn is None:
             raise RuntimeError("Unable to connect using ODBC Driver 18 or 17 with Azure Credential")
     except Exception as e:
@@ -59,7 +59,7 @@ async def get_db_connection():
                 return conn
             except pyodbc.Error:
                 continue
-        
+
         raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
     finally:
         if credential and hasattr(credential, "close"):
