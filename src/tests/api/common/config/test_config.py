@@ -36,7 +36,7 @@ def test_config_initialization(mock_env_vars):
         assert config.sqldb_database == "test_db"
         assert config.sqldb_server == "test_server"
         assert config.sqldb_username == "test_user"
-        assert config.driver == "{ODBC Driver 17 for SQL Server}"
+        assert config.driver == "{ODBC Driver 18 for SQL Server}"
         assert config.mid_id == "test_mid"
 
         # Azure OpenAI config

@@ -175,7 +175,7 @@ def create_search_index():
 create_search_index()
 
 # SQL Server setup
-DRIVER = "{ODBC Driver 17 for SQL Server}"
+DRIVER = "{ODBC Driver 18 for SQL Server}"
 token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
 token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
 SQL_COPT_SS_ACCESS_TOKEN = 1256
