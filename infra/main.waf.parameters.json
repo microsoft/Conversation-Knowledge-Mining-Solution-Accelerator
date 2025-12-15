@@ -14,7 +14,7 @@
     "secondaryLocation": {
       "value": "${AZURE_SECONDARY_LOCATION}"
     },
-    "azureAiServiceLocation": {
+    "aiServiceLocation": {
       "value": "${AZURE_ENV_OPENAI_LOCATION}"
     },
     "gptModelDeploymentType": {
@@ -44,6 +44,11 @@
     "frontendContainerImageTag": {
       "value": "${AZURE_ENV_IMAGETAG=latest_waf}"
     },
+    "tags": {
+      "value": {
+        "SecurityControl": "${AZURE_TAG_SECURITY_CONTROL=Ignore}"
+      }
+    },
     "enableTelemetry": {
       "value": "${AZURE_ENV_ENABLE_TELEMETRY}"
     },
@@ -52,6 +57,12 @@
     },
     "existingAiFoundryAiProjectResourceId": {
       "value": "${AZURE_EXISTING_AI_PROJECT_RESOURCE_ID}"
+    },
+    "backendContainerRegistryHostname": {
+        "value": "${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT}"
+    },
+    "frontendContainerRegistryHostname": {
+      "value": "${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT}"
     },
     "enableMonitoring": {
       "value": true
