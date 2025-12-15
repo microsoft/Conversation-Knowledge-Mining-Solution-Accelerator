@@ -1,3 +1,3 @@
 pip install -r requirements.txt --user -q
 
-azd init -t microsoft/Conversation-Knowledge-Mining-Solution-Accelerator -b pk-km-sampledata-manual
+azd init -t microsoft/Conversation-Knowledge-Mining-Solution-Accelerator
