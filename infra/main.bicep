@@ -439,7 +439,6 @@ var privateDnsZones = [
   'privatelink.file.${environment().suffixes.storage}'
   'privatelink.dfs.${environment().suffixes.storage}'
   'privatelink.documents.azure.com'
-  'privatelink.vaultcore.azure.net'
   'privatelink${environment().suffixes.sqlServerHostname}'
   'privatelink.search.windows.net'
 ]
