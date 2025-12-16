@@ -30,9 +30,6 @@ EMBEDDING_MODEL = args.embedding_model
 
 INDEX_NAME = "call_transcripts_index"
 
-print("calling create_search_index()....")
-
-
 def create_search_index():
     """
     Creates or updates an Azure Cognitive Search index configured for:
@@ -105,7 +102,7 @@ def create_search_index():
     )
 
     result = index_client.create_or_update_index(index)
-    print(f"Search index '{result.name}' created or updated successfully.")
+    print(f"✓ Search index '{result.name}' created")
 
 
 create_search_index()

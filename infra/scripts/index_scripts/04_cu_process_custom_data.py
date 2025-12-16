@@ -65,8 +65,6 @@ SQL_DATABASE = args.sql_database
 CU_ENDPOINT = args.cu_endpoint
 CU_API_VERSION = args.cu_api_version
 
-print("Command-line arguments parsed.")
-
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
 credential = AzureCliCredential(process_timeout=30)
@@ -74,13 +72,11 @@ service_client = DataLakeServiceClient(account_url, credential=credential, api_v
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
 paths = list(file_system_client.get_paths(path=directory_name))
-print("Azure DataLake setup complete.")
 
 # Azure Search setup
 search_credential = AzureCliCredential(process_timeout=30)
 search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
-print("Azure Search setup complete.")
 
 # Azure AI Foundry (Inference) clients (Managed Identity)
 inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
@@ -170,7 +166,7 @@ def create_search_index():
     )
 
     result = index_client.create_or_update_index(index)
-    print(f"Search index '{result.name}' created or updated successfully.")
+    print(f"✓ Search index '{result.name}' created")
 
 create_search_index()
 
@@ -182,7 +178,6 @@ SQL_COPT_SS_ACCESS_TOKEN = 1256
 connection_string = f"DRIVER={DRIVER};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
 conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
 cursor = conn.cursor()
-print("SQL Server connection established.")
 
 # Content Understanding client
 cu_credential = AzureCliCredential(process_timeout=30)
@@ -192,7 +187,6 @@ cu_client = AzureContentUnderstandingClient(
     api_version=CU_API_VERSION,
     token_provider=cu_token_provider
 )
-print("Content Understanding client initialized.")
 
 # Utility functions
 def get_embeddings(text: str):
@@ -273,7 +267,6 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     conn.commit()
 
     record_count = len(df)
-    print(f"Inserted {record_count} records into {table_name} using optimized SQL script.")
     return record_count
 
 def clean_spaces_with_regex(text):
@@ -346,7 +339,6 @@ def create_tables():
         StartTime varchar(255)
     );""")
     conn.commit()
-    print("Database tables created.")
 
 create_tables()
 
@@ -389,19 +381,16 @@ for path in paths:
     if docs != [] and counter % 10 == 0:
         result = search_client.upload_documents(documents=docs)
         docs = []
-        print(f'{counter} uploaded to Azure Search.')
 if docs:
     search_client.upload_documents(documents=docs)
-    print(f'Final batch uploaded to Azure Search - transcripts.')
 
-print("File processing and DB/Search insertion complete - transcripts.")
+print(f"✓ Processed {counter} transcript files")
 
 # Process files for audio data
 ANALYZER_ID = "ckm-audio"
 
 directory_name = AUDIO_DIRECTORY
 paths = list(file_system_client.get_paths(path=directory_name))
-print("Processing audio files")
 docs = []
 counter = 0
 # process and upload audio files to search index - audio data
@@ -443,22 +432,18 @@ for path in paths:
 
         docs.extend(prepare_search_doc(content, document_id, path.name))
         counter += 1
-        print(f"Processed file {path.name} successfully.")
     except Exception as e:
-        print(f"Error processing file {path.name}: {e}")
         pass
 
     if docs != [] and counter % 10 == 0:
         result = search_client.upload_documents(documents=docs)
         docs = []
-        print(f' {str(counter)} uploaded')
 
 # upload the last batch
 if docs != []:
     search_client.upload_documents(documents=docs)
-    print(f'Final batch uploaded to Azure Search - audio data.')
 
-print("File processing and DB/Search insertion complete - audio data.")
+print(f"✓ Processed {counter} audio files")
 
 # Topic mining and mapping
 cursor.execute('SELECT distinct topic FROM processed_data')
@@ -472,7 +457,6 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 );""")
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
-print("Topic mining table prepared.")
 
 def call_gpt4(topics_str1, client):
     topic_prompt = f"""
@@ -506,7 +490,6 @@ res = call_gpt4(", ".join([]), chat_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
-print("Topics mined and inserted into km_mined_topics.")
 
 cursor.execute('SELECT label FROM km_mined_topics')
 rows = [tuple(row) for row in cursor.fetchall()]
@@ -514,7 +497,6 @@ column_names = [i[0] for i in cursor.description]
 df_topics = pd.DataFrame(rows, columns=column_names)
 mined_topics_list = df_topics['label'].tolist()
 mined_topics = ", ".join(mined_topics_list)
-print("Mined topics loaded.")
 
 
 def get_mined_topic_mapping(input_text, list_of_topics):
@@ -541,7 +523,6 @@ for _, row in df_processed_data.iterrows():
     mined_topic_str = get_mined_topic_mapping(row['topic'], str(mined_topics_list))
     cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
 conn.commit()
-print("Processed data mapped to mined topics.")
 
 # Update processed data for RAG
 cursor.execute('DROP TABLE IF EXISTS km_processed_data')
@@ -565,11 +546,10 @@ columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "sati
            "keyphrases", "complaint", "topic"]
 
 df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
-generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
-print("km_processed_data table updated.")
+record_count = generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
+print(f"✓ Loaded {record_count} sample records")
 
 # Update processed_data_key_phrases table
-print("Updating processed_data_key_phrases table")
 cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
 rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
@@ -582,7 +562,6 @@ for _, row in df.iterrows():
         cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
                        (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
 conn.commit()
-print("processed_data_key_phrases table updated.")
 
 # Adjust dates to current date
 today = datetime.today()
@@ -593,8 +572,7 @@ cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY
 cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
 conn.commit()
-print("Dates adjusted to current date.")
 
 cursor.close()
 conn.close()
-print("All steps completed. Connection closed.")
+print("✓ Data processing completed")

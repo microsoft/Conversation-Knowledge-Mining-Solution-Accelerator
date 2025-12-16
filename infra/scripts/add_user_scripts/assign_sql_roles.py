@@ -55,11 +55,8 @@ def assign_sql_roles(server, database, roles_json):
         credential = AzureCliCredential()
         
         # Connect to SQL Server
-        print(f"Connecting to {server}/{database}...")
         conn = connect_with_token(server, database, credential)
         cursor = conn.cursor()
-        
-        print("Connected successfully.")
         
         # Process each role assignment
         for role_assignment in roles:
@@ -68,10 +65,7 @@ def assign_sql_roles(server, database, roles_json):
             role = role_assignment.get("role")
             
             if not client_id or not display_name or not role:
-                print(f"Skipping invalid role assignment: {role_assignment}")
                 continue
-            
-            print(f"\nProcessing: {display_name} -> {role}")
             
             # Check if user already exists
             check_user_sql = f"SELECT COUNT(*) FROM sys.database_principals WHERE name = '{display_name}'"
@@ -81,16 +75,13 @@ def assign_sql_roles(server, database, roles_json):
             if not user_exists:
                 # Create user from external provider
                 create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
-                print(f"  Creating user: {display_name}")
                 try:
                     cursor.execute(create_user_sql)
                     conn.commit()
-                    print("  ✓ User created successfully")
+                    print(f"✓ Created user: {display_name}")
                 except Exception as e:
-                    print(f"  ✗ Failed to create user: {e}")
+                    print(f"✗ Failed to create user: {e}")
                     continue
-            else:
-                print(f"  User already exists: {display_name}")
             
             # Check if user already has the role
             check_role_sql = f"""
@@ -106,21 +97,17 @@ def assign_sql_roles(server, database, roles_json):
             if not has_role:
                 # Add user to role
                 add_role_sql = f"ALTER ROLE [{role}] ADD MEMBER [{display_name}]"
-                print(f"  Assigning role: {role}")
                 try:
                     cursor.execute(add_role_sql)
                     conn.commit()
-                    print("  ✓ Role assigned successfully")
+                    print(f"✓ Assigned {role} to {display_name}")
                 except Exception as e:
-                    print(f"  ✗ Failed to assign role: {e}")
+                    print(f"✗ Failed to assign {role}: {e}")
                     continue
-            else:
-                print(f"  User already has role: {role}")
         
         # Close connection
         cursor.close()
         conn.close()
-        print("\n✓ All role assignments completed successfully")
         return 0
         
     except Exception as e:

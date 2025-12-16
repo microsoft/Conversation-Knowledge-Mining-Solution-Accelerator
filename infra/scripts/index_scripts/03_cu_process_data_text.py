@@ -49,8 +49,6 @@ SAMPLE_IMPORT_FILE = 'infra/data/sample_search_index_data.json'
 SAMPLE_PROCESSED_DATA_FILE = 'infra/data/sample_processed_data.json'
 SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/sample_processed_data_key_phrases.json'
 
-print("Parameters received.")
-
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
 credential = AzureCliCredential(process_timeout=30)
@@ -58,13 +56,11 @@ service_client = DataLakeServiceClient(account_url, credential=credential, api_v
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
 paths = list(file_system_client.get_paths(path=directory_name))
-print("Azure DataLake setup complete.")
 
 # Azure Search setup
 search_credential = AzureCliCredential(process_timeout=30)
 search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
-print("Azure Search setup complete.")
 
 # SQL Server setup
 driver = "{ODBC Driver 18 for SQL Server}"
@@ -74,7 +70,6 @@ SQL_COPT_SS_ACCESS_TOKEN = 1256
 connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
 conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
 cursor = conn.cursor()
-print("SQL Server connection established.")
 
 # SQL data type mapping for pandas to SQL conversion
 sql_data_types = {
@@ -170,7 +165,6 @@ cu_client = AzureContentUnderstandingClient(
     token_provider=cu_token_provider
 )
 ANALYZER_ID = "ckm-json"
-print("Content Understanding client initialized.")
 
 # Azure AI Foundry (Inference) clients (Managed Identity)
 inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
@@ -289,7 +283,7 @@ def create_tables():
         StartTime varchar(255)
     );""")
     conn.commit()
-    print("Database tables created.")
+
 
 
 create_tables()
@@ -332,12 +326,10 @@ for path in paths:
     if docs != [] and counter % 10 == 0:
         result = search_client.upload_documents(documents=docs)
         docs = []
-        print(f'{counter} uploaded to Azure Search.')
 if docs:
     search_client.upload_documents(documents=docs)
-    print(f'Final batch uploaded to Azure Search.')
 
-print("File processing and DB/Search insertion complete.")
+print(f"✓ Processed {counter} files")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
@@ -345,7 +337,6 @@ def bulk_import_json_to_table(json_file, table_name):
         data = json.load(f)
 
     if not data:
-        print(f"No data to import into {table_name}.")
         return
 
     df = pd.DataFrame(data)
@@ -356,11 +347,10 @@ with open(file=SAMPLE_IMPORT_FILE, mode='r', encoding='utf-8') as file:
     documents = json.load(file)
 batch = [{"@search.action": "upload", **doc} for doc in documents]
 search_client.upload_documents(documents=batch)
-print(f'Successfully uploaded {len(documents)} sample index data records to search index {INDEX_NAME}.')
 
 bulk_import_json_to_table(SAMPLE_PROCESSED_DATA_FILE, 'processed_data')
 bulk_import_json_to_table(SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE, 'processed_data_key_phrases')
-print("Sample data loaded to DB and Search.")
+print(f"✓ Loaded {len(documents)} sample records")
 
 # Topic mining and mapping
 cursor.execute('SELECT distinct topic FROM processed_data')
@@ -374,7 +364,6 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 );""")
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
-print("Topic mining table prepared.")
 
 
 def call_gpt4(topics_str1, client):
@@ -410,7 +399,6 @@ res = call_gpt4(topics_str, chat_client)
 for object1 in res['topics']:
     cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
 conn.commit()
-print("Topics mined and inserted into km_mined_topics.")
 
 cursor.execute('SELECT label FROM km_mined_topics')
 rows = [tuple(row) for row in cursor.fetchall()]
@@ -418,7 +406,7 @@ column_names = [i[0] for i in cursor.description]
 df_topics = pd.DataFrame(rows, columns=column_names)
 mined_topics_list = df_topics['label'].tolist()
 mined_topics = ", ".join(mined_topics_list)
-print("Mined topics loaded.")
+print(f"✓ Mined {len(mined_topics_list)} topics")
 
 
 def get_mined_topic_mapping(input_text, list_of_topics):
@@ -445,7 +433,6 @@ for _, row in df_processed_data.iterrows():
     mined_topic_str = get_mined_topic_mapping(row['topic'], str(mined_topics_list))
     cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
 conn.commit()
-print("Processed data mapped to mined topics.")
 
 # Update processed data for RAG
 cursor.execute('DROP TABLE IF EXISTS km_processed_data')
@@ -472,7 +459,6 @@ df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
 generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
 
 # Update processed_data_key_phrases table
-print("Updating processed_data_key_phrases table")
 cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
 rows = [tuple(row) for row in cursor.fetchall()]
 column_names = [i[0] for i in cursor.description]
@@ -485,7 +471,6 @@ for _, row in df.iterrows():
         cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
                        (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
 conn.commit()
-print("processed_data_key_phrases table updated.")
 
 # Adjust dates to current date
 today = datetime.today()
@@ -496,8 +481,7 @@ cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY
 cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
 cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
 conn.commit()
-print("Dates adjusted to current date.")
 
 cursor.close()
 conn.close()
-print("All steps completed. Connection closed.")
+print("✓ Data processing completed")

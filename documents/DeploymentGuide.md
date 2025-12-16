@@ -147,7 +147,7 @@ If you're not using one of the above options for opening the project, then you'l
 1. Make sure the following tools are installed:
     - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) <small>(v7.0+)</small> - available for Windows, macOS, and Linux.
     - [Azure Developer CLI (azd)](https://aka.ms/install-azd) <small>(v1.18.0+)</small> - version
-    - [Python 3.9 to 3.11](https://www.python.org/downloads/)
+    - [Python 3.9+](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
     - [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
@@ -248,7 +248,7 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh` and `bash ./infra/scripts/process_sample_data.sh`) for later use.
+5. Once the deployment has completed successfully, copy the 2 bash commands from the terminal: (ex: `bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh` and `bash ./infra/scripts/process_sample_data.sh`) for later use.
 
 > **Note**: If you are running this deployment in GitHub Codespaces or VS Code Dev Container or Visual Studio Code (WEB) skip to step 7.
 

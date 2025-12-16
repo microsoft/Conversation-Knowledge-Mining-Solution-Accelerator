@@ -11,7 +11,7 @@ Install these tools before you start:
   - [Azure Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-node-azure-pack)
   - [Bicep](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-bicep)
   - [Python](https://marketplace.visualstudio.com/items?itemName=ms-python.python)
-- [Python 3.9 to 3.11](https://www.python.org/downloads/). **Important:** Check "Add Python to PATH" during installation.
+- [Python 3.9+](https://www.python.org/downloads/). **Important:** Check "Add Python to PATH" during installation.
 - [PowerShell 7.0+](https://github.com/PowerShell/PowerShell#get-powershell).
 - [Node.js (LTS)](https://nodejs.org/en).
 - [Git](https://git-scm.com/downloads).
