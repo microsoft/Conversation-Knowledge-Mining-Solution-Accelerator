@@ -59,7 +59,7 @@ if az account show &> /dev/null; then
 else
     # Use Azure CLI login if running locally
     echo "Authenticating with Azure CLI..."
-    az login
+    az login --use-device-code
 fi
 
 echo "Getting signed in user id"
