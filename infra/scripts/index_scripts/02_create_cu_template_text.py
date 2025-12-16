@@ -31,9 +31,9 @@ try:
     analyzer = client.get_analyzer_detail_by_id(ANALYZER_ID)
     if analyzer is not None:
         client.delete_analyzer(ANALYZER_ID)
-except Exception as e:
-    print(f"Analyzer with ID {ANALYZER_ID} was not found. Proceeding to create a new one.")
+except Exception:
+    pass
 
 response = client.begin_create_analyzer(ANALYZER_ID, analyzer_template_path=ANALYZER_TEMPLATE_FILE)
 result = client.poll_result(response)
-print(f"Analyzer with ID {ANALYZER_ID} created successfully.")
+print(f"✓ Analyzer '{ANALYZER_ID}' created")
