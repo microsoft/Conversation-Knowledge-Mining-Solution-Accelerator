@@ -445,6 +445,10 @@ pythonScriptPath="infra/scripts/index_scripts/"
 
 # Install the requirements
 pip install --quiet -r ${pythonScriptPath}requirements.txt
+if [ $? -ne 0 ]; then
+	echo "Error: Failed to install Python requirements."
+	exit 1
+fi
 
 # Create Content Understanding analyzers
 echo "✓ Creating Content Understanding analyzer templates"

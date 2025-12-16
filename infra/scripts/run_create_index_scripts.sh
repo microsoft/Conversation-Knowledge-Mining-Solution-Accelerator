@@ -87,6 +87,10 @@ fi
 # Install the requirements
 echo "Installing requirements"
 pip install --quiet -r ${pythonScriptPath}requirements.txt
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install Python requirements."
+    exit 1
+fi
 
 error_flag=false
 
