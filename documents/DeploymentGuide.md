@@ -245,7 +245,7 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
-    -- This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data.
+    - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
 5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh` and `bash ./infra/scripts/process_sample_data.sh`) for later use.
