@@ -49,10 +49,8 @@ original_full_range_rule_present="false"
 
 # Function to enable public network access temporarily
 enable_public_access() {
-	echo "=== Temporarily enabling public network access for services ==="
 	
 	# Enable public access for Storage Account
-	echo "Enabling public access for Storage Account: $storageAccountName"
 	original_storage_public_access=$(az storage account show \
 		--name "$storageAccountName" \
 		--resource-group "$resourceGroupName" \
@@ -65,37 +63,30 @@ enable_public_access() {
 		-o tsv)
 	
 	if [ "$original_storage_public_access" != "Enabled" ]; then
+		echo "✓ Enabling Storage Account public access"
 		az storage account update \
 			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--public-network-access Enabled \
 			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ Storage Account public access enabled"
-		else
+		if [ $? -ne 0 ]; then
 			echo "✗ Failed to enable Storage Account public access"
 			return 1
 		fi
-	else
-		echo "✓ Storage Account public access already enabled"
 	fi
 	
 	# Also ensure the default network action allows access
 	if [ "$original_storage_default_action" != "Allow" ]; then
-		echo "Setting Storage Account network default action to Allow"
+		echo "✓ Setting Storage Account network default action to Allow"
 		az storage account update \
 			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--default-action Allow \
 			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ Storage Account network default action set to Allow"
-		else
+		if [ $? -ne 0 ]; then
 			echo "✗ Failed to set Storage Account network default action"
 			return 1
 		fi
-	else
-		echo "✓ Storage Account network default action already set to Allow"
 	fi
 	
 	# Enable public access for AI Foundry
@@ -113,21 +104,16 @@ enable_public_access() {
 			--output tsv)
 		
 		if [ -z "$original_foundry_public_access" ] || [ "$original_foundry_public_access" = "null" ]; then
-			echo "⚠ Info: Could not retrieve AI Foundry network access status."
+			echo "⚠ Could not retrieve AI Foundry network access status"
 		elif [ "$original_foundry_public_access" != "Enabled" ]; then
-			echo "Current AI Foundry public access: $original_foundry_public_access"
-			echo "Enabling public access for AI Foundry resource: $aif_resource_name (Resource Group: $aif_resource_group)"
-			if MSYS_NO_PATHCONV=1 az resource update \
+			echo "✓ Enabling AI Foundry public access"
+			if ! MSYS_NO_PATHCONV=1 az resource update \
 				--ids "$aif_account_resource_id" \
 				--api-version 2024-10-01 \
 				--set properties.publicNetworkAccess=Enabled properties.apiProperties="{}" \
 				--output none; then
-				echo "✓ AI Foundry public access enabled"
-			else
-				echo "⚠ Warning: Failed to enable AI Foundry public access automatically."
+				echo "⚠ Failed to enable AI Foundry public access"
 			fi
-		else
-			echo "✓ AI Foundry public access already enabled"
 		fi
 	fi
 	
@@ -146,26 +132,20 @@ enable_public_access() {
 			--output tsv)
 		
 		if [ -z "$original_cu_foundry_public_access" ] || [ "$original_cu_foundry_public_access" = "null" ]; then
-			echo "⚠ Info: Could not retrieve CU Foundry network access status."
+			echo "⚠ Could not retrieve CU Foundry network access status"
 		elif [ "$original_cu_foundry_public_access" != "Enabled" ]; then
-			echo "Current CU Foundry public access: $original_cu_foundry_public_access"
-			echo "Enabling public access for CU Foundry resource: $cu_resource_name (Resource Group: $cu_resource_group)"
-			if MSYS_NO_PATHCONV=1 az resource update \
+			echo "✓ Enabling CU Foundry public access"
+			if ! MSYS_NO_PATHCONV=1 az resource update \
 				--ids "$cu_account_resource_id" \
 				--api-version 2024-10-01 \
 				--set properties.publicNetworkAccess=Enabled properties.apiProperties="{}" \
 				--output none; then
-				echo "✓ CU Foundry public access enabled"
-			else
-				echo "⚠ Warning: Failed to enable CU Foundry public access automatically."
+				echo "⚠ Failed to enable CU Foundry public access"
 			fi
-		else
-			echo "✓ CU Foundry public access already enabled"
 		fi
 	fi
 	
 	# Enable public access for SQL Server
-	echo "Checking SQL Server public access: $sqlServerName"
 	original_sql_public_access=$(az sql server show \
 		--name "$sqlServerName" \
 		--resource-group "$resourceGroupName" \
@@ -173,15 +153,16 @@ enable_public_access() {
 		-o tsv)
 	
 	if [ "$original_sql_public_access" != "Enabled" ]; then
-		echo "Enabling public access for SQL Server"
+		echo "✓ Enabling SQL Server public access"
 		az sql server update \
 			--name "$sqlServerName" \
 			--resource-group "$resourceGroupName" \
 			--enable-public-network true \
 			--output none
-		echo "✓ SQL Server public access enabled"
-	else
-		echo "✓ SQL Server public access already enabled"
+		if [ $? -ne 0 ]; then
+			echo "✗ Failed to enable SQL Server public access"
+			return 1
+		fi
 	fi
 	
 	# Create temporary allow-all firewall rule for SQL Server
@@ -204,43 +185,34 @@ enable_public_access() {
 	    --query "[?name=='${sql_allow_all_rule_name}'] | [0].name" \
 	    -o tsv 2>/dev/null)
 	
-	if [ -z "$existing_allow_all_rule" ]; then
-	    if [ -n "$pre_existing_full_range_rule" ]; then
-	        echo "✓ Existing rule ($pre_existing_full_range_rule) already allows full IP range."
-	    else
-	        echo "Creating temporary allow-all firewall rule ($sql_allow_all_rule_name)..."
-	        if az sql server firewall-rule create \
-	            --resource-group "$resourceGroupName" \
-	            --server "$sqlServerName" \
-	            --name "$sql_allow_all_rule_name" \
-	            --start-ip-address 0.0.0.0 \
-	            --end-ip-address 255.255.255.255 \
-	            --output none; then
-	            created_sql_allow_all_firewall_rule="true"
-	            echo "✓ Temporary allow-all firewall rule created"
-	        else
-	            echo "⚠ Warning: Failed to create allow-all firewall rule"
-	        fi
-	    fi
+	if [ -z "$existing_allow_all_rule" ] && [ -z "$pre_existing_full_range_rule" ]; then
+		echo "✓ Creating temporary SQL firewall rule"
+		if az sql server firewall-rule create \
+			--resource-group "$resourceGroupName" \
+			--server "$sqlServerName" \
+			--name "$sql_allow_all_rule_name" \
+			--start-ip-address 0.0.0.0 \
+			--end-ip-address 255.255.255.255 \
+			--output none; then
+			created_sql_allow_all_firewall_rule="true"
+		else
+			echo "⚠ Failed to create firewall rule"
+		fi
 	else
-	    echo "✓ Temporary allow-all firewall rule already present"
-	    original_full_range_rule_present="true"
+		original_full_range_rule_present="true"
 	fi
 		
 	# Wait a bit for changes to take effect
-	echo "Waiting for network access changes to propagate..."
 	sleep 10
-	echo "=== Public network access enabled successfully ==="
 	return 0
 }
 
 # Function to restore original network access settings
 restore_network_access() {
-	echo "=== Restoring original network access settings ==="
 	
 	# Restore Storage Account access
 	if [ -n "$original_storage_public_access" ] && [ "$original_storage_public_access" != "Enabled" ]; then
-		echo "Restoring Storage Account public access to: $original_storage_public_access"
+		echo "✓ Restoring Storage Account access"
 		case "$original_storage_public_access" in
 			"enabled"|"Enabled") restore_value="Enabled" ;;
 			"disabled"|"Disabled") restore_value="Disabled" ;;
@@ -251,74 +223,56 @@ restore_network_access() {
 			--resource-group "$resourceGroupName" \
 			--public-network-access "$restore_value" \
 			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ Storage Account access restored"
-		else
+		if [ $? -ne 0 ]; then
 			echo "✗ Failed to restore Storage Account access"
 		fi
-	else
-		echo "Storage Account access unchanged (already at desired state)"
 	fi
 		
 	# Restore Storage Account network default action
 	if [ -n "$original_storage_default_action" ] && [ "$original_storage_default_action" != "Allow" ]; then
-		echo "Restoring Storage Account network default action to: $original_storage_default_action"
+		echo "✓ Restoring Storage Account network default action"
 		az storage account update \
 			--name "$storageAccountName" \
 			--resource-group "$resourceGroupName" \
 			--default-action "$original_storage_default_action" \
 			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ Storage Account network default action restored"
-		else
+		if [ $? -ne 0 ]; then
 			echo "✗ Failed to restore Storage Account network default action"
 		fi
-	else
-		echo "Storage Account network default action unchanged (already at desired state)"
 	fi
 		
 	# Restore AI Foundry access
 	if [ -n "$original_foundry_public_access" ] && [ "$original_foundry_public_access" != "Enabled" ]; then
-		echo "Restoring AI Foundry public access to: $original_foundry_public_access"
-		if MSYS_NO_PATHCONV=1 az resource update \
+		echo "✓ Restoring AI Foundry access"
+		if ! MSYS_NO_PATHCONV=1 az resource update \
 			--ids "$aif_account_resource_id" \
 			--api-version 2024-10-01 \
 			--set properties.publicNetworkAccess="$original_foundry_public_access" \
         	--set properties.apiProperties.qnaAzureSearchEndpointKey="" \
         	--set properties.networkAcls.bypass="AzureServices" \
 			--output none 2>/dev/null; then
-			echo "✓ AI Foundry access restored"
-		else
-			echo "⚠ Warning: Failed to restore AI Foundry access automatically."
-			echo "  Please manually restore network access in the Azure portal if needed."
+			echo "⚠ Failed to restore AI Foundry access - please check Azure portal"
 		fi
-	else
-		echo "AI Foundry access unchanged (already at desired state)"
 	fi
 	
 	# Restore CU Foundry access
 	if [ -n "$original_cu_foundry_public_access" ] && [ "$original_cu_foundry_public_access" != "Enabled" ]; then
-		echo "Restoring CU Foundry public access to: $original_cu_foundry_public_access"
-		if MSYS_NO_PATHCONV=1 az resource update \
+		echo "✓ Restoring CU Foundry access"
+		if ! MSYS_NO_PATHCONV=1 az resource update \
 			--ids "$cu_account_resource_id" \
 			--api-version 2024-10-01 \
 			--set properties.publicNetworkAccess="$original_cu_foundry_public_access" \
         	--set properties.apiProperties.qnaAzureSearchEndpointKey="" \
         	--set properties.networkAcls.bypass="AzureServices" \
 			--output none 2>/dev/null; then
-			echo "✓ CU Foundry access restored"
-		else
-			echo "⚠ Warning: Failed to restore CU Foundry access automatically."
-			echo "  Please manually restore network access in the Azure portal if needed."
+			echo "⚠ Failed to restore CU Foundry access - please check Azure portal"
 		fi
-	else
-		echo "CU Foundry access unchanged (already at desired state)"
 	fi
 	
 	
 	# Restore SQL Server public access
 	if [ -n "$original_sql_public_access" ] && [ "$original_sql_public_access" != "Enabled" ]; then
-		echo "Restoring SQL Server public access to: $original_sql_public_access"
+		echo "✓ Restoring SQL Server access"
 		case "$original_sql_public_access" in
 			"enabled"|"Enabled") restore_value=true ;;
 			"disabled"|"Disabled") restore_value=false ;;
@@ -329,27 +283,10 @@ restore_network_access() {
 			--resource-group "$resourceGroupName" \
 			--enable-public-network $restore_value \
 			--output none
-		if [ $? -eq 0 ]; then
-			echo "✓ SQL Server access restored"
-		else
+		if [ $? -ne 0 ]; then
 			echo "✗ Failed to restore SQL Server access"
 		fi
-	else
-		echo "SQL Server access unchanged (already at desired state)"
 	fi
-	
-	# Remove temporary allow-all firewall rule if we created it
-	if [ "$created_sql_allow_all_firewall_rule" = "true" ] && [ "$original_full_range_rule_present" != "true" ]; then
-		echo "Removing temporary allow-all firewall rule..."
-		az sql server firewall-rule delete \
-			--resource-group "$resourceGroupName" \
-			--server "$sqlServerName" \
-			--name "TempAllowAll" \
-			--output none 2>/dev/null
-		echo "✓ Temporary firewall rule removed"
-	fi
-	
-	echo "=== Network access restoration completed ==="
 }
 
 # Function to handle script cleanup on exit
@@ -357,11 +294,9 @@ cleanup_on_exit() {
 	exit_code=$?
 	echo ""
 	if [ $exit_code -ne 0 ]; then
-		echo "❌ Script failed with exit code $exit_code"
-		echo "Restoring network access settings before exit..."
+		echo "❌ Script failed"
 	else
 		echo "✅ Script completed successfully"
-		echo "Restoring network access settings..."
 	fi
 	restore_network_access
 	exit $exit_code
@@ -380,7 +315,6 @@ check_azd_installed() {
 }
 
 get_values_from_azd_env() {
-	echo "Getting values from azd environment variables..."
 	# Use grep with a regex to ensure we're only capturing sanitized values to avoid command injection
 	resourceGroupName=$(azd env get-value RESOURCE_GROUP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	storageAccountName=$(azd env get-value STORAGE_ACCOUNT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
@@ -407,19 +341,19 @@ get_values_from_azd_env() {
 	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
-	else
-		echo "All values retrieved successfully from azd environment."
-		return 0
 	fi
+	return 0
 }
 
-
-
-# Use Azure CLI login if running locally
-echo ""
-echo "Authenticating with Azure CLI..."
-az login --use-device-code
-echo ""
+# Check if user is logged in to Azure
+echo "Checking Azure authentication..."
+if az account show &> /dev/null; then
+    echo "Already authenticated with Azure."
+else
+    # Use Azure CLI login if running locally
+    echo "Authenticating with Azure CLI..."
+    az login --use-device-code
+fi
 
 if check_azd_installed; then
     azSubscriptionId=$(azd env get-value AZURE_SUBSCRIPTION_ID) || azSubscriptionId="$AZURE_SUBSCRIPTION_ID" || azSubscriptionId=""
@@ -507,61 +441,31 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-# Determine the correct Python command
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
-    echo "Python is not installed on this system. Or it is not added in the PATH."
-    exit 1
-fi
-
 pythonScriptPath="infra/scripts/index_scripts/"
-# create virtual environment
-# Check if the virtual environment already exists
-if [ -d $pythonScriptPath"scriptenv" ]; then
-    echo "Virtual environment already exists. Skipping creation."
-else
-    echo "Creating virtual environment"
-    $PYTHON_CMD -m venv $pythonScriptPath"scriptenv"
-fi
-
-# Activate the virtual environment
-if [ -f $pythonScriptPath"scriptenv/bin/activate" ]; then
-    echo "Activating virtual environment (Linux/macOS)"
-    source $pythonScriptPath"scriptenv/bin/activate"
-elif [ -f $pythonScriptPath"scriptenv/Scripts/activate" ]; then
-    echo "Activating virtual environment (Windows)"
-    source $pythonScriptPath"scriptenv/Scripts/activate"
-else
-    echo "Error activating virtual environment. Requirements may be installed globally."
-fi
 
 # Install the requirements
-echo "Installing requirements"
 pip install --quiet -r ${pythonScriptPath}requirements.txt
-echo "Requirements installed"
+if [ $? -ne 0 ]; then
+	echo "Error: Failed to install Python requirements."
+	exit 1
+fi
 
 # Create Content Understanding analyzers
-echo "Creating Content Understanding analyzer templates..."
-echo "Running 02_create_cu_template_text.py"
+echo "✓ Creating Content Understanding analyzer templates"
 python infra/scripts/index_scripts/02_create_cu_template_text.py --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion"
 if [ $? -ne 0 ]; then
 	echo "Error: 02_create_cu_template_text.py failed."
 	exit 1
 fi
 
-echo "Running 02_create_cu_template_audio.py"
 python infra/scripts/index_scripts/02_create_cu_template_audio.py --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion"
 if [ $? -ne 0 ]; then
 	echo "Error: 02_create_cu_template_audio.py failed."
 	exit 1
 fi
-echo "Content Understanding analyzers created successfully."
 
 # Run 04_cu_process_custom_data.py
-echo "Running 04_cu_process_custom_data.py..."
+echo "✓ Processing custom data"
 sql_server_fqdn="$sqlServerName.database.windows.net"
 python infra/scripts/index_scripts/04_cu_process_custom_data.py \
     --search_endpoint "$searchEndpoint" \
@@ -579,4 +483,3 @@ if [ $? -ne 0 ]; then
 	echo "Error: 04_cu_process_custom_data.py failed."
 	exit 1
 fi
-echo "04_cu_process_custom_data.py completed successfully."

@@ -147,7 +147,7 @@ If you're not using one of the above options for opening the project, then you'l
 1. Make sure the following tools are installed:
     - [PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) <small>(v7.0+)</small> - available for Windows, macOS, and Linux.
     - [Azure Developer CLI (azd)](https://aka.ms/install-azd) <small>(v1.18.0+)</small> - version
-    - [Python 3.9 to 3.11](https://www.python.org/downloads/)
+    - [Python 3.9+](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
     - [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
@@ -248,7 +248,32 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully and you would like to use the **sample data**, please open a **Git Bash terminal** and run the bash command printed below. The bash command will look like the following:
+5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/process_sample_data.sh`) for later use.
+
+> **Note**: If you are running this deployment in GitHub Codespaces or VS Code Dev Container or Visual Studio Code (WEB) skip to step 7.
+
+6. Create and activate a virtual environment in bash terminal:
+  
+    ```shell
+    python -m venv .venv
+    ```
+
+    ```shell
+    source .venv/Scripts/activate
+    ```
+
+7. Login to Azure:
+
+    ```shell
+    az login
+    ```
+
+    Alternatively, login to Azure using a device code (recommended when using VS Code Web):
+
+    ```shell
+    az login --use-device-code
+    ```
+8. Run the bash script from the output of the azd deployment. The script will look like the following:
 
     ```bash
     bash ./infra/scripts/process_sample_data.sh
@@ -267,9 +292,9 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
       <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
     ```
 
-6. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+9. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
 
-7. You can now delete the resources by running `azd down`, if you are done trying out the application.
+10. You can now delete the resources by running `azd down`, if you are done trying out the application.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
 ### 🛠️ Troubleshooting
