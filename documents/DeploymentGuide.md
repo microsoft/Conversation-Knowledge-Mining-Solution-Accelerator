@@ -250,16 +250,20 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/process_sample_data.sh`) for later use.
 
-> **Note**: If you are running this deployment in GitHub Codespaces or VS Code Dev Container or Visual Studio Code (WEB) skip to step 7.
-
 6. Create and activate a virtual environment in bash terminal:
   
     ```shell
     python -m venv .venv
     ```
 
+    **For Windows (PowerShell/Command Prompt):**
     ```shell
-    source .venv/Scripts/activate
+    .venv\Scripts\activate
+    ```
+
+    **For Linux/VS Code Web (Bash):**
+    ```shell
+    source .venv/bin/activate
     ```
 
 7. Login to Azure:
