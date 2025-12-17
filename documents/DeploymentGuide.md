@@ -256,9 +256,9 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     python -m venv .venv
     ```
 
-    **For Windows (PowerShell/Command Prompt):**
+    **For Windows (Bash):**
     ```shell
-    .venv\Scripts\activate
+    source .venv/Scripts/activate
     ```
 
     **For Linux/VS Code Web (Bash):**
