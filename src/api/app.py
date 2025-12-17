@@ -7,7 +7,7 @@ and cleanup.
 """
 
 
-import logging_config  # Ensure logging is configured before other imports
+import logging_config  # noqa: F401 - Ensure logging is configured before other imports
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from agents.sql_agent_factory import SQLAgentFactory
 from agents.chart_agent_factory import ChartAgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
+
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
