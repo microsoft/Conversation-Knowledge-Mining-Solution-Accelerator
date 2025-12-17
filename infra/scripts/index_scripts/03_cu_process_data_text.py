@@ -355,7 +355,7 @@ print(f"✓ Processed {counter} files")
 
 # Load sample data to search index and database
 def bulk_import_json_to_table(json_file, table_name):
-    with open(file=json_file, mode="r") as f:
+    with open(file=json_file, mode="r", encoding='utf-8') as f:
         data = json.load(f)
 
     if not data:
