@@ -12,6 +12,76 @@ aiSearchConnectionName="$6"
 aiSearchIndex="$7"
 resourceGroup="$8"
 
+# Global variables to track original network access states for AI Foundry
+original_foundry_public_access=""
+aif_resource_group=""
+aif_account_resource_id=""
+
+# Function to enable public network access temporarily for AI Foundry
+enable_foundry_public_access() {
+	if [ -n "$aiFoundryResourceId" ] && [ "$aiFoundryResourceId" != "null" ]; then
+		aif_account_resource_id="$aiFoundryResourceId"
+		aif_resource_name=$(echo "$aiFoundryResourceId" | sed -n 's|.*/providers/Microsoft.CognitiveServices/accounts/\([^/]*\).*|\1|p')
+		aif_resource_group=$(echo "$aiFoundryResourceId" | sed -n 's|.*/resourceGroups/\([^/]*\)/.*|\1|p')
+		aif_subscription_id=$(echo "$aif_account_resource_id" | sed -n 's|.*/subscriptions/\([^/]*\)/.*|\1|p')
+		
+		original_foundry_public_access=$(az cognitiveservices account show \
+			--name "$aif_resource_name" \
+			--resource-group "$aif_resource_group" \
+			--subscription "$aif_subscription_id" \
+			--query "properties.publicNetworkAccess" \
+			--output tsv)
+		
+		if [ -z "$original_foundry_public_access" ] || [ "$original_foundry_public_access" = "null" ]; then
+			echo "⚠ Could not retrieve AI Foundry network access status"
+		elif [ "$original_foundry_public_access" != "Enabled" ]; then
+			echo "✓ Enabling AI Foundry public access"
+			if ! MSYS_NO_PATHCONV=1 az resource update \
+				--ids "$aif_account_resource_id" \
+				--api-version 2024-10-01 \
+				--set properties.publicNetworkAccess=Enabled properties.apiProperties="{}" \
+				--output none; then
+				echo "⚠ Failed to enable AI Foundry public access"
+			fi
+			# Wait a bit for changes to take effect
+			sleep 10
+		fi
+	fi
+	return 0
+}
+
+# Function to restore original network access settings for AI Foundry
+restore_foundry_network_access() {
+	if [ -n "$original_foundry_public_access" ] && [ "$original_foundry_public_access" != "Enabled" ]; then
+		echo "✓ Restoring AI Foundry access"
+		if ! MSYS_NO_PATHCONV=1 az resource update \
+			--ids "$aif_account_resource_id" \
+			--api-version 2024-10-01 \
+			--set properties.publicNetworkAccess="$original_foundry_public_access" \
+			--set properties.apiProperties.qnaAzureSearchEndpointKey="" \
+			--set properties.networkAcls.bypass="AzureServices" \
+			--output none 2>/dev/null; then
+			echo "⚠ Failed to restore AI Foundry access - please check Azure portal"
+		fi
+	fi
+}
+
+# Function to handle script cleanup on exit
+cleanup_on_exit() {
+	exit_code=$?
+	echo ""
+	if [ $exit_code -ne 0 ]; then
+		echo "❌ Script failed"
+	else
+		echo "✅ Script completed successfully"
+	fi
+	restore_foundry_network_access
+	exit $exit_code
+}
+
+# Register cleanup function to run on script exit
+trap cleanup_on_exit EXIT
+
 # get parameters from azd env, if not provided
 if [ -z "$projectEndpoint" ]; then
     projectEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT)
@@ -96,6 +166,13 @@ requirementFile="infra/scripts/agent_scripts/requirements.txt"
 # Download and install Python requirements
 python -m pip install --upgrade pip
 python -m pip install --quiet -r "$requirementFile"
+
+# Enable public network access for AI Foundry before agent creation
+enable_foundry_public_access
+if [ $? -ne 0 ]; then
+	echo "Error: Failed to enable public network access for AI Foundry."
+	exit 1
+fi
 
 # Execute the Python scripts
 echo "Running Python agents creation script..."
