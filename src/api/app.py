@@ -7,13 +7,11 @@ and cleanup.
 """
 
 
-import logging
-import os
+import logging_config  # Ensure logging is configured before other imports
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from dotenv import load_dotenv
 import uvicorn
 
 from agents.conversation_agent_factory import ConversationAgentFactory
@@ -22,33 +20,6 @@ from agents.sql_agent_factory import SQLAgentFactory
 from agents.chart_agent_factory import ChartAgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-# Basic application logging (default: INFO level)
-AZURE_BASIC_LOGGING_LEVEL = os.getenv("AZURE_BASIC_LOGGING_LEVEL", "INFO").upper()
-# Azure package logging (default: WARNING level to suppress INFO)
-AZURE_PACKAGE_LOGGING_LEVEL = os.getenv("AZURE_PACKAGE_LOGGING_LEVEL", "WARNING").upper()
-# Azure logging packages (default: empty list)
-AZURE_LOGGING_PACKAGES = [
-    pkg.strip() for pkg in os.getenv("AZURE_LOGGING_PACKAGES", "").split(",") if pkg.strip()
-]
-
-# Basic config: logging.basicConfig(level=logging.INFO)
-logging.basicConfig(
-    level=getattr(logging, AZURE_BASIC_LOGGING_LEVEL, logging.INFO),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    force=True  # This ensures the configuration is applied
-)
-
-# Package config: Azure loggers set to WARNING to suppress INFO
-for logger_name in AZURE_LOGGING_PACKAGES:
-    logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
-
-logging.info(f"Logging configured - Basic: {AZURE_BASIC_LOGGING_LEVEL}, Azure packages: {AZURE_PACKAGE_LOGGING_LEVEL}, Packages: {AZURE_LOGGING_PACKAGES}")
-
 
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
