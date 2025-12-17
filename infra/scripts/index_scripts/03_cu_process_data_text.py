@@ -29,6 +29,7 @@ p.add_argument("--sql_server", required=True)
 p.add_argument("--sql_database", required=True)
 p.add_argument("--cu_endpoint", required=True)
 p.add_argument("--cu_api_version", required=True)
+p.add_argument("--usecase", required=True)
 args = p.parse_args()
 
 SEARCH_ENDPOINT = args.search_endpoint
@@ -40,14 +41,22 @@ SQL_SERVER = args.sql_server
 SQL_DATABASE = args.sql_database
 CU_ENDPOINT = args.cu_endpoint
 CU_API_VERSION = args.cu_api_version
+USE_CASE = args.usecase
 
 FILE_SYSTEM_CLIENT_NAME = "data"
 DIRECTORY = 'call_transcripts'
 INDEX_NAME = "call_transcripts_index"
 
-SAMPLE_IMPORT_FILE = 'infra/data/sample_search_index_data.json'
-SAMPLE_PROCESSED_DATA_FILE = 'infra/data/sample_processed_data.json'
-SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/sample_processed_data_key_phrases.json'
+
+
+if USE_CASE == "telecom": 
+    SAMPLE_IMPORT_FILE = 'infra/data/telecom/sample_search_index_data.json'
+    SAMPLE_PROCESSED_DATA_FILE = 'infra/data/telecom/sample_processed_data.json'
+    SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/telecom/sample_processed_data_key_phrases.json'
+elif USE_CASE == "IT_helpdesk":
+    SAMPLE_IMPORT_FILE = 'infra/data/IT_helpdesk/sample_search_index_data.json'
+    SAMPLE_PROCESSED_DATA_FILE = 'infra/data/IT_helpdesk/sample_processed_data.json'
+    SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/IT_helpdesk/sample_processed_data_key_phrases.json'
 
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
@@ -63,13 +72,22 @@ search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
 
 # SQL Server setup
-driver = "{ODBC Driver 18 for SQL Server}"
-token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
-token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
-SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
-cursor = conn.cursor()
+try: 
+    driver = "{ODBC Driver 18 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    cursor = conn.cursor()
+except: 
+    driver = "{ODBC Driver 17 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    cursor = conn.cursor()
 
 # SQL data type mapping for pandas to SQL conversion
 sql_data_types = {
@@ -298,8 +316,12 @@ for path in paths:
         response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
         result = cu_client.poll_result(response)
         file_name = path.name.split('/')[-1].replace("%3A", "_")
-        start_time = file_name.replace(".json", "")[-19:]
-        timestamp_format = "%Y-%m-%d %H_%M_%S"
+        if USE_CASE == 'telecom': 
+            start_time = file_name.replace(".json", "")[-19:]
+            timestamp_format = "%Y-%m-%d %H_%M_%S"
+        else: 
+            start_time = file_name.replace(".json", "")[-16:]
+            timestamp_format = "%Y-%m-%d %H%M%S"
         start_timestamp = datetime.strptime(start_time, timestamp_format)
         conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
         conversationIds.append(conversation_id)

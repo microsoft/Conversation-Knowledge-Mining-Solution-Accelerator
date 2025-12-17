@@ -6,11 +6,11 @@ To deploy this solution, ensure you have access to an [Azure subscription](https
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available:
 
-- [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
-- [Azure AI Content Understanding Service](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
+- [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
+- [Azure Content Understanding Service](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
 - [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [GPT Model Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models)
-- [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
+- [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction)
 - [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
@@ -177,6 +177,7 @@ When you start the deployment, most parameters will have **default values**, but
 | **Azure Region**                            | The region where resources will be created.                                                               | *(empty)*              |
 | **Environment Name**                        | A **3–20 character alphanumeric value** used to generate a unique ID to prefix the resources.             | env\_name              |
 | **Azure AI Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
+| **Use Case**                      | Industry use case: **Contact-center** or **IT_helpdesk**.  | (empty)               |
 | **Secondary Location**                      | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2                |
 | **Deployment Type**                         | Select from a drop-down list (allowed: `Standard`, `GlobalStandard`).                                     | GlobalStandard         |
 | **GPT Model**                               | Choose from **gpt-4, gpt-4o, gpt-4o-mini**.                                                               | gpt-4o-mini            |
@@ -245,6 +246,10 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
+5. Choose the use case: 
+   - **Contact-center**
+   - **IT_helpdesk** 
+
     - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
@@ -293,7 +298,7 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
       <AI-Search-Name> <Search-Endpoint> \
       <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
       <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version> <Use-Case>
     ```
 
 9. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.

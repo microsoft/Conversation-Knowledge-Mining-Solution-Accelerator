@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "6460621154190988204"
+      "templateHash": "659660736055225323"
     }
   },
   "parameters": {
@@ -60,6 +60,17 @@
           ]
         },
         "description": "Required. Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed."
+      }
+    },
+    "usecase": {
+      "type": "string",
+      "allowedValues": [
+        "Contact-center",
+        "IT_helpdesk"
+      ],
+      "minLength": 1,
+      "metadata": {
+        "description": "Required. Industry use case for deployment:"
       }
     },
     "contentUnderstandingLocation": {
@@ -28534,8 +28545,8 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -36906,10 +36917,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -53067,6 +53078,13 @@
         "description": "Azure OpenAI Content Understanding endpoint URL."
       },
       "value": "[reference('cognitiveServicesCu').outputs.endpoint.value]"
+    },
+    "USE_CASE": {
+      "type": "string",
+      "metadata": {
+        "description": "Industry Use Case."
+      },
+      "value": "[parameters('usecase')]"
     }
   }
 }

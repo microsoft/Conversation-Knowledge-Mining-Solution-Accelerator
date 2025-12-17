@@ -33,6 +33,8 @@ cuEndpoint="${16}"
 cuApiVersion="${17}"
 aiAgentEndpoint="${18}"
 
+usecase="${19}"
+
 # Global variables to track original network access states
 original_storage_public_access=""
 original_storage_default_action=""
@@ -333,19 +335,22 @@ get_values_from_azd_env() {
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
 	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	usecase=$(azd env get-value USE_CASE 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$usecase" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	fi
 	return 0
 }
 
-
+if [ "$usecase" == "Contact_center" ]; then
+	usecase="telecom"
+fi 
 
 # Check if user is logged in to Azure
 echo "Checking Azure authentication..."
@@ -445,7 +450,7 @@ fi
 
 # Call copy_kb_files.sh
 echo "Running copy_kb_files.sh"
-bash infra/scripts/copy_kb_files.sh "$storageAccountName" "$fileSystem" "$resourceGroupName"
+bash infra/scripts/copy_kb_files.sh "$storageAccountName" "$fileSystem" "$resourceGroupName" "$usecase"
 if [ $? -ne 0 ]; then
 	echo "Error: copy_kb_files.sh failed."
 	exit 1
@@ -455,7 +460,7 @@ echo "copy_kb_files.sh completed successfully."
 # Call run_create_index_scripts.sh
 echo "Running run_create_index_scripts.sh"
 # Pass all required environment variables and backend managed identity info for role assignment
-bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint"
+bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint" "$usecase"
 if [ $? -ne 0 ]; then
 	echo "Error: run_create_index_scripts.sh failed."
 	exit 1

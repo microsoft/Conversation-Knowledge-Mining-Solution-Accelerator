@@ -17,6 +17,7 @@ cu_api_version="${13}"
 aif_resource_id="${14}"
 cu_foundry_resource_id="${15}"
 ai_agent_endpoint="${16}"
+usecase="${17}"
 
 pythonScriptPath="infra/scripts/index_scripts/"
 
@@ -108,16 +109,18 @@ if [ $? -ne 0 ]; then
     error_flag=true
 fi
 
-echo "✓ Creating CU template for audio"
-python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
-if [ $? -ne 0 ]; then
-    echo "Error: 02_create_cu_template_audio.py failed."
-    error_flag=true
+if ["$usecase" == "telecom" ]; then
+    echo "✓ Creating CU template for audio"
+    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+    if [ $? -ne 0 ]; then
+        echo "Error: 02_create_cu_template_audio.py failed."
+        error_flag=true
+    fi
 fi
 
 echo "✓ Processing data with CU"
 sql_server_fqdn="$sqlServerName.database.windows.net"
-python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true

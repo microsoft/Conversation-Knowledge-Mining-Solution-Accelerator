@@ -44,6 +44,14 @@ param location string
 param aiServiceLocation string
 
 @minLength(1)
+@description('Required. Industry use case for deployment:')
+@allowed([
+  'Contact-center'
+  'IT_helpdesk'
+])
+param usecase string 
+
+@minLength(1)
 @description('Optional. Location for the Content Understanding service deployment:')
 @allowed(['swedencentral', 'australiaeast'])
 @metadata({
@@ -1509,3 +1517,6 @@ output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
 
 @description('Azure OpenAI Content Understanding endpoint URL.')
 output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint
+
+@description('Industry Use Case.')
+output USE_CASE string = usecase
