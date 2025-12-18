@@ -109,7 +109,7 @@ if [ $? -ne 0 ]; then
     error_flag=true
 fi
 
-if ["$usecase" == "telecom" ]; then
+if [ "$usecase" == "telecom" ]; then
     echo "✓ Creating CU template for audio"
     python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
     if [ $? -ne 0 ]; then

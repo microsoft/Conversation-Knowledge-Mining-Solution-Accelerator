@@ -53,7 +53,7 @@ if USE_CASE == "telecom":
     SAMPLE_IMPORT_FILE = 'infra/data/telecom/sample_search_index_data.json'
     SAMPLE_PROCESSED_DATA_FILE = 'infra/data/telecom/sample_processed_data.json'
     SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/telecom/sample_processed_data_key_phrases.json'
-elif USE_CASE == "IT_helpdesk":
+else:
     SAMPLE_IMPORT_FILE = 'infra/data/IT_helpdesk/sample_search_index_data.json'
     SAMPLE_PROCESSED_DATA_FILE = 'infra/data/IT_helpdesk/sample_processed_data.json'
     SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/IT_helpdesk/sample_processed_data_key_phrases.json'
@@ -321,7 +321,7 @@ for path in paths:
             timestamp_format = "%Y-%m-%d %H_%M_%S"
         else: 
             start_time = file_name.replace(".json", "")[-16:]
-            timestamp_format = "%Y-%m-%d %H%M%S"
+            timestamp_format = "%Y-%m-%d%H%M%S"
         start_timestamp = datetime.strptime(start_time, timestamp_format)
         conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
         conversationIds.append(conversation_id)
@@ -498,11 +498,12 @@ conn.commit()
 today = datetime.today()
 cursor.execute("SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]")
 max_start_time = cursor.fetchone()[0]
-days_difference = (today - max_start_time).days - 1 if max_start_time else 0
-cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
-cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
-cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
-conn.commit()
+days_difference = (today.date() - max_start_time.date()).days - 1 if max_start_time else 0
+if days_difference > 0:
+    cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+    cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+    cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
+    conn.commit()
 
 cursor.close()
 conn.close()
