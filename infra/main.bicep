@@ -46,7 +46,7 @@ param aiServiceLocation string
 @minLength(1)
 @description('Required. Industry use case for deployment:')
 @allowed([
-  'Contact-center'
+  'telecom'
   'IT_helpdesk'
 ])
 param usecase string 

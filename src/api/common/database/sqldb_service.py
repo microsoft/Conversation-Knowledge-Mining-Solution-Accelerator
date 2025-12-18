@@ -83,8 +83,8 @@ async def adjust_processed_data_dates():
         max_start_time = (cursor.fetchone())[0]
 
         if max_start_time:
-            days_difference = (today - max_start_time).days - 1
-            if days_difference != 0:
+            days_difference = (today.date() - max_start_time.date()).days - 1
+            if days_difference > 0:
                 # Update processed_data table
                 cursor.execute(
                     "UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd "
