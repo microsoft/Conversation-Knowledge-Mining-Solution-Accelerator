@@ -16,7 +16,7 @@ class Config:
         self.sqldb_database = os.getenv("SQLDB_DATABASE")
         self.sqldb_server = os.getenv("SQLDB_SERVER")
         self.sqldb_username = os.getenv("SQLDB_USERNAME")
-        self.driver = "{ODBC Driver 17 for SQL Server}"
+        self.driver = "{ODBC Driver 18 for SQL Server}"
         self.mid_id = os.getenv("SQLDB_USER_MID")
 
         # Azure OpenAI configuration

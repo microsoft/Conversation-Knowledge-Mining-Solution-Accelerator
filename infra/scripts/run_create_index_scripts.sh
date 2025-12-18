@@ -1,64 +1,149 @@
 #!/bin/bash
-echo "Started the index script setup..."
 
 # Variables
-baseUrl="$1"
-keyvaultName="$2"
-managedIdentityClientId="$3"
-requirementFile="requirements.txt"
-requirementFileUrl="${baseUrl}infra/scripts/index_scripts/requirements.txt"
+resourceGroupName="$1"
+aiSearchName="$2"
+search_endpoint="${3}"
+sqlServerName="$4"
+sqlDatabaseName="$5"
+backendManagedIdentityDisplayName="${6}"
+backendManagedIdentityClientId="${7}"
+storageAccountName="${8}"
+openai_endpoint="${9}"
+deployment_model="${10}"
+embedding_model="${11}"
+cu_endpoint="${12}"
+cu_api_version="${13}"
+aif_resource_id="${14}"
+cu_foundry_resource_id="${15}"
+ai_agent_endpoint="${16}"
+usecase="${17}"
 
-# Step 1: Install system dependencies (Alpine Linux style)
-echo "Installing system dependencies..."
-apk update
-apk add --no-cache curl bash jq py3-pip gcc musl-dev libffi-dev openssl-dev python3-dev
-apk add --no-cache --virtual .build-deps build-base unixodbc-dev
+pythonScriptPath="infra/scripts/index_scripts/"
 
-# Install Microsoft ODBC and SQL tools
-echo "Installing MS ODBC drivers and tools..."
-curl -s -o msodbcsql17_17.10.6.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/msodbcsql17_17.10.6.1-1_amd64.apk
-curl -s -o mssql-tools_17.10.1.1-1_amd64.apk https://download.microsoft.com/download/e/4/e/e4e67866-dffd-428c-aac7-8d28ddafb39b/mssql-tools_17.10.1.1-1_amd64.apk
-apk add --allow-untrusted msodbcsql17_17.10.6.1-1_amd64.apk
-apk add --allow-untrusted mssql-tools_17.10.1.1-1_amd64.apk
+# Authenticate with Azure
+if ! az account show &> /dev/null; then
+    echo "Authenticating with Azure CLI..."
+	az login --use-device-code
+fi
 
-# Step 2: Download index scripts
-echo "Downloading index scripts..."
-curl --output "01_create_search_index.py" "${baseUrl}infra/scripts/index_scripts/01_create_search_index.py"
-curl --output "02_create_cu_template_text.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_text.py"
-curl --output "02_create_cu_template_audio.py" "${baseUrl}infra/scripts/index_scripts/02_create_cu_template_audio.py"
-curl --output "03_cu_process_data_text.py" "${baseUrl}infra/scripts/index_scripts/03_cu_process_data_text.py"
-curl --output "content_understanding_client.py" "${baseUrl}infra/scripts/index_scripts/content_understanding_client.py"
-curl --output "azure_credential_utils.py" "${baseUrl}infra/scripts/index_scripts/azure_credential_utils.py"
-curl --output "ckm-analyzer_config_text.json" "${baseUrl}infra/data/ckm-analyzer_config_text.json"
-curl --output "ckm-analyzer_config_audio.json" "${baseUrl}infra/data/ckm-analyzer_config_audio.json"
-curl --output "sample_processed_data.json" "${baseUrl}infra/data/sample_processed_data.json"
-curl --output "sample_processed_data_key_phrases.json" "${baseUrl}infra/data/sample_processed_data_key_phrases.json"
-curl --output "sample_search_index_data.json" "${baseUrl}infra/data/sample_search_index_data.json"
+# Get signed in user and store the output
+signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
 
-# Step 3: Download and install Python requirements
-echo "Installing Python requirements..."
-curl --output "$requirementFile" "$requirementFileUrl"
-pip install --upgrade pip
-pip install -r "$requirementFile"
+# Note: Environment variables are now passed as parameters from process_sample_data.sh
 
-# Step 4: Replace placeholder values with actuals
-echo "Substituting key vault and identity details..."
-#Replace key vault name 
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "01_create_search_index.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "01_create_search_index.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_text.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_text.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "02_create_cu_template_audio.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "02_create_cu_template_audio.py"
-sed -i "s/kv_to-be-replaced/${keyvaultName}/g" "03_cu_process_data_text.py"
-sed -i "s/mici_to-be-replaced/${managedIdentityClientId}/g" "03_cu_process_data_text.py"
+### Assign Azure AI User role to the signed in user for AI Foundry ###
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "✓ Assigning Azure AI User role for AI Foundry"
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Azure AI User role for AI Foundry"
+        exit 1
+    fi
+fi
+
+### Assign Azure AI User role to the signed in user for CU Foundry ###
+if [ -n "$cu_foundry_resource_id" ] && [ "$cu_foundry_resource_id" != "null" ]; then
+    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+    if [ -z "$role_assignment" ]; then
+        echo "✓ Assigning Azure AI User role for CU Foundry"
+        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --output none
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to assign Azure AI User role for CU Foundry"
+            exit 1
+        fi
+    fi
+fi
+
+### Assign Search Index Data Contributor role to the signed in user ###
+search_resource_id=$(az search service show --name $aiSearchName --resource-group $resourceGroupName --query id --output tsv)
+
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "✓ Assigning Search Index Data Contributor role"
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Search Index Data Contributor" --scope $search_resource_id --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Search Index Data Contributor role"
+        exit 1
+    fi
+fi
 
 
-# Step 5: Execute the Python scripts
-echo "Running Python index scripts..."
-python 01_create_search_index.py
-python 02_create_cu_template_text.py
-python 02_create_cu_template_audio.py
-python 03_cu_process_data_text.py
+### Assign signed in user as SQL Server Admin ###
+sql_server_resource_id=$(az sql server show --name $sqlServerName --resource-group $resourceGroupName --query id --output tsv)
+admin=$(MSYS_NO_PATHCONV=1 az sql server ad-admin list --ids $sql_server_resource_id --query "[?sid == '$signed_user_id']" -o tsv)
 
-echo "Index script setup completed successfully."
+if [ -z "$admin" ]; then
+    echo "✓ Assigning user as SQL Server Admin"
+    MSYS_NO_PATHCONV=1 az sql server ad-admin create --display-name "$signed_user_display_name" --object-id $signed_user_id --resource-group $resourceGroupName --server $sqlServerName --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign SQL Server Admin role"
+        exit 1
+    fi
+fi
+
+# Install the requirements
+echo "Installing requirements"
+pip install --quiet -r ${pythonScriptPath}requirements.txt
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to install Python requirements."
+    exit 1
+fi
+
+error_flag=false
+
+echo "✓ Creating search index"
+python ${pythonScriptPath}01_create_search_index.py --search_endpoint="$search_endpoint" --openai_endpoint="$openai_endpoint" --embedding_model="$embedding_model"
+if [ $? -ne 0 ]; then
+    echo "Error: 01_create_search_index.py failed."
+    error_flag=true
+fi
+
+echo "✓ Creating CU template for text"
+python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+if [ $? -ne 0 ]; then
+    echo "Error: 02_create_cu_template_text.py failed."
+    error_flag=true
+fi
+
+if [ "$usecase" == "telecom" ]; then
+    echo "✓ Creating CU template for audio"
+    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+    if [ $? -ne 0 ]; then
+        echo "Error: 02_create_cu_template_audio.py failed."
+        error_flag=true
+    fi
+fi
+
+echo "✓ Processing data with CU"
+sql_server_fqdn="$sqlServerName.database.windows.net"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase"
+if [ $? -ne 0 ]; then
+    echo "Error: 03_cu_process_data_text.py failed."
+    error_flag=true
+fi
+
+# Assign SQL roles to managed identity using Python (pyodbc + azure-identity)
+if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
+    mi_display_name="$backendManagedIdentityDisplayName"
+    server_fqdn="$sqlServerName.database.windows.net"
+    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
+
+    if [ -f "infra/scripts/add_user_scripts/assign_sql_roles.py" ]; then
+        echo "✓ Assigning SQL roles to managed identity"
+        python infra/scripts/add_user_scripts/assign_sql_roles.py --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
+        if [ $? -ne 0 ]; then
+            echo "⚠ SQL role assignment failed"
+            error_flag=true
+        fi
+    fi
+fi
+
+# Check for any errors and exit if any occurred
+if [ "$error_flag" = true ]; then
+    echo "One or more scripts failed. Please check the logs above."
+    exit 1
+fi

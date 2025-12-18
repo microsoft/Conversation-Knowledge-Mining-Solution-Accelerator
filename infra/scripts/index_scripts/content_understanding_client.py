@@ -197,11 +197,11 @@ class AzureContentUnderstandingClient:
             ValueError: If the file location is not a valid path or URL.
             HTTPError: If the HTTP request returned an unsuccessful status code.
         """
-        
+
         if file_data:
             data = file_data
             headers = {"Content-Type": "application/octet-stream"}
-        else:  
+        else:
             data = None
             if Path(file_location).exists():
                 with open(file_location, "rb") as file:
