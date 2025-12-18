@@ -348,9 +348,6 @@ get_values_from_azd_env() {
 	return 0
 }
 
-if [ "$usecase" == "Contact_center" ]; then
-	usecase="telecom"
-fi 
 
 # Check if user is logged in to Azure
 echo "Checking Azure authentication..."
