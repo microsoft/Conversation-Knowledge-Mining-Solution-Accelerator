@@ -1,13 +1,13 @@
 [← Back to *DEPLOYMENT* guide](/documents/DeploymentGuide.md#deployment-options--steps)
 
-# Reusing an Existing Azure AI Foundry Project
-To configure your environment to use an existing Azure AI Foundry Project, follow these steps:
+# Reusing an Existing Microsoft Foundry Project
+To configure your environment to use an existing Microsoft Foundry Project, follow these steps:
 ---
 ### 1. Go to Azure Portal
 Go to https://portal.azure.com
 
-### 2. Search for Azure AI Foundry
-In the search bar at the top, type "Azure AI Foundry" and click on it. Then select the Foundry service instance where your project exists.
+### 2. Search for Microsoft Foundry
+In the search bar at the top, type "Microsoft Foundry" and click on it. Then select the Foundry service instance where your project exists.
 
 ![alt text](../documents/Images/re_use_foundry_project/azure_ai_foundry_list.png)
 

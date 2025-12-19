@@ -44,6 +44,14 @@ param location string
 param aiServiceLocation string
 
 @minLength(1)
+@description('Required. Industry use case for deployment:')
+@allowed([
+  'telecom'
+  'IT_helpdesk'
+])
+param usecase string 
+
+@minLength(1)
 @description('Optional. Location for the Content Understanding service deployment:')
 @allowed(['swedencentral', 'australiaeast'])
 @metadata({
@@ -1525,3 +1533,6 @@ output AGENT_NAME_CONVERSATION string = ''
 
 @description('Contains Title Agent name.')
 output AGENT_NAME_TITLE string = ''
+
+@description('Industry Use Case.')
+output USE_CASE string = usecase

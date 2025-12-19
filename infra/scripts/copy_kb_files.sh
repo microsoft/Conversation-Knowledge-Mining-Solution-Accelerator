@@ -4,17 +4,28 @@
 storageAccountName="$1"
 containerName="$2"
 resourceGroupName="$3"
+usecase="$4"
 
-zipFileName1="infra/data/call_transcripts.zip"
+if [ -z "$usecase" ]; then
+	usecase="telecom"
+fi
+
+if [ "$usecase" == "telecom" ]; then
+	zipFileName1="infra/data/telecom/call_transcripts.zip"
+	zipFileName2="infra/data/telecom/audio_data.zip"
+	extractedFolder2="audio_data"
+elif [ "$usecase" == "IT_helpdesk" ]; then
+	zipFileName1="infra/data/IT_helpdesk/call_transcripts.zip"
+fi
+
 extractedFolder1="call_transcripts"
 
-zipFileName2="infra/data/audio_data.zip"
-extractedFolder2="audio_data"
+
 
 # Validate required parameters
-if [ -z "$storageAccountName" ] || [ -z "$containerName" ] || [ -z "$resourceGroupName" ]; then
+if [ -z "$storageAccountName" ] || [ -z "$containerName" ] || [ -z "$resourceGroupName" ] || [ -z "$usecase" ]; then
     echo "Error: Missing required parameters."
-    echo "Usage: $0 <storageAccountName> <containerName> <resourceGroupName>"
+    echo "Usage: $0 <storageAccountName> <containerName> <resourceGroupName> <usecase>"
     exit 1
 fi
 
@@ -23,10 +34,11 @@ if [ -f "$zipFileName1" ]; then
 	unzip -q -o "$zipFileName1" -d "$extractedFolder1"
 fi
 
-if [ -f "$zipFileName2" ]; then
-	unzip -q -o "$zipFileName2" -d "$extractedFolder2"
-fi
-
+if [ "$usecase" == "telecom" ]; then
+	if [ -f "$zipFileName2" ]; then
+		unzip -q -o "$zipFileName2" -d "$extractedFolder2"
+	fi
+fi 
 # Authenticate with Azure
 if ! az account show &> /dev/null; then
     echo "Authenticating with Azure CLI..."
@@ -65,19 +77,21 @@ if [ -d "$extractedFolder1" ]; then
 	fi
 fi
 
-if [ -d "$extractedFolder2" ]; then
-	echo "✓ Uploading audio data"
-	az storage blob upload-batch \
-		--account-name "$storageAccountName" \
-		--destination "$containerName/$extractedFolder2" \
-		--source "$extractedFolder2" \
-		--auth-mode login \
-		--pattern '*' \
-		--overwrite \
-		--output none
-	if [ $? -ne 0 ]; then
-		echo "✗ Failed to upload audio data"
-		exit 1
+if [ "$usecase" == "telecom" ]; then
+	if [ -d "$extractedFolder2" ]; then
+		echo "✓ Uploading audio data"
+		az storage blob upload-batch \
+			--account-name "$storageAccountName" \
+			--destination "$containerName/$extractedFolder2" \
+			--source "$extractedFolder2" \
+			--auth-mode login \
+			--pattern '*' \
+			--overwrite \
+			--output none
+		if [ $? -ne 0 ]; then
+			echo "✗ Failed to upload audio data"
+			exit 1
+		fi
 	fi
 fi
 

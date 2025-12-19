@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "9613508520466554350"
+      "templateHash": "141846146912717718"
     }
   },
   "parameters": {
@@ -60,6 +60,17 @@
           ]
         },
         "description": "Required. Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed."
+      }
+    },
+    "usecase": {
+      "type": "string",
+      "allowedValues": [
+        "telecom",
+        "IT_helpdesk"
+      ],
+      "minLength": 1,
+      "metadata": {
+        "description": "Required. Industry use case for deployment:"
       }
     },
     "contentUnderstandingLocation": {
@@ -26205,9 +26216,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -28534,8 +28545,8 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -36906,9 +36917,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -53099,6 +53110,13 @@
         "description": "Contains Title Agent name."
       },
       "value": ""
+    },
+    "USE_CASE": {
+      "type": "string",
+      "metadata": {
+        "description": "Industry Use Case."
+      },
+      "value": "[parameters('usecase')]"
     }
   }
 }
