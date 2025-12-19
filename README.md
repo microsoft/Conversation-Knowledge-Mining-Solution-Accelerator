@@ -153,6 +153,18 @@ Clear, contextual insights empower employees to take meaningful action based on 
      
 </details>
 
+### Use Case
+<details>
+  <summary>Click to learn more about what use cases this solution provides</summary>
+<br/>
+
+  | **Use case** | **Persona** | **Challenges** | **Summary/approach** |
+  |---|---|---|---|
+  | Contact Center Customer Support | Analyst | Difficulty in extracting actionable insights from large, complex datasets due to limited context or practical considerations.   Limited ability to engage with data interactively, making it challenging to find the right questions to dig deeper.| Contextualized insights from mined data that enables employees to solve problems and take action. Interactive data that allow employees to ask questions and receive timely responses, providing better understanding and problem-solving.| 
+  IT Helpdesk | IT Helpdesk Analyst | Manually reviewing IT Helpdesk calls to identify recurring issues is time-consuming and inefficient. Creating graphs, analyzing performance problems, and drafting FAQs is often a slow process, leaving gaps in self-service support. | Address these challenges by leveraging AI to gain insights from call data, generating visual summaries, uncovering common issues, and producing FAQ content, transforming a labor-intensive review process into a fast, accurate, and actionable workflow. |
+
+</details>
+
 <br /><br />
 
 <h2><img src="./documents/Images/ReadMe/supporting-documentation.png" width="48" />

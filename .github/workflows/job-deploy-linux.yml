@@ -144,10 +144,6 @@ jobs:
           else
             echo "❌ EXP DISABLED - Skipping EXP parameters"
           fi
-
-          # Set tags for deployment  
-          echo "Setting deployment tags..."
-          azd env set AZURE_TAG_SECURITY_CONTROL="Ignore"
           
           azd up --no-prompt
           

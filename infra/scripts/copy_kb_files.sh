@@ -1,36 +1,109 @@
 #!/bin/bash
 
 # Variables
-storageAccount="$1"
-baseUrl="$2"
-managedIdentityClientId="$3"
+storageAccountName="$1"
+containerName="$2"
+resourceGroupName="$3"
+usecase="$4"
 
-zipFileName1="call_transcripts.zip"
+if [ -z "$usecase" ]; then
+	usecase="telecom"
+fi
+
+if [ "$usecase" == "telecom" ]; then
+	zipFileName1="infra/data/telecom/call_transcripts.zip"
+	zipFileName2="infra/data/telecom/audio_data.zip"
+	extractedFolder2="audio_data"
+elif [ "$usecase" == "IT_helpdesk" ]; then
+	zipFileName1="infra/data/IT_helpdesk/call_transcripts.zip"
+fi
+
 extractedFolder1="call_transcripts"
-zipUrl1=${baseUrl}"infra/data/call_transcripts.zip"
 
-zipFileName2="audio_data.zip"
-extractedFolder2="audio_data"
-zipUrl2=${baseUrl}"infra/data/audio_data.zip"
 
-# Create folders if they do not exist
-mkdir -p "/mnt/azscripts/azscriptinput/$extractedFolder1"
-mkdir -p "/mnt/azscripts/azscriptinput/$extractedFolder2"
 
-# Download the zip file
-curl --output /mnt/azscripts/azscriptinput/"$zipFileName1" "$zipUrl1"
-curl --output /mnt/azscripts/azscriptinput/"$zipFileName2" "$zipUrl2"
+# Validate required parameters
+if [ -z "$storageAccountName" ] || [ -z "$containerName" ] || [ -z "$resourceGroupName" ] || [ -z "$usecase" ]; then
+    echo "Error: Missing required parameters."
+    echo "Usage: $0 <storageAccountName> <containerName> <resourceGroupName> <usecase>"
+    exit 1
+fi
 
-# Extract the zip file
-unzip /mnt/azscripts/azscriptinput/"$zipFileName1" -d /mnt/azscripts/azscriptinput/"$extractedFolder1"
-unzip /mnt/azscripts/azscriptinput/"$zipFileName2" -d /mnt/azscripts/azscriptinput/"$extractedFolder2"
+# Extract zip files if they exist
+if [ -f "$zipFileName1" ]; then
+	unzip -q -o "$zipFileName1" -d "$extractedFolder1"
+fi
 
-echo "Script Started"
+if [ "$usecase" == "telecom" ]; then
+	if [ -f "$zipFileName2" ]; then
+		unzip -q -o "$zipFileName2" -d "$extractedFolder2"
+	fi
+fi 
+# Authenticate with Azure
+if ! az account show &> /dev/null; then
+    echo "Authenticating with Azure CLI..."
+	az login --use-device-code
+fi
 
-# Authenticate with Azure using managed identity
-az login --identity --client-id ${managedIdentityClientId}
-# Using az storage blob upload-batch to upload files with managed identity authentication, as the az storage fs directory upload command is not working with managed identity authentication.
-az storage blob upload-batch --account-name "$storageAccount" --destination data/"$extractedFolder1" --source /mnt/azscripts/azscriptinput/"$extractedFolder1" --auth-mode login --pattern '*' --overwrite
-az storage blob upload-batch --account-name "$storageAccount" --destination data/"$extractedFolder2" --source /mnt/azscripts/azscriptinput/"$extractedFolder2" --auth-mode login --pattern '*' --overwrite
-az storage fs directory create --account-name "$storageAccount" --file-system data --name custom_audiodata --auth-mode login
-az storage fs directory create --account-name "$storageAccount" --file-system data --name custom_transcripts --auth-mode login
+# Check and assign Storage Blob Data Contributor role to current user
+signed_user_id=$(az ad signed-in-user show --query id --output tsv)
+storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$resourceGroupName" --query id --output tsv)
+
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Storage Blob Data Contributor" --scope $storage_resource_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "✓ Assigning Storage Blob Data Contributor role"
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role "Storage Blob Data Contributor" --scope $storage_resource_id --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Storage Blob Data Contributor role"
+        exit 1
+    fi
+    sleep 10
+fi
+
+# Upload files to storage account
+if [ -d "$extractedFolder1" ]; then
+	echo "✓ Uploading call transcripts"
+	az storage blob upload-batch \
+		--account-name "$storageAccountName" \
+		--destination "$containerName/$extractedFolder1" \
+		--source "$extractedFolder1" \
+		--auth-mode login \
+		--pattern '*' \
+		--overwrite \
+		--output none
+	if [ $? -ne 0 ]; then
+		echo "✗ Failed to upload call transcripts"
+		exit 1
+	fi
+fi
+
+if [ "$usecase" == "telecom" ]; then
+	if [ -d "$extractedFolder2" ]; then
+		echo "✓ Uploading audio data"
+		az storage blob upload-batch \
+			--account-name "$storageAccountName" \
+			--destination "$containerName/$extractedFolder2" \
+			--source "$extractedFolder2" \
+			--auth-mode login \
+			--pattern '*' \
+			--overwrite \
+			--output none
+		if [ $? -ne 0 ]; then
+			echo "✗ Failed to upload audio data"
+			exit 1
+		fi
+	fi
+fi
+
+# Create custom data directories for user uploads
+az storage fs directory create \
+	--account-name "$storageAccountName" \
+	--file-system "$containerName" \
+	--name custom_audiodata \
+	--auth-mode login --output none 2>/dev/null
+
+az storage fs directory create \
+	--account-name "$storageAccountName" \
+	--file-system "$containerName" \
+	--name custom_transcripts \
+	--auth-mode login --output none 2>/dev/null
