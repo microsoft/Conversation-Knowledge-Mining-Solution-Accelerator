@@ -57,12 +57,21 @@ enable_public_access() {
 		--name "$storageAccountName" \
 		--resource-group "$resourceGroupName" \
 		--query "publicNetworkAccess" \
-		-o tsv)
+		-o tsv 2>&1)
+	if [ -z "$original_storage_public_access" ] || [[ "$original_storage_public_access" == *"ERROR"* ]]; then
+		echo "✗ Failed to get Storage Account public access status"
+		return 1
+	fi
+	
 	original_storage_default_action=$(az storage account show \
 		--name "$storageAccountName" \
 		--resource-group "$resourceGroupName" \
 		--query "networkRuleSet.defaultAction" \
-		-o tsv)
+		-o tsv 2>&1)
+	if [ -z "$original_storage_default_action" ] || [[ "$original_storage_default_action" == *"ERROR"* ]]; then
+		echo "✗ Failed to get Storage Account network default action"
+		return 1
+	fi
 	
 	if [ "$original_storage_public_access" != "Enabled" ]; then
 		echo "✓ Enabling Storage Account public access"
@@ -356,7 +365,10 @@ if az account show &> /dev/null; then
 else
     # Use Azure CLI login if running locally
     echo "Authenticating with Azure CLI..."
-    az login --use-device-code
+    if ! az login --use-device-code; then
+        echo "✗ Failed to authenticate with Azure"
+        exit 1
+    fi
 fi
 
 if check_azd_installed; then
@@ -365,8 +377,12 @@ fi
 
 #check if user has selected the correct subscription
 echo ""
-currentSubscriptionId=$(az account show --query id -o tsv)
-currentSubscriptionName=$(az account show --query name -o tsv)
+currentSubscriptionId=$(az account show --query id -o tsv 2>/dev/null)
+currentSubscriptionName=$(az account show --query name -o tsv 2>/dev/null)
+if [ -z "$currentSubscriptionId" ] || [ -z "$currentSubscriptionName" ]; then
+    echo "✗ Failed to get current subscription information"
+    exit 1
+fi
 if [ "$currentSubscriptionId" != "$azSubscriptionId" ]; then
 	echo "Current selected subscription is $currentSubscriptionName ( $currentSubscriptionId )."
 	read -rp "Do you want to continue with this subscription?(y/n): " confirmation
@@ -399,11 +415,17 @@ if [ "$currentSubscriptionId" != "$azSubscriptionId" ]; then
 		done
 	else
 		echo "Proceeding with the current subscription: $currentSubscriptionName ( $currentSubscriptionId )"
-		az account set --subscription "$currentSubscriptionId"
+		if ! az account set --subscription "$currentSubscriptionId"; then
+			echo "✗ Failed to set subscription"
+			exit 1
+		fi
 	fi
 else
 	echo "Proceeding with the subscription: $currentSubscriptionName ( $currentSubscriptionId )"
-	az account set --subscription "$currentSubscriptionId"
+	if ! az account set --subscription "$currentSubscriptionId"; then
+		echo "✗ Failed to set subscription"
+		exit 1
+	fi
 fi
 echo ""
 
