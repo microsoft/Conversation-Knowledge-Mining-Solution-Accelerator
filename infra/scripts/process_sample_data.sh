@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Variables - Grouped by service for clarity
 # General Azure
 resourceGroupName="${1}"
@@ -357,6 +360,91 @@ get_values_from_azd_env() {
 	return 0
 }
 
+get_values_from_az_deployment() {
+	echo "Getting values from Azure deployment outputs..."
+ 
+    deploymentName=$(az group show --name "$resourceGroupName" --query "tags.DeploymentName" -o tsv)
+    echo "Deployment Name (from tag): $deploymentName"
+ 
+    echo "Fetching deployment outputs..."
+	# Get all outputs
+    deploymentOutputs=$(az deployment group show \
+        --name "$deploymentName" \
+        --resource-group "$resourceGroupName" \
+        --query "properties.outputs" -o json)
+
+	# Helper function to extract value from deployment outputs
+	# Usage: extract_value "primaryKey" "fallbackKey"
+	extract_value() {
+		local primary_key="$1"
+		local fallback_key="$2"
+		local value
+		
+		value=$(echo "$deploymentOutputs" | grep -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		if [ -z "$value" ] && [ -n "$fallback_key" ]; then
+			value=$(echo "$deploymentOutputs" | grep -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		fi
+		echo "$value"
+	}
+
+	# Extract each value using the helper function
+	storageAccountName=$(extract_value "storageAccountName" "storagE_ACCOUNT_NAME")
+	fileSystem=$(extract_value "storageContainerName" "storagE_CONTAINER_NAME")
+	sqlServerName=$(extract_value "sqlDBServer" "sqldB_SERVER")
+	SqlDatabaseName=$(extract_value "sqlDBDatabase" "sqldB_DATABASE")
+	backendUserMidClientId=$(extract_value "backendUserMid" "backenD_USER_MID")
+	backendUserMidDisplayName=$(extract_value "backendUserMidName" "backenD_USER_MID_NAME")
+	aiSearchName=$(extract_value "azureAISearchName" "azurE_AI_SEARCH_NAME")
+	searchEndpoint=$(extract_value "azureAISearchEndpoint" "azurE_AI_SEARCH_ENDPOINT")
+	aif_resource_id=$(extract_value "aiFoundryResourceId" "aI_FOUNDRY_RESOURCE_ID")
+	cu_foundry_resource_id=$(extract_value "cuFoundryResourceId" "cU_FOUNDRY_RESOURCE_ID")
+	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "azurE_OPENAI_ENDPOINT")
+	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "azurE_OPENAI_EMBEDDING_MODEL")
+	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "azurE_OPENAI_CU_ENDPOINT")
+	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
+	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "azurE_CONTENT_UNDERSTANDING_API_VERSION")
+	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "azurE_OPENAI_DEPLOYMENT_MODEL")
+	usecase=$(extract_value "useCase" "usE_CASE")
+	
+	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
+	sqlServerName="${sqlServerName%.database.windows.net}"
+	
+	# Define required values with their display names for error reporting
+	declare -A required_values=(
+		["storageAccountName"]="STORAGE_ACCOUNT_NAME"
+		["fileSystem"]="STORAGE_CONTAINER_NAME"
+		["sqlServerName"]="SQLDB_SERVER"
+		["SqlDatabaseName"]="SQLDB_DATABASE"
+		["backendUserMidClientId"]="BACKEND_USER_MID"
+		["backendUserMidDisplayName"]="BACKEND_USER_MID_NAME"
+		["aiSearchName"]="AZURE_AI_SEARCH_NAME"
+		["aif_resource_id"]="AI_FOUNDRY_RESOURCE_ID"
+		["cu_foundry_resource_id"]="CU_FOUNDRY_RESOURCE_ID"
+		["searchEndpoint"]="AZURE_AI_SEARCH_ENDPOINT"
+		["openaiEndpoint"]="AZURE_OPENAI_ENDPOINT"
+		["embeddingModel"]="AZURE_OPENAI_EMBEDDING_MODEL"
+		["cuEndpoint"]="AZURE_OPENAI_CU_ENDPOINT"
+		["aiAgentEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
+		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
+		["deploymentModel"]="AZURE_OPENAI_DEPLOYMENT_MODEL"
+		["usecase"]="USE_CASE"
+	)
+
+	# Validate and collect missing values
+	missing_values=()
+	for var_name in "${!required_values[@]}"; do
+		if [ -z "${!var_name}" ]; then
+			missing_values+=("${required_values[$var_name]}")
+		fi
+	done
+
+	if [ ${#missing_values[@]} -gt 0 ]; then
+		echo "Error: The following required values could not be retrieved from Azure deployment outputs:"
+		printf '  - %s\n' "${missing_values[@]}" | sort
+		return 1
+	fi
+	return 0
+}
 
 # Check if user is logged in to Azure
 echo "Checking Azure authentication..."
@@ -430,10 +518,39 @@ fi
 echo ""
 
 echo ""
-if ! get_values_from_azd_env; then
-    echo "Failed to get values from azd environment."
-    echo ""
-    exit 1
+
+if [ -z "$resourceGroupName" ]; then
+    # No resource group provided - use azd env
+    if ! get_values_from_azd_env; then
+        echo "Failed to get values from azd environment."
+		echo ""
+        echo "If you want to use deployment outputs instead, please provide the resource group name as an argument."
+        echo "Usage: $0 [ResourceGroupName]"
+		echo "Example: $0 my-resource-group"
+		echo ""
+        exit 1
+    fi
+else
+    # Resource group provided - use deployment outputs
+	echo ""
+    echo "Resource group provided: $resourceGroupName"
+
+    # Call deployment function
+    if ! get_values_from_az_deployment; then
+        echo "Failed to get values from deployment outputs."
+		echo ""
+		echo "Would you like to enter the values manually? (y/n): "
+		read -r manual_input_choice
+		if [[ "$manual_input_choice" == "y" || "$manual_input_choice" == "Y" ]]; then
+			if ! get_values_from_user; then
+				echo "Error: Manual input failed."
+				exit 1
+			fi
+		else
+			echo "Exiting script."
+			exit 1
+		fi
+	fi
 fi
 
 echo ""
@@ -469,7 +586,7 @@ fi
 
 # Call copy_kb_files.sh
 echo "Running copy_kb_files.sh"
-bash infra/scripts/copy_kb_files.sh "$storageAccountName" "$fileSystem" "$resourceGroupName" "$usecase"
+bash "$SCRIPT_DIR/copy_kb_files.sh" "$storageAccountName" "$fileSystem" "$resourceGroupName" "$usecase"
 if [ $? -ne 0 ]; then
 	echo "Error: copy_kb_files.sh failed."
 	exit 1
@@ -479,7 +596,7 @@ echo "copy_kb_files.sh completed successfully."
 # Call run_create_index_scripts.sh
 echo "Running run_create_index_scripts.sh"
 # Pass all required environment variables and backend managed identity info for role assignment
-bash infra/scripts/run_create_index_scripts.sh "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint" "$usecase"
+bash "$SCRIPT_DIR/run_create_index_scripts.sh" "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint" "$usecase"
 if [ $? -ne 0 ]; then
 	echo "Error: run_create_index_scripts.sh failed."
 	exit 1

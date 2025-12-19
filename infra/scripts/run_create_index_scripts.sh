@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Variables
 resourceGroupName="$1"
 aiSearchName="$2"
@@ -19,7 +22,7 @@ cu_foundry_resource_id="${15}"
 ai_agent_endpoint="${16}"
 usecase="${17}"
 
-pythonScriptPath="infra/scripts/index_scripts/"
+pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
 # Authenticate with Azure
 if ! az account show &> /dev/null; then
@@ -143,9 +146,9 @@ if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisp
     server_fqdn="$sqlServerName.database.windows.net"
     roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
 
-    if [ -f "infra/scripts/add_user_scripts/assign_sql_roles.py" ]; then
+    if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"
-        python infra/scripts/add_user_scripts/assign_sql_roles.py --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
+        python "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
         if [ $? -ne 0 ]; then
             echo "⚠ SQL role assignment failed"
             error_flag=true
