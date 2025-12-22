@@ -46,8 +46,22 @@ if ! az account show &> /dev/null; then
 fi
 
 # Check and assign Storage Blob Data Contributor role to current user
-signed_user_id=$(az ad signed-in-user show --query id --output tsv)
+signed_user_id=$(az ad signed-in-user show --query id --output tsv 2>&1)
+if [ -z "$signed_user_id" ] || [[ "$signed_user_id" == *"ERROR"* ]] || [[ "$signed_user_id" == *"InteractionRequired"* ]]; then
+    echo "✗ Failed to get signed-in user ID. Token may have expired. Re-authenticating..."
+    az login --use-device-code
+    signed_user_id=$(az ad signed-in-user show --query id --output tsv)
+    if [ -z "$signed_user_id" ]; then
+        echo "✗ Failed to get signed-in user ID after re-authentication"
+        exit 1
+    fi
+fi
+
 storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$resourceGroupName" --query id --output tsv)
+if [ -z "$storage_resource_id" ]; then
+    echo "✗ Failed to get storage account resource ID"
+    exit 1
+fi
 
 role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --assignee $signed_user_id --role "Storage Blob Data Contributor" --scope $storage_resource_id --query "[].roleDefinitionId" -o tsv)
 if [ -z "$role_assignment" ]; then

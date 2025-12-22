@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Variables
 resourceGroupName="$1"
 aiSearchName="$2"
@@ -19,7 +22,7 @@ cu_foundry_resource_id="${15}"
 ai_agent_endpoint="${16}"
 usecase="${17}"
 
-pythonScriptPath="infra/scripts/index_scripts/"
+pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
 # Authenticate with Azure
 if ! az account show &> /dev/null; then
@@ -28,9 +31,20 @@ if ! az account show &> /dev/null; then
 fi
 
 # Get signed in user and store the output
-signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
+if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
+    echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
+    az login --use-device-code
+    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+fi
+
 signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
 signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+
+if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+    echo "✗ Failed to extract user information after authentication"
+    exit 1
+fi
 
 # Note: Environment variables are now passed as parameters from process_sample_data.sh
 
@@ -132,9 +146,9 @@ if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisp
     server_fqdn="$sqlServerName.database.windows.net"
     roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
 
-    if [ -f "infra/scripts/add_user_scripts/assign_sql_roles.py" ]; then
+    if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"
-        python infra/scripts/add_user_scripts/assign_sql_roles.py --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
+        python "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" --server "$server_fqdn" --database "$sqlDatabaseName" --roles-json "$roles_json"
         if [ $? -ne 0 ]; then
             echo "⚠ SQL role assignment failed"
             error_flag=true

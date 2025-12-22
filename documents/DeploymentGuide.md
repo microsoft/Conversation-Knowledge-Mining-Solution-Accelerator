@@ -253,7 +253,7 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
     - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, copy the 2 bash commands from the terminal: (ex: `bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh` and `bash ./infra/scripts/process_sample_data.sh`) for later use.
+5. Once the deployment has completed successfully, continue with the following steps to process and load the sample data.
 
 6. Create and activate a virtual environment in bash terminal:
   
