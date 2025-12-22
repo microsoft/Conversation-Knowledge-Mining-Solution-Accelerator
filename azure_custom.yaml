@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+environment:
+  name: conversation-knowledge-mining
+  location: eastus
+name: conversation-knowledge-mining
+
+requiredVersions:
+  azd: ">= 1.18.0"
+
+metadata:
+  template: conversation-knowledge-mining@1.0
+
+# Use the custom main to enable local-change deployments via image tag updates.
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      interactive: true
+      continueOnError: false
+      run: |
+        $ErrorActionPreference = "Stop"
+        Write-Host "Preparing local image build and push..."
+
+        # Generate a unique image tag for this local deployment
+        $tag = "local_$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))"
+
+        # Discover resource group name from env/azd outputs
+        $rg = $env:RESOURCE_GROUP_NAME
+        if (-not $rg -or $rg -eq '') {
+          try {
+            $envText = azd env get-values | Out-String
+            $m = [regex]::Match($envText, "(?m)^RESOURCE_GROUP_NAME=(.+)$")
+            if ($m.Success) { $rg = $m.Groups[1].Value.Trim() }
+          } catch {}
+        }
+        if (-not $rg -or $rg -eq '') {
+          throw "Unable to determine resource group name from azd env outputs. Ensure you have run azd up at least once."
+        }
+
+        # Ensure Azure CLI is on the subscription that contains this resource group
+        $subId = $env:AZURE_SUBSCRIPTION_ID
+        if (-not $subId -or $subId -eq '') {
+          try {
+            $m2 = [regex]::Match($envText, "(?m)^AZURE_SUBSCRIPTION_ID=(.+)$")
+            if ($m2.Success) { $subId = $m2.Groups[1].Value.Trim() }
+          } catch {}
+        }
+        if (-not $subId -or $subId -eq '') {
+          $accounts = az account list -o json | ConvertFrom-Json
+          foreach ($acct in $accounts) {
+            az account set --subscription $acct.id | Out-Null
+            try { az group show -n $rg -o none 2>$null; $subId = $acct.id; break } catch {}
+          }
+        }
+        if ($subId -and $subId -ne '') {
+          az account set --subscription $subId | Out-Null
+        } else {
+          throw "Could not locate resource group '$rg' in any accessible subscription."
+        }
+
+        # Resolve or create ACR endpoint
+        $acrEndpoint = $env:AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT
+        if (-not $acrEndpoint -or $acrEndpoint -eq "") {
+          $existingAcr = az acr list -g $rg --query "[0].name" -o tsv 2>$null
+          if (-not $existingAcr -or $existingAcr -eq '') {
+            $newAcrName = ("acr" + ([System.Guid]::NewGuid().ToString('N').Substring(0, 12)))
+            Write-Host "No ACR found in RG '$rg'. Creating ACR: $newAcrName"
+            az acr create -g $rg -n $newAcrName --sku Standard | Out-Null
+            $acrName = $newAcrName
+          } else {
+            $acrName = $existingAcr
+            Write-Host "Found existing ACR in RG '$rg': $acrName"
+          }
+          $acrEndpoint = "$acrName.azurecr.io"
+          azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT $acrEndpoint | Out-Null
+        } else {
+          $acrName = (($acrEndpoint -replace "https?://", "") -replace ".azurecr.io$", "")
+        }
+
+        # Ensure ACR admin is enabled so App Service can pull if RBAC not configured
+        try { az acr update -n $acrName --admin-enabled true | Out-Null } catch {}
+        $cred = az acr credential show -n $acrName | ConvertFrom-Json
+        $acrUser = $cred.username
+        $acrPass = $cred.passwords[0].value
+
+        # Pre-configure Web Apps with ACR credentials (do not change images here)
+        $apps = az webapp list -g $rg --query "[].name" -o tsv
+        foreach ($app in $apps) {
+          az webapp config container set `
+            --name $app `
+            --resource-group $rg `
+            --docker-registry-server-url "https://$acrEndpoint" `
+            --docker-registry-server-user $acrUser `
+            --docker-registry-server-password $acrPass | Out-Null
+        }
+
+        # Login to ACR (strip FQDN to get registry name)
+        $acrName = ($acrEndpoint -replace "https?://", "") -replace ".azurecr.io$", ""
+        az acr login --name $acrName | Out-Null
+
+        # Build and push API image
+        $apiImage = "$acrEndpoint/km-api:$tag"
+        Write-Host "Building API image: $apiImage"
+        docker build -f ./src/api/ApiApp.Dockerfile -t $apiImage ./src/api
+        Write-Host "Pushing API image: $apiImage"
+        docker push $apiImage
+
+        # Build and push Web image
+        $webImage = "$acrEndpoint/km-app:$tag"
+        Write-Host "Building Web image: $webImage"
+        docker build -f ./src/App/WebApp.Dockerfile -t $webImage ./src/App
+        Write-Host "Pushing Web image: $webImage"
+        docker push $webImage
+
+        # Tell azd/Bicep to use the new tag and registry endpoint
+        azd env set AZURE_ENV_IMAGETAG $tag | Out-Null
+        azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT $acrEndpoint | Out-Null
+
+        Write-Host "Set AZURE_ENV_IMAGETAG=$tag and AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT=$acrEndpoint"
+    posix:
+      shell: sh
+      interactive: true
+      continueOnError: false
+      run: |
+        set -euo pipefail
+        echo "Preparing local image build and push..."
+        tag="local_$(date -u +%Y%m%d%H%M%S)"
+        # Discover resource group
+        rg="${RESOURCE_GROUP_NAME:-}"
+        if [ -z "$rg" ]; then
+          if azd env get-values >/tmp/azd_env_vals 2>/dev/null; then
+            rg=$(grep '^RESOURCE_GROUP_NAME=' /tmp/azd_env_vals | sed 's/^RESOURCE_GROUP_NAME=//')
+          fi
+        fi
+        if [ -z "$rg" ]; then
+          echo "Unable to determine resource group name from azd env outputs." >&2
+          exit 1
+        fi
+
+        # Resolve or create ACR endpoint
+        acrEndpoint="${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT:-}"
+        if [ -z "$acrEndpoint" ]; then
+          acrName=$(az acr list -g "$rg" --query "[0].name" -o tsv 2>/dev/null || true)
+          if [ -z "$acrName" ]; then
+            acrName="acr$(uuidgen | tr -d '-' | cut -c1-12 | tr '[:upper:]' '[:lower:]')"
+            echo "No ACR found in RG '$rg'. Creating ACR: $acrName"
+            az acr create -g "$rg" -n "$acrName" --sku Standard >/dev/null
+          fi
+          acrEndpoint="$acrName.azurecr.io"
+          azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT "$acrEndpoint" >/dev/null
+        else
+          acrName=$(echo "$acrEndpoint" | sed -E 's#https?://##' | sed -E 's/.azurecr.io$//')
+        fi
+
+        # Enable admin and set webapp registry creds
+        az acr update -n "$acrName" --admin-enabled true >/dev/null 2>&1 || true
+        acrUser=$(az acr credential show -n "$acrName" --query username -o tsv)
+        acrPass=$(az acr credential show -n "$acrName" --query passwords[0].value -o tsv)
+        for app in $(az webapp list -g "$rg" --query "[].name" -o tsv); do
+          az webapp config container set \
+            --name "$app" \
+            --resource-group "$rg" \
+            --docker-registry-server-url "https://$acrEndpoint" \
+            --docker-registry-server-user "$acrUser" \
+            --docker-registry-server-password "$acrPass" >/dev/null
+        done
+        acrName=$(echo "$acrEndpoint" | sed -E 's#https?://##' | sed -E 's/.azurecr.io$//')
+        az acr login --name "$acrName" >/dev/null
+        apiImage="$acrEndpoint/km-api:$tag"
+        echo "Building API image: $apiImage"
+        docker build -f ./src/api/ApiApp.Dockerfile -t "$apiImage" ./src/api
+        echo "Pushing API image: $apiImage"
+        docker push "$apiImage"
+        webImage="$acrEndpoint/km-app:$tag"
+        echo "Building Web image: $webImage"
+        docker build -f ./src/App/WebApp.Dockerfile -t "$webImage" ./src/App
+        echo "Pushing Web image: $webImage"
+        docker push "$webImage"
+        azd env set AZURE_ENV_IMAGETAG "$tag" >/dev/null
+        azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT "$acrEndpoint" >/dev/null
+        echo "Set AZURE_ENV_IMAGETAG=$tag and AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT=$acrEndpoint"
+
+  postprovision:
+    windows:
+      run: |
+        Write-Host "Web app URL: "
+        Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
+      shell: pwsh
+      continueOnError: false
+      interactive: true
+    posix:
+      run: |
+        echo "Web app URL: "
+        echo $WEB_APP_URL
+      shell: sh
+      continueOnError: false
+      interactive: true
