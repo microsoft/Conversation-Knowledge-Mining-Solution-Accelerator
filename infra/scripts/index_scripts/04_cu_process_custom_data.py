@@ -1,16 +1,24 @@
+"""
+Custom data processing script for conversation knowledge mining.
+
+This module processes custom call transcripts using Azure Content Understanding,
+generates embeddings, and stores processed data in SQL Server and Azure Search.
+"""
 import argparse
+import asyncio
 import json
 import os
 import re
 import struct
-import time
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import pandas as pd
 import pyodbc
-from azure.ai.inference import ChatCompletionsClient, EmbeddingsClient
-from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.ai.inference.aio import EmbeddingsClient
+from azure.ai.projects.aio import AIProjectClient
+from azure.ai.projects.models import PromptAgentDefinition
+from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
 from azure.identity import AzureCliCredential, get_bearer_token_provider
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -29,6 +37,9 @@ from azure.search.documents.indexes.models import (
     VectorSearchProfile,
 )
 from azure.storage.filedatalake import DataLakeServiceClient
+
+from agent_framework import ChatAgent
+from agent_framework.azure import AzureAIClient
 
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -50,6 +61,7 @@ parser.add_argument('--sql_server', required=True, help='Azure SQL Server name')
 parser.add_argument('--sql_database', required=True, help='Azure SQL Database name')
 parser.add_argument('--cu_endpoint', required=True, help='Azure Content Understanding endpoint')
 parser.add_argument('--cu_api_version', required=True, help='Azure Content Understanding API version')
+parser.add_argument('--solution_name', required=True, help='Solution name for agent naming')
 
 args = parser.parse_args()
 
@@ -64,39 +76,30 @@ SQL_SERVER = args.sql_server
 SQL_DATABASE = args.sql_database
 CU_ENDPOINT = args.cu_endpoint
 CU_API_VERSION = args.cu_api_version
+SOLUTION_NAME = args.solution_name
+
+# Construct agent names from solution name (matching 01_create_agents.py pattern)
+TOPIC_MINING_AGENT_NAME = f"KM-TopicMiningAgent-{SOLUTION_NAME}"
+TOPIC_MAPPING_AGENT_NAME = f"KM-TopicMappingAgent-{SOLUTION_NAME}"
+
+# Azure AI Foundry (Inference) endpoint
+inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
 
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
 credential = AzureCliCredential(process_timeout=30)
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
-directory_name = DIRECTORY
-paths = list(file_system_client.get_paths(path=directory_name))
+paths = list(file_system_client.get_paths(path=DIRECTORY))
 
 # Azure Search setup
 search_credential = AzureCliCredential(process_timeout=30)
 search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
 
-# Azure AI Foundry (Inference) clients (Managed Identity)
-inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
-
-chat_client = ChatCompletionsClient(
-    endpoint=inference_endpoint,
-    credential=credential,
-    credential_scopes=["https://ai.azure.com/.default"],
-)
-
-embeddings_client = EmbeddingsClient(
-    endpoint=inference_endpoint,
-    credential=credential,
-    credential_scopes=["https://ai.azure.com/.default"],
-)
-
 # Delete the search index
 search_index_client = SearchIndexClient(SEARCH_ENDPOINT, search_credential)
 search_index_client.delete_index(INDEX_NAME)
-
 
 # Create the search index
 def create_search_index():
@@ -169,9 +172,7 @@ def create_search_index():
     result = index_client.create_or_update_index(index)
     print(f"✓ Search index '{result.name}' created")
 
-
 create_search_index()
-
 
 # SQL Server setup
 DRIVER = "{ODBC Driver 18 for SQL Server}"
@@ -191,16 +192,15 @@ cu_client = AzureContentUnderstandingClient(
     token_provider=cu_token_provider
 )
 
-
 # Utility functions
-def get_embeddings(text: str):
+async def get_embeddings_async(text: str, embeddings_client):
+    """Get embeddings using async EmbeddingsClient."""
     try:
-        resp = embeddings_client.embed(model=EMBEDDING_MODEL, input=[text])
+        resp = await embeddings_client.embed(model=EMBEDDING_MODEL, input=[text])
         return resp.data[0].embedding
     except Exception as e:
         print(f"Error getting embeddings: {e}")
         raise
-
 
 def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     """
@@ -273,12 +273,10 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     record_count = len(df)
     return record_count
 
-
 def clean_spaces_with_regex(text):
     cleaned_text = re.sub(r'\s+', ' ', text)
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
     return cleaned_text
-
 
 def chunk_data(text, tokens_per_chunk=1024):
     text = clean_spaces_with_regex(text)
@@ -296,21 +294,18 @@ def chunk_data(text, tokens_per_chunk=1024):
         chunks.append(current_chunk)
     return chunks
 
-
-def prepare_search_doc(content, document_id, path_name):
+async def prepare_search_doc(content, document_id, path_name, embeddings_client):
     chunks = chunk_data(content)
     docs = []
     for idx, chunk in enumerate(chunks, 1):
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
-            v_contentVector = get_embeddings(str(chunk))
-        except Exception as e:
-            print(f"Error getting embeddings on first try: {e}")
-            time.sleep(30)
+            v_contentVector = await get_embeddings_async(str(chunk), embeddings_client)
+        except Exception:
+            await asyncio.sleep(30)
             try:
-                v_contentVector = get_embeddings(str(chunk))
-            except Exception as e:
-                print(f"Error getting embeddings: {e}")
+                v_contentVector = await get_embeddings_async(str(chunk), embeddings_client)
+            except Exception:
                 v_contentVector = []
         docs.append({
             "id": chunk_id,
@@ -320,7 +315,6 @@ def prepare_search_doc(content, document_id, path_name):
             "contentVector": v_contentVector
         })
     return docs
-
 
 # Database table creation
 def create_tables():
@@ -348,112 +342,125 @@ def create_tables():
     );""")
     conn.commit()
 
-
 create_tables()
 
-ANALYZER_ID = "ckm-json"
-# Process files and insert into DB and Search - transcripts
-conversationIds, docs, counter = [], [], 0
-for path in paths:
-    file_client = file_system_client.get_file_client(path.name)
-    data_file = file_client.download_file()
-    data = data_file.readall()
-    try:
-        response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-        result = cu_client.poll_result(response)
-        file_name = path.name.split('/')[-1].replace("%3A", "_")
-        start_time = file_name.replace(".json", "")[-19:]
-        timestamp_format = "%Y-%m-%d %H_%M_%S"
-        start_timestamp = datetime.strptime(start_time, timestamp_format)
-        conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-        conversationIds.append(conversation_id)
-        duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
-        end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
-        start_timestamp = str(start_timestamp).split(".")[0]
-        fields = result['result']['contents'][0]['fields']
-        summary = fields['summary']['valueString']
-        satisfied = fields['satisfied']['valueString']
-        sentiment = fields['sentiment']['valueString']
-        topic = fields['topic']['valueString']
-        key_phrases = fields['keyPhrases']['valueString']
-        complaint = fields['complaint']['valueString']
-        content = fields['content']['valueString']
-        cursor.execute(
-            "INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint)
-        )
-        conn.commit()
-        docs.extend(prepare_search_doc(content, conversation_id, path.name))
-        counter += 1
-    except:
-        pass
-    if docs != [] and counter % 10 == 0:
-        result = search_client.upload_documents(documents=docs)
+# Process files and insert into DB and Search
+async def process_files():
+    """Process all files with async embeddings client."""
+    conversationIds, docs, counter = [], [], 0
+
+    # Create embeddings client for entire processing session
+    async with (
+        AsyncAzureCliCredential(process_timeout=30) as async_cred,
+        EmbeddingsClient(
+            endpoint=inference_endpoint,
+            credential=async_cred,
+            credential_scopes=["https://ai.azure.com/.default"],
+        ) as embeddings_client
+    ):
+        ANALYZER_ID = "ckm-json"
+        # Process files and insert into DB and Search - transcripts
+        for path in paths:
+            file_client = file_system_client.get_file_client(path.name)
+            data_file = file_client.download_file()
+            data = data_file.readall()
+            try:
+                response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+                result = cu_client.poll_result(response)
+                file_name = path.name.split('/')[-1].replace("%3A", "_")
+                start_time = file_name.replace(".json", "")[-19:]
+                timestamp_format = "%Y-%m-%d %H_%M_%S"
+                start_timestamp = datetime.strptime(start_time, timestamp_format)
+                conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+                conversationIds.append(conversation_id)
+                duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
+                end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
+                start_timestamp = str(start_timestamp).split(".")[0]
+                fields = result['result']['contents'][0]['fields']
+                summary = fields['summary']['valueString']
+                satisfied = fields['satisfied']['valueString']
+                sentiment = fields['sentiment']['valueString']
+                topic = fields['topic']['valueString']
+                key_phrases = fields['keyPhrases']['valueString']
+                complaint = fields['complaint']['valueString']
+                content = fields['content']['valueString']
+                cursor.execute(
+                    "INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint)
+                )
+                conn.commit()
+                docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
+                counter += 1
+            except Exception:
+                pass
+            if docs != [] and counter % 10 == 0:
+                result = search_client.upload_documents(documents=docs)
+                docs = []
+        if docs:
+            search_client.upload_documents(documents=docs)
+
+        print(f"✓ Processed {counter} transcript files")
+
+        # Process files for audio data
+        ANALYZER_ID = "ckm-audio"
+        audio_paths = list(file_system_client.get_paths(path=AUDIO_DIRECTORY))
         docs = []
-if docs:
-    search_client.upload_documents(documents=docs)
+        counter = 0
+        # process and upload audio files to search index - audio data
+        for path in audio_paths:
+            file_client = file_system_client.get_file_client(path.name)
+            data_file = file_client.download_file()
+            data = data_file.readall()
+            try:
+                # Analyzer file
+                response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+                result = cu_client.poll_result(response)
 
-print(f"✓ Processed {counter} transcript files")
+                file_name = path.name.split('/')[-1]
+                start_time = file_name.replace(".wav", "")[-19:]
 
-# Process files for audio data
-ANALYZER_ID = "ckm-audio"
+                timestamp_format = "%Y-%m-%d %H_%M_%S"
+                start_timestamp = datetime.strptime(start_time, timestamp_format)
 
-directory_name = AUDIO_DIRECTORY
-paths = list(file_system_client.get_paths(path=directory_name))
-docs = []
-counter = 0
-# process and upload audio files to search index - audio data
-for path in paths:
-    file_client = file_system_client.get_file_client(path.name)
-    data_file = file_client.download_file()
-    data = data_file.readall()
-    try:
-        # # Analyzer file
-        response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-        result = cu_client.poll_result(response)
+                conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+                conversationIds.append(conversation_id)
 
-        file_name = path.name.split('/')[-1]
-        start_time = file_name.replace(".wav", "")[-19:]
+                duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
+                end_timestamp = str(start_timestamp + timedelta(seconds=duration))
+                end_timestamp = end_timestamp.split(".")[0]
+                start_timestamp = str(start_timestamp).split(".")[0]
 
-        timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
-        start_timestamp = datetime.strptime(start_time, timestamp_format)
+                summary = result['result']['contents'][0]['fields']['summary']['valueString']
+                satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
+                sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
+                topic = result['result']['contents'][0]['fields']['topic']['valueString']
+                key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
+                complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
+                content = result['result']['contents'][0]['fields']['content']['valueString']
 
-        conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-        conversationIds.append(conversation_id)
+                cursor.execute("INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                               (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))
+                conn.commit()
 
-        duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
-        end_timestamp = str(start_timestamp + timedelta(seconds=duration))
-        end_timestamp = end_timestamp.split(".")[0]
-        start_timestamp = str(start_timestamp).split(".")[0]
+                document_id = conversation_id
+                docs.extend(await prepare_search_doc(content, document_id, path.name, embeddings_client))
+                counter += 1
+            except Exception:
+                pass
+            if docs != [] and counter % 10 == 0:
+                result = search_client.upload_documents(documents=docs)
+                docs = []
 
-        summary = result['result']['contents'][0]['fields']['summary']['valueString']
-        satisfied = result['result']['contents'][0]['fields']['satisfied']['valueString']
-        sentiment = result['result']['contents'][0]['fields']['sentiment']['valueString']
-        topic = result['result']['contents'][0]['fields']['topic']['valueString']
-        key_phrases = result['result']['contents'][0]['fields']['keyPhrases']['valueString']
-        complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
-        content = result['result']['contents'][0]['fields']['content']['valueString']
-        # print(topic)
-        cursor.execute("INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                       (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))
-        conn.commit()
+        # upload the last batch
+        if docs != []:
+            search_client.upload_documents(documents=docs)
 
-        document_id = conversation_id
+        print(f"✓ Processed {counter} audio files")
+    
+    return conversationIds
 
-        docs.extend(prepare_search_doc(content, document_id, path.name))
-        counter += 1
-    except Exception as e:
-        pass
-
-    if docs != [] and counter % 10 == 0:
-        result = search_client.upload_documents(documents=docs)
-        docs = []
-
-# upload the last batch
-if docs != []:
-    search_client.upload_documents(documents=docs)
-
-print(f"✓ Processed {counter} audio files")
+# Run the async file processing
+conversationIds = asyncio.run(process_files())
 
 # Topic mining and mapping
 cursor.execute('SELECT distinct topic FROM processed_data')
@@ -468,122 +475,218 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
 
+# Create agents for topic mining and mapping
+print("Creating topic mining and mapping agents...")
 
-def call_gpt4(topics_str1, client):
-    topic_prompt = f"""
-        You are a data analysis assistant specialized in natural language processing and topic modeling. 
-        Your task is to analyze the given text corpus and identify distinct topics present within the data.
-        {topics_str1}
-        1. Identify the key topics in the text using topic modeling techniques.
-        2. Choose the right number of topics based on data. Try to keep it up to 8 topics.
-        3. Assign a clear and concise label to each topic based on its content.
-        4. Provide a brief description of each topic along with its label.
-        5. Add parental controls, billing issues like topics to the list of topics if the data includes calls related to them.
-        If the input data is insufficient for reliable topic modeling, indicate that more data is needed rather than making assumptions.
-        Ensure that the topics and labels are accurate, relevant, and easy to understand.
-        Return the topics and their labels in JSON format.Always add 'topics' node and 'label', 'description' attributes in json.
-        Do not return anything else.
-    """
-    response = client.complete(
-        model=DEPLOYMENT_MODEL,
-        messages=[
-            SystemMessage(content="You are a helpful assistant."),
-            UserMessage(content=topic_prompt),
-        ],
-        temperature=0,
-    )
-    res = response.choices[0].message.content
-    return json.loads(res.replace("```json", '').replace("```", ''))
+# Topic Mining Agent instruction
+TOPIC_MINING_AGENT_INSTRUCTION = '''You are a data analysis assistant specialized in natural language processing and topic modeling.
+Your task is to analyze conversation topics and identify distinct categories.
 
+Rules:
+1. Identify key topics using topic modeling techniques
+2. Choose the right number of topics based on data (try to keep it up to 8 topics)
+3. Assign clear and concise labels to each topic
+4. Provide brief descriptions for each topic
+5. Include common topics like parental controls, billing issues if relevant
+6. If data is insufficient, indicate more data is needed
+7. Return topics in JSON format with 'topics' array containing objects with 'label' and 'description' fields
+8. Return ONLY the JSON, no other text or markdown formatting
+'''
 
-max_tokens = 3096
-res = call_gpt4(", ".join([]), chat_client)
-for object1 in res['topics']:
-    cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
-conn.commit()
+# Topic Mapping Agent instruction
+TOPIC_MAPPING_AGENT_INSTRUCTION = '''You are a data analysis assistant that maps conversation topics to the closest matching category.
 
-cursor.execute('SELECT label FROM km_mined_topics')
-rows = [tuple(row) for row in cursor.fetchall()]
-column_names = [i[0] for i in cursor.description]
-df_topics = pd.DataFrame(rows, columns=column_names)
-mined_topics_list = df_topics['label'].tolist()
-mined_topics = ", ".join(mined_topics_list)
+Rules:
+1. Find the closest topic match from the provided list
+2. Return ONLY the matching topic from the list
+3. Do not add any explanatory text
+4. Do not create new topics
+5. Always select exactly one topic from the provided list
+'''
 
-
-def get_mined_topic_mapping(input_text, list_of_topics):
-    prompt = f'''You are a data analysis assistant to help find the closest topic for a given text {input_text}
-                from a list of topics - {list_of_topics}.
-                ALWAYS only return a topic from list - {list_of_topics}. Do not add any other text.'''
-    response = chat_client.complete(
-        model=DEPLOYMENT_MODEL,
-        messages=[
-            SystemMessage(content="You are a helpful assistant."),
-            UserMessage(content=prompt),
-        ],
-        temperature=0,
-    )
-    return response.choices[0].message.content
+# Create async project client and agents
+async def create_agents():
+    """Create topic mining and mapping agents asynchronously."""
+    async with (
+        AsyncAzureCliCredential(process_timeout=30) as async_cred,
+        AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
+    ):
+        topic_mining_agent = await project_client.agents.create_version(
+            agent_name=TOPIC_MINING_AGENT_NAME,
+            definition=PromptAgentDefinition(
+                model=DEPLOYMENT_MODEL,
+                instructions=TOPIC_MINING_AGENT_INSTRUCTION,
+            ),
+        )
 
 
-cursor.execute('SELECT * FROM processed_data')
-rows = [tuple(row) for row in cursor.fetchall()]
-column_names = [i[0] for i in cursor.description]
-df_processed_data = pd.DataFrame(rows, columns=column_names)
-df_processed_data = df_processed_data[df_processed_data['ConversationId'].isin(conversationIds)]
-for _, row in df_processed_data.iterrows():
-    mined_topic_str = get_mined_topic_mapping(row['topic'], str(mined_topics_list))
-    cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
-conn.commit()
+        topic_mapping_agent = await project_client.agents.create_version(
+            agent_name=TOPIC_MAPPING_AGENT_NAME,
+            definition=PromptAgentDefinition(
+                model=DEPLOYMENT_MODEL,
+                instructions=TOPIC_MAPPING_AGENT_INSTRUCTION,
+            ),
+        )
 
-# Update processed data for RAG
-cursor.execute('DROP TABLE IF EXISTS km_processed_data')
-cursor.execute("""CREATE TABLE km_processed_data (
-    ConversationId varchar(255) NOT NULL PRIMARY KEY,
-    StartTime varchar(255),
-    EndTime varchar(255),
-    Content varchar(max),
-    summary varchar(max),
-    satisfied varchar(255),
-    sentiment varchar(255),
-    keyphrases nvarchar(max),
-    complaint varchar(255),
-    topic varchar(255)
-);""")
-conn.commit()
-cursor.execute('''select ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment,
-key_phrases as keyphrases, complaint, mined_topic as topic from processed_data''')
-rows = cursor.fetchall()
-columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment",
-           "keyphrases", "complaint", "topic"]
+        return topic_mining_agent, topic_mapping_agent
 
-df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
-record_count = generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
-print(f"✓ Loaded {record_count} sample records")
 
-# Update processed_data_key_phrases table
-cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
-rows = [tuple(row) for row in cursor.fetchall()]
-column_names = [i[0] for i in cursor.description]
-df = pd.DataFrame(rows, columns=column_names)
-df = df[df['ConversationId'].isin(conversationIds)]
-for _, row in df.iterrows():
-    key_phrases = row['key_phrases'].split(',')
-    for key_phrase in key_phrases:
-        key_phrase = key_phrase.strip()
-        cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
-                       (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
-conn.commit()
+topic_mining_agent, topic_mapping_agent = asyncio.run(create_agents())
+print(f"✓ Created agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")
 
-# Adjust dates to current date
-today = datetime.today()
-cursor.execute("SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]")
-max_start_time = cursor.fetchone()[0]
-days_difference = (today - max_start_time).days - 1 if max_start_time else 0
-cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
-cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
-cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
-conn.commit()
+try:
+    async def call_topic_mining_agent(topics_str1):
+        """Use Topic Mining Agent with Agent Framework to analyze and categorize topics."""
+        async with (
+            AsyncAzureCliCredential(process_timeout=30) as async_cred,
+            AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
+        ):
+            # Create chat client with topic mining agent
+            chat_client = AzureAIClient(
+                project_client=project_client,
+                agent_name=TOPIC_MINING_AGENT_NAME,
+                use_latest_version=True,
+            )
+            
+            async with ChatAgent(
+                chat_client=chat_client,
+                store=False,  # No need to store conversation history
+            ) as chat_agent:
+                # Query with the topics string
+                query = f"""Analyze these conversation topics and identify distinct categories:
+                {topics_str1}
+                
+                Return the result as JSON with a 'topics' array containing objects with 'label' and 'description' fields."""
+                
+                result = await chat_agent.run(messages=query)
+                res = result.text
+                # Clean up markdown formatting if present
+                res = res.replace("```json", '').replace("```", '').strip()
+                return json.loads(res)
 
-cursor.close()
-conn.close()
-print("✓ Data processing completed")
+    MAX_TOKENS = 3096
+
+    res = asyncio.run(call_topic_mining_agent(topics_str))
+    for object1 in res['topics']:
+        cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
+    conn.commit()
+
+    cursor.execute('SELECT label FROM km_mined_topics')
+    rows = [tuple(row) for row in cursor.fetchall()]
+    column_names = [i[0] for i in cursor.description]
+    df_topics = pd.DataFrame(rows, columns=column_names)
+    mined_topics_list = df_topics['label'].tolist()
+    mined_topics = ", ".join(mined_topics_list)
+    print(f"✓ Mined {len(mined_topics_list)} topics")
+
+    async def call_topic_mapping_agent(input_text, list_of_topics):
+        """Use Topic Mapping Agent with Agent Framework to map topic to category."""
+        async with (
+            AsyncAzureCliCredential(process_timeout=30) as async_cred,
+            AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
+        ):
+            # Create chat client with topic mapping agent
+            chat_client = AzureAIClient(
+                project_client=project_client,
+                agent_name=TOPIC_MAPPING_AGENT_NAME,
+                use_latest_version=True,
+            )
+
+            async with ChatAgent(
+                chat_client=chat_client,
+                store=False,
+            ) as chat_agent:
+                query = f"""Find the closest topic for this text: '{input_text}'
+                From this list of topics: {list_of_topics}
+                Return ONLY the matching topic name, no other text."""
+
+                result = await chat_agent.run(messages=query)
+                return result.text.strip()
+
+    cursor.execute('SELECT * FROM processed_data')
+    rows = [tuple(row) for row in cursor.fetchall()]
+    column_names = [i[0] for i in cursor.description]
+    df_processed_data = pd.DataFrame(rows, columns=column_names)
+    df_processed_data = df_processed_data[df_processed_data['ConversationId'].isin(conversationIds)]
+
+    # Map topics using agent asynchronously
+    async def map_all_topics():
+        """Map all topics to categories using agent."""
+        for _, row in df_processed_data.iterrows():
+            mined_topic_str = await call_topic_mapping_agent(row['topic'], str(mined_topics_list))
+            cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
+        conn.commit()
+
+    asyncio.run(map_all_topics())
+
+    # Update processed data for RAG
+    cursor.execute('DROP TABLE IF EXISTS km_processed_data')
+    cursor.execute("""CREATE TABLE km_processed_data (
+        ConversationId varchar(255) NOT NULL PRIMARY KEY,
+        StartTime varchar(255),
+        EndTime varchar(255),
+        Content varchar(max),
+        summary varchar(max),
+        satisfied varchar(255),
+        sentiment varchar(255),
+        keyphrases nvarchar(max),
+        complaint varchar(255),
+        topic varchar(255)
+    );""")
+    conn.commit()
+    cursor.execute('''select ConversationId, StartTime, EndTime, Content, summary, satisfied, sentiment,
+                      key_phrases as keyphrases, complaint, mined_topic as topic from processed_data''')
+    rows = cursor.fetchall()
+    columns = ["ConversationId", "StartTime", "EndTime", "Content", "summary", "satisfied", "sentiment",
+               "keyphrases", "complaint", "topic"]
+
+    df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
+    record_count = generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
+    print(f"✓ Loaded {record_count} sample records")
+
+    # Update processed_data_key_phrases table
+    cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
+    rows = [tuple(row) for row in cursor.fetchall()]
+    column_names = [i[0] for i in cursor.description]
+    df = pd.DataFrame(rows, columns=column_names)
+    df = df[df['ConversationId'].isin(conversationIds)]
+    for _, row in df.iterrows():
+        key_phrases = row['key_phrases'].split(',')
+        for key_phrase in key_phrases:
+            key_phrase = key_phrase.strip()
+            cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
+                           (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
+    conn.commit()
+
+    # Adjust dates to current date
+    today = datetime.today()
+    cursor.execute("SELECT MAX(CAST(StartTime AS DATETIME)) FROM [dbo].[processed_data]")
+    max_start_time = cursor.fetchone()[0]
+    days_difference = (today.date() - max_start_time.date()).days - 1 if max_start_time else 0
+    if days_difference > 0:
+        cursor.execute("UPDATE [dbo].[processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+        cursor.execute("UPDATE [dbo].[km_processed_data] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss'), EndTime = FORMAT(DATEADD(DAY, ?, EndTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference, days_difference))
+        cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+        print("✓ Data processing completed")
+
+finally:
+    # Delete the agents after processing is complete
+    print("Deleting topic mining and mapping agents...")
+    try:
+        async def delete_agents():
+            """Delete topic mining and mapping agents asynchronously."""
+            async with (
+                AsyncAzureCliCredential(process_timeout=30) as async_cred,
+                AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
+            ):
+                await project_client.agents.delete(topic_mining_agent.id)
+                await project_client.agents.delete(topic_mapping_agent.id)
+        
+        asyncio.run(delete_agents())
+        print(f"✓ Deleted agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")
+    except Exception as e:
+        print(f"Warning: Could not delete agents: {e}")

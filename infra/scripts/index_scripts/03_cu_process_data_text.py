@@ -332,10 +332,10 @@ async def process_files():
                 response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
                 result = cu_client.poll_result(response)
                 file_name = path.name.split('/')[-1].replace("%3A", "_")
-                if USE_CASE == 'telecom': 
+                if USE_CASE == 'telecom':
                     start_time = file_name.replace(".json", "")[-19:]
                     timestamp_format = "%Y-%m-%d %H_%M_%S"
-                else: 
+                else:
                     start_time = file_name.replace(".json", "")[-16:]
                     timestamp_format = "%Y-%m-%d%H%M%S"
                 start_timestamp = datetime.strptime(start_time, timestamp_format)

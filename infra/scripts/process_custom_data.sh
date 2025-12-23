@@ -33,8 +33,8 @@ deploymentModel="${15}"
 
 # Content Understanding & AI Agent
 cuEndpoint="${16}"
-aiAgentEndpoint="${17}"
-cuApiVersion="${18}"
+cuApiVersion="${17}"
+aiAgentEndpoint="${18}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
@@ -336,12 +336,13 @@ get_values_from_azd_env() {
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
 	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$solutionName" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	fi
@@ -392,7 +393,7 @@ get_values_from_az_deployment() {
 	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
 	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "azurE_CONTENT_UNDERSTANDING_API_VERSION")
 	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "azurE_OPENAI_DEPLOYMENT_MODEL")
-	usecase=$(extract_value "useCase" "usE_CASE")
+	solutionName=$(extract_value "solutionName" "solutioN_NAME")
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
@@ -415,7 +416,7 @@ get_values_from_az_deployment() {
 		["aiAgentEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
 		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
 		["deploymentModel"]="AZURE_OPENAI_DEPLOYMENT_MODEL"
-		["usecase"]="USE_CASE"
+		["solutionName"]="SOLUTION_NAME"
 	)
 
 	# Validate and collect missing values
@@ -549,6 +550,7 @@ echo "CU Endpoint: $cuEndpoint"
 echo "CU API Version: $cuApiVersion"
 echo "AI Agent Endpoint: $aiAgentEndpoint"
 echo "Deployment Model: $deploymentModel"
+echo "Solution Name: $solutionName"
 echo "==============================================="
 echo ""
 
@@ -562,6 +564,7 @@ fi
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
 # Install the requirements
+echo "Installing requirements"
 pip install --quiet -r ${pythonScriptPath}requirements.txt
 if [ $? -ne 0 ]; then
 	echo "Error: Failed to install Python requirements."
@@ -582,8 +585,8 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-# Run 04_cu_process_custom_data.py
-echo "✓ Processing custom data"
+# Run 04_cu_process_custom_data.py with agent framework
+echo "✓ Processing custom data with agent framework"
 sql_server_fqdn="$sqlServerName.database.windows.net"
 python "${pythonScriptPath}04_cu_process_custom_data.py" \
     --search_endpoint "$searchEndpoint" \
@@ -595,9 +598,12 @@ python "${pythonScriptPath}04_cu_process_custom_data.py" \
     --sql_server "$sql_server_fqdn" \
     --sql_database "$SqlDatabaseName" \
     --cu_endpoint "$cuEndpoint" \
-    --cu_api_version "$cuApiVersion"
+    --cu_api_version "$cuApiVersion" \
+    --solution_name "$solutionName"
 
 if [ $? -ne 0 ]; then
 	echo "Error: 04_cu_process_custom_data.py failed."
 	exit 1
 fi
+
+echo "All scripts executed successfully."
