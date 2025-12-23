@@ -97,6 +97,7 @@ embeddings_client = EmbeddingsClient(
 search_index_client = SearchIndexClient(SEARCH_ENDPOINT, search_credential)
 search_index_client.delete_index(INDEX_NAME)
 
+
 # Create the search index
 def create_search_index():
     """
@@ -168,7 +169,9 @@ def create_search_index():
     result = index_client.create_or_update_index(index)
     print(f"✓ Search index '{result.name}' created")
 
+
 create_search_index()
+
 
 # SQL Server setup
 DRIVER = "{ODBC Driver 18 for SQL Server}"
@@ -188,6 +191,7 @@ cu_client = AzureContentUnderstandingClient(
     token_provider=cu_token_provider
 )
 
+
 # Utility functions
 def get_embeddings(text: str):
     try:
@@ -196,7 +200,7 @@ def get_embeddings(text: str):
     except Exception as e:
         print(f"Error getting embeddings: {e}")
         raise
-# --------------------------------------------------------------------------
+
 
 def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     """
@@ -269,10 +273,12 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     record_count = len(df)
     return record_count
 
+
 def clean_spaces_with_regex(text):
     cleaned_text = re.sub(r'\s+', ' ', text)
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
     return cleaned_text
+
 
 def chunk_data(text, tokens_per_chunk=1024):
     text = clean_spaces_with_regex(text)
@@ -290,6 +296,7 @@ def chunk_data(text, tokens_per_chunk=1024):
         chunks.append(current_chunk)
     return chunks
 
+
 def prepare_search_doc(content, document_id, path_name):
     chunks = chunk_data(content)
     docs = []
@@ -300,9 +307,9 @@ def prepare_search_doc(content, document_id, path_name):
         except Exception as e:
             print(f"Error getting embeddings on first try: {e}")
             time.sleep(30)
-            try: 
+            try:
                 v_contentVector = get_embeddings(str(chunk))
-            except Exception as e: 
+            except Exception as e:
                 print(f"Error getting embeddings: {e}")
                 v_contentVector = []
         docs.append({
@@ -313,6 +320,7 @@ def prepare_search_doc(content, document_id, path_name):
             "contentVector": v_contentVector
         })
     return docs
+
 
 # Database table creation
 def create_tables():
@@ -327,18 +335,19 @@ def create_tables():
         sentiment varchar(255),
         topic varchar(255),
         key_phrases nvarchar(max),
-        complaint varchar(255), 
+        complaint varchar(255),
         mined_topic varchar(255)
     );""")
     cursor.execute('DROP TABLE IF EXISTS processed_data_key_phrases')
     cursor.execute("""CREATE TABLE processed_data_key_phrases (
         ConversationId varchar(255),
-        key_phrase varchar(500), 
+        key_phrase varchar(500),
         sentiment varchar(255),
-        topic varchar(255), 
+        topic varchar(255),
         StartTime varchar(255)
     );""")
     conn.commit()
+
 
 create_tables()
 
@@ -405,7 +414,7 @@ for path in paths:
 
         file_name = path.name.split('/')[-1]
         start_time = file_name.replace(".wav", "")[-19:]
-        
+
         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
         start_timestamp = datetime.strptime(start_time, timestamp_format)
 
@@ -425,9 +434,10 @@ for path in paths:
         complaint = result['result']['contents'][0]['fields']['complaint']['valueString']
         content = result['result']['contents'][0]['fields']['content']['valueString']
         # print(topic)
-        cursor.execute(f"INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)", (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))    
+        cursor.execute("INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                       (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint))
         conn.commit()
-    
+
         document_id = conversation_id
 
         docs.extend(prepare_search_doc(content, document_id, path.name))
@@ -457,6 +467,7 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 );""")
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
+
 
 def call_gpt4(topics_str1, client):
     topic_prompt = f"""

@@ -21,6 +21,7 @@ aif_resource_id="${14}"
 cu_foundry_resource_id="${15}"
 ai_agent_endpoint="${16}"
 usecase="${17}"
+solution_name="${18}"
 
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
@@ -134,7 +135,7 @@ fi
 
 echo "✓ Processing data with CU"
 sql_server_fqdn="$sqlServerName.database.windows.net"
-python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase" --solution_name="$solution_name"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true
