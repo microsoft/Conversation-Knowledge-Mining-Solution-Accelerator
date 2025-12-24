@@ -8,8 +8,7 @@
     "templateId": "postCallAnalytics-2024-12-01"
   },
   "config": {
-    "returnDetails": false,
-    "locales": ["en-US"]
+    "returnDetails": false
   },
   "fieldSchema": {
     "name": "CallCenterConversationAnalysis",
