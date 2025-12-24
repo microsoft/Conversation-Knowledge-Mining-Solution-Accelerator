@@ -10,14 +10,37 @@ If you would like to update the solution to leverage your own data please follow
 
 1. Navigate to the storage account in the resource group you are using for this solution. 
 2. Open the `data` container
+
+> **Note for WAF-aligned deployments:** If your deployment uses private networking, you'll need to log into a VM within the virtual network to upload files. See [VM login instructions](#how-to-login-to-vm-using-azure-bastion) below.
+
 3. If you have audio files, upload them to `custom_audiodata` folder. If you have call transcript files, upload them to `custom_transcripts` folder.
-4. Navigate to the terminal and run the `run_process_data_scripts.sh` to process the new data into the solution with the following commands. 
-    ```shell
-    cd infra/scripts
-
-    az login
-
-    bash run_process_data_scripts.sh resourcegroupname_param
+4. Navigate to the terminal and run the `process_custom_data.sh` script to process the new data into the solution with the following commands:
+    
+    ```bash
+    bash ./infra/scripts/process_custom_data.sh
     ```
-    a. resourcegroupname_param - the name of the resource group.
+    
+    If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_custom_data.sh \
+      <Resource-Group-Name> <Azure-Subscription-ID> \
+      <Storage-Account-Name> <Storage-Container-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+      <AI-Search-Name> <Search-Endpoint> \
+      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+    ```
+
+## How to Login to VM Using Azure Bastion
+
+For WAF-aligned deployments with private networking:
+
+1. Navigate to your VM in the Azure portal
+2. Click **Connect** → **Bastion**
+3. Enter your VM credentials (username and password) and click **Connect**
+4. Wait for the Bastion connection to establish - this may take a few moments
+5. Once connected, you'll have access to the VM desktop/terminal interface
+
 

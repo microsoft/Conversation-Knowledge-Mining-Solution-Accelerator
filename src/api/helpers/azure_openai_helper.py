@@ -16,7 +16,7 @@ def get_azure_openai_client():
 
     config = Config()
     token_provider = get_bearer_token_provider(
-        get_azure_credential(), "https://cognitiveservices.azure.com/.default"
+        get_azure_credential(client_id=config.azure_client_id), "https://cognitiveservices.azure.com/.default"
     )
     client = openai.AzureOpenAI(
         azure_endpoint=config.azure_openai_endpoint,

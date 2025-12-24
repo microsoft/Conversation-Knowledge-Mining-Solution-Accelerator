@@ -2,15 +2,12 @@ import logging
 import uuid
 from typing import Optional
 from fastapi import HTTPException, status
-from openai import AsyncAzureOpenAI
+from azure.ai.projects import AIProjectClient
+from azure.ai.agents.models import MessageRole, ListSortOrder
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from azure.identity.aio import get_bearer_token_provider
-from helpers.chat_helper import complete_chat_request
 from helpers.azure_credential_utils import get_azure_credential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -30,10 +27,13 @@ class HistoryService:
             and self.azure_cosmosdb_conversations_container
         )
 
-        self.azure_openai_endpoint = config.azure_openai_endpoint
-        self.azure_openai_api_version = config.azure_openai_api_version
         self.azure_openai_deployment_name = config.azure_openai_deployment_model
-        self.azure_openai_resource = config.azure_openai_resource
+        self.azure_client_id = config.azure_client_id
+
+        # AI Project configuration for Foundry SDK
+        self.ai_project_endpoint = config.ai_project_endpoint
+        self.ai_project_api_version = config.ai_project_api_version
+        self.solution_name = config.solution_name
 
     def init_cosmosdb_client(self):
         if not self.chat_history_enabled:
@@ -45,41 +45,13 @@ class HistoryService:
 
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
-                credential=get_azure_credential(),
+                credential=get_azure_credential(client_id=self.azure_client_id),
                 database_name=self.azure_cosmosdb_database,
                 container_name=self.azure_cosmosdb_conversations_container,
                 enable_message_feedback=self.azure_cosmosdb_enable_feedback,
             )
         except Exception:
             logger.exception("Failed to initialize CosmosDB client")
-            raise
-
-    def init_openai_client(self):
-        user_agent = "GitHubSampleWebApp/AsyncAzureOpenAI/1.0.0"
-
-        try:
-            if not self.azure_openai_endpoint and not self.azure_openai_resource:
-                raise ValueError(
-                    "AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_RESOURCE is required")
-
-            endpoint = self.azure_openai_endpoint or f"https://{self.azure_openai_resource}.openai.azure.com/"
-            ad_token_provider = None
-
-            logger.debug("Using Azure AD authentication for OpenAI")
-            ad_token_provider = get_bearer_token_provider(
-                get_azure_credential(), "https://cognitiveservices.azure.com/.default")
-
-            if not self.azure_openai_deployment_name:
-                raise ValueError("AZURE_OPENAI_MODEL is required")
-
-            return AsyncAzureOpenAI(
-                api_version=self.azure_openai_api_version,
-                azure_ad_token_provider=ad_token_provider,
-                default_headers={"x-ms-useragent": user_agent},
-                azure_endpoint=endpoint,
-            )
-        except Exception:
-            logger.exception("Failed to initialize Azure OpenAI client")
             raise
 
     async def generate_title(self, conversation_messages):
@@ -89,57 +61,64 @@ class HistoryService:
             "Do not include any other commentary or description."
         )
 
-        messages = [{"role": msg["role"], "content": msg["content"]}
-                    for msg in conversation_messages if msg["role"] == "user"]
-        messages.append({"role": "user", "content": title_prompt})
+        # Filter user messages and prepare content
+        user_messages = [{"role": msg["role"], "content": msg["content"]}
+                         for msg in conversation_messages if msg["role"] == "user"]
+
+        # Combine all user messages with the title prompt
+        combined_content = "\n".join([msg["content"] for msg in user_messages])
+        final_prompt = f"{combined_content}\n\n{title_prompt}"
 
         try:
-            azure_openai_client = self.init_openai_client()
-            response = await azure_openai_client.chat.completions.create(
-                model=self.azure_openai_deployment_name,
-                messages=messages,
-                temperature=1,
-                max_tokens=64,
+            project_client = AIProjectClient(
+                endpoint=self.ai_project_endpoint,
+                credential=get_azure_credential(client_id=self.azure_client_id),
+                api_version=self.ai_project_api_version,
             )
-            return response.choices[0].message.content
-        except Exception:
-            logger.error("Error generating title")
-            return messages[-2]["content"]
 
-    async def add_conversation(self, user_id: str, request_json: dict):
-        try:
-            conversation_id = request_json.get("conversation_id")
-            messages = request_json.get("messages", [])
+            agent = project_client.agents.create_agent(
+                model=self.azure_openai_deployment_name,
+                name=f"TitleAgent-{self.solution_name}",
+                instructions=title_prompt,
+            )
 
-            history_metadata = {}
+            thread = project_client.agents.threads.create()
 
-            # make sure cosmos is configured
-            cosmos_conversation_client = self.init_cosmosdb_client()
-            if not cosmos_conversation_client:
-                raise ValueError("CosmosDB is not configured or unavailable")
+            project_client.agents.messages.create(
+                thread_id=thread.id,
+                role=MessageRole.USER,
+                content=final_prompt,
+            )
 
-            if not conversation_id:
-                title = await self.generate_title(messages)
-                conversation_dict = await cosmos_conversation_client.create_conversation(user_id, title)
-                conversation_id = conversation_dict["id"]
-                history_metadata["title"] = title
-                history_metadata["date"] = conversation_dict["createdAt"]
+            run = project_client.agents.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=agent.id
+            )
 
-            if messages and messages[-1]["role"] == "user":
-                created_message = await cosmos_conversation_client.create_message(conversation_id, user_id, messages[-1])
-                if created_message == "Conversation not found":
-                    raise ValueError(
-                        f"Conversation not found for ID: {conversation_id}")
-            else:
-                raise ValueError("No user message found")
+            if run.status == "failed":
+                logger.error(f"Title generation failed: {run.last_error}")
+                return user_messages[-1]["content"][:50] if user_messages else "New Conversation"
 
-            request_body = {
-                "messages": messages, "history_metadata": {
-                    "conversation_id": conversation_id}}
-            return await complete_chat_request(request_body)
-        except Exception:
-            logger.exception("Error in add_conversation")
-            raise
+            # Extract the title from agent response
+            title = "New Conversation"
+            messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+            for msg in messages:
+                if msg.role == MessageRole.AGENT and msg.text_messages:
+                    title = msg.text_messages[-1].text.value
+                    break
+
+            # Clean up
+            project_client.agents.threads.delete(thread_id=thread.id)
+            project_client.agents.delete_agent(agent.id)
+
+            return title.strip()
+
+        except Exception as e:
+            logger.error(f"Error generating title: {e}")
+            # Fallback to user message or default
+            if user_messages:
+                return user_messages[-1]["content"][:50]
+            return "New Conversation"
 
     async def update_conversation(self, user_id: str, request_json: dict):
         conversation_id = request_json.get("conversation_id")

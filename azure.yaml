@@ -7,7 +7,7 @@ environment:
 name: conversation-knowledge-mining
 
 requiredVersions:
-  azd: ">= 1.15.0"
+  azd: ">= 1.18.0"
 
 metadata:
   template: conversation-knowledge-mining@1.0
@@ -18,6 +18,8 @@ hooks:
       run: |
         Write-Host "Web app URL: "
         Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
+        Write-Host "`nCreate and activate a virtual environment if not already done, then run the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
+        Write-Host "bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Cyan
       shell: pwsh
       continueOnError: false
       interactive: true
@@ -25,6 +27,9 @@ hooks:
       run: |
         echo "Web app URL: "
         echo $WEB_APP_URL
+        echo ""
+        echo "Create and activate a virtual environment if not already done, then run the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
+        echo "bash ./infra/scripts/process_sample_data.sh"
       shell: sh
       continueOnError: false
       interactive: true

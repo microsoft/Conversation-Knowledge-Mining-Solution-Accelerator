@@ -15,7 +15,7 @@ jobs:
     steps:
       # Step 1: Checkout the code from your repository
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Step 2: Validate the Azure template using microsoft/template-validation-action
       - name: Validate Azure Template
@@ -28,6 +28,7 @@ jobs:
           AZURE_ENV_NAME: ${{ secrets.AZURE_ENV_NAME }}
           AZURE_LOCATION: ${{ secrets.AZURE_LOCATION }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
 
       # Step 3: Print the result of the validation
       - name: Print result

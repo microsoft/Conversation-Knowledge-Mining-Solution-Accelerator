@@ -13,13 +13,13 @@ Stores uploaded call transcripts and audio files. Serves as the initial staging 
 ### Azure AI Content Understanding  
 Processes the audio and text files to extract conversation details, including speaker turns, timestamps, and semantic structure.
 
-### Azure AI Search  
+### Foundry IQ 
 Indexes the vectorized transcripts for semantic search. Enables rapid retrieval of relevant conversation snippets and contextual fragments using vector search and keyword matching.
 
 ### SQL Database  
 Stores structured output including extracted entities, mapped concepts, and additional metadata.
 
-### Azure AI Services  
+### Microsoft Foundry 
 Performs topic modeling on enriched transcript data, uncovering themes and conversation patterns using pre-trained models.
 
 ### Azure OpenAI Service  
