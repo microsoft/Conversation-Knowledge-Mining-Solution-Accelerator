@@ -495,13 +495,10 @@ Rules:
 
 # Topic Mapping Agent instruction
 TOPIC_MAPPING_AGENT_INSTRUCTION = '''You are a data analysis assistant that maps conversation topics to the closest matching category.
-
-Rules:
-1. Find the closest topic match from the provided list
-2. Return ONLY the matching topic from the list
-3. Do not add any explanatory text
-4. Do not create new topics
-5. Always select exactly one topic from the provided list
+Return ONLY the matching topic EXACTLY as written in the list (case-sensitive)
+Do not add any explanatory text, punctuation, quotes, or formatting
+Do not create, rephrase, abbreviate, or pluralize topics
+If no topic is a perfect match, choose the closest one from the list ONLY
 '''
 
 # Create async project client and agents
@@ -596,9 +593,7 @@ try:
                 chat_client=chat_client,
                 store=False,
             ) as chat_agent:
-                query = f"""Find the closest topic for this text: '{input_text}'
-                From this list of topics: {list_of_topics}
-                Return ONLY the matching topic name, no other text."""
+                query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
 
                 result = await chat_agent.run(messages=query)
                 return result.text.strip()
@@ -683,8 +678,8 @@ finally:
                 AsyncAzureCliCredential(process_timeout=30) as async_cred,
                 AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
             ):
-                await project_client.agents.delete(topic_mining_agent.id)
-                await project_client.agents.delete(topic_mapping_agent.id)
+                await project_client.agents.delete(topic_mining_agent.name)
+                await project_client.agents.delete(topic_mapping_agent.name)
         
         asyncio.run(delete_agents())
         print(f"✓ Deleted agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")

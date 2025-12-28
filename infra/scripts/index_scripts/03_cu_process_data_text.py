@@ -428,13 +428,10 @@ Rules:
 
 # Topic Mapping Agent instruction
 TOPIC_MAPPING_AGENT_INSTRUCTION = '''You are a data analysis assistant that maps conversation topics to the closest matching category.
-
-Rules:
-1. Find the closest topic match from the provided list
-2. Return ONLY the matching topic from the list
-3. Do not add any explanatory text
-4. Do not create new topics
-5. Always select exactly one topic from the provided list
+Return ONLY the matching topic EXACTLY as written in the list (case-sensitive)
+Do not add any explanatory text, punctuation, quotes, or formatting
+Do not create, rephrase, abbreviate, or pluralize topics
+If no topic is a perfect match, choose the closest one from the list ONLY
 '''
 
 # Create async project client and agents
@@ -496,8 +493,6 @@ try:
                 res = res.replace("```json", '').replace("```", '').strip()
                 return json.loads(res)
 
-    MAX_TOKENS = 3096
-
     res = asyncio.run(call_topic_mining_agent(topics_str))
     for object1 in res['topics']:
         cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
@@ -529,9 +524,7 @@ try:
                 chat_client=chat_client,
                 store=False,
             ) as chat_agent:
-                query = f"""Find the closest topic for this text: '{input_text}'
-                From this list of topics: {list_of_topics}
-                Return ONLY the matching topic name, no other text."""
+                query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
 
                 result = await chat_agent.run(messages=query)
                 return result.text.strip()
