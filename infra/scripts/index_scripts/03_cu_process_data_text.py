@@ -314,6 +314,7 @@ create_tables()
 async def process_files():
     """Process all files with async embeddings client."""
     conversationIds, docs, counter = [], [], 0
+    processed_records = []  # Collect all records for batch insert
 
     # Create embeddings client for entire processing session
     async with (
@@ -352,11 +353,21 @@ async def process_files():
                 key_phrases = fields['keyPhrases']['valueString']
                 complaint = fields['complaint']['valueString']
                 content = fields['content']['valueString']
-                cursor.execute(
-                    "INSERT INTO processed_data (ConversationId, EndTime, StartTime, Content, summary, satisfied, sentiment, topic, key_phrases, complaint) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (conversation_id, end_timestamp, start_timestamp, content, summary, satisfied, sentiment, topic, key_phrases, complaint)
-                )
-                conn.commit()
+                
+                # Collect record for batch insert
+                processed_records.append({
+                    'ConversationId': conversation_id,
+                    'EndTime': end_timestamp,
+                    'StartTime': start_timestamp,
+                    'Content': content,
+                    'summary': summary,
+                    'satisfied': satisfied,
+                    'sentiment': sentiment,
+                    'topic': topic,
+                    'key_phrases': key_phrases,
+                    'complaint': complaint
+                })
+                
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
             except Exception:
@@ -366,6 +377,12 @@ async def process_files():
                 docs = []
         if docs:
             search_client.upload_documents(documents=docs)
+
+    # Batch insert all processed records using optimized SQL script
+    if processed_records:
+        df_processed = pd.DataFrame(processed_records)
+        columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
+        generate_sql_insert_script(df_processed, 'processed_data', columns, 'processed_data_batch_insert.sql')
 
     return conversationIds, counter
 
@@ -383,7 +400,7 @@ def bulk_import_json_to_table(json_file, table_name):
         return
 
     df = pd.DataFrame(data)
-    generate_sql_insert_script(df, table_name, list(df.columns), f'{table_name}_import.sql')
+    generate_sql_insert_script(df, table_name, list(df.columns), f'sample_import_{table_name}.sql')
 
 
 with open(file=SAMPLE_IMPORT_FILE, mode='r', encoding='utf-8') as file:
@@ -576,7 +593,7 @@ try:
                "keyphrases", "complaint", "topic"]
 
     df_km = pd.DataFrame([list(row) for row in rows], columns=columns)
-    generate_sql_insert_script(df_km, 'km_processed_data', columns, 'km_processed_data_insert.sql')
+    generate_sql_insert_script(df_km, 'km_processed_data', columns, 'processed_km_data_with_mined_topics.sql')
 
     # Update processed_data_key_phrases table
     cursor.execute('''select ConversationId, key_phrases, sentiment, mined_topic as topic, StartTime from processed_data''')
@@ -584,13 +601,26 @@ try:
     column_names = [i[0] for i in cursor.description]
     df = pd.DataFrame(rows, columns=column_names)
     df = df[df['ConversationId'].isin(conversationIds)]
+    
+    # Collect all key phrase records for batch insert
+    key_phrase_records = []
     for _, row in df.iterrows():
         key_phrases = row['key_phrases'].split(',')
         for key_phrase in key_phrases:
             key_phrase = key_phrase.strip()
-            cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
-                           (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
-    conn.commit()
+            key_phrase_records.append({
+                'ConversationId': row['ConversationId'],
+                'key_phrase': key_phrase,
+                'sentiment': row['sentiment'],
+                'topic': row['topic'],
+                'StartTime': row['StartTime']
+            })
+    
+    # Batch insert using optimized SQL script
+    if key_phrase_records:
+        df_key_phrases = pd.DataFrame(key_phrase_records)
+        columns = ['ConversationId', 'key_phrase', 'sentiment', 'topic', 'StartTime']
+        generate_sql_insert_script(df_key_phrases, 'processed_data_key_phrases', columns, 'processed_new_key_phrases.sql')
 
     # Adjust dates to current date
     today = datetime.today()
