@@ -408,11 +408,20 @@ cursor.execute("""CREATE TABLE km_mined_topics (
 conn.commit()
 topics_str = ', '.join(df['topic'].tolist())
 
+# Extract common topics from previously loaded sample data
+cursor.execute('SELECT distinct mined_topic FROM processed_data')
+rows = [tuple(row) for row in cursor.fetchall()]
+column_names = [i[0] for i in cursor.description]
+df = pd.DataFrame(rows, columns=column_names)
+common_topics_str = ', '.join(df['mined_topic'].dropna().tolist())
+if not common_topics_str:
+    common_topics_str = "parental controls, billing issues"
+
 # Create agents for topic mining and mapping
 print("Creating topic mining and mapping agents...")
 
 # Topic Mining Agent instruction
-TOPIC_MINING_AGENT_INSTRUCTION = '''You are a data analysis assistant specialized in natural language processing and topic modeling.
+TOPIC_MINING_AGENT_INSTRUCTION = f'''You are a data analysis assistant specialized in natural language processing and topic modeling.
 Your task is to analyze conversation topics and identify distinct categories.
 
 Rules:
@@ -420,7 +429,7 @@ Rules:
 2. Choose the right number of topics based on data (try to keep it up to 8 topics)
 3. Assign clear and concise labels to each topic
 4. Provide brief descriptions for each topic
-5. Include common topics like parental controls, billing issues, Lost or Stolen Devices, Internet Connectivity if relevant
+5. Include common topics like {common_topics_str} if relevant
 6. If data is insufficient, indicate more data is needed
 7. Return topics in JSON format with 'topics' array containing objects with 'label' and 'description' fields
 8. Return ONLY the JSON, no other text or markdown formatting
