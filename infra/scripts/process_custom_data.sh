@@ -585,8 +585,8 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-# Run 04_cu_process_custom_data.py with agent framework
-echo "✓ Processing custom data with agent framework"
+# Run 04_cu_process_custom_data.py
+echo "✓ Processing custom data"
 sql_server_fqdn="$sqlServerName.database.windows.net"
 python "${pythonScriptPath}04_cu_process_custom_data.py" \
     --search_endpoint "$searchEndpoint" \
