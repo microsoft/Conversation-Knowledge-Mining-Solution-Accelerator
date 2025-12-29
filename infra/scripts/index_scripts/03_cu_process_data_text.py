@@ -420,7 +420,7 @@ Rules:
 2. Choose the right number of topics based on data (try to keep it up to 8 topics)
 3. Assign clear and concise labels to each topic
 4. Provide brief descriptions for each topic
-5. Include common topics like parental controls, billing issues if relevant
+5. Include common topics like parental controls, billing issues, Lost or Stolen Devices, Internet Connectivity if relevant
 6. If data is insufficient, indicate more data is needed
 7. Return topics in JSON format with 'topics' array containing objects with 'label' and 'description' fields
 8. Return ONLY the JSON, no other text or markdown formatting
