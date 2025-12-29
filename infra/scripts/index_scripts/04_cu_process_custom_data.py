@@ -101,6 +101,7 @@ index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_cre
 search_index_client = SearchIndexClient(SEARCH_ENDPOINT, search_credential)
 search_index_client.delete_index(INDEX_NAME)
 
+
 # Create the search index
 def create_search_index():
     """
@@ -172,7 +173,9 @@ def create_search_index():
     result = index_client.create_or_update_index(index)
     print(f"✓ Search index '{result.name}' created")
 
+
 create_search_index()
+
 
 # SQL Server setup
 DRIVER = "{ODBC Driver 18 for SQL Server}"
@@ -192,6 +195,7 @@ cu_client = AzureContentUnderstandingClient(
     token_provider=cu_token_provider
 )
 
+
 # Utility functions
 async def get_embeddings_async(text: str, embeddings_client):
     """Get embeddings using async EmbeddingsClient."""
@@ -201,6 +205,7 @@ async def get_embeddings_async(text: str, embeddings_client):
     except Exception as e:
         print(f"Error getting embeddings: {e}")
         raise
+
 
 def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     """
@@ -273,10 +278,12 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
     record_count = len(df)
     return record_count
 
+
 def clean_spaces_with_regex(text):
     cleaned_text = re.sub(r'\s+', ' ', text)
     cleaned_text = re.sub(r'\.{2,}', '.', cleaned_text)
     return cleaned_text
+
 
 def chunk_data(text, tokens_per_chunk=1024):
     text = clean_spaces_with_regex(text)
@@ -293,6 +300,7 @@ def chunk_data(text, tokens_per_chunk=1024):
     if current_chunk:
         chunks.append(current_chunk)
     return chunks
+
 
 async def prepare_search_doc(content, document_id, path_name, embeddings_client):
     chunks = chunk_data(content)
@@ -315,6 +323,7 @@ async def prepare_search_doc(content, document_id, path_name, embeddings_client)
             "contentVector": v_contentVector
         })
     return docs
+
 
 # Database table creation
 def create_tables():
@@ -342,7 +351,9 @@ def create_tables():
     );""")
     conn.commit()
 
+
 create_tables()
+
 
 # Process files and insert into DB and Search
 async def process_files():
@@ -456,7 +467,7 @@ async def process_files():
             search_client.upload_documents(documents=docs)
 
         print(f"✓ Processed {counter} audio files")
-    
+
     return conversationIds
 
 # Run the async file processing
@@ -501,6 +512,7 @@ Do not create, rephrase, abbreviate, or pluralize topics
 If no topic is a perfect match, choose the closest one from the list ONLY
 '''
 
+
 # Create async project client and agents
 async def create_agents():
     """Create topic mining and mapping agents asynchronously."""
@@ -515,7 +527,6 @@ async def create_agents():
                 instructions=TOPIC_MINING_AGENT_INSTRUCTION,
             ),
         )
-
 
         topic_mapping_agent = await project_client.agents.create_version(
             agent_name=TOPIC_MAPPING_AGENT_NAME,
@@ -544,7 +555,7 @@ try:
                 agent_name=TOPIC_MINING_AGENT_NAME,
                 use_latest_version=True,
             )
-            
+
             async with ChatAgent(
                 chat_client=chat_client,
                 store=False,  # No need to store conversation history
@@ -552,9 +563,9 @@ try:
                 # Query with the topics string
                 query = f"""Analyze these conversation topics and identify distinct categories:
                 {topics_str1}
-                
+
                 Return the result as JSON with a 'topics' array containing objects with 'label' and 'description' fields."""
-                
+
                 result = await chat_agent.run(messages=query)
                 res = result.text
                 # Clean up markdown formatting if present
@@ -680,7 +691,7 @@ finally:
             ):
                 await project_client.agents.delete(topic_mining_agent.name)
                 await project_client.agents.delete(topic_mapping_agent.name)
-        
+
         asyncio.run(delete_agents())
         print(f"✓ Deleted agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")
     except Exception as e:

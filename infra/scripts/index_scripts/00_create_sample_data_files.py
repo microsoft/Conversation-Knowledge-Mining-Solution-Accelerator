@@ -2,7 +2,6 @@ import csv
 import json
 import os
 import struct
-from datetime import datetime
 
 import pyodbc
 from azure.identity import AzureCliCredential
@@ -24,7 +23,7 @@ try:
     conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
     cursor = conn.cursor()
     print("SQL Server connection established.")
-except: 
+except Exception:
     driver = "{ODBC Driver 17 for SQL Server}"
     token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
     token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
@@ -49,9 +48,8 @@ def export_table_to_csv(table_name, output_dir=".", cursor=cursor):
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Generate output filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Generate output filename
     csv_filename = f"sample_{table_name}.csv"
     # csv_filename = f"{table_name}_{timestamp}.csv"
     csv_path = os.path.join(output_dir, csv_filename)
@@ -297,4 +295,3 @@ def export_search_index_to_json(index_name, output_dir=".", search_client=search
 # Export search index to JSON and JSON Lines
 export_search_index_to_json(INDEX_NAME, output_dir="./exported_data", format="json")
 # export_search_index_to_json(INDEX_NAME, output_dir="./exported_data", format="jsonl")
-

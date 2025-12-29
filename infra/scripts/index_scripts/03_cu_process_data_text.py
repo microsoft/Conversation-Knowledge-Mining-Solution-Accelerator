@@ -95,7 +95,7 @@ try:
     connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
     conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
     cursor = conn.cursor()
-except: 
+except Exception:
     driver = "{ODBC Driver 17 for SQL Server}"
     token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
     token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
@@ -264,11 +264,11 @@ async def prepare_search_doc(content, document_id, path_name, embeddings_client)
         chunk_id = f"{document_id}_{str(idx).zfill(2)}"
         try:
             v_contentVector = await get_embeddings_async(str(chunk), embeddings_client)
-        except:
+        except Exception:
             await asyncio.sleep(30)
             try:
                 v_contentVector = await get_embeddings_async(str(chunk), embeddings_client)
-            except:
+            except Exception:
                 v_contentVector = []
         docs.append({
             "id": chunk_id,
@@ -359,7 +359,7 @@ async def process_files():
                 conn.commit()
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
-            except:
+            except Exception:
                 pass
             if docs != [] and counter % 10 == 0:
                 result = search_client.upload_documents(documents=docs)
@@ -443,6 +443,7 @@ Do not create, rephrase, abbreviate, or pluralize topics
 If no topic is a perfect match, choose the closest one from the list ONLY
 '''
 
+
 # Create async project client and agents
 async def create_agents():
     """Create topic mining and mapping agents asynchronously."""
@@ -485,7 +486,7 @@ try:
                 agent_name=TOPIC_MINING_AGENT_NAME,
                 use_latest_version=True,
             )
-            
+
             async with ChatAgent(
                 chat_client=chat_client,
                 store=False,  # No need to store conversation history
@@ -493,9 +494,9 @@ try:
                 # Query with the topics string
                 query = f"""Analyze these conversation topics and identify distinct categories:
                 {topics_str1}
-                
+
                 Return the result as JSON with a 'topics' array containing objects with 'label' and 'description' fields."""
-                
+
                 result = await chat_agent.run(messages=query)
                 res = result.text
                 # Clean up markdown formatting if present
@@ -514,7 +515,6 @@ try:
     mined_topics_list = df_topics['label'].tolist()
     mined_topics = ", ".join(mined_topics_list)
     print(f"✓ Mined {len(mined_topics_list)} topics")
-
 
     async def call_topic_mapping_agent(input_text, list_of_topics):
         """Use Topic Mapping Agent with Agent Framework to map topic to category."""
@@ -538,13 +538,11 @@ try:
                 result = await chat_agent.run(messages=query)
                 return result.text.strip()
 
-
     cursor.execute('SELECT * FROM processed_data')
     rows = [tuple(row) for row in cursor.fetchall()]
     column_names = [i[0] for i in cursor.description]
     df_processed_data = pd.DataFrame(rows, columns=column_names)
     df_processed_data = df_processed_data[df_processed_data['ConversationId'].isin(conversationIds)]
-
 
     # Map topics using agent asynchronously
     async def map_all_topics():
@@ -553,7 +551,6 @@ try:
             mined_topic_str = await call_topic_mapping_agent(row['topic'], str(mined_topics_list))
             cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
         conn.commit()
-
 
     asyncio.run(map_all_topics())
 
@@ -592,7 +589,7 @@ try:
         for key_phrase in key_phrases:
             key_phrase = key_phrase.strip()
             cursor.execute("INSERT INTO processed_data_key_phrases (ConversationId, key_phrase, sentiment, topic, StartTime) VALUES (?,?,?,?,?)",
-                        (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
+                           (row['ConversationId'], key_phrase, row['sentiment'], row['topic'], row['StartTime']))
     conn.commit()
 
     # Adjust dates to current date
@@ -622,9 +619,8 @@ finally:
             ):
                 await project_client.agents.delete(topic_mining_agent.name)
                 await project_client.agents.delete(topic_mapping_agent.name)
-        
+
         asyncio.run(delete_agents())
         print(f"✓ Deleted agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")
     except Exception as e:
         print(f"Warning: Could not delete agents: {e}")
-
