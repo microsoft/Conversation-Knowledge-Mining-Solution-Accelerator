@@ -353,7 +353,7 @@ async def process_files():
                 key_phrases = fields['keyPhrases']['valueString']
                 complaint = fields['complaint']['valueString']
                 content = fields['content']['valueString']
-                
+
                 # Collect record for batch insert
                 processed_records.append({
                     'ConversationId': conversation_id,
@@ -367,7 +367,7 @@ async def process_files():
                     'key_phrases': key_phrases,
                     'complaint': complaint
                 })
-                
+
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
             except Exception:
@@ -601,7 +601,7 @@ try:
     column_names = [i[0] for i in cursor.description]
     df = pd.DataFrame(rows, columns=column_names)
     df = df[df['ConversationId'].isin(conversationIds)]
-    
+
     # Collect all key phrase records for batch insert
     key_phrase_records = []
     for _, row in df.iterrows():
@@ -615,7 +615,7 @@ try:
                 'topic': row['topic'],
                 'StartTime': row['StartTime']
             })
-    
+
     # Batch insert using optimized SQL script
     if key_phrase_records:
         df_key_phrases = pd.DataFrame(key_phrase_records)
