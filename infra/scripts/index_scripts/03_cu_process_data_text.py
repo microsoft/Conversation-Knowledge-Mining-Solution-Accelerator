@@ -647,8 +647,8 @@ finally:
                 AsyncAzureCliCredential(process_timeout=30) as async_cred,
                 AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
             ):
-                await project_client.agents.delete(topic_mining_agent.name)
-                await project_client.agents.delete(topic_mapping_agent.name)
+                await project_client.agents.delete_version(topic_mining_agent.name, topic_mining_agent.version)
+                await project_client.agents.delete_version(topic_mapping_agent.name, topic_mapping_agent.version)
 
         asyncio.run(delete_agents())
         print(f"✓ Deleted agents: {topic_mining_agent.name}, {topic_mapping_agent.name}")
