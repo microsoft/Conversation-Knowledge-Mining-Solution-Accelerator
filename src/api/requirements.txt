@@ -1,4 +1,5 @@
 # Base packages
+gunicorn==23.0.0
 cachetools==6.2.0
 python-dotenv==1.1.1
 fastapi==0.118.0

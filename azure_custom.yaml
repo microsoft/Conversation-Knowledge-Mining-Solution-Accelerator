@@ -1,4 +1,4 @@
-name: conversation-knowledge-mining-custom
+name: conversation-knowledge-mining
 
 requiredVersions:
   azd: ">= 1.18.0"
@@ -6,273 +6,75 @@ requiredVersions:
 metadata:
   template: conversation-knowledge-mining@1.0
 
-environment:
-  name: conversation-knowledge-mining
-  location: japaneast
-
 infra:
   provider: bicep
   path: infra
   module: main
   parameters: infra/main.parameters.json
 
+services:
+  api:
+    project: ./src/api
+    language: py
+    host: appservice
+  webapp:
+    project: ./src/App
+    language: js
+    host: appservice
+    dist: ./build
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          continueOnError: false
+          run: |
+            Write-Host "=== React Build Starting ===" -ForegroundColor Cyan
+            Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
+            $apiUrl = azd env get-value API_APP_URL
+            if (-not $apiUrl) {
+              Write-Error "API_APP_URL not found. Run 'azd provision' first."
+              exit 1
+            }
+            Write-Host "Setting REACT_APP_API_BASE_URL=$apiUrl" -ForegroundColor Yellow
+            $env:REACT_APP_API_BASE_URL = $apiUrl
+            Write-Host "Installing dependencies..." -ForegroundColor Cyan
+            npm install
+            Write-Host "Building React app..." -ForegroundColor Cyan
+            npm run build
+            Write-Host "=== React Build Complete ===" -ForegroundColor Green
+        posix:
+          shell: sh
+          continueOnError: false
+          run: |
+            echo "=== React Build Starting ==="
+            echo "Current directory: $(pwd)"
+            apiUrl=$(azd env get-value API_APP_URL)
+            if [ -z "$apiUrl" ]; then
+              echo "ERROR: API_APP_URL not found. Run 'azd provision' first."
+              exit 1
+            fi
+            echo "Setting REACT_APP_API_BASE_URL=$apiUrl"
+            export REACT_APP_API_BASE_URL="$apiUrl"
+            echo "Installing dependencies..."
+            npm install
+            echo "Building React app..."
+            npm run build
+            echo "=== React Build Complete ==="
+
 hooks:
-  preprovision:
-    windows:
-      shell: pwsh
-      interactive: true
-      continueOnError: false
-      run: |
-        $ErrorActionPreference = 'Stop'
-
-        Write-Host "[preprovision] Preparing ACR and building local images..." -ForegroundColor Cyan
-
-        try { az account show | Out-Null } catch { Write-Error "Azure CLI not logged in. Run 'az login' first."; exit 1 }
-
-        $location = $env:AZURE_LOCATION
-        if (-not $location) { $location = 'japaneast' }
-        $envName = $env:AZURE_ENV_NAME
-        if (-not $envName) { $envName = 'conversation-knowledge-mining' }
-
-        $env:AZURE_LOCATION = $location
-        azd env set AZURE_LOCATION $location | Out-Null
-        $env:AZURE_ENV_NAME = $envName
-        azd env set AZURE_ENV_NAME $envName | Out-Null
-
-        $acrRg = "rg-$envName-acr"
-        if ((az group exists -n $acrRg) -ne 'true') {
-          Write-Host "Creating resource group $acrRg in $location" -ForegroundColor Yellow
-          az group create -n $acrRg -l $location | Out-Null
-        }
-
-        $acrNameBase = 'kmcontainerreg'
-        $acrName = $acrNameBase
-        if ((az acr check-name --name $acrNameBase --query nameAvailable -o tsv) -ne 'true') {
-          $suffix = Get-Random -Maximum 99999
-          $acrName = "$acrNameBase$suffix"
-          Write-Host "Base ACR name unavailable. Using $acrName" -ForegroundColor Yellow
-        }
-
-        $acrShowName = az acr show -n $acrName -g $acrRg --only-show-errors --query name -o tsv 2>$null
-        if ($acrShowName -ne $acrName) {
-          Write-Host "Creating ACR $acrName" -ForegroundColor Yellow
-          az acr create -n $acrName -g $acrRg -l $location --sku Basic --only-show-errors | Out-Null
-          $acrServer = ''
-          for ($i = 0; $i -lt 30; $i++) {
-            $acrServer = az acr show -n $acrName --query loginServer -o tsv 2>$null
-            if ($acrServer) { break }
-            Start-Sleep -Seconds 5
-          }
-          if (-not $acrServer) { Write-Error "ACR $acrName did not become ready (no loginServer)"; exit 1 }
-        }
-
-        az acr update -n $acrName --admin-enabled true | Out-Null
-        $acrServer = az acr show -n $acrName --query loginServer -o tsv
-        $acrCreds = az acr credential show -n $acrName --only-show-errors | ConvertFrom-Json
-        if (-not $acrCreds -or -not $acrCreds.passwords -or $acrCreds.passwords.Count -lt 1) {
-          Write-Error "ACR credentials unavailable."; exit 1
-        }
-        $acrUser = $acrCreds.username
-        $acrPass = $acrCreds.passwords[0].value
-
-        $tag = "latest_waf_{0}" -f ((Get-Date).ToString("yyyy-MM-dd_HHmm"))
-        $env:AZURE_ENV_IMAGETAG = $tag
-        $env:AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT = $acrServer
-        $env:AZURE_ENV_ACR_USERNAME = $acrUser
-        $env:AZURE_ENV_ACR_PASSWORD = $acrPass
-
-        azd env set AZURE_ENV_IMAGETAG $tag | Out-Null
-        azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT $acrServer | Out-Null
-        azd env set AZURE_ENV_ACR_USERNAME $acrUser | Out-Null
-        azd env set AZURE_ENV_ACR_PASSWORD $acrPass | Out-Null
-
-        Write-Host "Using registry: $acrServer" -ForegroundColor Cyan
-        Write-Host "Image tag: $tag" -ForegroundColor Cyan
-
-        Write-Host "Building API image (km-api:$tag) via ACR Build" -ForegroundColor Yellow
-        $repoRoot = (Get-Location).Path
-        $apiCtx = Join-Path $repoRoot 'src\api'
-        $apiDockerfile = Join-Path $apiCtx 'ApiApp.Dockerfile'
-        if (-not (Test-Path $apiDockerfile)) { Write-Error "API Dockerfile not found at $apiDockerfile"; exit 1 }
-        $apiBuildSucceeded = $true
-        az acr build -r $acrName -t "km-api:$tag" -f $apiDockerfile $apiCtx
-        if ($LASTEXITCODE -ne 0) { $apiBuildSucceeded = $false }
-        if (-not $apiBuildSucceeded) {
-          Write-Warning "ACR build failed for km-api. Falling back to local Docker build & push."
-          if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Write-Error "Docker is not installed or not in PATH for local fallback."; exit 1 }
-          az acr login -n $acrName | Out-Null
-          docker build -f $apiDockerfile -t "$acrServer/km-api:$tag" $apiCtx
-          docker push "$acrServer/km-api:$tag"
-        }
-
-        Write-Host "Building Frontend image (km-app:$tag) via ACR Build" -ForegroundColor Yellow
-        $feCtx = Join-Path $repoRoot 'src\App'
-        $feDockerfile = Join-Path $feCtx 'WebApp.Dockerfile'
-        if (-not (Test-Path $feDockerfile)) { Write-Error "Frontend Dockerfile not found at $feDockerfile"; exit 1 }
-        $feBuildSucceeded = $true
-        az acr build -r $acrName -t "km-app:$tag" -f $feDockerfile $feCtx
-        if ($LASTEXITCODE -ne 0) { $feBuildSucceeded = $false }
-        if (-not $feBuildSucceeded) {
-          Write-Warning "ACR build failed for km-app. Falling back to local Docker build & push."
-          if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Write-Error "Docker is not installed or not in PATH for local fallback."; exit 1 }
-          az acr login -n $acrName | Out-Null
-          docker build -f $feDockerfile -t "$acrServer/km-app:$tag" $feCtx
-          docker push "$acrServer/km-app:$tag"
-        }
-
-        Write-Host "[preprovision] Images built & pushed. Proceeding to provision..." -ForegroundColor Green
-
-    posix:
-      shell: sh
-      interactive: true
-      continueOnError: false
-      run: |
-        set -euo pipefail
-        echo "[preprovision] Preparing ACR and building local images..."
-        az account show >/dev/null || { echo "Run 'az login' first"; exit 1; }
-        : "${AZURE_LOCATION:=japaneast}"
-        : "${AZURE_ENV_NAME:=conversation-knowledge-mining}"
-        azd env set AZURE_LOCATION "$AZURE_LOCATION" >/dev/null
-        azd env set AZURE_ENV_NAME "$AZURE_ENV_NAME" >/dev/null
-        acr_rg="rg-${AZURE_ENV_NAME}-acr"
-        az group create -n "$acr_rg" -l "$AZURE_LOCATION" >/dev/null 2>&1 || true
-        acr_name_base="kmcontainerreg"
-        name_ok=$(az acr check-name --name "$acr_name_base" --query nameAvailable -o tsv)
-        if [ "$name_ok" != "true" ]; then
-          suffix=$(printf "%05d" $(shuf -i 0-99999 -n 1))
-          acr_name="${acr_name_base}${suffix}"
-          echo "Base ACR name unavailable. Using $acr_name"
-        else
-          acr_name="$acr_name_base"
-        fi
-        az acr show -n "$acr_name" -g "$acr_rg" >/dev/null 2>&1 || az acr create -n "$acr_name" -g "$acr_rg" -l "$AZURE_LOCATION" --sku Basic >/dev/null
-        az acr update -n "$acr_name" --admin-enabled true >/dev/null
-        acr_server=$(az acr show -n "$acr_name" --query loginServer -o tsv)
-        acr_user=$(az acr credential show -n "$acr_name" --query username -o tsv)
-        acr_pass=$(az acr credential show -n "$acr_name" --query passwords[0].value -o tsv)
-        tag="latest_waf_$(date +%Y-%m-%d_%H%M)"
-        export AZURE_ENV_IMAGETAG="$tag"
-        export AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT="$acr_server"
-        export AZURE_ENV_ACR_USERNAME="$acr_user"
-        export AZURE_ENV_ACR_PASSWORD="$acr_pass"
-        azd env set AZURE_ENV_IMAGETAG "$tag" >/dev/null
-        azd env set AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT "$acr_server" >/dev/null
-        azd env set AZURE_ENV_ACR_USERNAME "$acr_user" >/dev/null
-        azd env set AZURE_ENV_ACR_PASSWORD "$acr_pass" >/dev/null
-        echo "Using registry: $acr_server"
-        echo "Image tag: $tag"
-        echo "Building API image (km-api:$tag) via ACR Build"
-        api_ctx="$(pwd)/src/api"
-        api_df="$api_ctx/ApiApp.Dockerfile"
-        [ -f "$api_df" ] || { echo "API Dockerfile not found at $api_df"; exit 1; }
-        if ! az acr build -r "$acr_name" -t "km-api:$tag" -f "$api_df" "$api_ctx"; then
-          echo "ACR build failed for km-api. Falling back to local Docker build & push."
-          command -v docker >/dev/null 2>&1 || { echo "Docker not installed for local fallback."; exit 1; }
-          az acr login -n "$acr_name" >/dev/null
-          docker build -f "$api_df" -t "$acr_server/km-api:$tag" "$api_ctx"
-          docker push "$acr_server/km-api:$tag"
-        fi
-
-        echo "Building Frontend image (km-app:$tag) via ACR Build"
-        fe_ctx="$(pwd)/src/App"
-        fe_df="$fe_ctx/WebApp.Dockerfile"
-        [ -f "$fe_df" ] || { echo "Frontend Dockerfile not found at $fe_df"; exit 1; }
-        if ! az acr build -r "$acr_name" -t "km-app:$tag" -f "$fe_df" "$fe_ctx"; then
-          echo "ACR build failed for km-app. Falling back to local Docker build & push."
-          command -v docker >/dev/null 2>&1 || { echo "Docker not installed for local fallback."; exit 1; }
-          az acr login -n "$acr_name" >/dev/null
-          docker build -f "$fe_df" -t "$acr_server/km-app:$tag" "$fe_ctx"
-          docker push "$acr_server/km-app:$tag"
-        fi
-        echo "[preprovision] Images built & pushed. Proceeding to provision..."
-
   postprovision:
     windows:
       shell: pwsh
-      interactive: true
       continueOnError: false
+      interactive: true
       run: |
-        $ErrorActionPreference = 'Stop'
-
-        Write-Host "[postprovision] Configuring App Services to use ACR credentials..." -ForegroundColor Cyan
-
-        $rg = $env:RESOURCE_GROUP_NAME
-        $acrServer = $env:AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT
-        $acrUser = $env:AZURE_ENV_ACR_USERNAME
-        $acrPass = $env:AZURE_ENV_ACR_PASSWORD
-
-        if (-not $rg) { Write-Warning "RESOURCE_GROUP_NAME not set; skipping ACR appsettings."; exit 0 }
-        if (-not $acrServer -or -not $acrUser -or -not $acrPass) { Write-Warning "ACR env vars missing; skipping appsettings."; exit 0 }
-
-        $webAppName = ([uri]$env:WEB_APP_URL).Host.Split('.')[0]
-        $apiAppName = ([uri]$env:API_APP_URL).Host.Split('.')[0]
-
-        foreach ($appName in @($webAppName, $apiAppName)) {
-          if (-not $appName) { continue }
-          Write-Host "Updating appsettings for $appName" -ForegroundColor Yellow
-          az webapp config appsettings set -g $rg -n $appName --settings "DOCKER_REGISTRY_SERVER_URL=https://$acrServer" "DOCKER_REGISTRY_SERVER_USERNAME=$acrUser" "DOCKER_REGISTRY_SERVER_PASSWORD=$acrPass" | Out-Null
-        }
-
-        # Ensure container images are updated to the freshly built tag
-        if ($acrServer -and $env:AZURE_ENV_IMAGETAG) {
-          $tag = $env:AZURE_ENV_IMAGETAG
-          if ($apiAppName) {
-            Write-Host "Setting API container image to $acrServer/km-api:$tag" -ForegroundColor Yellow
-            az webapp config container set -g $rg -n $apiAppName --docker-custom-image-name "$acrServer/km-api:$tag" | Out-Null
-            az webapp restart -g $rg -n $apiAppName | Out-Null
-            $apiFx = az webapp config container show -g $rg -n $apiAppName --query linuxFxVersion -o tsv
-            Write-Host "API linuxFxVersion: $apiFx" -ForegroundColor Green
-          }
-          if ($webAppName) {
-            Write-Host "Setting Web container image to $acrServer/km-app:$tag" -ForegroundColor Yellow
-            az webapp config container set -g $rg -n $webAppName --docker-custom-image-name "$acrServer/km-app:$tag" | Out-Null
-            az webapp restart -g $rg -n $webAppName | Out-Null
-            $webFx = az webapp config container show -g $rg -n $webAppName --query linuxFxVersion -o tsv
-            Write-Host "Web linuxFxVersion: $webFx" -ForegroundColor Green
-          }
-        } else {
-          Write-Warning "AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT or AZURE_ENV_IMAGETAG missing; skipping container image update."
-        }
-
-        Write-Host "[postprovision] App Services configured for private ACR." -ForegroundColor Green
-
+        Write-Host "Web app URL: $env:WEB_APP_URL" -ForegroundColor Cyan
+        Write-Host "`nRun: bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Yellow
     posix:
       shell: sh
-      interactive: true
       continueOnError: false
+      interactive: true
       run: |
-        set -euo pipefail
-        echo "[postprovision] Configuring App Services to use ACR credentials..."
-        rg="${RESOURCE_GROUP_NAME:-}"
-        acr_server="${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT:-}"
-        acr_user="${AZURE_ENV_ACR_USERNAME:-}"
-        acr_pass="${AZURE_ENV_ACR_PASSWORD:-}"
-        [ -z "$rg" ] && echo "RESOURCE_GROUP_NAME not set; skipping." && exit 0
-        [ -z "$acr_server" ] || [ -z "$acr_user" ] || [ -z "$acr_pass" ] && echo "ACR env vars missing; skipping." && exit 0
-        web_app_name=$(echo "$WEB_APP_URL" | sed -E 's#https?://([^/]+)/?.*#\1#' | cut -d'.' -f1)
-        api_app_name=$(echo "$API_APP_URL" | sed -E 's#https?://([^/]+)/?.*#\1#' | cut -d'.' -f1)
-        for app in "$web_app_name" "$api_app_name"; do
-          [ -z "$app" ] && continue
-          echo "Updating appsettings for $app"
-          az webapp config appsettings set -g "$rg" -n "$app" --settings \
-            DOCKER_REGISTRY_SERVER_URL="https://$acr_server" \
-            DOCKER_REGISTRY_SERVER_USERNAME="$acr_user" \
-            DOCKER_REGISTRY_SERVER_PASSWORD="$acr_pass" >/dev/null
-        done
-        # Ensure container images are updated to the freshly built tag
-        if [ -n "$acr_server" ] && [ -n "${AZURE_ENV_IMAGETAG:-}" ]; then
-          tag="$AZURE_ENV_IMAGETAG"
-          if [ -n "$api_app_name" ]; then
-            echo "Setting API container image to $acr_server/km-api:$tag"
-            az webapp config container set -g "$rg" -n "$api_app_name" --docker-custom-image-name "$acr_server/km-api:$tag" >/dev/null
-            az webapp restart -g "$rg" -n "$api_app_name" >/dev/null
-          fi
-          if [ -n "$web_app_name" ]; then
-            echo "Setting Web container image to $acr_server/km-app:$tag"
-            az webapp config container set -g "$rg" -n "$web_app_name" --docker-custom-image-name "$acr_server/km-app:$tag" >/dev/null
-            az webapp restart -g "$rg" -n "$web_app_name" >/dev/null
-          fi
-        else
-          echo "AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT or AZURE_ENV_IMAGETAG missing; skipping container image update."
-        fi
-        echo "[postprovision] App Services configured for private ACR."
+        echo "Web app URL: $WEB_APP_URL"
+        echo ""
+        echo "Run: bash ./infra/scripts/process_sample_data.sh"

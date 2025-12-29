@@ -1,9 +1,3 @@
-# # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
-# metadata:
-#     template: azd-init@1.11.1
-environment:
-  name: conversation-knowledge-mining
-  location: eastus
 name: conversation-knowledge-mining
 
 requiredVersions:
@@ -11,6 +5,42 @@ requiredVersions:
 
 metadata:
   template: conversation-knowledge-mining@1.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+  parameters: infra/main.parameters.json
+
+services:
+  api:
+    project: ./src/api
+    language: py
+    host: appservice
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          continueOnError: false
+          run: pwsh ../../infra/scripts/package_webapp.ps1
+        posix:
+          shell: sh
+          continueOnError: false
+          run: bash ../../infra/scripts/package_webapp.sh
+  webapp:
+    project: ./src/App/deploy
+    language: js
+    host: appservice
+    hooks:
+      prepackage:
+        windows:
+          shell: pwsh
+          continueOnError: false
+          run: pwsh ../../../infra/scripts/package_frontend.ps1
+        posix:
+          shell: sh
+          continueOnError: false
+          run: bash ../../../infra/scripts/package_frontend.sh
 
 hooks:
   postprovision:

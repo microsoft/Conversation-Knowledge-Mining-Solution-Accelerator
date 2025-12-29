@@ -1280,9 +1280,9 @@ module webSiteBackend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${backendWebSiteResourceName}', 64)
   params: {
     name: backendWebSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'api' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.?outputs.resourceId
     managedIdentities: {
       systemAssigned: true
@@ -1291,13 +1291,18 @@ module webSiteBackend 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
+      linuxFxVersion: 'PYTHON|3.11'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 --worker-class uvicorn.workers.UvicornWorker app:app'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          PYTHONUNBUFFERED: '1'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
@@ -1312,7 +1317,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_COSMOSDB_DATABASE: cosmosDbDatabaseName
           AZURE_COSMOSDB_ENABLE_FEEDBACK: 'True'
           SQLDB_DATABASE: 'sqldb-${solutionSuffix}'
-          SQLDB_SERVER: '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
+          SQLDB_SERVER: '${sqlDBModule.outputs.name}${environment().suffixes.sqlServerHostname}'
           SQLDB_USER_MID: backendUserAssignedIdentity.outputs.clientId
           AZURE_AI_SEARCH_ENDPOINT: 'https://${aiSearchName}.search.windows.net'
           AZURE_AI_SEARCH_INDEX: 'call_transcripts_index'
@@ -1349,18 +1354,22 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${webSiteResourceName}', 64)
   params: {
     name: webSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'webapp' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+      linuxFxVersion: 'NODE|18-lts'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon --spa'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
+          WEBSITE_NODE_DEFAULT_VERSION: '~18'
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
