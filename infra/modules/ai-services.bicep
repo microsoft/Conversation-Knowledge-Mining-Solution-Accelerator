@@ -190,7 +190,7 @@ resource cognitiveServiceNew 'Microsoft.CognitiveServices/accounts@2025-06-01' =
       ? {
           defaultAction: networkAcls.?defaultAction
           virtualNetworkRules: networkAcls.?virtualNetworkRules ?? []
-          ipRules: networkAcls.?ipRules ?? []      
+          ipRules: networkAcls.?ipRules ?? []
           bypass: networkAcls.?bypass ?? 'None'
         }
       : null
@@ -236,7 +236,7 @@ resource cognitiveServiceNew 'Microsoft.CognitiveServices/accounts@2025-06-01' =
 
 var existingCognitiveServiceDetails = split(existingFoundryProjectResourceId, '/')
 
-resource cognitiveServiceExisting 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = if(useExistingService) {
+resource cognitiveServiceExisting 'Microsoft.CognitiveServices/accounts@2025-09-01' existing = if(useExistingService) {
   name: existingCognitiveServiceDetails[8]
   scope: resourceGroup(existingCognitiveServiceDetails[2], existingCognitiveServiceDetails[4])
 }
@@ -245,7 +245,7 @@ module cognitive_service_dependencies './dependencies.bicep' = if(!useExistingSe
   params: {
     projectName: projectName
     projectDescription: projectDescription
-    name:  cognitiveServiceNew.name 
+    name:  cognitiveServiceNew.name
     location: location
     deployments: deployments
     diagnosticSettings: diagnosticSettings
@@ -259,7 +259,7 @@ module cognitive_service_dependencies './dependencies.bicep' = if(!useExistingSe
 
 module existing_cognitive_service_dependencies './dependencies.bicep' = if(useExistingService) {
   params: {
-    name:  cognitiveServiceExisting.name 
+    name:  cognitiveServiceExisting.name
     projectName: projectName
     projectDescription: projectDescription
     existingFoundryProjectResourceId: existingFoundryProjectResourceId

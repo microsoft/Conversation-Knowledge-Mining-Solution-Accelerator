@@ -176,8 +176,8 @@ When you start the deployment, most parameters will have **default values**, but
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------- |
 | **Azure Region**                            | The region where resources will be created.                                                               | *(empty)*              |
 | **Environment Name**                        | A **3–20 character alphanumeric value** used to generate a unique ID to prefix the resources.             | env\_name              |
-| **Azure AI Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
-| **Use Case**                      | Industry use case: **Contact-center** or **IT_helpdesk**.  | (empty)               |
+| **Azure Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
+| **Use Case**                      | Industry use case: **telecom** or **IT_helpdesk**.  | (empty)               |
 | **Secondary Location**                      | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2                |
 | **Deployment Type**                         | Select from a drop-down list (allowed: `Standard`, `GlobalStandard`).                                     | GlobalStandard         |
 | **GPT Model**                               | Choose from **gpt-4, gpt-4o, gpt-4o-mini**.                                                               | gpt-4o-mini            |
@@ -189,7 +189,7 @@ When you start the deployment, most parameters will have **default values**, but
 | **Image Tag**                               | Docker image tag to deploy. Common values: `latest_waf`, `dev`, `hotfix`.                  | latest_waf       |
 | **Use Local Build**                         | Boolean flag to determine if local container builds should be used.                         | false             |
 | **Existing Log Analytics Workspace**        | To reuse an existing Log Analytics Workspace ID.                                                          | *(empty)*              |
-| **Existing Azure AI Foundry Project**        | To reuse an existing Azure AI Foundry Project ID instead of creating a new one.              | *(empty)*          |
+| **Existing Microsoft Foundry Project**        | To reuse an existing Microsoft Foundry Project ID instead of creating a new one.              | *(empty)*          |
 
 
 
@@ -216,7 +216,7 @@ Depending on your subscription quota and capacity, you can [adjust quota setting
 </details>
 <details>
 
-  <summary><b>Reusing an Existing Azure AI Foundry Project</b></summary>
+  <summary><b>Reusing an Existing Microsoft Foundry Project</b></summary>
 
   Guide to get your [Existing Project ID](/documents/re-use-foundry-project.md)
 
@@ -247,13 +247,13 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
 5. Choose the use case: 
-   - **Contact-center**
+   - **telecom**
    - **IT_helpdesk** 
 
     - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, copy the bash command from terminal: (ex: `bash ./infra/scripts/process_sample_data.sh`) for later use.
+5. Once the deployment has completed successfully, continue with the following steps to process and load the sample data.
 
 6. Create and activate a virtual environment in bash terminal:
   

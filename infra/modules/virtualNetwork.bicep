@@ -2,7 +2,7 @@
 // Networking - NSGs, VNET and Subnets. Each subnet has its own NSG
 /****************************************************************************************************************************/
 @description('Name of the virtual network.')
-param name string 
+param name string
 
 @description('Azure region to deploy resources.')
 param location string = resourceGroup().location
@@ -155,14 +155,14 @@ param subnets subnetType[] = [
     }
   }
   {
-        name: 'deployment-scripts'
-        addressPrefixes: ['10.0.4.0/24']
-        networkSecurityGroup: {
-          name: 'nsg-deployment-scripts'
-          securityRules: []
-        }
-        delegation: 'Microsoft.ContainerInstance/containerGroups'
-        serviceEndpoints: ['Microsoft.Storage']
+    name: 'deployment-scripts'
+    addressPrefixes: ['10.0.4.0/24']
+    networkSecurityGroup: {
+      name: 'nsg-deployment-scripts'
+      securityRules: []
+    }
+    delegation: 'Microsoft.ContainerInstance/containerGroups'
+    serviceEndpoints: ['Microsoft.Storage']
   }
 ]
 
@@ -184,7 +184,6 @@ param resourceSuffix string
 //     Standard_DS2_v2 (2 vCPU, 7 GiB RAM, Premium SSD) // The most broadly available (it’s a legacy SKU supported in virtually every region).
 //     Standard_D2s_v3 (2 vCPU, 8 GiB RAM, Premium SSD) //  next most common
 //     Standard_D2s_v4 (2 vCPU, 8 GiB RAM, Premium SSD)  // Newest, so fewer regions availabl
-
 
 // Subnet Classless Inter-Doman Routing (CIDR)  Sizing Reference Table (Best Practices)
 // | CIDR      | # of Addresses | # of /24s | Notes                                 |
@@ -215,12 +214,12 @@ param resourceSuffix string
 // - Document subnet usage and purpose in code comments.
 // - For AVM modules, ensure only one delegation per subnet and leave delegations empty if not required.
 
-// 1. Create NSGs for subnets 
+// 1. Create NSGs for subnets
 // using AVM Network Security Group module
 // https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/network/network-security-group
 
 @batchSize(1)
-module nsgs 'br/public:avm/res/network/network-security-group:0.5.1' = [
+module nsgs 'br/public:avm/res/network/network-security-group:0.5.2' = [
   for (subnet, i) in subnets: if (!empty(subnet.?networkSecurityGroup)) {
     name: take('avm.res.network.network-security-group.${subnet.?networkSecurityGroup.name}.${resourceSuffix}', 64)
     params: {
@@ -237,7 +236,7 @@ module nsgs 'br/public:avm/res/network/network-security-group:0.5.1' = [
 // using AVM Virtual Network module
 // https://github.com/Azure/bicep-registry-modules/tree/main/avm/res/network/virtual-network
 
-module virtualNetwork 'br/public:avm/res/network/virtual-network:0.7.0' = {
+module virtualNetwork 'br/public:avm/res/network/virtual-network:0.7.1' = {
   name: take('avm.res.network.virtual-network.${name}', 64)
   params: {
     name: name
@@ -290,11 +289,21 @@ output subnets subnetOutputType[] = [
 ]
 
 // Dynamic outputs for individual subnets for backward compatibility
-output webSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'web') ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'web')] : ''
-output pepsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'peps') ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'peps')] : ''
-output bastionSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'AzureBastionSubnet') ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'AzureBastionSubnet')] : ''
-output jumpboxSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'jumpbox') ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'jumpbox')] : ''
-output deploymentScriptsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'deployment-scripts') ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'deployment-scripts')] : ''
+output webSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'web')
+  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'web')]
+  : ''
+output pepsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'peps')
+  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'peps')]
+  : ''
+output bastionSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'AzureBastionSubnet')
+  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'AzureBastionSubnet')]
+  : ''
+output jumpboxSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'jumpbox')
+  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'jumpbox')]
+  : ''
+output deploymentScriptsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'deployment-scripts')
+  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'deployment-scripts')]
+  : ''
 
 @export()
 @description('Custom type definition for subnet resource information as output')
@@ -318,8 +327,8 @@ type subnetType = {
   @description('Required. The Name of the subnet resource.')
   name: string
 
-  @description('Required. Prefixes for the subnet.')  // Required to ensure at least one prefix is provided
-  addressPrefixes: string[]   
+  @description('Required. Prefixes for the subnet.') // Required to ensure at least one prefix is provided
+  addressPrefixes: string[]
 
   @description('Optional. The delegation to enable on the subnet.')
   delegation: string?
