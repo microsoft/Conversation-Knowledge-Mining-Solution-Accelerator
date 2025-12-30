@@ -306,6 +306,15 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 10. You can now delete the resources by running `azd down`, if you are done trying out the application.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
+### Deploy Your Local Changes
+
+To deploy your local changes, rename the below files:
+
+1. Rename `azure.yaml` to `azure_custom2.yaml` and `azure_custom.yaml` to `azure.yaml`.
+
+2. Go to `infra` directory:
+   - Rename `main.bicep` to `main_custom2.bicep` and `main_custom.bicep` to `main.bicep`. Continue with the [deploying steps](#deployment-steps-🚀).
+
 ### 🛠️ Troubleshooting
  If you encounter any issues during the deployment process, please refer  [troubleshooting](../documents/TroubleShootingSteps.md) document for detailed steps and solutions
 
