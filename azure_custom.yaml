@@ -26,40 +26,14 @@ services:
       prepackage:
         windows:
           shell: pwsh
+          run: ../../infra/scripts/package_webapp.ps1
+          interactive: true
           continueOnError: false
-          run: |
-            Write-Host "=== React Build Starting ===" -ForegroundColor Cyan
-            Write-Host "Current directory: $(Get-Location)" -ForegroundColor Yellow
-            $apiUrl = azd env get-value API_APP_URL
-            if (-not $apiUrl) {
-              Write-Error "API_APP_URL not found. Run 'azd provision' first."
-              exit 1
-            }
-            Write-Host "Setting REACT_APP_API_BASE_URL=$apiUrl" -ForegroundColor Yellow
-            $env:REACT_APP_API_BASE_URL = $apiUrl
-            Write-Host "Installing dependencies..." -ForegroundColor Cyan
-            npm install
-            Write-Host "Building React app..." -ForegroundColor Cyan
-            npm run build
-            Write-Host "=== React Build Complete ===" -ForegroundColor Green
         posix:
           shell: sh
+          run: bash ../../infra/scripts/package_webapp.sh
+          interactive: true
           continueOnError: false
-          run: |
-            echo "=== React Build Starting ==="
-            echo "Current directory: $(pwd)"
-            apiUrl=$(azd env get-value API_APP_URL)
-            if [ -z "$apiUrl" ]; then
-              echo "ERROR: API_APP_URL not found. Run 'azd provision' first."
-              exit 1
-            fi
-            echo "Setting REACT_APP_API_BASE_URL=$apiUrl"
-            export REACT_APP_API_BASE_URL="$apiUrl"
-            echo "Installing dependencies..."
-            npm install
-            echo "Building React app..."
-            npm run build
-            echo "=== React Build Complete ==="
 
 hooks:
   postprovision:
