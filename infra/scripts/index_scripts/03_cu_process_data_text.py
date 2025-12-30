@@ -509,10 +509,7 @@ try:
                 store=False,  # No need to store conversation history
             ) as chat_agent:
                 # Query with the topics string
-                query = f"""Analyze these conversation topics and identify distinct categories:
-                {topics_str1}
-
-                Return the result as JSON with a 'topics' array containing objects with 'label' and 'description' fields."""
+                query = f"Analyze these conversation topics and identify distinct categories: {topics_str1}"
 
                 result = await chat_agent.run(messages=query)
                 res = result.text
