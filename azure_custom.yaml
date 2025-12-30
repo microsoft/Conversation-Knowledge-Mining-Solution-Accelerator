@@ -27,12 +27,10 @@ services:
         windows:
           shell: pwsh
           run: ../../infra/scripts/package_webapp.ps1
-          interactive: true
           continueOnError: false
         posix:
           shell: sh
           run: bash ../../infra/scripts/package_webapp.sh
-          interactive: true
           continueOnError: false
 
 hooks:

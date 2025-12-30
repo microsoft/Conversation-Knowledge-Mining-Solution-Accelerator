@@ -38,9 +38,9 @@ fi
 
 echo "API URL: $apiUrl"
 
-# Set environment variable for React build
-export REACT_APP_API_BASE_URL="$apiUrl"
-echo "Set REACT_APP_API_BASE_URL=$apiUrl"
+# Write API URL to .env.production.local (React reads this during build)
+echo "REACT_APP_API_BASE_URL=$apiUrl" > .env.production.local
+echo "Created .env.production.local with API URL"
 
 # Install dependencies
 echo ""

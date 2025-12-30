@@ -38,9 +38,9 @@ if (-not $apiUrl) {
 
 Write-Host "API URL: $apiUrl" -ForegroundColor Green
 
-# Set environment variable for React build
-$env:REACT_APP_API_BASE_URL = $apiUrl
-Write-Host "Set REACT_APP_API_BASE_URL=$apiUrl" -ForegroundColor Yellow
+# Write API URL to .env.production.local (React reads this during build)
+"REACT_APP_API_BASE_URL=$apiUrl" | Out-File -FilePath ".env.production.local" -Encoding utf8
+Write-Host "Created .env.production.local with API URL" -ForegroundColor Green
 
 # Install dependencies
 Write-Host "`nInstalling npm dependencies..." -ForegroundColor Cyan
