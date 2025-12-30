@@ -309,7 +309,7 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
       <AI-Search-Name> <Search-Endpoint> \
       <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
       <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version> <Use-Case>
+      <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Use-Case>
     ```
 
 10. Once the script has run successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.

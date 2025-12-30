@@ -30,6 +30,7 @@ EMBEDDING_MODEL = args.embedding_model
 
 INDEX_NAME = "call_transcripts_index"
 
+
 def create_search_index():
     """
     Creates or updates an Azure Cognitive Search index configured for:
