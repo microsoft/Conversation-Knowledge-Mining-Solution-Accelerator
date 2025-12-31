@@ -1037,7 +1037,7 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.15.0' = {
     dataPlaneRoleDefinitions: [
       {
         // Cosmos DB Built-in Data Contributor: https://docs.azure.cn/en-us/cosmos-db/nosql/security/reference-data-plane-roles#cosmos-db-built-in-data-contributor
-        roleName: 'Cosmos DB SQL Data Contributor'
+        roleName: 'Custom Data Contributor-${uniqueString(cosmosDbResourceName, resourceGroup().id)}'
         dataActions: [
           'Microsoft.DocumentDB/databaseAccounts/readMetadata'
           'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
