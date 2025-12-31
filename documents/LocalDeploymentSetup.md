@@ -164,6 +164,70 @@ cd Conversation-Knowledge-Mining-Solution-Accelerator
 
 ---
 
+### Configure Git (Required for Commits)
+
+Before making any commits or pushes, configure your Git identity:
+
+```bash
+# Set your name (this will appear in commit history)
+git config --global user.name "Your Name"
+
+# Set your email (this will appear in commit history)
+git config --global user.email "your.email@example.com"
+
+# Verify your configuration
+git config --global --list
+
+# Optional: Set default branch name to 'main'
+git config --global init.defaultBranch main
+
+# Optional: Configure line ending handling
+# Windows users:
+git config --global core.autocrlf true
+
+# Linux/macOS users:
+git config --global core.autocrlf input
+```
+
+> **Note**: Use your actual name and email address. If you're contributing to the repository, use the email associated with your GitHub account.
+
+#### Additional Git Configuration (Optional)
+
+```bash
+# Set default editor for commit messages
+git config --global core.editor "code --wait"  # For VS Code
+# or
+git config --global core.editor "vim"  # For Vim
+
+# Enable colored output
+git config --global color.ui auto
+
+# Set default pull behavior (recommended)
+git config --global pull.rebase false  # merge (default)
+# or
+git config --global pull.rebase true   # rebase
+
+# Cache credentials (Windows)
+git config --global credential.helper wincred
+
+# Cache credentials (Linux/macOS - cache for 1 hour)
+git config --global credential.helper cache
+git config --global credential.helper 'cache --timeout=3600'
+```
+
+#### Verify Git Configuration
+
+```bash
+# View all global Git settings
+git config --global --list
+
+# View specific settings
+git config user.name
+git config user.email
+```
+
+---
+
 ## Step 2: Development Tools Setup
 
 ### Visual Studio Code (Recommended)
