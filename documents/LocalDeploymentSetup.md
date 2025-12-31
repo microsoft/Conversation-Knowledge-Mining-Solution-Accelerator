@@ -919,7 +919,385 @@ curl http://127.0.0.1:8000/health
 • Check RBAC permissions are assigned (Step 3)  
 • Wait 5-10 minutes after assigning permissions for propagation  
 • Verify `APP_ENV=dev` in `src/api/.env`
+
 ---
+
+## Troubleshooting 
+
+### Common Issues
+
+#### Python Version Issues
+
+```bash
+# Check available Python versions
+python --version
+python3 --version
+python3.11 --version
+
+# If python3.11 not found, install it:
+# Windows: 
+winget install Python.Python.3.11
+
+# Ubuntu: 
+sudo apt install python3.11 python3.11-venv
+
+# Verify installation
+python3.11 --version
+```
+
+#### Virtual Environment Issues
+
+```bash
+# Recreate virtual environment
+# Windows:
+Remove-Item -Recurse .venv
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Linux/macOS:
+rm -rf .venv
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+#### Permission Issues (Linux/macOS)
+
+```bash
+# Fix ownership of files
+sudo chown -R $USER:$USER .
+
+# Fix execution permissions for scripts
+chmod +x start.sh
+```
+
+#### Windows-Specific Issues
+
+```powershell
+# PowerShell execution policy
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Long path support (Windows 10 1607+, run as Administrator)
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+  -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+
+# SSL certificate issues
+python -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org pip
+```
+
+### Environment Variable Issues
+
+```bash
+# Check environment variables are loaded
+# Linux/macOS:
+env | grep AZURE
+env | grep REACT_APP
+
+# Windows PowerShell:
+Get-ChildItem Env:AZURE*
+Get-ChildItem Env:REACT_APP*
+
+# Validate .env file format (should show key=value pairs)
+# Linux/macOS:
+cat .env | grep -v '^#' | grep '='
+
+# Windows PowerShell:
+Get-Content .env | Where-Object { $_ -notmatch '^#' -and $_ -match '=' }
+```
+
+### Azure Connection Issues
+
+```bash
+# Verify Azure CLI authentication
+az account show
+az account list --output table
+
+# Re-authenticate if needed
+az login --use-device-code
+
+# Test specific resource access
+az cosmosdb show --name <cosmos-account> --resource-group <rg-name>
+az sql db show --name <db-name> --server <server-name> --resource-group <rg-name>
+```
+
+### Database Connection Issues
+
+#### SQL Database Connection Errors
+
+```bash
+# Test SQL connectivity using Python
+cd src/api
+python test_db_connection.py
+
+# Common issues:
+# 1. Firewall rules - Add your IP in Azure Portal
+# 2. ODBC Driver not installed - See Step 1 prerequisites
+# 3. Entra ID authentication not configured - See Step 3
+```
+
+**SQL Server Firewall Configuration:**
+1. Go to Azure Portal → Your SQL Server
+2. Under **Security** → **Networking**
+3. Add your client IP address or enable "Allow Azure services and resources to access this server"
+4. Click **Save**
+
+**Verify ODBC Driver Installation:**
+```bash
+# Windows PowerShell:
+Get-OdbcDriver | Where-Object {$_.Name -like "*SQL Server*"}
+
+# Linux:
+odbcinst -q -d
+```
+
+#### Cosmos DB Connection Errors
+
+```bash
+# Verify Cosmos DB role assignment
+az cosmosdb sql role assignment list \
+  --account-name <cosmos-account> \
+  --resource-group <rg-name>
+
+# Look for your principal ID in the output
+# If missing, re-run the role assignment from Step 3
+```
+
+**Common Cosmos DB Errors:**
+- `403 Forbidden`: RBAC permissions not assigned or propagating (wait 5-10 minutes)
+- `ResourceNotFound`: Check database/container names in .env file
+- `Unauthorized`: Azure CLI not logged in or wrong subscription
+
+### API Errors and Debugging
+
+#### Enable Detailed Logging
+
+Edit `src/api/.env` and add:
+
+```bash
+# Enable debug mode
+DEBUG=true
+LOG_LEVEL=DEBUG
+AZURE_BASIC_LOGGING_LEVEL=DEBUG
+```
+
+Restart the backend API to see detailed logs.
+
+#### Check API Logs
+
+Watch Terminal 1 (Backend API) for error messages. Common errors:
+
+**403 Forbidden:**
+```bash
+# RBAC permissions not assigned or not propagated yet
+# Solution: Wait 5-10 minutes or reassign roles from Step 3
+az role assignment list --assignee <your-principal-id>
+```
+
+**401 Unauthorized:**
+```bash
+# Azure CLI not logged in
+# Solution: Login and set subscription
+az login
+az account set --subscription <subscription-id>
+az account show
+```
+
+**404 Not Found:**
+```bash
+# Resource name incorrect in environment variables
+# Solution: Verify resource names in Azure Portal
+az resource list --resource-group <rg-name> --output table
+```
+
+**500 Internal Server Error:**
+```bash
+# Check backend terminal for Python stack traces
+# Common causes:
+# - Missing environment variables
+# - Database connection failures
+# - Azure service access issues
+```
+
+### Frontend Issues
+
+#### React App Shows Blank Page
+
+1. Check browser console (F12) for JavaScript errors
+2. Verify `REACT_APP_API_BASE_URL` in `src/App/.env`
+3. Clear browser cache or try incognito mode
+4. Verify backend is running and accessible at `http://127.0.0.1:8000`
+
+```bash
+# Test backend from browser console
+fetch('http://127.0.0.1:8000/health')
+  .then(r => r.json())
+  .then(d => console.log(d))
+```
+
+#### API Calls Failing in Frontend
+
+```bash
+# Check CORS configuration
+# Look for CORS errors in browser console (F12 → Console tab)
+
+# Verify backend CORS settings allow localhost:3000
+# Check src/api/app.py for CORS middleware configuration
+```
+
+**CORS Error Example:**
+```
+Access to fetch at 'http://127.0.0.1:8000/api/...' from origin 'http://localhost:3000' 
+has been blocked by CORS policy
+```
+
+**Solution:** Verify CORS middleware in `src/api/app.py`:
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+#### Azure AD Authentication Errors
+
+```bash
+# Common MSAL errors in frontend
+
+# Error: AADSTS900561 - Endpoint only accepts POST
+# Solution: Configure app registration as SPA (Single-Page Application)
+# Azure Portal → App Registrations → Your App → Authentication
+# Add platform: Single-page application with redirect URI http://localhost:3000
+
+# Error: AADSTS50011 - Redirect URI mismatch
+# Solution: Add http://localhost:3000 to redirect URIs in app registration
+```
+
+### Network and Firewall Issues
+
+```bash
+# Test if ports are accessible
+# Windows:
+Test-NetConnection -ComputerName localhost -Port 8000
+Test-NetConnection -ComputerName localhost -Port 3000
+
+# Linux/macOS:
+nc -zv localhost 8000
+nc -zv localhost 3000
+
+# Check if firewall is blocking
+# Windows: Windows Defender Firewall → Allow an app
+# Linux: sudo ufw status
+```
+
+### Git Issues
+
+#### Clone or Pull Failures
+
+```bash
+# SSL certificate issues
+git config --global http.sslVerify false  # Temporary - not recommended for production
+
+# Or configure proper certificate
+git config --global http.sslCAInfo /path/to/certificate.crt
+
+# Authentication issues
+git config --global credential.helper wincred  # Windows
+git config --global credential.helper cache    # Linux/macOS
+
+# Large files timeout
+git config --global http.postBuffer 524288000  # 500MB
+```
+
+#### Merge Conflicts
+
+```bash
+# View conflicted files
+git status
+
+# Abort merge if needed
+git merge --abort
+
+# Or resolve conflicts manually and commit
+git add <resolved-files>
+git commit -m "Resolved merge conflicts"
+```
+
+### Performance Issues
+
+#### Slow Backend Response
+
+```bash
+# Check Application Insights for performance metrics
+# Enable profiling in .env
+PROFILING_ENABLED=true
+
+# Monitor Azure service quotas
+az monitor metrics list \
+  --resource <resource-id> \
+  --metric-names <metric-name>
+```
+
+#### High Memory Usage
+
+```bash
+# Monitor Python process
+# Windows:
+Get-Process python | Select-Object Name, CPU, WorkingSet
+
+# Linux/macOS:
+ps aux | grep python
+top -p $(pgrep python)
+
+# If memory issues persist:
+# - Reduce batch sizes in data processing
+# - Clear Cosmos DB cache
+# - Restart backend service
+```
+
+### Getting Additional Help
+
+If issues persist after trying the troubleshooting steps:
+
+1. **Check Logs:**
+   - Backend API logs in Terminal 1
+   - Frontend logs in Terminal 2
+   - Browser console (F12) for frontend errors
+   - Azure Portal → Application Insights for production issues
+
+2. **Collect Diagnostic Information:**
+   ```bash
+   # System info
+   python --version
+   node --version
+   npm --version
+   az --version
+   
+   # Azure login status
+   az account show
+   
+   # Environment variables (sanitize before sharing)
+   env | grep AZURE | sed 's/=.*/=***/'
+   ```
+
+3. **Review Documentation:**
+   - [TroubleShootingSteps.md](./TroubleShootingSteps.md)
+   - [DeploymentGuide.md](./DeploymentGuide.md)
+   - [Azure Account Setup](./AzureAccountSetUp.md)
+
+4. **GitHub Issues:**
+   - Search existing issues: [GitHub Issues](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues)
+   - Create new issue with diagnostic information
+
+5. **Azure Support:**
+   - For Azure-specific issues: [Azure Support](https://azure.microsoft.com/support/)
+   - Check Azure service health: [Azure Status](https://status.azure.com/)
+
+---
+
 ## Step 7: Next Steps
 
 Once all services are running (as confirmed in Step 6), you can:
