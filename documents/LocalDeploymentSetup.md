@@ -490,7 +490,7 @@ If you deployed using `azd up`, copy the environment file from the Azure deploym
 
 ```powershell
 # Windows PowerShell - copy from azd environment
-Copy-Item "..\..\..\.azure\<environment-name>\.env" ".env"
+Copy-Item "..\..\.azure\<environment-name>\.env" ".env"
 
 # Linux/macOS - copy from azd environment
 cp ../../.azure/<environment-name>/.env .env
@@ -920,7 +920,7 @@ curl http://127.0.0.1:8000/health
 • Wait 5-10 minutes after assigning permissions for propagation  
 • Verify `APP_ENV=dev` in `src/api/.env`
 ---
-## Step 8: Next Steps
+## Step 7: Next Steps
 
 Once all services are running (as confirmed in Step 6), you can:
 
