@@ -6,11 +6,11 @@ To deploy this solution, ensure you have access to an [Azure subscription](https
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available:
 
-- [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
-- [Azure AI Content Understanding Service](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
+- [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
+- [Azure Content Understanding Service](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
 - [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [GPT Model Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models)
-- [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
+- [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction)
 - [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
@@ -115,15 +115,24 @@ You can run this solution in VS Code Dev Containers, which will open the project
 
 ### VS Code Web
 
-[![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=):
+[![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=)
 
 1. Click the badge above (may take a few minutes to load)
 2. Sign in with your Azure account when prompted
 3. Select the subscription where you want to deploy the solution
 4. Wait for the environment to initialize (includes all deployment tools)
-5. When prompted in the VS Code Web terminal, choose one of the available options shown below:
+5. Once the solution opens, the **AI Foundry terminal** will automatically start running the following command to install the required dependencies:
 
-   ![VS Code Initial Prompt](./Images/vscodeweb_intialize.png)
+    ```shell
+    sh install.sh
+    ```
+    During this process, you’ll be prompted with the message:
+    ```
+    What would you like to do with these files?
+    - Overwrite with versions from template
+    - Keep my existing files unchanged
+    ```
+    Choose “**Overwrite with versions from template**” and provide a unique environment name when prompted.
 6. Continue with the [deploying steps](#deploying-with-azd).
 
 </details>
@@ -141,6 +150,7 @@ If you're not using one of the above options for opening the project, then you'l
     - [Python 3.9+](https://www.python.org/downloads/)
     - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
     - [Git](https://git-scm.com/downloads)
+    - [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server.
 
 2. Clone the repository or download the project code via command-line:
 
@@ -166,7 +176,8 @@ When you start the deployment, most parameters will have **default values**, but
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------- |
 | **Azure Region**                            | The region where resources will be created.                                                               | *(empty)*              |
 | **Environment Name**                        | A **3–20 character alphanumeric value** used to generate a unique ID to prefix the resources.             | env\_name              |
-| **Azure AI Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
+| **Azure Content Understanding Location** | Region for content understanding resources.                                                               | swedencentral          |
+| **Use Case**                      | Industry use case: **telecom** or **IT_helpdesk**.  | (empty)               |
 | **Secondary Location**                      | A **less busy** region for **Azure SQL and Azure Cosmos DB**, useful in case of availability constraints. | eastus2                |
 | **Deployment Type**                         | Select from a drop-down list (allowed: `Standard`, `GlobalStandard`).                                     | GlobalStandard         |
 | **GPT Model**                               | Choose from **gpt-4, gpt-4o, gpt-4o-mini**.                                                               | gpt-4o-mini            |
@@ -178,7 +189,7 @@ When you start the deployment, most parameters will have **default values**, but
 | **Image Tag**                               | Docker image tag to deploy. Common values: `latest_waf`, `dev`, `hotfix`.                  | latest_waf       |
 | **Use Local Build**                         | Boolean flag to determine if local container builds should be used.                         | false             |
 | **Existing Log Analytics Workspace**        | To reuse an existing Log Analytics Workspace ID.                                                          | *(empty)*              |
-| **Existing Azure AI Foundry Project**        | To reuse an existing Azure AI Foundry Project ID instead of creating a new one.              | *(empty)*          |
+| **Existing Microsoft Foundry Project**        | To reuse an existing Microsoft Foundry Project ID instead of creating a new one.              | *(empty)*          |
 
 
 
@@ -205,7 +216,7 @@ Depending on your subscription quota and capacity, you can [adjust quota setting
 </details>
 <details>
 
-  <summary><b>Reusing an Existing Azure AI Foundry Project</b></summary>
+  <summary><b>Reusing an Existing Microsoft Foundry Project</b></summary>
 
   Guide to get your [Existing Project ID](/documents/re-use-foundry-project.md)
 
@@ -235,12 +246,64 @@ Once you've opened the project in [Codespaces](#github-codespaces), [Dev Contain
 
 3. Provide an `azd` environment name (e.g., "ckmapp").
 4. Select a subscription from your Azure account and choose a location that has quota for all the resources. 
-    -- This deployment will take *7-10 minutes* to provision the resources in your account and set up the solution with sample data.
+5. Choose the use case: 
+   - **telecom**
+   - **IT_helpdesk** 
+
+    - This deployment generally takes **7-10 minutes** to provision the resources in your account and set up the solution.
     - If you encounter an error or timeout during deployment, changing the location may help, as there could be availability constraints for the resources.
 
-5. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+5. Once the deployment has completed successfully, continue with the following steps to process and load the sample data.
 
-6. If you are done trying out the application, you can delete the resources by running `azd down`.
+6. Create and activate a virtual environment in bash terminal:
+  
+    ```shell
+    python -m venv .venv
+    ```
+
+    **For Windows (Bash):**
+    ```shell
+    source .venv/Scripts/activate
+    ```
+
+    **For Linux/VS Code Web (Bash):**
+    ```shell
+    source .venv/bin/activate
+    ```
+
+7. Login to Azure:
+
+    ```shell
+    az login
+    ```
+
+    Alternatively, login to Azure using a device code (recommended when using VS Code Web):
+
+    ```shell
+    az login --use-device-code
+    ```
+8. Run the bash script from the output of the azd deployment. The script will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh
+    ```
+
+    If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
+
+    ```bash
+    bash ./infra/scripts/process_sample_data.sh \
+      <Resource-Group-Name> <Azure-Subscription-ID> \
+      <Storage-Account-Name> <Storage-Container-Name> \
+      <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+      <AI-Search-Name> <Search-Endpoint> \
+      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+      <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version> <Use-Case>
+    ```
+
+9. Once the deployment has completed successfully, open the [Azure Portal](https://portal.azure.com/), go to the deployed resource group, find the App Service, and get the app URL from `Default domain`.
+
+10. You can now delete the resources by running `azd down`, if you are done trying out the application.
    > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
 
 ### 🛠️ Troubleshooting

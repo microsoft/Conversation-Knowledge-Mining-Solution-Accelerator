@@ -1,6 +1,6 @@
 # Conversation knowledge mining solution accelerator
 
-Gain actionable insights from large volumes of conversational data by identifying key themes, patterns, and relationships. Using Azure AI Foundry, Azure AI Content Understanding, Azure OpenAI Service, and Azure AI Search, this solution analyzes unstructured dialogue and maps it to meaningful, structured insights.
+Gain actionable insights from large volumes of conversational data by identifying key themes, patterns, and relationships. Using Microsoft Foundry, Azure Content Understanding, Azure OpenAI Service, and Foundry IQ, this solution analyzes unstructured dialogue and maps it to meaningful, structured insights.
 
 Capabilities such as topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat enable users to explore data naturally and make faster, more informed decisions.
 
@@ -22,7 +22,7 @@ Analysts working with large volumes of conversational data can use this solution
 Solution overview
 </h2>
 
-Leverages Azure AI Content Understanding, Azure AI Search, Azure OpenAI Service, Semantic Kernel, Azure SQL Database, and Cosmos DB to process large volumes of conversational data. Audio and text inputs are analyzed through event-driven pipelines to extract and vectorize key information, orchestrate intelligent responses, and power an interactive web front-end for exploring insights using natural language.
+Leverages Azure Content Understanding, Foundry IQ, Azure OpenAI Service, Semantic Kernel, Azure SQL Database, and Cosmos DB to process large volumes of conversational data. Audio and text inputs are analyzed through event-driven pipelines to extract and vectorize key information, orchestrate intelligent responses, and power an interactive web front-end for exploring insights using natural language.
 
 ### Solution architecture
 |![image](./documents/Images/ReadMe/solution-architecture.png)|
@@ -39,7 +39,7 @@ Leverages Azure AI Content Understanding, Azure AI Search, Azure OpenAI Service,
 <summary>Click to learn more about the key features this solution enables</summary>  
 
 - **Mined entities and relationships** <br/>  
-Azure AI Content Understanding and Azure OpenAI Service extract entities and relationships from unstructured data to create a knowledge base.
+Azure Content Understanding and Azure OpenAI Service extract entities and relationships from unstructured data to create a knowledge base.
 
 - **Processed data at scale** <br/>  
 Microsoft Fabric processes conversation data at scale, generating vector embeddings for efficient retrieval using the RAG (Retrieval-Augmented Generation) pattern.
@@ -98,8 +98,8 @@ _Note: This is not meant to outline all costs as selected SKUs, scaled use, cust
 
 | Product | Description | Tier / Expected Usage Notes | Cost |
 |---|---|---|---|
-| [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
-| [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search) | Powers vector-based semantic search for retrieving indexed conversation data. | Standard S1; costs scale with document count and replica/partition settings. | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
+| [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
+| [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search) | Powers vector-based semantic search for retrieving indexed conversation data. | Standard S1; costs scale with document count and replica/partition settings. | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
 | [Azure Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview) | Stores transcripts, intermediate outputs, and application assets. | Standard LRS; usage-based cost by storage/operations. | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
 | [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) | Secures secrets, credentials, and keys used across the application. | Standard Tier; cost per operation (e.g., secret retrieval). | [Pricing](https://azure.microsoft.com/pricing/details/key-vault/) |
 | [Azure AI Services (OpenAI)](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/overview) | Enables language understanding, summarization, entity extraction, and chat capabilities using GPT models. | S0 Tier; pricing depends on token volume and model used (e.g., GPT-4o-mini). | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
@@ -151,6 +151,18 @@ Employees can engage directly with conversational data using natural language, e
 Clear, contextual insights empower employees to take meaningful action based on data-driven evidence.
 
      
+</details>
+
+### Use Case
+<details>
+  <summary>Click to learn more about what use cases this solution provides</summary>
+<br/>
+
+  | **Use case** | **Persona** | **Challenges** | **Summary/approach** |
+  |---|---|---|---|
+  | Contact Center Customer Support | Analyst | Difficulty in extracting actionable insights from large, complex datasets due to limited context or practical considerations.   Limited ability to engage with data interactively, making it challenging to find the right questions to dig deeper.| Contextualized insights from mined data that enables employees to solve problems and take action. Interactive data that allow employees to ask questions and receive timely responses, providing better understanding and problem-solving.| 
+  IT Helpdesk | IT Helpdesk Analyst | Manually reviewing IT Helpdesk calls to identify recurring issues is time-consuming and inefficient. Creating graphs, analyzing performance problems, and drafting FAQs is often a slow process, leaving gaps in self-service support. | Address these challenges by leveraging AI to gain insights from call data, generating visual summaries, uncovering common issues, and producing FAQ content, transforming a labor-intensive review process into a fast, accurate, and actionable workflow. |
+
 </details>
 
 <br /><br />
