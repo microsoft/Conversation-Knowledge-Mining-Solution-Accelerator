@@ -82,6 +82,97 @@ cleanup_on_exit() {
 # Register cleanup function to run on script exit
 trap cleanup_on_exit EXIT
 
+# Check if azd is installed
+check_azd_installed() {
+	if command -v azd &> /dev/null; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+get_values_from_azd_env() {
+	# Use grep with a regex to ensure we're only capturing sanitized values to avoid command injection
+	projectEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
+	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	gptModelName=$(azd env get-value AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	aiFoundryResourceId=$(azd env get-value AZURE_AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	apiAppName=$(azd env get-value API_APP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	aiSearchConnectionName=$(azd env get-value AZURE_AI_SEARCH_CONNECTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	aiSearchIndex=$(azd env get-value AZURE_AI_SEARCH_INDEX 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	resourceGroup=$(azd env get-value RESOURCE_GROUP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	
+	# Validate that we extracted all required values
+	if [ -z "$projectEndpoint" ] || [ -z "$solutionName" ] || [ -z "$gptModelName" ] || [ -z "$aiFoundryResourceId" ] || [ -z "$apiAppName" ] || [ -z "$aiSearchConnectionName" ] || [ -z "$aiSearchIndex" ] || [ -z "$resourceGroup" ]; then
+		echo "Error: One or more required values could not be retrieved from azd environment."
+		return 1
+	fi
+	return 0
+}
+
+get_values_from_az_deployment() {
+	echo "Getting values from Azure deployment outputs..."
+ 
+    deploymentName=$(az group show --name "$resourceGroup" --query "tags.DeploymentName" -o tsv)
+    echo "Deployment Name (from tag): $deploymentName"
+ 
+    echo "Fetching deployment outputs..."
+	# Get all outputs
+    deploymentOutputs=$(az deployment group show \
+        --name "$deploymentName" \
+        --resource-group "$resourceGroup" \
+        --query "properties.outputs" -o json)
+
+	# Helper function to extract value from deployment outputs
+	# Usage: extract_value "primaryKey" "fallbackKey"
+	extract_value() {
+		local primary_key="$1"
+		local fallback_key="$2"
+		local value
+		
+		value=$(echo "$deploymentOutputs" | grep -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		if [ -z "$value" ] && [ -n "$fallback_key" ]; then
+			value=$(echo "$deploymentOutputs" | grep -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		fi
+		echo "$value"
+	}
+
+	# Extract each value using the helper function
+	projectEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
+	solutionName=$(extract_value "solutionName" "solutioN_NAME")
+	gptModelName=$(extract_value "azureAIAgentModelDeploymentName" "azurE_AI_AGENT_MODEL_DEPLOYMENT_NAME")
+	aiFoundryResourceId=$(extract_value "aiFoundryResourceId" "aI_FOUNDRY_RESOURCE_ID")
+	apiAppName=$(extract_value "apiAppName" "apI_APP_NAME")
+	aiSearchConnectionName=$(extract_value "azureAISearchConnectionName" "azurE_AI_SEARCH_CONNECTION_NAME")
+	aiSearchIndex=$(extract_value "azureAISearchIndex" "azurE_AI_SEARCH_INDEX")
+	
+	# Define required values with their display names for error reporting
+	declare -A required_values=(
+		["projectEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
+		["solutionName"]="SOLUTION_NAME"
+		["gptModelName"]="AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"
+		["aiFoundryResourceId"]="AZURE_AI_FOUNDRY_RESOURCE_ID"
+		["apiAppName"]="API_APP_NAME"
+		["aiSearchConnectionName"]="AZURE_AI_SEARCH_CONNECTION_NAME"
+		["aiSearchIndex"]="AZURE_AI_SEARCH_INDEX"
+	)
+
+	# Validate and collect missing values
+	missing_values=()
+	for var_name in "${!required_values[@]}"; do
+		if [ -z "${!var_name}" ]; then
+			missing_values+=("${required_values[$var_name]}")
+		fi
+	done
+
+	if [ ${#missing_values[@]} -gt 0 ]; then
+		echo "Error: The following required values could not be retrieved from Azure deployment outputs:"
+		printf '  - %s\n' "${missing_values[@]}" | sort
+		return 1
+	fi
+	return 0
+}
+
 # get parameters from azd env, if not provided
 if [ -z "$projectEndpoint" ]; then
     projectEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT)
@@ -112,14 +203,7 @@ if [ -z "$aiSearchIndex" ]; then
 fi
 
 if [ -z "$resourceGroup" ]; then
-    resourceGroup=$(azd env get-value AZURE_RESOURCE_GROUP)
-fi
-
-
-# Check if all required arguments are provided
-if [ -z "$projectEndpoint" ] || [ -z "$solutionName" ] || [ -z "$gptModelName" ] || [ -z "$aiFoundryResourceId" ] || [ -z "$apiAppName" ] || [ -z "$aiSearchConnectionName" ] || [ -z "$aiSearchIndex" ] || [ -z "$resourceGroup" ]; then
-    echo "Usage: $0 <projectEndpoint> <solutionName> <gptModelName> <aiFoundryResourceId> <apiAppName> <aiSearchConnectionName> <aiSearchIndex> <resourceGroup>"
-    exit 1
+    resourceGroup=$(azd env get-value RESOURCE_GROUP_NAME)
 fi
 
 # Check if user is logged in to Azure
@@ -129,8 +213,63 @@ if az account show &> /dev/null; then
 else
     # Use Azure CLI login if running locally
     echo "Authenticating with Azure CLI..."
-    az login --use-device-code
+    if ! az login --use-device-code; then
+        echo "✗ Failed to authenticate with Azure"
+        exit 1
+    fi
 fi
+
+echo ""
+
+if [ -z "$resourceGroup" ]; then
+    # No resource group provided - use azd env
+    if ! get_values_from_azd_env; then
+        echo "Failed to get values from azd environment."
+		echo ""
+        echo "If you want to use deployment outputs instead, please provide the resource group name as an argument."
+        echo "Usage: $0 [ResourceGroupName]"
+		echo "Example: $0 my-resource-group"
+		echo ""
+        exit 1
+    fi
+else
+    # Resource group provided - use deployment outputs
+	echo ""
+    echo "Resource group provided: $resourceGroup"
+
+    # Call deployment function
+    if ! get_values_from_az_deployment; then
+        echo "Failed to get values from deployment outputs."
+		echo ""
+        echo "Exiting script."
+        exit 1
+	fi
+fi
+
+# Validate all required parameters are present
+if [ -z "$projectEndpoint" ] || [ -z "$solutionName" ] || [ -z "$gptModelName" ] || [ -z "$aiFoundryResourceId" ] || [ -z "$apiAppName" ] || [ -z "$aiSearchConnectionName" ] || [ -z "$aiSearchIndex" ] || [ -z "$resourceGroup" ]; then
+    echo ""
+    echo "Error: Missing required parameters."
+    echo "Usage: $0 <projectEndpoint> <solutionName> <gptModelName> <aiFoundryResourceId> <apiAppName> <aiSearchConnectionName> <aiSearchIndex> <resourceGroup>"
+    echo ""
+    echo "Or run without parameters to use azd environment values."
+    exit 1
+fi
+
+echo ""
+echo "==============================================="
+echo "Values to be used:"
+echo "==============================================="
+echo "Resource Group: $resourceGroup"
+echo "Project Endpoint: $projectEndpoint"
+echo "Solution Name: $solutionName"
+echo "GPT Model Name: $gptModelName"
+echo "AI Foundry Resource ID: $aiFoundryResourceId"
+echo "API App Name: $apiAppName"
+echo "AI Search Connection Name: $aiSearchConnectionName"
+echo "AI Search Index: $aiSearchIndex"
+echo "==============================================="
+echo ""
 
 echo "Getting signed in user id"
 signed_user_id=$(az ad signed-in-user show --query id -o tsv) || signed_user_id=${AZURE_CLIENT_ID}
