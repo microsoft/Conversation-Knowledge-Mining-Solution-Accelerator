@@ -376,7 +376,7 @@ get_values_from_solution_suffix() {
     
     # Hardcoded values from bicep, if changed in bicep, must be changed here too
     fileSystem="data"
-	deploymentModel="gpt-4o-mini"
+    deploymentModel="gpt-4o-mini"
     embeddingModel="text-embedding-ada-002"
     cuApiVersion="2024-12-01-preview"
     
@@ -386,7 +386,7 @@ get_values_from_solution_suffix() {
     echo "✓ SQL Database Name: $SqlDatabaseName"
     echo "✓ AI Search Service Name: $aiSearchName"
     echo "✓ Backend Managed Identity Name: $backendUserMidDisplayName"
-	echo "✓ Deployment Model (default): $deploymentModel"
+    echo "✓ Deployment Model (default): $deploymentModel"
     echo "✓ Embedding Model (default): $embeddingModel"
     echo "✓ CU API Version (default): $cuApiVersion"
     echo ""
