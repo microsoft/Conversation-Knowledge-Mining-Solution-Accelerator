@@ -111,6 +111,57 @@ Confirm your deployment is working correctly:
 
 ---
 
+### 6. Customize with Your Own Data (Optional)
+
+To replace the sample data with your own conversational data, follow these steps:
+
+#### Prerequisites
+- Your data must be in **JSON** (transcripts) or **WAV** (audio) format
+- File names should be prefixed with "convo" followed by a GUID and timestamp
+  - Example: `convo_32e38683-bbf7-407e-a541-09b37b77921d_2024-12-07 04%3A00%3A00`
+- For examples, see the sample data in the `infra/data/` folder
+
+#### Upload Your Data
+
+1. Navigate to your **Storage Account** in the Azure Portal
+2. Open the `data` container
+3. Upload your files to the appropriate folder:
+   - **Audio files** → `custom_audiodata` folder
+   - **Transcript files** → `custom_transcripts` folder
+
+> **📝 Note for WAF-aligned deployments**: If your deployment uses private networking, you'll need to upload files from a VM within the virtual network. See the [VM login instructions](#vm-access-for-waf-deployments) below.
+
+#### Process Your Custom Data
+
+Run the processing script to integrate your data into the solution:
+
+```bash
+bash ./infra/scripts/process_custom_data.sh
+```
+
+If you don't have `azd env` configured, pass the required parameters:
+
+```bash
+bash ./infra/scripts/process_custom_data.sh \
+  <Resource-Group-Name> <Azure-Subscription-ID> \
+  <Storage-Account-Name> <Storage-Container-Name> \
+  <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+  <AI-Search-Name> <Search-Endpoint> \
+  <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+  <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+  <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+```
+
+#### VM Access for WAF Deployments
+
+For deployments with private networking:
+
+1. Navigate to your VM in the Azure portal
+2. Click **Connect** → **Bastion**
+3. Enter your VM credentials and click **Connect**
+4. Wait for the Bastion connection to establish
+5. Upload files through the connected VM interface
+
 ## Getting Started
 
 ### Sample Questions
