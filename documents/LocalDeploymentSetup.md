@@ -32,18 +32,11 @@ All paths in this guide are relative to the repository root directory:
 Conversation-Knowledge-Mining-Solution-Accelerator/    ← Repository root (start here)
 ├── src/
 │   ├── api/                                           
-│   │   ├── .venv/                          ← Virtual environment
 │   │   ├── app.py                          ← Backend API entry point
-│   │   ├── requirements.txt                ← Python dependencies
-│   │   ├── .env                            ← Backend config file
-│   │   ├── agents/                         ← AI agent implementations
-│   │   ├── services/                       ← Business logic services
-│   │   └── helpers/                        ← Utility functions
+│   │   └── .env                            ← Backend config file
 │   └── App/                                           
-│       ├── node_modules/                   ← npm packages
-│       ├── package.json                    ← npm dependencies
-│       ├── .env                            ← Frontend config file
-│       └── src/                            ← React components
+│       ├── package.json                    ← Frontend entry point
+│       └── .env                            ← Frontend config file
 ├── infra/                                  ← Infrastructure as Code (Bicep)
 └── documents/                              ← Documentation (you are here)
 ```
@@ -111,8 +104,8 @@ sudo apt update && sudo apt install python3.11 python3.11-venv git curl nodejs n
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 # Install ODBC Driver for SQL Server on WSL2
-curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+curl https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sed 's#^deb #deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] #' | sudo tee /etc/apt/sources.list.d/mssql-release.list
 sudo apt-get update
 sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
 ```
@@ -131,8 +124,16 @@ sudo apt update && sudo apt install python3.11 python3.11-venv git curl nodejs n
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 # Install ODBC Driver for SQL Server
-curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+# Add Microsoft GPG key (modern keyring-based approach, avoiding deprecated apt-key)
+sudo mkdir -p /etc/apt/keyrings
+curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /etc/apt/keyrings/microsoft-prod.gpg > /dev/null
+
+# Add Microsoft package repository using the keyring with signed-by
+UBUNTU_VERSION=$(lsb_release -rs)
+UBUNTU_CODENAME=$(lsb_release -cs)
+ARCHITECTURE=$(dpkg --print-architecture)
+echo "deb [arch=${ARCHITECTURE} signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/${UBUNTU_VERSION}/prod ${UBUNTU_CODENAME} main" | sudo tee /etc/apt/sources.list.d/mssql-release.list
+
 sudo apt-get update
 sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
 ```
@@ -264,9 +265,19 @@ Create `.vscode/settings.json` and copy the following JSON:
 {
     "python.defaultInterpreterPath": "${workspaceFolder}/src/api/.venv/bin/python",
     "python.terminal.activateEnvironment": true,
-    "python.formatting.provider": "black",
-    "python.linting.enabled": true,
-    "python.linting.flake8Enabled": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "black-formatter.args": [
+        "--line-length=100"
+    ],
+    "flake8.args": [
+        "--max-line-length=100"
+    ],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
     "files.associations": {
@@ -275,7 +286,7 @@ Create `.vscode/settings.json` and copy the following JSON:
     },
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-        "source.organizeImports": true
+        "source.organizeImports": "explicit"
     }
 }
 ```
@@ -393,16 +404,6 @@ az role assignment create \
   --assignee $PRINCIPAL_ID \
   --role "Storage Blob Data Contributor" \
   --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>"
-```
-
-#### Key Vault Access
-
-```bash
-# Assign Key Vault Secrets User role
-az role assignment create \
-  --assignee $PRINCIPAL_ID \
-  --role "Key Vault Secrets User" \
-  --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.KeyVault/vaults/<keyvault-name>"
 ```
 
 > **Note**: RBAC permission changes can take 5-10 minutes to propagate. If you encounter "Forbidden" errors after assigning roles, wait a few minutes and try again.
@@ -1312,7 +1313,9 @@ Once all services are running (as confirmed in Step 6), you can:
    - API routes: `src/api/api/`
    - Services: `src/api/services/`
    - React components: `src/App/src/components/`
+
 ---
+
 ## Related Documentation
 
 • [Deployment Guide](./DeploymentGuide.md) - Production deployment instructions using Azure Developer CLI  
