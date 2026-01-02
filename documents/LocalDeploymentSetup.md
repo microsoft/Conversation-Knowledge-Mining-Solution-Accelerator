@@ -337,7 +337,7 @@ To run the application locally, your Azure account needs the following role assi
 #### Get Your Principal ID
 
 ```bash
-# Get your principal ID
+# For Bash
 PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv)
 echo $PRINCIPAL_ID
 
@@ -388,12 +388,10 @@ az role assignment create \
 
 ```bash
 # Assign Cosmos DB Built-in Data Contributor role
-az cosmosdb sql role assignment create \
-  --account-name <cosmos-account-name> \
-  --resource-group <resource-group> \
-  --role-definition-name "Cosmos DB Built-in Data Contributor" \
-  --principal-id $PRINCIPAL_ID \
-  --scope "/"
+az role assignment create \
+  --role "Cosmos DB Built-in Data Contributor" \
+  --assignee $PRINCIPAL_ID \
+  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/<resource-group>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
 ```
 
 #### Azure Storage Access
@@ -611,7 +609,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 **Python Version Issues:**
 ```bash
 # Verify Python version
-python --version  # Should be Python 3.11.x
+python --version  # Should be Python 3.11+
 
 # If multiple Python versions installed, use specific version
 python3.11 -m venv .venv
@@ -930,12 +928,12 @@ curl http://127.0.0.1:8000/health
 #### Python Version Issues
 
 ```bash
-# Check available Python versions
+# Check available Python versions (should be Python 3.11+)
 python --version
 python3 --version
 python3.11 --version
 
-# If python3.11 not found, install it:
+# If python3.11 or newer version not found, install it:
 # Windows: 
 winget install Python.Python.3.11
 
@@ -1027,14 +1025,11 @@ az sql db show --name <db-name> --server <server-name> --resource-group <rg-name
 #### SQL Database Connection Errors
 
 ```bash
-# Test SQL connectivity using Python
-cd src/api
-python test_db_connection.py
-
 # Common issues:
 # 1. Firewall rules - Add your IP in Azure Portal
 # 2. ODBC Driver not installed - See Step 1 prerequisites
 # 3. Entra ID authentication not configured - See Step 3
+# 4. Check backend API logs for connection errors
 ```
 
 **SQL Server Firewall Configuration:**
@@ -1236,7 +1231,14 @@ git commit -m "Resolved merge conflicts"
 # Enable profiling in .env
 PROFILING_ENABLED=true
 
-# Monitor Azure service quotas
+# Monitor Azure resource metrics
+# First, get the resource ID of the service you want to monitor
+az resource show --name <resource-name> --resource-group <rg-name> --resource-type <type> --query id -o tsv
+
+# List available metrics for a resource
+az monitor metrics list-definitions --resource <resource-id>
+
+# View specific metric data
 az monitor metrics list \
   --resource <resource-id> \
   --metric-names <metric-name>
