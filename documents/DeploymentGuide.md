@@ -275,6 +275,9 @@ azd up
 3. **Azure AI Foundry deployment region** - Select a region with available gpt-4o model quota for AI operations
 4. **Primary location** - Select the region where your infrastructure resources will be deployed
 5. **Resource group** selection (create new or use existing)
+6. **Use case** selection:
+   - `telecom` - For telecommunications conversation data
+   - `IT_helpdesk` - For IT helpdesk conversation data
 
 **Expected Duration:** 7-10 minutes for default configuration
 
@@ -288,7 +291,80 @@ After successful deployment:
 3. Find the App Service with "app-" in the name
 4. Copy the **Default domain**
 
-⚠️ **Important:** Complete [Post-Deployment Steps](#step-5-post-deployment-configuration) before accessing the application.
+⚠️ **Important:** Complete the following steps to process sample data and configure authentication before accessing the application.
+
+### 4.4 Process Sample Data
+
+After the infrastructure deployment completes, follow these steps to process and load the sample data:
+
+**1. Create and activate a Python virtual environment:**
+
+```shell
+python -m venv .venv
+```
+
+**2. Activate the virtual environment:**
+
+**For Windows (PowerShell):**
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+**For Windows (Bash):**
+```bash
+source .venv/Scripts/activate
+```
+
+**For Linux/macOS/VS Code Web (Bash):**
+```bash
+source .venv/bin/activate
+```
+
+**3. Login to Azure:**
+
+```shell
+az login
+```
+
+**Alternatively, login using a device code (recommended when using VS Code Web):**
+```shell
+az login --use-device-code
+```
+
+**4. Run the sample data processing script:**
+
+The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
+
+```bash
+bash ./infra/scripts/process_sample_data.sh
+```
+
+**If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
+
+```bash
+bash ./infra/scripts/process_sample_data.sh \
+  <Resource-Group-Name> <Azure-Subscription-ID> \
+  <Storage-Account-Name> <Storage-Container-Name> \
+  <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+  <AI-Search-Name> <Search-Endpoint> \
+  <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+  <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+  <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version> <Use-Case>
+```
+
+**Parameter Descriptions:**
+- **Resource Group Parameters:** Resource group name and Azure subscription ID
+- **Storage Parameters:** Storage account name and container name
+- **SQL Parameters:** SQL server name, database name, backend user managed identity client ID and display name
+- **Search Parameters:** AI Search service name and endpoint
+- **AI Foundry Parameters:** AI Foundry resource ID and Content Understanding Foundry resource ID
+- **OpenAI Parameters:** OpenAI endpoint, embedding model name, and deployment model name
+- **Content Understanding Parameters:** CU endpoint, AI agent endpoint, CU API version
+- **Use Case:** Either `telecom` or `IT_helpdesk`
+
+> **Note:** All parameter values are available in the Azure Portal by navigating to your deployed resources, or from the `azd env get-values` command output.
+
+**Expected Processing Time:** 5-10 minutes depending on the amount of sample data.
 
 ## Step 5: Post-Deployment Configuration
 
