@@ -137,10 +137,6 @@ jobs:
             Write-Host "❌ EXP DISABLED - Skipping EXP parameters"
           }
 
-          # Set tags for deployment  
-          Write-Host "Setting deployment tags..."
-          azd env set AZURE_TAG_SECURITY_CONTROL="Ignore"
-
           # Deploy using azd up
           azd up --no-prompt
           

@@ -33,7 +33,8 @@ az acr login --name $ACR_NAME
  
  ```bash 
 az acr login --name <containerregname>
-docker build --no-cache -f api/ApiApp.Dockerfile -t <acrloginserver>/<repo>:<tagname> .
+cd src/api
+docker build --no-cache -f ApiApp.Dockerfile -t <acrloginserver>/<repo>:<tagname> .
 docker push <acrloginserver>/<repo>:<tagname>
  ```
 
@@ -54,7 +55,8 @@ If you want to update image tag and image manually you can follow below steps:
 
 ```bash
 az acr login --name <containerregname>
-docker build --no-cache -f App/WebApp.Dockerfile -t <acrloginserver>/<repo>:<tagname> .
+cd src/App
+docker build --no-cache -f WebApp.Dockerfile -t <acrloginserver>/<repo>:<tagname> .
 docker push <acrloginserver>/<repo>:<tagname>
 ```
 
