@@ -17,7 +17,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 | **Contributor** | Subscription level | Create and manage Azure resources |
 | **User Access Administrator** | Subscription level | Manage user access and role assignments |
 | **Role Based Access Control** | Subscription/Resource Group level | Configure RBAC permissions |
-| **Application Administrator** | Tenant | Create app registrations for authentication |
+| **Application Developer** | Tenant | Create app registrations for authentication |
 
 **🔍 How to Check Your Permissions:**
 
@@ -270,7 +270,7 @@ azd up
 ```
 
 **During deployment, you'll be prompted for:**
-1. **Environment name** (e.g., "ckmapp") - Must be 3-20 characters long, lowercase alphanumeric only
+1. **Environment name** (e.g., "ckmapp") - Must be 3-16 characters long, alphanumeric only
 2. **Azure subscription** selection
 3. **Azure AI Foundry deployment region** - Select a region with available gpt-4o model quota for AI operations
 4. **Primary location** - Select the region where your infrastructure resources will be deployed
@@ -288,8 +288,12 @@ azd up
 After successful deployment:
 1. Open [Azure Portal](https://portal.azure.com/)
 2. Navigate to your resource group
-3. Find the App Service with "app-" in the name
-4. Copy the **Default domain**
+3. Find the **App Service** resource:
+   - **Resource Type:** App Service
+   - **Naming Pattern:** `app-<random-string>` (e.g., `app-abc123def`)
+   - Look for the resource with Type listed as "App Service" in the resource list
+4. Click on the App Service to open its overview page
+5. Copy the **Default domain** URL (e.g., `app-abc123def.azurewebsites.net`)
 
 ⚠️ **Important:** Complete the following steps to process sample data and configure authentication before accessing the application.
 
@@ -383,16 +387,32 @@ bash ./infra/scripts/process_sample_data.sh \
 
 ### 5.3 Test the Application
 
-Follow the sample questions to test the conversation knowledge mining functionality:
+Follow these specific steps to verify the conversation knowledge mining functionality:
 
-**Quick Test Steps:**
-1. Sign in to the application
-2. Try sample questions from the [Sample Questions](./SampleQuestions.md) guide
-3. Test the chat interface with your own questions about conversation data
-4. Verify the search and filter functionality works
-5. Test the analytics and visualization features
+**Test with Sample Data:**
 
-📖 **Detailed Instructions:** See the complete [Sample Questions](./SampleQuestions.md) guide for comprehensive testing procedures.
+1. **Sign in to the application** using your authenticated account
+2. **Navigate to the chat interface** and test with sample questions:
+   - Ask about specific conversation topics or keywords
+   - Test sentiment analysis queries (e.g., "What's the overall sentiment?")
+   - Try key phrase extraction questions (e.g., "What are the main topics?")
+   - Request analytics and insights generation
+
+3. **Verify Core Functionality:**
+   - ✅ Conversation search and filtering
+   - ✅ Knowledge extraction from conversations
+   - ✅ Sentiment analysis results
+   - ✅ Key phrase identification
+   - ✅ Analytics dashboard visualizations
+
+📖 **Sample Questions Guide:** See [Sample Questions](./SampleQuestions.md) for comprehensive testing examples and workflows.
+
+**Expected Outcomes:**
+- ✅ Successful conversation data ingestion
+- ✅ Accurate knowledge extraction and insights
+- ✅ Functional search and filtering capabilities
+- ✅ Working analytics visualizations
+- ✅ Proper sentiment analysis and key phrase detection
 
 ## Step 6: Clean Up (Optional)
 
@@ -403,6 +423,8 @@ azd down
 ```
 
 > **Note:** If you deployed with `enableRedundancy=true` and Log Analytics workspace replication is enabled, you must first disable replication before running `azd down` else resource group delete will fail. Follow the steps in [Handling Log Analytics Workspace Deletion with Replication Enabled](./LogAnalyticsReplicationDisable.md), wait until replication returns `false`, then run `azd down`.
+
+> **Note:** To purge resources and clean up after deployment, use the `azd down` command or follow the [Delete Resource Group Guide](./DeleteResourceGroup.md). The `azd down` command will remove all resources in the resource group and optionally purge them to free up quota.
 
 ### Manual Cleanup (if needed)
 
@@ -430,7 +452,7 @@ If your deployment failed or encountered errors, here are the steps to recover:
 # Remove failed deployment (optional)
 azd down
 
-# Create new environment (3-20 chars, lowercase alphanumeric only)
+# Create new environment (3-16 chars, alphanumeric only)
 azd env new ckmretry
 
 # Deploy with different settings/region
@@ -448,7 +470,7 @@ If you need to deploy to a different region, test different configurations, or c
 
 **Create Environment Explicitly:**
 ```shell
-# Create a new named environment (3-20 characters, lowercase alphanumeric only)
+# Create a new named environment (3-16 characters, alphanumeric only)
 azd env new <new-environment-name>
 
 # Select the new environment
@@ -460,7 +482,7 @@ azd up
 
 **Example:**
 ```shell
-# Create a new environment for production (valid: 3-20 chars)
+# Create a new environment for production (valid: 3-16 chars)
 azd env new ckmprod
 
 # Switch to the new environment
@@ -471,10 +493,10 @@ azd up
 ```
 
 > **Environment Name Requirements:**
-> - **Length:** 3-20 characters
-> - **Characters:** Lowercase alphanumeric only (letters and numbers)
+> - **Length:** 3-16 characters
+> - **Characters:** Alphanumeric only (letters and numbers, case-insensitive)
 > - **Valid examples:** `ckmapp`, `test123`, `myappdev`, `prod2024`
-> - **Invalid examples:** `ck` (too short), `my-very-long-environment-name` (too long), `test_env` (underscore not allowed), `MyApp-Dev` (uppercase/hyphen not allowed)
+> - **Invalid examples:** `ck` (too short), `my-very-long-environment-name` (too long), `test_env` (underscore not allowed), `MyApp-Dev` (hyphen not allowed)
 
 </details>
 
@@ -500,7 +522,7 @@ azd env get-values
 
 ### Best Practices for Multiple Environments
 
-- **Use descriptive names:** `ckmdev`, `ckmprod`, `ckmtest` (remember: 3-20 chars, lowercase alphanumeric only)
+- **Use descriptive names:** `ckmdev`, `ckmprod`, `ckmtest` (remember: 3-16 chars, alphanumeric only)
 - **Different regions:** Deploy to multiple regions for testing quota availability
 - **Separate configurations:** Each environment can have different parameter settings
 - **Clean up unused environments:** Use `azd down` to remove environments you no longer need
