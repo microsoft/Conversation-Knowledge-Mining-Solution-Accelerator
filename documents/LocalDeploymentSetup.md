@@ -72,7 +72,7 @@ When copying `.env` samples, always navigate to the specific service directory f
 #### Option 1: Native Windows (PowerShell)
 
 ```powershell
-# Install Python 3.11 and Git
+# Install Python 3.11 or newer, and Git
 winget install Python.Python.3.11
 winget install Git.Git
 
@@ -1232,18 +1232,19 @@ git commit -m "Resolved merge conflicts"
 PROFILING_ENABLED=true
 
 # Monitor Azure resource metrics
-# First, get the resource ID of the service you want to monitor
-az resource show --name <resource-name> --resource-group <rg-name> --resource-type <type> --query id -o tsv
+# Step 1: List available metrics for a resource
+az monitor metrics list-definitions \
+  --resource-group <rg-name> \  
+  --resource-type <resource-type> \  # e.g., Microsoft.Storage/storageAccounts, Microsoft.DocumentDB/databaseAccounts, etc
+  --resource <resource-name>  # Your resource name (e.g., storage account name, cosmos account name, etc)
 
-# List available metrics for a resource
-az monitor metrics list-definitions --resource <resource-id>
-
-# View specific metric data
+# Step 2: View specific metric data (use metric names from Step 1 output)
 az monitor metrics list \
-  --resource <resource-id> \
-  --metric-names <metric-name>
+  --resource-group <rg-name> \
+  --resource-type <resource-type> \  
+  --resource <resource-name> \ 
+  --metric <metric-name>  # Metric name from Step 1 output (e.g., Transactions, UsedCapacity, Availability)
 ```
-
 #### High Memory Usage
 
 ```bash
