@@ -415,7 +415,7 @@ You need database access to read conversation transcripts and metadata. Choose o
 #### Option 1: Set Yourself as SQL Server Admin (for single user scenarios)
 
 1. Go to your SQL Server resource in Azure Portal
-2. Under **"Security"**, click **"Microsoft Entra ID"**
+2. Under **"Settings"**, click **"Microsoft Entra ID"**
 3. Click **"Set admin"** and search for your user account
 4. Select your user and click **"Save"**
 
