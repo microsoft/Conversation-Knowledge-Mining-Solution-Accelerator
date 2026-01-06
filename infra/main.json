@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "18022991052294376622"
+      "templateHash": "14206697381932467101"
     }
   },
   "parameters": {
@@ -406,6 +406,7 @@
     "aiFoundryAiServicesCUResourceName": "[format('aif-{0}-cu', variables('solutionSuffix'))]",
     "aiServicesNameCu": "[format('aisa-{0}-cu', variables('solutionSuffix'))]",
     "aiSearchName": "[format('srch-{0}', variables('solutionSuffix'))]",
+    "aiSearchConnectionName": "[format('foundry-search-connection-{0}', variables('solutionSuffix'))]",
     "storageAccountName": "[format('st{0}', variables('solutionSuffix'))]",
     "cosmosDbResourceName": "[format('cosmos-{0}', variables('solutionSuffix'))]",
     "cosmosDbDatabaseName": "db_conversation_history",
@@ -482,7 +483,7 @@
       "condition": "[not(variables('useExistingAiFoundryAiProject'))]",
       "type": "Microsoft.CognitiveServices/accounts/projects/connections",
       "apiVersion": "2025-10-01-preview",
-      "name": "[format('{0}/{1}/{2}', variables('aiFoundryAiServicesResourceName'), variables('aiFoundryAiServicesAiProjectResourceName'), variables('aiSearchName'))]",
+      "name": "[format('{0}/{1}/{2}', variables('aiFoundryAiServicesResourceName'), variables('aiFoundryAiServicesAiProjectResourceName'), variables('aiSearchConnectionName'))]",
       "properties": {
         "category": "CognitiveSearch",
         "target": "[format('https://{0}.search.windows.net', variables('aiSearchName'))]",
@@ -32212,7 +32213,7 @@
             "value": "[reference('searchSearchServices').outputs.location.value]"
           },
           "aiSearchConnectionName": {
-            "value": "[variables('aiSearchName')]"
+            "value": "[variables('aiSearchConnectionName')]"
           }
         },
         "template": {
@@ -40352,8 +40353,8 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -58091,7 +58092,7 @@
       "metadata": {
         "description": "Contains Azure AI Search connection name."
       },
-      "value": "[variables('aiSearchName')]"
+      "value": "[variables('aiSearchConnectionName')]"
     },
     "AZURE_COSMOSDB_ACCOUNT": {
       "type": "string",

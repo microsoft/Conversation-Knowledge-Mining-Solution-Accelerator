@@ -173,39 +173,6 @@ get_values_from_az_deployment() {
 	return 0
 }
 
-# get parameters from azd env, if not provided
-if [ -z "$projectEndpoint" ]; then
-    projectEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT)
-fi
-
-if [ -z "$solutionName" ]; then
-    solutionName=$(azd env get-value SOLUTION_NAME)
-fi
-
-if [ -z "$gptModelName" ]; then
-    gptModelName=$(azd env get-value AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME)
-fi
-
-if [ -z "$aiFoundryResourceId" ]; then
-    aiFoundryResourceId=$(azd env get-value AZURE_AI_FOUNDRY_RESOURCE_ID)
-fi
-
-if [ -z "$apiAppName" ]; then
-    apiAppName=$(azd env get-value API_APP_NAME)
-fi
-
-if [ -z "$aiSearchConnectionName" ]; then
-    aiSearchConnectionName=$(azd env get-value AZURE_AI_SEARCH_CONNECTION_NAME)
-fi
-
-if [ -z "$aiSearchIndex" ]; then
-    aiSearchIndex=$(azd env get-value AZURE_AI_SEARCH_INDEX)
-fi
-
-if [ -z "$resourceGroup" ]; then
-    resourceGroup=$(azd env get-value RESOURCE_GROUP_NAME)
-fi
-
 # Check if user is logged in to Azure
 echo "Checking Azure authentication..."
 if az account show &> /dev/null; then

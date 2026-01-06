@@ -739,6 +739,8 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
+var aiSearchConnectionName = 'foundry-search-connection-${solutionSuffix}'
+
 module searchSearchServices 'br/public:avm/res/search/search-service:0.12.0' = {
   name: take('avm.res.search.search-service.${aiSearchName}', 64)
   params: {
@@ -832,7 +834,7 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
 }
 
 resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-10-01-preview' = if (!useExistingAiFoundryAiProject) {
-  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchName}'
+  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchConnectionName}'
   properties: {
     category: 'CognitiveSearch'
     target: 'https://${aiSearchName}.search.windows.net'
@@ -855,7 +857,7 @@ module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_c
     aiSearchName: aiSearchName
     aiSearchResourceId: searchSearchServices.outputs.resourceId
     aiSearchLocation: searchSearchServices.outputs.location
-    aiSearchConnectionName: aiSearchName
+    aiSearchConnectionName: aiSearchConnectionName
   }
 }
 
@@ -1400,7 +1402,7 @@ output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiSearchName}.search.windows
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
 @description('Contains Azure AI Search connection name.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchConnectionName
 
 @description('Contains Azure Cosmos DB account name.')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDb.outputs.name
