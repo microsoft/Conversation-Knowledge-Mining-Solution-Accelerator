@@ -1,9 +1,11 @@
+import logging
+
 from azure.ai.agents.models import AzureAISearchTool, AzureAISearchQueryType
 from azure.ai.projects import AIProjectClient
-
 from agents.agent_factory_base import BaseAgentFactory
-
 from helpers.azure_credential_utils import get_azure_credential
+
+logger = logging.getLogger(__name__)
 
 
 class SearchAgentFactory(BaseAgentFactory):
@@ -12,8 +14,11 @@ class SearchAgentFactory(BaseAgentFactory):
     @classmethod
     async def create_agent(cls, config):
         """
-        Asynchronously creates a search agent using Azure AI Search and registers it
+        Asynchronously creates or retrieves a search agent using Azure AI Search and registers it
         with the provided project configuration.
+
+        First checks if an agent with the expected name already exists and reuses it.
+        Only creates a new agent if one doesn't exist.
 
         Args:
             config: Configuration object containing Azure project and search index settings.
@@ -27,6 +32,22 @@ class SearchAgentFactory(BaseAgentFactory):
             api_version=config.ai_project_api_version,
         )
 
+        agent_name = f"KM-ChatWithCallTranscriptsAgent-{config.solution_name}"
+
+        # Try to find an existing agent with the same name
+        try:
+            agents_list = project_client.agents.list_agents()
+            for existing_agent in agents_list:
+                if existing_agent.name == agent_name:
+                    logger.info(f"Reusing existing agent: {agent_name} (ID: {existing_agent.id})")
+                    return {
+                        "agent": existing_agent,
+                        "client": project_client
+                    }
+        except Exception as e:
+            logger.warning(f"Could not list existing agents: {e}. Creating new agent.")
+
+        # No existing agent found, create a new one with search tools
         field_mapping = {
             "contentFields": ["content"],
             "urlField": "sourceurl",
@@ -55,11 +76,12 @@ class SearchAgentFactory(BaseAgentFactory):
 
         agent = project_client.agents.create_agent(
             model=config.azure_openai_deployment_model,
-            name=f"KM-ChatWithCallTranscriptsAgent-{config.solution_name}",
+            name=agent_name,
             instructions="You are a helpful agent. Use the tools provided and always cite your sources.",
             tools=ai_search.definitions,
             tool_resources=ai_search.resources,
         )
+        logger.info(f"Created new agent: {agent_name} (ID: {agent.id})")
 
         return {
             "agent": agent,

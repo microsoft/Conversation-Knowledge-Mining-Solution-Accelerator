@@ -1,6 +1,10 @@
-from dotenv import load_dotenv
-import os
+"""
+Constants Module
+Contains configuration constants and loads test data
+"""
 import json
+import os
+from dotenv import load_dotenv
 
 load_dotenv()
 URL = os.getenv('url')
@@ -19,7 +23,6 @@ repo_root = os.getenv('GITHUB_WORKSPACE', os.getcwd())
 #note: may have to remove 'tests/e2e-test' from below when running locally
 json_file_path = os.path.join(repo_root, 'tests/e2e-test', 'testdata', 'prompts.json')
 
-with open(json_file_path, 'r') as file:
+with open(json_file_path, 'r', encoding='utf-8') as file:
     data = json.load(file)
     questions = data['questions']
-

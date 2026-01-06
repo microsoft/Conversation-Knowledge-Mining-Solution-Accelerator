@@ -18,8 +18,6 @@ from opentelemetry.trace import Status, StatusCode
 
 router = APIRouter()
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Check if the Application Insights Instrumentation Key is set in the environment variables
@@ -31,20 +29,6 @@ if instrumentation_key:
 else:
     # Log a warning if the Instrumentation Key is not found
     logging.warning("No Application Insights Instrumentation Key found. Skipping configuration")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-
-# Suppress INFO logs from 'azure.core.pipeline.policies.http_logging_policy'
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(
-    logging.WARNING
-)
-logging.getLogger("azure.identity.aio._internal").setLevel(logging.WARNING)
-
-# Suppress info logs from OpenTelemetry exporter
-logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(
-    logging.WARNING
-)
 
 
 @router.get("/fetchChartData")
@@ -117,9 +101,9 @@ async def conversation(request: Request):
         # Get the request JSON and last RAG response from the client
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-        query = request_json.get("messages")[-1].get("content")
+        query = request_json.get("query")
         chat_service = ChatService(request=request)
-        result = await chat_service.stream_chat_request(request_json, conversation_id, query)
+        result = await chat_service.stream_chat_request(conversation_id, query)
         track_event_if_configured(
             "ChatStreamSuccess",
             {"conversation_id": conversation_id, "query": query}
