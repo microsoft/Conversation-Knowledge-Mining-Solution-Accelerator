@@ -105,21 +105,21 @@ with project_client:
                             }
                         },
                         "required": ["sql_query"]
-                    }
+                    },
+                    strict=True
                 ),
                 # Azure AI Search - built-in service tool (no client implementation needed)
                 AzureAISearchAgentTool(
-                    type="azure_ai_search",
-                    azure_ai_search={
-                        "indexes": [
-                            {
-                                "project_connection_id": azure_ai_search_connection_name,
-                                "index_name": azure_ai_search_index,
-                                "query_type": "vector_simple",
-                                "top_k": 5
-                            }
+                    azure_ai_search=AzureAISearchToolResource(
+                        indexes=[
+                            AISearchIndexResource(
+                                project_connection_id=azure_ai_search_connection_name,
+                                index_name=azure_ai_search_index,
+                                query_type="vector_simple",
+                                top_k=5
+                            )
                         ]
-                    }
+                    )
                 )
             ]
         ),
