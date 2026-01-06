@@ -105,8 +105,7 @@ with project_client:
                             }
                         },
                         "required": ["sql_query"]
-                    },
-                    strict=True
+                    }
                 ),
                 # Azure AI Search - built-in service tool (no client implementation needed)
                 AzureAISearchAgentTool(
