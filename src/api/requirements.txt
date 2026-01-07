@@ -19,8 +19,8 @@ azure-ai-inference==1.0.0b9
 azure-cosmos==4.14.3
 
 # Additional utilities
-semantic-kernel[azure]==1.39.0
-openai==1.109.1
+semantic-kernel[azure]==1.32.2
+openai==2.0.0
 pyodbc==5.3.0
 pandas==2.3.3
 
