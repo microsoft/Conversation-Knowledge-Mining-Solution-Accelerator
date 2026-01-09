@@ -4,40 +4,172 @@
 
 ---
 
+## Overview
+
 This document provides guidance on post-deployment steps after deploying the Conversation Knowledge Mining solution accelerator from the [AVM (Azure Verified Modules) repository](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/sa/conversation-knowledge-mining).
+
+---
 
 ## Prerequisites
 
-- **Deployed Infrastructure** - A successful Conversation Knowledge Mining solution accelerator deployment from the [AVM repository](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/sa/conversation-knowledge-mining)
+Before proceeding, ensure you have the following:
 
-## Post Deployment Steps
+### 1. Azure Subscription & Permissions
 
-### 1. Access the Application
+You need access to an [Azure subscription](https://azure.microsoft.com/free/) with permissions to:
+- Create resource groups and resources
+- Create app registrations
+- Assign roles at the resource group level (Contributor + RBAC)
+
+📖 Follow the steps in [Azure Account Set Up](./AzureAccountSetUp.md) for detailed instructions.
+
+### 2. Deployed Infrastructure
+
+A successful Conversation Knowledge Mining solution accelerator deployment from the [AVM repository](https://github.com/Azure/bicep-registry-modules/tree/main/avm/ptn/sa/conversation-knowledge-mining).
+
+### 3. Required Tools
+
+Ensure the following tools are installed on your machine:
+
+| Tool | Version | Download Link |
+|------|---------|---------------|
+| PowerShell | v7.0+ | [Install PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) |
+| Azure Developer CLI (azd) | v1.18.0+ | [Install azd](https://aka.ms/install-azd) |
+| Python | 3.9+ | [Download Python](https://www.python.org/downloads/) |
+| Docker Desktop | Latest | [Download Docker](https://www.docker.com/products/docker-desktop/) |
+| Git | Latest | [Download Git](https://git-scm.com/downloads) |
+| Microsoft ODBC Driver | 18 | [Download ODBC Driver](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) |
+
+---
+
+## Post-Deployment Steps
+
+### Step 1: Clone the Repository
+
+Clone this repository to access the post-deployment scripts and sample data:
+
+```powershell
+git clone https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator.git
+```
+
+```powershell
+cd Conversation-Knowledge-Mining-Solution-Accelerator
+```
+
+---
+
+### Step 2: Run the Data Processing Script
+
+#### 2.1 Login to Azure
+
+```shell
+az login
+```
+
+> 💡 **Tip**: If using VS Code Web, use device code authentication:
+> ```shell
+> az login --use-device-code
+> ```
+
+#### 2.2 Execute the Script
+
+Run the bash script from the output of the AVM deployment:
+
+```bash
+bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
+```
+
+> ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
+
+---
+
+### Step 3: Access the Application
 
 1. Navigate to the [Azure Portal](https://portal.azure.com)
-2. Open the resource group created during deployment
-3. Locate the App Service with name starting with `app-`
+2. Open the **resource group** created during deployment
+3. Locate the **App Service** with name starting with `app-`
 4. Copy the **URL** from the Overview page
 5. Open the URL in your browser to access the application
 
-### 2. Configure Authentication (Optional)
+---
 
-If you want to enable authentication, configure it by following the [App Authentication Guide](./AppAuthentication.md).
+### Step 4: Configure Authentication (Optional)
 
-### 3. Verify Data Processing
+If you want to enable authentication for your application, follow the [App Authentication Guide](./AppAuthentication.md).
 
-- Check that sample data has been uploaded to the storage account
-- Verify that the AI Search index has been created and populated
-- Confirm that the application loads without errors
+---
+
+### Step 5: Verify Data Processing
+
+Confirm your deployment is working correctly:
+
+| Check | Location |
+|-------|----------|
+| ✅ Sample data uploaded | Storage Account |
+| ✅ AI Search index created and populated | Azure AI Search |
+| ✅ Application loads without errors | App Service URL |
+
+---
+
+### 6. Customize with Your Own Data (Optional)
+
+To replace the sample data with your own conversational data, follow these steps:
+
+#### Prerequisites
+- Your data must be in **JSON** (transcripts) or **WAV** (audio) format
+- File names should be prefixed with "convo" followed by a GUID and timestamp
+  - Example: `convo_32e38683-bbf7-407e-a541-09b37b77921d_2024-12-07 04%3A00%3A00`
+- For examples, see the sample data in the `infra/data/` folder
+
+#### Upload Your Data
+
+1. Navigate to your **Storage Account** in the Azure Portal
+2. Open the `data` container
+3. Upload your files to the appropriate folder:
+   - **Audio files** → `custom_audiodata` folder
+   - **Transcript files** → `custom_transcripts` folder
+
+> **📝 Note for WAF-aligned deployments**: If your deployment uses private networking, you'll need to upload files from a VM within the virtual network. See the [VM login instructions](#vm-access-for-waf-deployments) below.
+
+#### Process Your Custom Data
+
+Run the processing script to integrate your data into the solution:
+
+```bash
+bash ./infra/scripts/process_custom_data.sh
+```
+
+If you don't have `azd env` configured, pass the required parameters:
+
+```bash
+bash ./infra/scripts/process_custom_data.sh \
+  <Resource-Group-Name> <Azure-Subscription-ID> \
+  <Storage-Account-Name> <Storage-Container-Name> \
+  <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+  <AI-Search-Name> <Search-Endpoint> \
+  <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+  <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+  <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+```
+
+#### VM Access for WAF Deployments
+
+For deployments with private networking:
+
+1. Navigate to your VM in the Azure portal
+2. Click **Connect** → **Bastion**
+3. Enter your VM credentials and click **Connect**
+4. Wait for the Bastion connection to establish
+5. Upload files through the connected VM interface
 
 ## Getting Started
 
 ### Sample Questions
 
-Try these questions in the application to explore the solution capabilities:
+To help you get started, here are some [Sample Questions](./SampleQuestions.md) you can follow to try it out.
 
-- "Total number of calls by date for the last 7 days"
-- "Show average handling time by topics in minutes"
-- "What are the top 7 challenges users reported?"
-- "Give a summary of billing issues"
-- "When customers call in about unexpected charges, what types of charges are they seeing?"
+---
+
+## Troubleshooting
+
+If you encounter issues, refer to the [Troubleshooting Guide](./TroubleShootingSteps.md).
