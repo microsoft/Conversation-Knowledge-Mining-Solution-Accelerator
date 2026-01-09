@@ -199,18 +199,9 @@ jobs:
           else
             echo "🔧 Configuring Non-WAF deployment - using default main.parameters.json..."
           fi
-      
-      - name: Setup Azure CLI
-        shell: bash
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: Setup Azure Developer CLI (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          curl -fsSL https://aka.ms/install-azd.sh | sudo bash
-          azd version
+      - name: Install azd
+        uses: Azure/setup-azd@v2
           
       - name: Login to AZD
         id: login-azure
@@ -239,9 +230,6 @@ jobs:
           echo "EXP: $EXP"
           echo "Using Docker Image Tag: $IMAGE_TAG"
           
-          # Install azd (Azure Developer CLI)
-          curl -fsSL https://aka.ms/install-azd.sh | bash
-
           # Generate current timestamp in desired format: YYYY-MM-DDTHH:MM:SS.SSSSSSSZ
           current_date=$(date -u +"%Y-%m-%dT%H:%M:%S.%7NZ")
 
@@ -304,11 +292,11 @@ jobs:
             exit 1
           fi
 
-          export API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
+          API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
           echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
           echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
 
-          export WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
+          WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
           echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
           echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
 

@@ -297,7 +297,6 @@ jobs:
             exit 1
           }
 
-          # Export variables only after successful deploy
           $API_APP_URL = $DEPLOY_OUTPUT.API_APP_URL
           "API_APP_URL=$API_APP_URL" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "API_APP_URL=$API_APP_URL" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

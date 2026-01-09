@@ -310,11 +310,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          az --version
-
       - name: Login to Azure
         shell: bash
         run: |
@@ -323,22 +318,22 @@ jobs:
       
       - name: Run Quota Check
         id: quota-check
-        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GPT_MIN_CAPACITY: ${{ env.GPT_MIN_CAPACITY }}
+          TEXT_EMBEDDING_MIN_CAPACITY: ${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
+          AZURE_REGIONS: ${{ vars.AZURE_REGIONS_KM }}
         run: |
-          export AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}
-          export AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}
-          export AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}
-          export AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          export GPT_MIN_CAPACITY=${{ env.GPT_MIN_CAPACITY }}
-          export TEXT_EMBEDDING_MIN_CAPACITY=${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
-          export AZURE_REGIONS="${{ vars.AZURE_REGIONS }}"
-
           chmod +x infra/scripts/checkquota_km.sh
           if ! infra/scripts/checkquota_km.sh; then
+            # If quota check fails due to insufficient quota, set the flag
             if grep -q "No region with sufficient quota found" infra/scripts/checkquota_km.sh; then
               echo "QUOTA_FAILED=true" >> $GITHUB_ENV
             fi
-            exit 1
+            exit 1  # Fail the pipeline if any other failure occurs
           fi
       
       - name: Fail Pipeline if Quota Check Fails
