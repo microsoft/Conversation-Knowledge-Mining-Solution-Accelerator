@@ -391,7 +391,7 @@ az role assignment create \
 az role assignment create \
   --role "Cosmos DB Built-in Data Contributor" \
   --assignee $PRINCIPAL_ID \
-  --scope "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/<resource-group>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
+  --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
 ```
 
 #### Azure Storage Access
@@ -877,8 +877,7 @@ Open a new terminal (Terminal 3) and test the API:
 # Test API endpoint
 curl http://127.0.0.1:8000/health
 
-# Expected response: {"status":"healthy"} or similar 
-
+# Expected response: {"status":"healthy"} or similar
 ```
 
 #### 2. Check Frontend
