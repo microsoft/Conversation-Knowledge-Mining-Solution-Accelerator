@@ -8,6 +8,10 @@ on:
       - '.flake8'
       - '.github/workflows/pylint.yml'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
