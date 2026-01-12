@@ -44,11 +44,11 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 
 **Required Azure Services:**
 
-- [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
+- [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry)
 - [Azure AI Content Understanding Service](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
 - [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [GPT Model Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models)
-- [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
+- [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction)
 - [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
@@ -154,6 +154,7 @@ Select one of the following options to deploy the Conversational Knowledge Minin
 - [Python 3.9+](https://www.python.org/downloads/)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - [Git](https://git-scm.com/downloads)
+- [Microsoft ODBC Driver 18](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) for SQL Server
 
 **Setup Steps:**
 1. Install all required deployment tools listed above
@@ -228,7 +229,7 @@ To optimize costs and integrate with your existing Azure infrastructure, you can
 
 - **Log Analytics Workspace:** Integrate with your existing monitoring infrastructure by reusing an established Log Analytics workspace for centralized logging and monitoring. [Configuration Guide](./re-use-log-analytics.md)
 
-- **Azure AI Foundry Project:** Leverage your existing AI Foundry project and deployed models to avoid duplication and reduce provisioning time. [Configuration Guide](./re-use-foundry-project.md)
+- **Microsoft Foundry Project:** Leverage your existing Foundry project and deployed models to avoid duplication and reduce provisioning time. [Configuration Guide](./re-use-foundry-project.md)
 
 **Key Benefits:**
 - **Cost Optimization:** Eliminate duplicate resource charges
@@ -272,7 +273,7 @@ azd up
 **During deployment, you'll be prompted for:**
 1. **Environment name** (e.g., "ckmapp") - Must be 3-16 characters long, alphanumeric only
 2. **Azure subscription** selection
-3. **Azure AI Foundry deployment region** - Select a region with available gpt-4o model quota for AI operations
+3. **Microsoft Foundry deployment region** - Select a region with available gpt-4o model quota for AI operations
 4. **Primary location** - Select the region where your infrastructure resources will be deployed
 5. **Resource group** selection (create new or use existing)
 6. **Use case** selection:
