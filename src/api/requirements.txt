@@ -8,7 +8,7 @@ pydantic[email]==2.12.5
 # Azure SDK Core
 azure-core==1.38.0
 requests==2.32.5
-types-requests==2.32.4.20260107
+types-requests==2.32.4.20250913
 aiohttp==3.13.3
 
 # Azure Services
