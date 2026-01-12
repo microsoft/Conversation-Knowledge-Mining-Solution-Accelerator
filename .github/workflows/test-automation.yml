@@ -24,6 +24,11 @@ on:
       EMAILNOTIFICATION_LOGICAPP_URL_TA:
         required: false
         description: "Logic App URL for email notifications"
+
+permissions:
+  contents: read
+  actions: read
+
 env:
   # Use input URL if provided (from deploy pipeline), otherwise fall back to vars
   url: ${{ inputs.KMGENERIC_URL  }}
