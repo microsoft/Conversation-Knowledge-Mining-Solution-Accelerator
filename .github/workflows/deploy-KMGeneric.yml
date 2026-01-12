@@ -30,7 +30,7 @@ jobs:
       API_APP_URL: ${{ steps.get_output.outputs.API_APP_URL }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       
       - name: Login to Azure
         run: |

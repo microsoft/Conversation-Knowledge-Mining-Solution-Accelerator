@@ -16,11 +16,11 @@ jobs:
     steps:
       # Step 1: Checkout the code from your repository
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # Step 2: Validate the Azure template using microsoft/template-validation-action
       - name: Validate Azure Template
-        uses: microsoft/template-validation-action@v0.4.3
+        uses: microsoft/template-validation-action@v0.4.4
         id: validation
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
