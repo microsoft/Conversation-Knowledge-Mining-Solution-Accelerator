@@ -535,7 +535,7 @@ Now that your deployment is complete and tested, explore these resources to enha
 📚 **Learn More:**
 - [Technical Architecture](./TechnicalArchitecture.md) - Understand the system design and components
 - [Customize Data](./CustomizeData.md) - Use your own conversation data with the solution
-- [Local Development Setup](./LocalDebuggingSetup.md) - Set up your local development environment for debugging
+- [Local Development Setup](./LocalDevelopmentSetup.md) - Set up your local development environment for debugging
 
 🔧 **Advanced Configuration:**
 - [Customize AZD Parameters](./CustomizingAzdParameters.md) - Advanced parameter customization
@@ -554,7 +554,7 @@ Now that your deployment is complete and tested, explore these resources to enha
 
 If you've made local modifications to the code and want to deploy them to Azure, follow these steps to swap the configuration files:
 
-> **Note:** To set up and run the application locally for development, see the [Local Development Setup Guide](./LocalDebuggingSetup.md).
+> **Note:** To set up and run the application locally for development, see the [Local Development Setup Guide](./LocalDevelopmentSetup.md).
 
 ### Step 1: Rename Azure Configuration Files
 
