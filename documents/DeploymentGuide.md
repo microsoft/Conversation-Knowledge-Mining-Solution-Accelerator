@@ -127,21 +127,21 @@ You can run this solution in VS Code Dev Containers, which will open the project
     sh install.sh
     ```
     During this process, you’ll be prompted with the message:
-   <br> Choose “**Overwrite with versions from template**” and provide a unique environment name when prompted.
     ```
     What would you like to do with these files?
     - Overwrite with versions from template
     - Keep my existing files unchanged
     ```
+    <br> Choose “**Overwrite with versions from template**” and provide a unique environment name when prompted.
     
-7. **Authenticate with Azure** (VS Code Web requires device code authentication):
+6. **Authenticate with Azure** (VS Code Web requires device code authentication):
    
    ```shell
    az login --use-device-code
    ```
    > **Note:** In VS Code Web environment, the regular `az login` command may fail. Use the `--use-device-code` flag to authenticate via device code flow. Follow the prompts in the terminal to complete authentication.
    
-8. Continue with the [deploying steps](#deploying-with-azd).
+7. Continue with the [deploying steps](#deploying-with-azd).
 
 </details>
 
