@@ -29,6 +29,20 @@ updates:
         patterns:
           - "*"
 
+  # Python index scripts dependencies - grouped
+  - package-ecosystem: "pip"
+    directory: "/infra/scripts/index_scripts"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      index-scripts-deps:
+        patterns:
+          - "*"
+
   # Frontend npm dependencies - grouped
   - package-ecosystem: "npm"
     directory: "/src/App"
