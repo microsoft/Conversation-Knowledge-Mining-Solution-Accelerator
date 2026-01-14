@@ -42,7 +42,7 @@ on:
         required: false
         default: 'GoldenPath-Testing'
         type: string
-      azure_env_log_anlytics_workspace_id:
+      azure_env_log_analytics_workspace_id:
         description: 'Log Analytics Workspace ID (Optional)'
         required: false
         default: ''
@@ -74,7 +74,7 @@ jobs:
     secrets: inherit
 
   deploy:
-    if: always() && (inputs.trigger_type != 'workflow_dispatch' || inputs.existing_webapp_url == '' || inputs.existing_webapp_url == null)
+    if: "!cancelled() && (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped') && (inputs.trigger_type != 'workflow_dispatch' || inputs.existing_webapp_url == '' || inputs.existing_webapp_url == null)"
     needs: docker-build
     uses: ./.github/workflows/job-azure-deploy.yml
     with:
@@ -86,7 +86,7 @@ jobs:
       exp: ${{ inputs.exp }}
       build_docker_image: ${{ inputs.build_docker_image }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
-      azure_env_log_anlytics_workspace_id: ${{ inputs.azure_env_log_anlytics_workspace_id }}
+      azure_env_log_analytics_workspace_id: ${{ inputs.azure_env_log_analytics_workspace_id }}
       azure_existing_ai_project_resource_id: ${{ inputs.azure_existing_ai_project_resource_id }}
       docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
@@ -94,7 +94,7 @@ jobs:
     secrets: inherit
 
   e2e-test:
-    if: always() && ((needs.deploy.result == 'success' && needs.deploy.outputs.WEB_APP_URL != '') || (inputs.existing_webapp_url != '' && inputs.existing_webapp_url != null)) && (inputs.trigger_type != 'workflow_dispatch' || (inputs.run_e2e_tests != 'None' && inputs.run_e2e_tests != '' && inputs.run_e2e_tests != null))
+    if: "!cancelled() && ((needs.deploy.result == 'success' && needs.deploy.outputs.WEB_APP_URL != '') || (inputs.existing_webapp_url != '' && inputs.existing_webapp_url != null)) && (inputs.trigger_type != 'workflow_dispatch' || (inputs.run_e2e_tests != 'None' && inputs.run_e2e_tests != '' && inputs.run_e2e_tests != null))"
     needs: [docker-build, deploy]
     uses: ./.github/workflows/job-test-automation.yml
     with:
@@ -104,7 +104,7 @@ jobs:
     secrets: inherit
 
   send-notification:
-    if: always()
+    if: "!cancelled()"
     needs: [docker-build, deploy, e2e-test]
     uses: ./.github/workflows/job-send-notifications.yml
     with:
@@ -123,7 +123,7 @@ jobs:
     secrets: inherit
 
   cleanup-deployment:
-    if: always() && needs.deploy.result == 'success' && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources)
+    if: "!cancelled() && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources)"
     needs: [docker-build, deploy, e2e-test]
     uses: ./.github/workflows/job-cleanup-resources.yml
     with:
