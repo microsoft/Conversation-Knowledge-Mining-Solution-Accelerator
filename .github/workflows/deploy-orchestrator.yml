@@ -57,6 +57,11 @@ on:
         required: false
         default: ''
         type: string
+      azure_env_use_case:
+        description: 'Azure Environment Use Case (telecom or IT_helpdesk)'
+        required: false
+        default: 'telecom'
+        type: string
       trigger_type:
         description: 'Trigger type (workflow_dispatch, pull_request, schedule)'
         required: true
@@ -88,6 +93,7 @@ jobs:
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
       azure_env_log_analytics_workspace_id: ${{ inputs.azure_env_log_analytics_workspace_id }}
       azure_existing_ai_project_resource_id: ${{ inputs.azure_existing_ai_project_resource_id }}
+      azure_env_use_case: ${{ inputs.azure_env_use_case }}
       docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
       cleanup_resources: ${{ inputs.cleanup_resources }}
@@ -101,6 +107,7 @@ jobs:
       KMGENERIC_URL: ${{ needs.deploy.outputs.WEB_APP_URL || inputs.existing_webapp_url }}
       KMGENERIC_URL_API: ${{ needs.deploy.outputs.API_APP_URL || inputs.existing_webapp_url }}
       TEST_SUITE: ${{ inputs.trigger_type == 'workflow_dispatch' && inputs.run_e2e_tests || 'GoldenPath-Testing' }}
+      AZURE_ENV_USE_CASE: ${{ inputs.azure_env_use_case }}
     secrets: inherit
 
   send-notification:

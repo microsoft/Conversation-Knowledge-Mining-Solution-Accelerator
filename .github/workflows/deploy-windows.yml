@@ -45,6 +45,14 @@ on:
         required: false
         default: false
         type: boolean
+      AZURE_ENV_USE_CASE:
+        description: 'Specify Use case to deploy'
+        type: 'choice'
+        options:
+          - 'telecom'
+          - 'IT_helpdesk'
+        required: false
+        default: 'telecom'
       run_e2e_tests:
         description: 'Run End-to-End Tests'
         required: false
@@ -89,6 +97,7 @@ jobs:
       azure_env_log_analytics_workspace_id: ${{ steps.validate.outputs.azure_env_log_analytics_workspace_id }}
       azure_existing_ai_project_resource_id: ${{ steps.validate.outputs.azure_existing_ai_project_resource_id }}
       existing_webapp_url: ${{ steps.validate.outputs.existing_webapp_url }}
+      azure_env_use_case: ${{ steps.validate.outputs.azure_env_use_case }}
     steps:
       - name: Validate Workflow Input Parameters
         id: validate
@@ -104,6 +113,7 @@ jobs:
           INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ github.event.inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ github.event.inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
           INPUT_EXISTING_WEBAPP_URL: ${{ github.event.inputs.existing_webapp_url }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ github.event.inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "🔍 Validating workflow input parameters..."
           VALIDATION_FAILED=false
@@ -218,6 +228,15 @@ jobs:
             echo "✅ existing_webapp_url: Not provided (will perform deployment)"
           fi
           
+          # Validate AZURE_ENV_USE_CASE (specific allowed values)
+          USE_CASE="${INPUT_AZURE_ENV_USE_CASE:-telecom}"
+          if [[ "$USE_CASE" != "telecom" && "$USE_CASE" != "IT_helpdesk" ]]; then
+            echo "❌ ERROR: AZURE_ENV_USE_CASE must be one of: telecom, IT_helpdesk, got: '$USE_CASE'"
+            VALIDATION_FAILED=true
+          else
+            echo "✅ AZURE_ENV_USE_CASE: '$USE_CASE' is valid"
+          fi
+          
           # Fail workflow if any validation failed
           if [[ "$VALIDATION_FAILED" == "true" ]]; then
             echo ""
@@ -240,6 +259,7 @@ jobs:
           echo "azure_env_log_analytics_workspace_id=$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" >> $GITHUB_OUTPUT
           echo "azure_existing_ai_project_resource_id=$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" >> $GITHUB_OUTPUT
           echo "existing_webapp_url=$INPUT_EXISTING_WEBAPP_URL" >> $GITHUB_OUTPUT
+          echo "azure_env_use_case=$USE_CASE" >> $GITHUB_OUTPUT
 
   Run:
     needs: validate-inputs
@@ -257,5 +277,6 @@ jobs:
       azure_env_log_analytics_workspace_id: ${{ needs.validate-inputs.outputs.azure_env_log_analytics_workspace_id || '' }}
       azure_existing_ai_project_resource_id: ${{ needs.validate-inputs.outputs.azure_existing_ai_project_resource_id || '' }}
       existing_webapp_url: ${{ needs.validate-inputs.outputs.existing_webapp_url || '' }}
+      azure_env_use_case: ${{ needs.validate-inputs.outputs.azure_env_use_case || 'telecom' }}
       trigger_type: ${{ github.event_name }}
     secrets: inherit

@@ -34,6 +34,10 @@ on:
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
         required: false
         type: string
+      AZURE_ENV_USE_CASE:
+        required: false
+        type: string
+        default: 'telecom'
     outputs:
       WEB_APP_URL:
         description: "Web App URL"
@@ -65,6 +69,7 @@ jobs:
           INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
           INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "🔍 Validating workflow input parameters..."
           VALIDATION_FAILED=false
@@ -175,6 +180,15 @@ jobs:
             fi
           fi
           
+          # Validate AZURE_ENV_USE_CASE (optional, must be 'telecom' or 'IT_helpdesk')
+          USE_CASE="${INPUT_AZURE_ENV_USE_CASE:-telecom}"
+          if [[ "$USE_CASE" != "telecom" && "$USE_CASE" != "IT_helpdesk" ]]; then
+            echo "❌ ERROR: AZURE_ENV_USE_CASE must be one of: telecom, IT_helpdesk, got: '$USE_CASE'"
+            VALIDATION_FAILED=true
+          else
+            echo "✅ AZURE_ENV_USE_CASE: '$USE_CASE' is valid"
+          fi
+          
           # Fail workflow if any validation failed
           if [[ "$VALIDATION_FAILED" == "true" ]]; then
             echo ""
@@ -224,6 +238,7 @@ jobs:
           EXP: ${{ inputs.EXP }}
           AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           set -e          
           echo "Starting azd deployment..."
@@ -246,6 +261,7 @@ jobs:
           azd env set AZURE_LOCATION="$AZURE_LOCATION"
           azd env set AZURE_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
           azd env set AZURE_ENV_IMAGETAG="$IMAGE_TAG"
+          azd env set AZURE_ENV_USE_CASE="$AZURE_ENV_USE_CASE"
           
           if [[ "$BUILD_DOCKER_IMAGE" == "true" ]]; then
             ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}")
@@ -310,6 +326,7 @@ jobs:
           AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
           IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+          AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "## 🚀 Deploy Job Summary (Linux)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -321,6 +338,7 @@ jobs:
           echo "| **Azure Region (Infrastructure)** | \`$AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure OpenAI Region** | \`$AZURE_ENV_OPENAI_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Docker Image Tag** | \`$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Use Case** | \`$AZURE_ENV_USE_CASE\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ job.status }}" == "success" ]]; then
             echo "### ✅ Deployment Details" >> $GITHUB_STEP_SUMMARY
