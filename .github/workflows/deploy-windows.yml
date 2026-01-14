@@ -70,6 +70,10 @@ on:
         default: ''
         type: string
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   Run:
     uses: ./.github/workflows/deploy-orchestrator.yml
