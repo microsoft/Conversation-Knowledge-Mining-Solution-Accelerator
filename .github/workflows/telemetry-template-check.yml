@@ -7,6 +7,10 @@ on:
     paths:
       - 'azure.yaml'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   validate-template-property:
     name: validate-template-property

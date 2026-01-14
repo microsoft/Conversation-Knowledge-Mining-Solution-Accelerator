@@ -28,6 +28,10 @@ on:
       - 'src/api/requirements*.txt'
       - '.github/workflows/test.yml'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   #   frontend_tests:
   #     runs-on: ubuntu-latest
