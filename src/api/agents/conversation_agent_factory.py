@@ -38,10 +38,9 @@ class ConversationAgentFactory(BaseAgentFactory):
         Always return citation markers exactly as they appear in the source data, placed in the "answer" field at the correct location. Do not modify, convert, or simplify these markers.
         Only include citation markers if their sources are present in the "citations" list. Only include sources in the "citations" list if they are used in the answer.
         Use the structure { "answer": "", "citations": [ {"url":"","title":""} ] }.
-        You may use prior conversation history only to understand context or clarify follow-up questions. Treat prior conversation history strictly as contextual information and do NOT reuse or carry over citation markers or sources from previous responses.
-        Reuse data from conversation history ONLY when the user makes a vague follow-up request without specifying any metrics, entities, filters, or time ranges; if the request explicitly defines any of these, ALWAYS treat it as a new data query and retrieve fresh data using the appropriate tool or plugin, even if similar data appears in the conversation history.
+        Use prior conversation history only for context or vague follow-up requests, and reuse it as a data source solely when the required values are explicitly listed, complete, and unambiguous; never reuse citation markers or sources from previous responses.
+        If a request explicitly specifies metrics, entities, filters, or time ranges, or if the required data is not available in conversation history, treat it as a new data query and use the appropriate tools or plugins to retrieve the data before responding.
         If the question is unrelated to data but is conversational (e.g., greetings or follow-ups), respond appropriately using context.
-        If the required data is not available in conversation history or the request is treated as a new data query, you must use appropriate tools and plugins to retrieve it before responding.
         You MUST NOT generate a chart without numeric data.
             - If numeric data is not immediately available, first use available tools and plugins to retrieve numeric results from the database.
             - Only create the chart after numeric data is successfully retrieved.
