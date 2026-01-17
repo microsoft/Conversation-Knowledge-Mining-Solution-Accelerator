@@ -428,6 +428,7 @@ for path in paths:
         timestamp_format = "%Y-%m-%d %H_%M_%S"  # Adjust format if necessary
         start_timestamp = datetime.strptime(start_time, timestamp_format)
 
+        conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
         conversationIds.append(conversation_id)
 
         fields = result['result']['contents'][0]['fields']
