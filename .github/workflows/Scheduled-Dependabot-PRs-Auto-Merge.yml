@@ -42,6 +42,23 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y gh
+
+      - name: Retarget Dependabot PRs from main to dependabotchanges
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 Checking for Dependabot PRs targeting 'main' that need retargeting..."
+          pr_batch=$(gh pr list --state open --json number,title,author,baseRefName,headRefName \
+            --jq '.[] | "\(.number)|\(.title)|\(.author.login)|\(.baseRefName)|\(.headRefName)"')
+          while IFS='|' read -r number title author base head; do
+            author=$(echo "$author" | xargs)
+            base=$(echo "$base" | xargs)
+            if [[ "$author" == "app/dependabot" && "$base" == "main" ]]; then
+              echo "🔀 Retargeting PR #$number from 'main' to 'dependabotchanges'..."
+              gh pr edit "$number" --base dependabotchanges || echo "⚠️ Failed to retarget PR #$number"
+            fi
+          done <<< "$pr_batch"
+
       - name: Fetch & Filter Dependabot PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
