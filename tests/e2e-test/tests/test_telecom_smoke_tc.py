@@ -74,7 +74,7 @@ def test_after_filter_functioning(login_logout, request):
 
     logger.info("Step 4: Validate filter data is reflecting in charts/graphs")
     billing_data = km_page.validate_trending_topics_entry("Billing Issues")
-    logger.info(f"Billing issues data validated: {billing_data}")
+    logger.info("Billing issues data validation completed")
     
     km_page.validate_dashboard_charts()
 
