@@ -308,7 +308,7 @@ jobs:
           fi
           
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Login to Azure
         shell: bash
