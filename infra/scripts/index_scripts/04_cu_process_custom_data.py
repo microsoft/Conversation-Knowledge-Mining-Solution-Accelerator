@@ -171,13 +171,22 @@ def create_search_index():
 create_search_index()
 
 # SQL Server setup
-DRIVER = "{ODBC Driver 18 for SQL Server}"
-token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
-token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
-SQL_COPT_SS_ACCESS_TOKEN = 1256
-connection_string = f"DRIVER={DRIVER};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
-conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
-cursor = conn.cursor()
+try: 
+    driver = "{ODBC Driver 18 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    cursor = conn.cursor()
+except: 
+    driver = "{ODBC Driver 17 for SQL Server}"
+    token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+    SQL_COPT_SS_ACCESS_TOKEN = 1256
+    connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
+    conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
+    cursor = conn.cursor()
 
 # Content Understanding client
 cu_credential = AzureCliCredential(process_timeout=30)
