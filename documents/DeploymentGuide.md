@@ -363,14 +363,13 @@ bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh \
 ```
 
 **Parameter Descriptions:**
-- **project-endpoint:** The AI Foundry project endpoint URL
-- **solution-name:** The name of your solution deployment
-- **gpt-model-name:** The name of the deployed GPT model
-- **ai-foundry-resource-id:** The Azure resource ID of the AI Foundry project
-- **api-app-name:** The name of the API application
-- **azure-ai-search-connection-name:** The connection name for Azure AI Search service
-- **azure-ai-search-index:** The name of the Azure AI Search index
-- **resource-group:** The Azure resource group name
+- **AI Foundry Parameters:** AI Foundry project endpoint URL and resource ID
+- **Solution Parameters:** Solution deployment name
+- **AI Model Parameters:** Deployed GPT model name
+- **Application Parameters:** API application name
+- **Search Parameters:** Azure AI Search connection name and index name
+- **Resource Group Parameters:** Azure resource group name
+
 
 **5. Run the sample data processing script:**
 
