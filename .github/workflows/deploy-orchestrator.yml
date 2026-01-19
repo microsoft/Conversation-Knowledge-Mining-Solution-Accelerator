@@ -117,7 +117,7 @@ jobs:
     with:
       trigger_type: ${{ inputs.trigger_type }}
       waf_enabled: ${{ inputs.waf_enabled }}
-      exp: ${{ needs.deploy.outputs.EXP_ENABLED }}
+      exp: ${{ inputs.exp }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
       deploy_result: ${{ needs.deploy.result }}
