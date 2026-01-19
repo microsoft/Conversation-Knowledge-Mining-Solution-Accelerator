@@ -24,6 +24,11 @@ on:
       EMAILNOTIFICATION_LOGICAPP_URL_TA:
         required: false
         description: "Logic App URL for email notifications"
+
+permissions:
+  contents: read
+  actions: read
+
 env:
   # Use input URL if provided (from deploy pipeline), otherwise fall back to vars
   url: ${{ inputs.KMGENERIC_URL  }}
@@ -35,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -118,7 +123,7 @@ jobs:
 
       - name: Upload test report
         id: upload_report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: ${{ !cancelled() }}
         with:
 

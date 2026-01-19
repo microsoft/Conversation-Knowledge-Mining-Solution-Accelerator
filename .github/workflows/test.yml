@@ -28,13 +28,17 @@ on:
       - 'src/api/requirements*.txt'
       - '.github/workflows/test.yml'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   #   frontend_tests:
   #     runs-on: ubuntu-latest
 
 #     steps:
 #       - name: Checkout code
-#         uses: actions/checkout@v5
+#         uses: actions/checkout@v6
 
   #       - name: Set up Node.js
   #         uses: actions/setup-node@v3
@@ -74,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6

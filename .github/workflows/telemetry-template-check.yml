@@ -7,6 +7,10 @@ on:
     paths:
       - 'azure.yaml'
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   validate-template-property:
     name: validate-template-property
@@ -14,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check for required metadata template line
         run: |
