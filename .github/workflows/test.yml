@@ -7,6 +7,11 @@ on:
       - dev
       - demo
       - psl-backend-unittest
+    paths:
+      - 'src/**/*.py'
+      - 'src/tests/**'
+      - 'src/api/requirements*.txt'
+      - '.github/workflows/test.yml'
   pull_request:
     types:
       - opened
@@ -17,6 +22,15 @@ on:
       - main
       - dev
       - demo
+    paths:
+      - 'src/**/*.py'
+      - 'src/tests/**'
+      - 'src/api/requirements*.txt'
+      - '.github/workflows/test.yml'
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   #   frontend_tests:
@@ -24,7 +38,7 @@ jobs:
 
 #     steps:
 #       - name: Checkout code
-#         uses: actions/checkout@v5
+#         uses: actions/checkout@v6
 
   #       - name: Set up Node.js
   #         uses: actions/setup-node@v3
@@ -64,7 +78,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Python
         uses: actions/setup-python@v6
