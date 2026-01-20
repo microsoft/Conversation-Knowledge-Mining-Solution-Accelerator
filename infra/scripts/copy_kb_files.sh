@@ -45,16 +45,37 @@ if ! az account show &> /dev/null; then
 	az login --use-device-code
 fi
 
-# Check and assign Storage Blob Data Contributor role to current user
-signed_user_id=$(az ad signed-in-user show --query id --output tsv 2>&1)
-if [ -z "$signed_user_id" ] || [[ "$signed_user_id" == *"ERROR"* ]] || [[ "$signed_user_id" == *"InteractionRequired"* ]]; then
-    echo "✗ Failed to get signed-in user ID. Token may have expired. Re-authenticating..."
-    az login --use-device-code
-    signed_user_id=$(az ad signed-in-user show --query id --output tsv)
+# Check and assign Storage Blob Data Contributor role to current identity (user or service principal)
+# First, determine if we're running as a user or service principal
+account_type=$(az account show --query user.type --output tsv 2>/dev/null)
+
+if [ "$account_type" == "user" ]; then
+    # Running as a user - get signed-in user ID
+    signed_user_id=$(az ad signed-in-user show --query id --output tsv 2>&1)
+    if [ -z "$signed_user_id" ] || [[ "$signed_user_id" == *"ERROR"* ]] || [[ "$signed_user_id" == *"InteractionRequired"* ]]; then
+        echo "✗ Failed to get signed-in user ID. Token may have expired. Re-authenticating..."
+        az login --use-device-code
+        signed_user_id=$(az ad signed-in-user show --query id --output tsv)
+        if [ -z "$signed_user_id" ]; then
+            echo "✗ Failed to get signed-in user ID after re-authentication"
+            exit 1
+        fi
+    fi
+    echo "✓ Running as user: $signed_user_id"
+elif [ "$account_type" == "servicePrincipal" ]; then
+    # Running as a service principal - get SP object ID
+    client_id=$(az account show --query user.name --output tsv 2>/dev/null)
+    if [ -n "$client_id" ]; then
+        signed_user_id=$(az ad sp show --id "$client_id" --query id --output tsv 2>/dev/null)
+    fi
     if [ -z "$signed_user_id" ]; then
-        echo "✗ Failed to get signed-in user ID after re-authentication"
+        echo "✗ Failed to get service principal object ID"
         exit 1
     fi
+    echo "✓ Running as service principal: $signed_user_id"
+else
+    echo "✗ Unknown account type: $account_type"
+    exit 1
 fi
 
 storage_resource_id=$(az storage account show --name "$storageAccountName" --resource-group "$resourceGroupName" --query id --output tsv)

@@ -6,9 +6,23 @@ keyvaultName="$1"
 fabricWorkspaceId="$2"
 solutionName="$3"
 
-# get signed user
-echo "Getting signed in user id"
-signed_user_id=$(az ad signed-in-user show --query id -o tsv)
+# Determine if we're running as a user or service principal
+echo "Getting signed in user/service principal id"
+account_type=$(az account show --query user.type --output tsv 2>/dev/null)
+
+if [ "$account_type" == "user" ]; then
+    # Running as a user - get signed-in user ID
+    signed_user_id=$(az ad signed-in-user show --query id -o tsv)
+elif [ "$account_type" == "servicePrincipal" ]; then
+    # Running as a service principal - get SP object ID
+    client_id=$(az account show --query user.name --output tsv 2>/dev/null)
+    if [ -n "$client_id" ]; then
+        signed_user_id=$(az ad sp show --id "$client_id" --query id --output tsv 2>/dev/null)
+    fi
+else
+    echo "Error: Unknown account type: $account_type"
+    exit 1
+fi
 
 # Check if the user_id is empty
 if [ -z "$signed_user_id" ]; then

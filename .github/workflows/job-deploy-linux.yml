@@ -307,6 +307,16 @@ jobs:
           echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
           echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
 
+      - name: Install ODBC Driver for SQL Server
+        shell: bash
+        run: |
+          echo "Installing ODBC Driver 18 for SQL Server..."
+          curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+          curl -fsSL https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          echo "✅ ODBC Driver 18 installed successfully."
+
       - name: Process Sample Data
         shell: bash
         run: |
