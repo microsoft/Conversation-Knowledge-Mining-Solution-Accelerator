@@ -297,24 +297,22 @@ jobs:
           azd up --no-prompt
           
           echo "✅ Deployment succeeded."
-          echo "$DEPLOY_OUTPUT"
 
           echo "Extracting deployment outputs..."
-          DEPLOY_OUTPUT=$(azd env get-values --output json)
-          echo "Deployment output: $DEPLOY_OUTPUT"
-          
-          if [[ -z "$DEPLOY_OUTPUT" ]]; then
-            echo "Error: Deployment output is empty. Please check the deployment logs."
-            exit 1
-          fi
+          API_APP_URL=$(azd env get-value API_APP_URL)
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_ENV
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_OUTPUT
 
-          API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+          WEB_APP_URL=$(azd env get-value WEB_APP_URL)
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
 
-          WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
+      - name: Process Sample Data
+        shell: bash
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
 
       - name: Generate Deployment Summary
         if: always()
