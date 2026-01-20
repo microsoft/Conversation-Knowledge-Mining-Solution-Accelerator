@@ -21,17 +21,6 @@ services:
     project: ./src/App
     language: js
     host: appservice
-    dist: ./build
-    hooks:
-      prepackage:
-        windows:
-          shell: pwsh
-          run: ../../infra/scripts/package_webapp.ps1
-          continueOnError: false
-        posix:
-          shell: sh
-          run: bash ../../infra/scripts/package_webapp.sh
-          continueOnError: false
 
 hooks:
   postprovision:
@@ -41,7 +30,7 @@ hooks:
       interactive: true
       run: |
         Write-Host "Web app URL: $env:WEB_APP_URL" -ForegroundColor Cyan
-        Write-Host "`nRun: bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Yellow
+        Write-Host "`nRun the following command in bash, if sample data needs to be processed:`nbash ./infra/scripts/process_sample_data.sh" -ForegroundColor Yellow
     posix:
       shell: sh
       continueOnError: false
@@ -49,4 +38,5 @@ hooks:
       run: |
         echo "Web app URL: $WEB_APP_URL"
         echo ""
-        echo "Run: bash ./infra/scripts/process_sample_data.sh"
+        echo "Run the following command in bash, if sample data needs to be processed:"
+        echo "bash ./infra/scripts/process_sample_data.sh"

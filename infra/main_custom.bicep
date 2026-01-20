@@ -112,7 +112,7 @@ param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_waf_2025-09-18_898'
+param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
 param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
@@ -121,7 +121,7 @@ param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_waf_2025-09-18_898'
+param frontendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -217,25 +217,21 @@ var logAnalyticsWorkspaceResourceId = useExistingLogAnalytics
 resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
   name: 'default'
   properties: {
-    tags: union(
-      reference(
-        resourceGroup().id, 
-        '2021-04-01', 
-        'Full'
-      ).tags ?? {},
-      {
-        TemplateName: 'KM-Generic'
-        Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
-        CreatedBy: createdBy
-      },
-      tags
-    )
+    tags:{
+      ...resourceGroup().tags
+      TemplateName: 'KM-Generic'
+      Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
+      CreatedBy: createdBy
+      DeploymentName: deployment().name
+      UseCase: usecase
+      ...tags
+    }
   }
 }
 
 #disable-next-line no-deployments-resources
 resource avmTelemetry 'Microsoft.Resources/deployments@2024-03-01' = if (enableTelemetry) {
-  name: '46d3xbcp.ptn.sa-multiagentcustauteng.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
+  name: '46d3xbcp.ptn.sa-convknowledgemining.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
   properties: {
     mode: 'Incremental'
     template: {
@@ -392,9 +388,9 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
     tags: tags
     availabilityZone: -1
     imageReference: {
-      offer: 'WindowsServer'
-      publisher: 'MicrosoftWindowsServer'
-      sku: '2019-datacenter'
+      publisher: 'microsoft-dsvm'
+      offer: 'dsvm-win-2022'
+      sku: 'winserver-2022'
       version: 'latest'
     }
     osType: 'Windows'
@@ -748,6 +744,7 @@ module searchSearchServices 'br/public:avm/res/search/search-service:0.12.0' = {
   params: {
     // Required parameters
     name: aiSearchName
+    enableTelemetry: enableTelemetry
     diagnosticSettings: enableMonitoring ? [
       {
         workspaceResourceId: logAnalyticsWorkspaceResourceId
@@ -848,10 +845,6 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
       location: searchSearchServices.outputs.location
     }
   }
-  dependsOn: [
-    aiFoundryAiServices
-    searchSearchServices
-  ]
 }
 
 module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_connection.bicep' = if (useExistingAiFoundryAiProject) {
@@ -914,11 +907,11 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
     ]
     networkAcls: {
       bypass: 'AzureServices, Logging, Metrics'
-      defaultAction: 'Allow'
+      defaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
       virtualNetworkRules: []
     }
     allowSharedKeyAccess: true
-    allowBlobPublicAccess: true
+    allowBlobPublicAccess: false
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking
       ? [
@@ -1018,6 +1011,18 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.18.0' = {
         ]
       }
     ]
+    sqlRoleDefinitions: [
+      {
+        // Cosmos DB Built-in Data Contributor: https://docs.azure.cn/en-us/cosmos-db/nosql/security/reference-data-plane-roles#cosmos-db-built-in-data-contributor
+        roleName: 'Cosmos DB SQL Data Contributor'
+        dataActions: [
+          'Microsoft.DocumentDB/databaseAccounts/readMetadata'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/*'
+          'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers/items/*'
+        ]
+        assignments: [{ principalId: backendUserAssignedIdentity.outputs.principalId }]
+      }
+    ]
     // WAF aligned configuration for Monitoring
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     // WAF aligned configuration for Private Networking
@@ -1041,9 +1046,9 @@ module cosmosDb 'br/public:avm/res/document-db/database-account:0.18.0' = {
         ]
       : []
     // WAF aligned configuration for Redundancy
-    zoneRedundant: enableRedundancy ? true : false
+    zoneRedundant: enableRedundancy
     capabilitiesToAdd: enableRedundancy ? null : ['EnableServerless']
-    enableAutomaticFailover: enableRedundancy ? true : false
+    enableAutomaticFailover: enableRedundancy
     failoverLocations: enableRedundancy
       ? [
           {
@@ -1076,6 +1081,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.21.1' = {
   params: {
     // Required parameters
     name: sqlServerResourceName
+    enableTelemetry: enableTelemetry
     // Non-required parameters
     administrators: {
       azureADOnlyAuthentication: true
@@ -1103,7 +1109,7 @@ module sqlDBModule 'br/public:avm/res/sql/server:0.21.1' = {
           capacity: 2
         }
         // Note: Zone redundancy is not supported for serverless SKUs (GP_S_Gen5)
-        zoneRedundant: enableRedundancy ? true : false
+        zoneRedundant: enableRedundancy
       }
     ]
     location: secondaryLocation
@@ -1270,7 +1276,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
       linuxFxVersion: 'PYTHON|3.11'
       minTlsVersion: '1.2'
       alwaysOn: true
-      appCommandLine: 'gunicorn --bind=0.0.0.0:8000 --timeout 600 --worker-class uvicorn.workers.UvicornWorker app:app'
+      appCommandLine: 'uvicorn app:app --host 0.0.0.0 --port 8000'
     }
     configs: [
       {
@@ -1335,17 +1341,19 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
-      linuxFxVersion: 'NODE|18-lts'
+      linuxFxVersion: 'NODE|20-lts'
       minTlsVersion: '1.2'
       alwaysOn: true
-      appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon --spa'
+      appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
-          SCM_DO_BUILD_DURING_DEPLOYMENT: 'false'
-          WEBSITE_NODE_DEFAULT_VERSION: '~18'
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          REACT_APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          WEBSITE_NODE_DEFAULT_VERSION: '~20'
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
