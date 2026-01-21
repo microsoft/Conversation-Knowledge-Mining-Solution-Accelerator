@@ -4,9 +4,10 @@ If you would like to update the solution to leverage your own data please follow
 > Note: you will need to complete the deployment steps [here](./DeploymentGuide.md) before proceeding. 
 
 ## Prerequisites: 
-1. Your data will need to be in JSON or wav format with the file name formated prefixed with "convo" then a GUID followed by a timestamp.
-    * Example: convo_32e38683-bbf7-407e-a541-09b37b77921d_2024-12-07 04_00_00.wav
-
+1. Your data will need to be in JSON or wav format with the file name formated prefixed with "convo" then a GUID followed by a timestamp. For more examples of the data format, please review the sample transcripts and audio data included [here](/infra/data/telecom)
+    * Example: 
+        * Transcripts: `convo_32e38683-bbf7-407e-a541-09b37b77921d_2024-12-07 04%3A00%3A00.json`
+        * Audio: `convo_2c703f97-6657-4a15-b8b2-db6b96630b2d_2024-12-06 06_00_00.wav`
 
 1. Navigate to the storage account in the resource group you are using for this solution. 
 2. Open the `data` container
