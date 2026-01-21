@@ -92,7 +92,25 @@ if [ -z "$role_assignment" ]; then
         echo "✗ Failed to assign Storage Blob Data Contributor role"
         exit 1
     fi
+fi
+
+# Wait for role assignment to propagate by testing storage access
+echo "⏳ Waiting for role assignment to propagate..."
+max_retries=30
+retry_count=0
+while [ $retry_count -lt $max_retries ]; do
+    if az storage container list --account-name "$storageAccountName" --auth-mode login --output none 2>/dev/null; then
+        echo "✓ Role assignment propagated successfully"
+        break
+    fi
+    retry_count=$((retry_count + 1))
+    echo "  Attempt $retry_count/$max_retries - waiting 10 seconds..."
     sleep 10
+done
+
+if [ $retry_count -eq $max_retries ]; then
+    echo "✗ Role assignment did not propagate within expected time"
+    exit 1
 fi
 
 # Upload files to storage account
