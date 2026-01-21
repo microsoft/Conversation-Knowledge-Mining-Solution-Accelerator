@@ -337,6 +337,8 @@ jobs:
         id: process_sample_data
         continue-on-error: true
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           echo "Running process_sample_data.sh..."
           bash ./infra/scripts/process_sample_data.sh
@@ -345,6 +347,8 @@ jobs:
       - name: Retry Process Sample Data
         if: steps.process_sample_data.outcome == 'failure'
         shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 5
