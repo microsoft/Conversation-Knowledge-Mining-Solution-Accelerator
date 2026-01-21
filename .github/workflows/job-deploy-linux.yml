@@ -283,7 +283,7 @@ jobs:
             if [[ -n "$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
               EXP_AI_PROJECT_ID="$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID"
             else
-              EXP_AI_PROJECT_ID="${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}"
+              EXP_AI_PROJECT_ID="${{ secrets.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}"
             fi
             
             echo "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
@@ -328,11 +328,22 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
           echo "✅ ODBC Driver 18 for SQL Server installed successfully."
       - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
         shell: bash
         run: |
           echo "Running process_sample_data.sh..."
           bash ./infra/scripts/process_sample_data.sh
           echo "✅ Sample data processing completed successfully."
+
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 5
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
