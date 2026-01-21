@@ -1,0 +1,42 @@
+name: conversation-knowledge-mining
+
+requiredVersions:
+  azd: ">= 1.18.0"
+
+metadata:
+  template: conversation-knowledge-mining@1.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+  parameters: infra/main.parameters.json
+
+services:
+  api:
+    project: ./src/api
+    language: py
+    host: appservice
+  webapp:
+    project: ./src/App
+    language: js
+    host: appservice
+
+hooks:
+  postprovision:
+    windows:
+      shell: pwsh
+      continueOnError: false
+      interactive: true
+      run: |
+        Write-Host "Web app URL: $env:WEB_APP_URL" -ForegroundColor Cyan
+        Write-Host "`nRun the following command in bash, if sample data needs to be processed:`nbash ./infra/scripts/process_sample_data.sh" -ForegroundColor Yellow
+    posix:
+      shell: sh
+      continueOnError: false
+      interactive: true
+      run: |
+        echo "Web app URL: $WEB_APP_URL"
+        echo ""
+        echo "Run the following command in bash, if sample data needs to be processed:"
+        echo "bash ./infra/scripts/process_sample_data.sh"
