@@ -165,7 +165,18 @@ fi
 if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
     mi_display_name="$backendManagedIdentityDisplayName"
     server_fqdn="$sqlServerName.database.windows.net"
-    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
+    
+    # Determine isServicePrincipal based on account type
+    # When running as servicePrincipal, use SID-based approach
+    # When running as user, use FROM EXTERNAL PROVIDER
+    if [ "$account_type" == "servicePrincipal" ]; then
+        is_sp="true"
+    else
+        is_sp="false"
+    fi
+    
+    # Managed identity role assignments
+    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\",\"isServicePrincipal\":$is_sp},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\",\"isServicePrincipal\":$is_sp}]"
 
     if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"
