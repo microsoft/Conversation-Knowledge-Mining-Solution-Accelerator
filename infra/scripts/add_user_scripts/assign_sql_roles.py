@@ -81,7 +81,6 @@ def assign_sql_roles(server, database, roles_json):
             client_id = role_assignment.get("clientId")
             display_name = role_assignment.get("displayName")
             role = role_assignment.get("role")
-            is_service_principal = role_assignment.get("isServicePrincipal", False)
             
             if not client_id or not display_name or not role:
                 continue
@@ -92,16 +91,11 @@ def assign_sql_roles(server, database, roles_json):
             user_exists = cursor.fetchone()[0] > 0
             
             if not user_exists:
+                # Create user from external provider using SID
+                # This approach doesn't require MS Graph permissions on SQL Server
+                sid = client_id_to_sid(client_id)
+                create_user_sql = f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E"
                 try:
-                    if is_service_principal:
-                        # For service principals, use SID-based approach
-                        # This doesn't require MS Graph permissions on SQL Server
-                        sid = client_id_to_sid(client_id)
-                        create_user_sql = f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E"
-                    else:
-                        # For regular users, use standard external provider approach
-                        create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
-                    
                     cursor.execute(create_user_sql)
                     conn.commit()
                     print(f"✓ Created user: {display_name}")
@@ -162,6 +156,7 @@ def main():
         required=True,
         help='JSON array of role assignments: [{"clientId": "...", "displayName": "...", "role": "..."}]'
     )
+    
     args = parser.parse_args()
     
     return assign_sql_roles(args.server, args.database, args.roles_json)
