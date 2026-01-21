@@ -34,6 +34,10 @@ on:
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
         required: false
         type: string
+      AZURE_ENV_USE_CASE:
+        required: false
+        type: string
+        default: 'telecom'
       AZURE_TAGS:
         required: false
         type: string
@@ -68,6 +72,7 @@ jobs:
           INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
           INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "🔍 Validating workflow input parameters..."
           VALIDATION_FAILED=false
@@ -156,7 +161,7 @@ jobs:
           
           # Validate AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID (optional, if provided must be valid Resource ID)
           if [[ -n "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/microsoft\.operationalinsights/workspaces/[^/]+$ ]]; then
+            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/[Mm]icrosoft\.[Oo]perational[Ii]nsights/[Ww]orkspaces/[^/]+$ ]]; then
               echo "❌ ERROR: AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}"
               echo "   Got: '$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID'"
@@ -168,7 +173,7 @@ jobs:
           
           # Validate AZURE_EXISTING_AI_PROJECT_RESOURCE_ID (optional, if provided must be valid Resource ID)
           if [[ -n "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/(Microsoft\.MachineLearningServices/(workspaces|projects)/[^/]+|Microsoft\.CognitiveServices/accounts/[^/]+/projects/[^/]+)$ ]]; then
+            if [[ ! "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/([Mm]icrosoft\.[Mm]achine[Ll]earning[Ss]ervices/([Ww]orkspaces|[Pp]rojects)/[^/]+|[Mm]icrosoft\.[Cc]ognitive[Ss]ervices/[Aa]ccounts/[^/]+/[Pp]rojects/[^/]+)$ ]]; then
               echo "❌ ERROR: AZURE_EXISTING_AI_PROJECT_RESOURCE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.CognitiveServices/accounts/{accountName}/projects/{projectName}"
               echo "   Got: '$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID'"
@@ -176,6 +181,15 @@ jobs:
             else
               echo "✅ AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: Valid Resource ID format"
             fi
+          fi
+          
+          # Validate AZURE_ENV_USE_CASE (optional, must be 'telecom' or 'IT_helpdesk')
+          USE_CASE="${INPUT_AZURE_ENV_USE_CASE:-telecom}"
+          if [[ "$USE_CASE" != "telecom" && "$USE_CASE" != "IT_helpdesk" ]]; then
+            echo "❌ ERROR: AZURE_ENV_USE_CASE must be one of: telecom, IT_helpdesk, got: '$USE_CASE'"
+            VALIDATION_FAILED=true
+          else
+            echo "✅ AZURE_ENV_USE_CASE: '$USE_CASE' is valid"
           fi
           
           # Fail workflow if any validation failed
@@ -189,7 +203,7 @@ jobs:
           echo "✅ All input parameters validated successfully!"
 
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Configure Parameters Based on WAF Setting
         shell: bash
@@ -228,6 +242,7 @@ jobs:
           INPUT_EXP: ${{ inputs.EXP }}
           INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           $ErrorActionPreference = "Stop"
           Write-Host "Starting azd deployment..."
@@ -247,6 +262,7 @@ jobs:
           azd env set AZURE_LOCATION="$env:INPUT_AZURE_LOCATION"
           azd env set AZURE_RESOURCE_GROUP="$env:INPUT_RESOURCE_GROUP_NAME"
           azd env set AZURE_ENV_IMAGETAG="$env:INPUT_IMAGE_TAG"
+          azd env set AZURE_ENV_USE_CASE="$env:INPUT_AZURE_ENV_USE_CASE"
           
           # Set ACR name only when building Docker image
           if ($env:INPUT_BUILD_DOCKER_IMAGE -eq "true") {
@@ -315,6 +331,7 @@ jobs:
           INPUT_AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           INPUT_AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
           INPUT_IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "## 🚀 Deploy Job Summary (Windows)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -338,6 +355,7 @@ jobs:
           echo "| **Azure Region (Infrastructure)** | \`$INPUT_AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure OpenAI Region** | \`$INPUT_AZURE_ENV_OPENAI_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Docker Image Tag** | \`$INPUT_IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Use Case** | \`$INPUT_AZURE_ENV_USE_CASE\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ job.status }}" == "success" ]; then
             echo "### ✅ Deployment Details" >> $GITHUB_STEP_SUMMARY
