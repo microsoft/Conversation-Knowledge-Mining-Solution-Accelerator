@@ -160,9 +160,8 @@ def main():
     parser.add_argument(
         "--roles-json",
         required=True,
-        help='JSON array of role assignments: [{"clientId": "...", "displayName": "...", "role": "...", "isServicePrincipal": true/false}]. Use isServicePrincipal=true for managed identities/service principals to avoid MS Graph permission requirements.'
+        help='JSON array of role assignments: [{"clientId": "...", "displayName": "...", "role": "..."}]'
     )
-    
     args = parser.parse_args()
     
     return assign_sql_roles(args.server, args.database, args.roles_json)
