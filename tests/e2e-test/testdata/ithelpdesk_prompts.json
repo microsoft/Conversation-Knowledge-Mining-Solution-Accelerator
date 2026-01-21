@@ -1,0 +1,10 @@
+{
+    "questions":[
+
+"Please provide the total number of calls by date for last 7 days",
+"Generate a bar chart showing the number of helpdesk calls per day for the last week",
+"Provide a summary of performance issues users reported this week",
+"Turn these key topics into a structured FAQ"
+]
+
+}
