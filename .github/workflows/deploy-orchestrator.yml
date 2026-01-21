@@ -111,7 +111,7 @@ jobs:
     secrets: inherit
 
   send-notification:
-    if: false
+    if: "!cancelled()"
     needs: [docker-build, deploy, e2e-test]
     uses: ./.github/workflows/job-send-notifications.yml
     with:
