@@ -113,36 +113,45 @@ if [ $retry_count -eq $max_retries ]; then
     exit 1
 fi
 
-# Upload files to storage account
+# Upload files to storage account with retry logic
+upload_with_retry() {
+    local source_folder="$1"
+    local dest_path="$2"
+    local description="$3"
+    local upload_retries=5
+    local upload_attempt=0
+    
+    while [ $upload_attempt -lt $upload_retries ]; do
+        if az storage blob upload-batch \
+            --account-name "$storageAccountName" \
+            --destination "$dest_path" \
+            --source "$source_folder" \
+            --auth-mode login \
+            --pattern '*' \
+            --overwrite \
+            --output none 2>/dev/null; then
+            echo "✓ Uploaded $description successfully"
+            return 0
+        fi
+        upload_attempt=$((upload_attempt + 1))
+        echo "  Upload attempt $upload_attempt/$upload_retries failed - waiting 15 seconds..."
+        sleep 15
+    done
+    echo "✗ Failed to upload $description after $upload_retries attempts"
+    return 1
+}
+
 if [ -d "$extractedFolder1" ]; then
-	echo "✓ Uploading call transcripts"
-	az storage blob upload-batch \
-		--account-name "$storageAccountName" \
-		--destination "$containerName/$extractedFolder1" \
-		--source "$extractedFolder1" \
-		--auth-mode login \
-		--pattern '*' \
-		--overwrite \
-		--output none
-	if [ $? -ne 0 ]; then
-		echo "✗ Failed to upload call transcripts"
+	echo "⏳ Uploading call transcripts..."
+	if ! upload_with_retry "$extractedFolder1" "$containerName/$extractedFolder1" "call transcripts"; then
 		exit 1
 	fi
 fi
 
 if [ "$usecase" == "telecom" ]; then
 	if [ -d "$extractedFolder2" ]; then
-		echo "✓ Uploading audio data"
-		az storage blob upload-batch \
-			--account-name "$storageAccountName" \
-			--destination "$containerName/$extractedFolder2" \
-			--source "$extractedFolder2" \
-			--auth-mode login \
-			--pattern '*' \
-			--overwrite \
-			--output none
-		if [ $? -ne 0 ]; then
-			echo "✗ Failed to upload audio data"
+		echo "⏳ Uploading audio data..."
+		if ! upload_with_retry "$extractedFolder2" "$containerName/$extractedFolder2" "audio data"; then
 			exit 1
 		fi
 	fi
