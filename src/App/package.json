@@ -28,7 +28,7 @@
     "react-d3-cloud": "^1.0.6",
     "react-dom": "^18.3.1",
     "d3-color": "^3.1.0",
-    "lodash-es": "^4.17.21",
+    "lodash-es": "^4.17.23",
     "react-markdown": "^10.1.0",
     "react-scripts": "^5.0.1",
     "rehype-raw": "^7.0.0",
