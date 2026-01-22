@@ -313,7 +313,7 @@ jobs:
           if ! [[ "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
           then
               echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
-              exit;
+              exit 1;
           fi
               
           # Download the package to configure the Microsoft repo
@@ -327,6 +327,7 @@ jobs:
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
           echo "✅ ODBC Driver 18 for SQL Server installed successfully."
+
       - name: Process Sample Data
         id: process_sample_data
         continue-on-error: true

@@ -319,19 +319,40 @@ jobs:
         run: |
           Write-Host "Installing ODBC Driver 18 for SQL Server on Windows..."
           
-          # Download the ODBC Driver installer
+          # Download and install the ODBC Driver installer with error handling
           $installerUrl = "https://go.microsoft.com/fwlink/?linkid=2249004"
           $installerPath = "$env:TEMP\msodbcsql.msi"
           
-          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+          try {
+            Write-Host "Downloading ODBC Driver installer from $installerUrl ..."
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing -ErrorAction Stop
           
-          # Install silently with EULA acceptance
-          Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet IACCEPTMSODBCSQLLICENSETERMS=YES" -Wait -NoNewWindow
+            if (-not (Test-Path $installerPath)) {
+              throw "ODBC Driver installer was not downloaded to expected path: $installerPath"
+            }
           
-          # Clean up installer
-          Remove-Item $installerPath -Force
+            Write-Host "Running ODBC Driver installer..."
+            $msiArgs = "/i `"$installerPath`" /quiet IACCEPTMSODBCSQLLICENSETERMS=YES"
+            $process = Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -NoNewWindow -PassThru
           
-          Write-Host "✅ ODBC Driver 18 installation complete"
+            if ($process.ExitCode -ne 0) {
+              throw "ODBC Driver installer exited with code $($process.ExitCode)."
+            }
+          
+            Write-Host "✅ ODBC Driver 18 installation complete"
+          }
+          catch {
+            Write-Error "Failed to install ODBC Driver 18 for SQL Server: $($_.Exception.Message)"
+            if (Test-Path $installerPath) {
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+            exit 1
+          }
+          finally {
+            if (Test-Path $installerPath) {
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+          }
 
       - name: Process Sample Data
         id: process_sample_data
