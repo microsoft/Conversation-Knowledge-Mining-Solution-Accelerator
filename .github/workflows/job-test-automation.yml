@@ -16,6 +16,11 @@ on:
         type: string
         default: "GoldenPath-Testing"
         description: "Test suite to run: 'Smoke-Testing', 'GoldenPath-Testing' "
+      AZURE_ENV_USE_CASE:
+        required: false
+        type: string
+        default: "telecom"
+        description: "Azure Environment Use Case: 'telecom', 'IT_helpdesk'"
     secrets:
       EMAILNOTIFICATION_LOGICAPP_URL_TA:
         required: false
@@ -33,6 +38,7 @@ env:
   api_url: ${{ inputs.KMGENERIC_URL_API}}
   accelerator_name: "KMGeneric"
   test_suite: ${{ inputs.TEST_SUITE }}
+  azure_env_use_case: ${{ inputs.AZURE_ENV_USE_CASE }}
 
 jobs:
   test:
