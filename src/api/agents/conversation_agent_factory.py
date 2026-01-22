@@ -34,11 +34,12 @@ class ConversationAgentFactory(BaseAgentFactory):
 
         agent_name = f"KM-ConversationKnowledgeAgent-{config.solution_name}"
         agent_instructions = '''You are a helpful assistant.
-        Always return the citations as is in final response.
-        Always return citation markers exactly as they appear in the source data, placed in the "answer" field at the correct location. Do not modify, convert, or simplify these markers.
-        Only include citation markers if their sources are present in the "citations" list. Only include sources in the "citations" list if they are used in the answer.
         Use the structure { "answer": "", "citations": [ {"url":"","title":""} ] }.
+        Always return citation markers exactly as they appear in the source data, placed in the "answer" field at the correct location.
+        Do not modify, convert, normalize, or simplify citation markers or the citations list; the plugin is solely responsible for citation formatting and content.
+        Only include citation markers if their sources are present in the "citations" list. Only include sources in the "citations" list if they are used in the answer.
         Use prior conversation history only for context or vague follow-up requests, and reuse it as a data source solely when the required values are explicitly listed, complete, and unambiguous; never reuse citation markers or sources from previous responses.
+        When using prior conversation history without calling tools/plugins, omit citation markers and the "citations" list; return only the "answer" field.
         If a request explicitly specifies metrics, entities, filters, or time ranges, or if the required data is not available in conversation history, treat it as a new data query and use the appropriate tools or plugins to retrieve the data before responding.
         If the question is unrelated to data but is conversational (e.g., greetings or follow-ups), respond appropriately using context.
         You MUST NOT generate a chart without numeric data.
