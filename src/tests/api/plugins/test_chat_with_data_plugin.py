@@ -304,26 +304,23 @@ class TestChatWithDataPlugin:
 
         # Mock run steps with multiple citations (indices 0, 1, 2, 3)
         mock_step = MagicMock()
-        mock_step.type = "tool_calls"
-        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
-        
-        # Create 4 citations
-        mock_tool_call = {
-            'azure_ai_search': {
-                'output': str({
-                    "metadata": {
-                        "get_urls": [
-                            "https://example.com/doc0",
-                            "https://example.com/doc1", 
-                            "https://example.com/doc2",
-                            "https://example.com/doc3"
-                        ],
-                        "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3"]
-                    }
-                })
+        mock_step.step_details = RunStepToolCallDetails(tool_calls=[
+            {
+                'azure_ai_search': {
+                    'output': str({
+                        "metadata": {
+                            "get_urls": [
+                                "https://example.com/doc0",
+                                "https://example.com/doc1", 
+                                "https://example.com/doc2",
+                                "https://example.com/doc3"
+                            ],
+                            "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3"]
+                        }
+                    })
+                }
             }
-        }
-        mock_step.step_details.tool_calls = [mock_tool_call]
+        ])
         mock_client.agents.run_steps.list.return_value = [mock_step]
 
         # Mock messages with out-of-order citation markers: [2], [0], [3], [1]
@@ -377,23 +374,21 @@ class TestChatWithDataPlugin:
 
         # Mock run steps with only 2 citations (indices 0, 1)
         mock_step = MagicMock()
-        mock_step.type = "tool_calls"
-        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
-        
-        mock_tool_call = {
-            'azure_ai_search': {
-                'output': str({
-                    "metadata": {
-                        "get_urls": [
-                            "https://example.com/valid1",
-                            "https://example.com/valid2"
-                        ],
-                        "titles": ["Valid Doc 1", "Valid Doc 2"]
-                    }
-                })
+        mock_step.step_details = RunStepToolCallDetails(tool_calls=[
+            {
+                'azure_ai_search': {
+                    'output': str({
+                        "metadata": {
+                            "get_urls": [
+                                "https://example.com/valid1",
+                                "https://example.com/valid2"
+                            ],
+                            "titles": ["Valid Doc 1", "Valid Doc 2"]
+                        }
+                    })
+                }
             }
-        }
-        mock_step.step_details.tool_calls = [mock_tool_call]
+        ])
         mock_client.agents.run_steps.list.return_value = [mock_step]
 
         # Mock messages with valid and out-of-range markers: [1] (valid), [5] (invalid), [0] (valid), [10] (invalid)
@@ -440,28 +435,26 @@ class TestChatWithDataPlugin:
         mock_run.status = "succeeded"
         mock_client.agents.runs.create_and_process.return_value = mock_run
 
-        # Mock run steps with 5 citations but only 2 will be used
+        # Mock run steps with 5 citations but only 3 will be used
         mock_step = MagicMock()
-        mock_step.type = "tool_calls"
-        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
-        
-        mock_tool_call = {
-            'azure_ai_search': {
-                'output': str({
-                    "metadata": {
-                        "get_urls": [
-                            "https://example.com/doc0",
-                            "https://example.com/doc1",
-                            "https://example.com/doc2",  # unused
-                            "https://example.com/doc3",
-                            "https://example.com/doc4"   # unused
-                        ],
-                        "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3", "Doc 4"]
-                    }
-                })
+        mock_step.step_details = RunStepToolCallDetails(tool_calls=[
+            {
+                'azure_ai_search': {
+                    'output': str({
+                        "metadata": {
+                            "get_urls": [
+                                "https://example.com/doc0",
+                                "https://example.com/doc1",
+                                "https://example.com/doc2",  # unused
+                                "https://example.com/doc3",
+                                "https://example.com/doc4"   # unused
+                            ],
+                            "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3", "Doc 4"]
+                        }
+                    })
+                }
             }
-        }
-        mock_step.step_details.tool_calls = [mock_tool_call]
+        ])
         mock_client.agents.run_steps.list.return_value = [mock_step]
 
         # Mock messages with only citations to indices 1, 3, 0
@@ -509,23 +502,21 @@ class TestChatWithDataPlugin:
 
         # Mock run steps with 2 citations
         mock_step = MagicMock()
-        mock_step.type = "tool_calls"
-        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
-        
-        mock_tool_call = {
-            'azure_ai_search': {
-                'output': str({
-                    "metadata": {
-                        "get_urls": [
-                            "https://example.com/doc0",
-                            "https://example.com/doc1"
-                        ],
-                        "titles": ["Doc 0", "Doc 1"]
-                    }
-                })
+        mock_step.step_details = RunStepToolCallDetails(tool_calls=[
+            {
+                'azure_ai_search': {
+                    'output': str({
+                        "metadata": {
+                            "get_urls": [
+                                "https://example.com/doc0",
+                                "https://example.com/doc1"
+                            ],
+                            "titles": ["Doc 0", "Doc 1"]
+                        }
+                    })
+                }
             }
-        }
-        mock_step.step_details.tool_calls = [mock_tool_call]
+        ])
         mock_client.agents.run_steps.list.return_value = [mock_step]
 
         # Mock messages with only out-of-range markers
@@ -569,24 +560,22 @@ class TestChatWithDataPlugin:
 
         # Mock run steps with 3 citations
         mock_step = MagicMock()
-        mock_step.type = "tool_calls"
-        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
-        
-        mock_tool_call = {
-            'azure_ai_search': {
-                'output': str({
-                    "metadata": {
-                        "get_urls": [
-                            "https://example.com/doc0",
-                            "https://example.com/doc1",
-                            "https://example.com/doc2"
-                        ],
-                        "titles": ["Doc 0", "Doc 1", "Doc 2"]
-                    }
-                })
+        mock_step.step_details = RunStepToolCallDetails(tool_calls=[
+            {
+                'azure_ai_search': {
+                    'output': str({
+                        "metadata": {
+                            "get_urls": [
+                                "https://example.com/doc0",
+                                "https://example.com/doc1",
+                                "https://example.com/doc2"
+                            ],
+                            "titles": ["Doc 0", "Doc 1", "Doc 2"]
+                        }
+                    })
+                }
             }
-        }
-        mock_step.step_details.tool_calls = [mock_tool_call]
+        ])
         mock_client.agents.run_steps.list.return_value = [mock_step]
 
         # Mock messages with repeated markers: [1], [2], [1] again, [0], [1] again
