@@ -177,6 +177,9 @@ class ChatWithDataPlugin:
                                 if original_idx < len(answer["citations"]):
                                     filtered_citations.append(answer["citations"][original_idx])
                             answer["citations"] = filtered_citations
+                        else:
+                            # No valid citations found, clear the list to avoid mismatch
+                            answer["citations"] = []
                         break
                 project_client.agents.threads.delete(thread_id=thread.id)
         except Exception:

@@ -281,3 +281,208 @@ class TestChatWithDataPlugin:
         # Assert - should return empty string when no agent messages found
         assert result == ""
         mock_client.agents.threads.delete.assert_called_once_with(thread_id="thread-id")
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_chat_with_multiple_citations_out_of_order(self, mock_get_agent, chat_plugin):
+        """Test citation mapping with multiple citations appearing out-of-order in the answer"""
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "search-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock run steps with multiple citations (indices 0, 1, 2, 3)
+        mock_step = MagicMock()
+        mock_step.type = "tool_calls"
+        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
+        
+        # Create 4 citations
+        mock_tool_call = {
+            'azure_ai_search': {
+                'output': str({
+                    "metadata": {
+                        "get_urls": [
+                            "https://example.com/doc0",
+                            "https://example.com/doc1", 
+                            "https://example.com/doc2",
+                            "https://example.com/doc3"
+                        ],
+                        "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3"]
+                    }
+                })
+            }
+        }
+        mock_step.step_details.tool_calls = [mock_tool_call]
+        mock_client.agents.run_steps.list.return_value = [mock_step]
+
+        # Mock messages with out-of-order citation markers: [2], [0], [3], [1]
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text = MagicMock()
+        mock_text.text = MagicMock()
+        mock_text.text.value = "First point【0:2†source】, second【0:0†source】, third【0:3†source】, fourth【0:1†source】."
+        mock_message.text_messages = [mock_text]
+        mock_client.agents.messages.list.return_value = [mock_message]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_call_insights("Test query")
+
+        # Assert - markers should be renumbered to [1], [2], [3], [4] in order of appearance
+        # and citations should be reordered to match
+        assert result["answer"] == "First point[1], second[2], third[3], fourth[4]."
+        assert len(result["citations"]) == 4
+        # Citations should be reordered: [2, 0, 3, 1] → positions in result
+        assert result["citations"][0]["url"] == "https://example.com/doc2"
+        assert result["citations"][0]["title"] == "Doc 2"
+        assert result["citations"][1]["url"] == "https://example.com/doc0"
+        assert result["citations"][1]["title"] == "Doc 0"
+        assert result["citations"][2]["url"] == "https://example.com/doc3"
+        assert result["citations"][2]["title"] == "Doc 3"
+        assert result["citations"][3]["url"] == "https://example.com/doc1"
+        assert result["citations"][3]["title"] == "Doc 1"
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_chat_with_out_of_range_citation_markers(self, mock_get_agent, chat_plugin):
+        """Test citation mapping with gaps and out-of-range marker indices"""
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "search-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock run steps with only 2 citations (indices 0, 1)
+        mock_step = MagicMock()
+        mock_step.type = "tool_calls"
+        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
+        
+        mock_tool_call = {
+            'azure_ai_search': {
+                'output': str({
+                    "metadata": {
+                        "get_urls": [
+                            "https://example.com/valid1",
+                            "https://example.com/valid2"
+                        ],
+                        "titles": ["Valid Doc 1", "Valid Doc 2"]
+                    }
+                })
+            }
+        }
+        mock_step.step_details.tool_calls = [mock_tool_call]
+        mock_client.agents.run_steps.list.return_value = [mock_step]
+
+        # Mock messages with valid and out-of-range markers: [1] (valid), [5] (invalid), [0] (valid), [10] (invalid)
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text = MagicMock()
+        mock_text.text = MagicMock()
+        mock_text.text.value = "Valid【0:1†source】, invalid【0:5†source】, another valid【0:0†source】, invalid again【0:10†source】."
+        mock_message.text_messages = [mock_text]
+        mock_client.agents.messages.list.return_value = [mock_message]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_call_insights("Test query")
+
+        # Assert - out-of-range markers should be removed, valid ones renumbered
+        assert result["answer"] == "Valid[1], invalid, another valid[2], invalid again."
+        assert len(result["citations"]) == 2
+        # Only valid citations should be included, in order of appearance: [1, 0]
+        assert result["citations"][0]["url"] == "https://example.com/valid2"
+        assert result["citations"][0]["title"] == "Valid Doc 2"
+        assert result["citations"][1]["url"] == "https://example.com/valid1"
+        assert result["citations"][1]["title"] == "Valid Doc 1"
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_chat_with_unused_citations(self, mock_get_agent, chat_plugin):
+        """Test that unused citations are filtered out"""
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "search-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock run steps with 5 citations but only 2 will be used
+        mock_step = MagicMock()
+        mock_step.type = "tool_calls"
+        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
+        
+        mock_tool_call = {
+            'azure_ai_search': {
+                'output': str({
+                    "metadata": {
+                        "get_urls": [
+                            "https://example.com/doc0",
+                            "https://example.com/doc1",
+                            "https://example.com/doc2",  # unused
+                            "https://example.com/doc3",
+                            "https://example.com/doc4"   # unused
+                        ],
+                        "titles": ["Doc 0", "Doc 1", "Doc 2", "Doc 3", "Doc 4"]
+                    }
+                })
+            }
+        }
+        mock_step.step_details.tool_calls = [mock_tool_call]
+        mock_client.agents.run_steps.list.return_value = [mock_step]
+
+        # Mock messages with only citations to indices 1, 3, 0
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text = MagicMock()
+        mock_text.text = MagicMock()
+        mock_text.text.value = "First【0:1†source】, second【0:3†source】, third【0:0†source】."
+        mock_message.text_messages = [mock_text]
+        mock_client.agents.messages.list.return_value = [mock_message]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_call_insights("Test query")
+
+        # Assert - only cited documents should be in citations list
+        assert result["answer"] == "First[1], second[2], third[3]."
+        assert len(result["citations"]) == 3
+        # Citations should only include the used ones: [1, 3, 0]
+        assert result["citations"][0]["url"] == "https://example.com/doc1"
+        assert result["citations"][1]["url"] == "https://example.com/doc3"
+        assert result["citations"][2]["url"] == "https://example.com/doc0"
