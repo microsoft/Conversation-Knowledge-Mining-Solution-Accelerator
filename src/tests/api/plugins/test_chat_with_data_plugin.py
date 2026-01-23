@@ -486,3 +486,133 @@ class TestChatWithDataPlugin:
         assert result["citations"][0]["url"] == "https://example.com/doc1"
         assert result["citations"][1]["url"] == "https://example.com/doc3"
         assert result["citations"][2]["url"] == "https://example.com/doc0"
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_chat_with_all_out_of_range_citations_clears_list(self, mock_get_agent, chat_plugin):
+        """Test that citations list is cleared when all markers are out-of-range"""
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "search-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock run steps with 2 citations
+        mock_step = MagicMock()
+        mock_step.type = "tool_calls"
+        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
+        
+        mock_tool_call = {
+            'azure_ai_search': {
+                'output': str({
+                    "metadata": {
+                        "get_urls": [
+                            "https://example.com/doc0",
+                            "https://example.com/doc1"
+                        ],
+                        "titles": ["Doc 0", "Doc 1"]
+                    }
+                })
+            }
+        }
+        mock_step.step_details.tool_calls = [mock_tool_call]
+        mock_client.agents.run_steps.list.return_value = [mock_step]
+
+        # Mock messages with only out-of-range markers
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text = MagicMock()
+        mock_text.text = MagicMock()
+        mock_text.text.value = "Invalid【0:5†source】 and another【0:10†source】."
+        mock_message.text_messages = [mock_text]
+        mock_client.agents.messages.list.return_value = [mock_message]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_call_insights("Test query")
+
+        # Assert - all markers removed and citations list should be empty
+        assert result["answer"] == "Invalid and another."
+        assert len(result["citations"]) == 0
+
+    @pytest.mark.asyncio
+    @patch("plugins.chat_with_data_plugin.SearchAgentFactory.get_agent", new_callable=AsyncMock)
+    async def test_chat_with_repeated_citation_markers(self, mock_get_agent, chat_plugin):
+        """Test that repeated/duplicate markers map to the same new index"""
+        # Mock agent and client setup
+        mock_agent = MagicMock()
+        mock_agent.id = "search-agent-id"
+        mock_client = MagicMock()
+        mock_get_agent.return_value = {"agent": mock_agent, "client": mock_client}
+
+        # Mock thread creation
+        mock_thread = MagicMock()
+        mock_thread.id = "thread-id"
+        mock_client.agents.threads.create.return_value = mock_thread
+
+        # Mock run creation and success status
+        mock_run = MagicMock()
+        mock_run.status = "succeeded"
+        mock_client.agents.runs.create_and_process.return_value = mock_run
+
+        # Mock run steps with 3 citations
+        mock_step = MagicMock()
+        mock_step.type = "tool_calls"
+        mock_step.step_details = MagicMock(spec=RunStepToolCallDetails)
+        
+        mock_tool_call = {
+            'azure_ai_search': {
+                'output': str({
+                    "metadata": {
+                        "get_urls": [
+                            "https://example.com/doc0",
+                            "https://example.com/doc1",
+                            "https://example.com/doc2"
+                        ],
+                        "titles": ["Doc 0", "Doc 1", "Doc 2"]
+                    }
+                })
+            }
+        }
+        mock_step.step_details.tool_calls = [mock_tool_call]
+        mock_client.agents.run_steps.list.return_value = [mock_step]
+
+        # Mock messages with repeated markers: [1], [2], [1] again, [0], [1] again
+        mock_message = MagicMock()
+        mock_message.role = MessageRole.AGENT
+        mock_text = MagicMock()
+        mock_text.text = MagicMock()
+        mock_text.text.value = "First【0:1†source】, second【0:2†source】, repeat first【0:1†source】, third【0:0†source】, and again【0:1†source】."
+        mock_message.text_messages = [mock_text]
+        mock_client.agents.messages.list.return_value = [mock_message]
+
+        # Mock thread deletion
+        mock_client.agents.threads.delete.return_value = None
+
+        # Call the method
+        result = await chat_plugin.get_call_insights("Test query")
+
+        # Assert - repeated markers should use the same new index
+        # Order of first appearance: [1], [2], [0] → renumbered to [1], [2], [3]
+        # All references to original [1] should become [1]
+        assert result["answer"] == "First[1], second[2], repeat first[1], third[3], and again[1]."
+        assert len(result["citations"]) == 3
+        # Citations should be ordered by first appearance: [1, 2, 0]
+        assert result["citations"][0]["url"] == "https://example.com/doc1"
+        assert result["citations"][0]["title"] == "Doc 1"
+        assert result["citations"][1]["url"] == "https://example.com/doc2"
+        assert result["citations"][1]["title"] == "Doc 2"
+        assert result["citations"][2]["url"] == "https://example.com/doc0"
+        assert result["citations"][2]["title"] == "Doc 0"
