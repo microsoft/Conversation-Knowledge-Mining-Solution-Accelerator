@@ -155,10 +155,13 @@ class ChatWithDataPlugin:
                     parts = match.group(1).split(":")
                     if len(parts) == 2 and parts[1].isdigit():
                         original_index = int(parts[1])
-                        if original_index not in citation_mapping:
-                            citation_mapping[original_index] = len(citation_mapping) + 1
-                        return f"[{citation_mapping[original_index]}]"
-                    return match.group(0)
+                        # Only map citations that exist in the citations array
+                        if original_index < len(answer["citations"]):
+                            if original_index not in citation_mapping:
+                                citation_mapping[original_index] = len(citation_mapping) + 1
+                            return f"[{citation_mapping[original_index]}]"
+                    # Return empty string for invalid/out-of-range markers
+                    return ""
 
                 for msg in messages:
                     if msg.role == MessageRole.AGENT and msg.text_messages:
@@ -166,8 +169,11 @@ class ChatWithDataPlugin:
                         answer["answer"] = re.sub(r'【(\d+:\d+)†source】', replace_marker, answer["answer"])
                         # Filter and reorder citations based on actual usage
                         if citation_mapping:
+                            # Create reverse mapping to maintain citation order matching markers
+                            reverse_mapping = {v: k for k, v in citation_mapping.items()}
                             filtered_citations = []
-                            for original_idx in sorted(citation_mapping.keys()):
+                            for new_idx in sorted(reverse_mapping.keys()):
+                                original_idx = reverse_mapping[new_idx]
                                 if original_idx < len(answer["citations"]):
                                     filtered_citations.append(answer["citations"][original_idx])
                             answer["citations"] = filtered_citations
