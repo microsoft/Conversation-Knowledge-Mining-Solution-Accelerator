@@ -131,22 +131,13 @@ jobs:
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
           elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
-          else
-            echo "ERROR: Unknown use case '${{ env.azure_env_use_case }}'. Expected 'telecom' or 'IT_helpdesk'"
-            exit 1
           fi
         working-directory: tests/e2e-test
         continue-on-error: true
@@ -165,22 +156,13 @@ jobs:
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
           elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
-          else
-            echo "ERROR: Unknown use case '${{ env.azure_env_use_case }}'. Expected 'telecom' or 'IT_helpdesk'"
-            exit 1
           fi
         working-directory: tests/e2e-test
         continue-on-error: true
@@ -199,22 +181,13 @@ jobs:
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
           elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
-            else
-              echo "ERROR: Unknown test suite '${{ env.test_suite }}'"
-              exit 1
             fi
-          else
-            echo "ERROR: Unknown use case '${{ env.azure_env_use_case }}'. Expected 'telecom' or 'IT_helpdesk'"
-            exit 1
           fi
         working-directory: tests/e2e-test
 

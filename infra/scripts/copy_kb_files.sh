@@ -65,13 +65,17 @@ if [ "$account_type" == "user" ]; then
 elif [ "$account_type" == "servicePrincipal" ]; then
     # Running as a service principal - get SP object ID
     client_id=$(az account show --query user.name --output tsv 2>/dev/null)
-    if [ -n "$client_id" ]; then
-        signed_user_id=$(az ad sp show --id "$client_id" --query id --output tsv 2>/dev/null)
-    fi
-    if [ -z "$signed_user_id" ]; then
-        echo "✗ Failed to get service principal object ID"
+    if [ -z "$client_id" ]; then
+        echo "✗ Failed to get service principal client ID"
         exit 1
     fi
+    sp_show_output=$(az ad sp show --id "$client_id" --query id --output tsv 2>&1)
+    if [ $? -ne 0 ] || [ -z "$sp_show_output" ]; then
+        echo "✗ Failed to get service principal object ID using client ID '$client_id'. Azure CLI output:"
+        echo "$sp_show_output"
+        exit 1
+    fi
+    signed_user_id="$sp_show_output"
     echo "✓ Running as service principal: $signed_user_id"
 else
     echo "✗ Unknown account type: $account_type"

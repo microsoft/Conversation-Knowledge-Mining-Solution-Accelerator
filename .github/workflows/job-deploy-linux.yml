@@ -342,7 +342,7 @@ jobs:
         shell: bash
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
-          sleep 5
+          sleep 20
           bash ./infra/scripts/process_sample_data.sh
           echo "✅ Sample data processing completed successfully on retry."
 

@@ -53,7 +53,12 @@ elif [ "$account_type" == "servicePrincipal" ]; then
     # Running as a service principal - get SP object ID and display name
     client_id=$(az account show --query user.name --output tsv 2>/dev/null)
     if [ -n "$client_id" ]; then
-        sp_info=$(az ad sp show --id "$client_id" --query "{id:id, displayName:displayName}" -o json 2>/dev/null)
+        sp_info=$(az ad sp show --id "$client_id" --query "{id:id, displayName:displayName}" -o json 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to retrieve service principal information for client ID: $client_id"
+            echo "$sp_info"
+            exit 1
+        fi
         signed_user_id=$(echo "$sp_info" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
         signed_user_display_name=$(echo "$sp_info" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
     fi
