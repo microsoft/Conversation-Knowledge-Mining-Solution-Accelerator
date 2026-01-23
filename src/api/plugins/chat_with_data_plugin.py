@@ -164,7 +164,6 @@ class ChatWithDataPlugin:
                     if msg.role == MessageRole.AGENT and msg.text_messages:
                         answer["answer"] = msg.text_messages[-1].text.value
                         answer["answer"] = re.sub(r'【(\d+:\d+)†source】', replace_marker, answer["answer"])
-                        
                         # Filter and reorder citations based on actual usage
                         if citation_mapping:
                             filtered_citations = []
@@ -172,7 +171,6 @@ class ChatWithDataPlugin:
                                 if original_idx < len(answer["citations"]):
                                     filtered_citations.append(answer["citations"][original_idx])
                             answer["citations"] = filtered_citations
-                        
                         break
                 project_client.agents.threads.delete(thread_id=thread.id)
         except Exception:
