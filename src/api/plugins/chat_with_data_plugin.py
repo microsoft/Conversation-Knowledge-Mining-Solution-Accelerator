@@ -134,16 +134,6 @@ class ChatWithDataPlugin:
             if run.status == "failed":
                 print(f"Run failed: {run.last_error}")
             else:
-                def convert_citation_markers(text):
-                    def replace_marker(match):
-                        parts = match.group(1).split(":")
-                        if len(parts) == 2 and parts[1].isdigit():
-                            new_index = int(parts[1]) + 1
-                            return f"[{new_index}]"
-                        return match.group(0)
-
-                    return re.sub(r'【(\d+:\d+)†source】', replace_marker, text)
-
                 for run_step in project_client.agents.run_steps.list(thread_id=thread.id, run_id=run.id):
                     if isinstance(run_step.step_details, RunStepToolCallDetails):
                         for tool_call in run_step.step_details.tool_calls:
@@ -157,10 +147,39 @@ class ChatWithDataPlugin:
                                 answer["citations"].append({"url": url, "title": title})
 
                 messages = project_client.agents.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+
+                # Convert citation markers and extract used indices
+                citation_mapping: dict[int, int] = {}
+
+                def replace_marker(match):
+                    parts = match.group(1).split(":")
+                    if len(parts) == 2 and parts[1].isdigit():
+                        original_index = int(parts[1])
+                        # Only map citations that exist in the citations array
+                        if original_index < len(answer["citations"]):
+                            if original_index not in citation_mapping:
+                                citation_mapping[original_index] = len(citation_mapping) + 1
+                            return f"[{citation_mapping[original_index]}]"
+                    # Return empty string for invalid/out-of-range markers
+                    return ""
+
                 for msg in messages:
                     if msg.role == MessageRole.AGENT and msg.text_messages:
                         answer["answer"] = msg.text_messages[-1].text.value
-                        answer["answer"] = convert_citation_markers(answer["answer"])
+                        answer["answer"] = re.sub(r'【(\d+:\d+)†source】', replace_marker, answer["answer"])
+                        # Filter and reorder citations based on actual usage
+                        if citation_mapping:
+                            # Create reverse mapping to maintain citation order matching markers
+                            reverse_mapping = {v: k for k, v in citation_mapping.items()}
+                            filtered_citations = []
+                            for new_idx in sorted(reverse_mapping.keys()):
+                                original_idx = reverse_mapping[new_idx]
+                                if original_idx < len(answer["citations"]):
+                                    filtered_citations.append(answer["citations"][original_idx])
+                            answer["citations"] = filtered_citations
+                        else:
+                            # No valid citations found, clear the list to avoid mismatch
+                            answer["citations"] = []
                         break
                 project_client.agents.threads.delete(thread_id=thread.id)
         except Exception:
