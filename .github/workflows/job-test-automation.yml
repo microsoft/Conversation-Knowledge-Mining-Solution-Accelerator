@@ -98,10 +98,47 @@ jobs:
             attempt=$((attempt + 1))
           done
 
+      - name: Validate Use Case and Test Suite
+        run: |
+          echo "Validating use case: '${{ env.azure_env_use_case }}'"
+          echo "Validating test suite: '${{ env.test_suite }}'"
+          
+          # Validate use case
+          if [ -z "${{ env.azure_env_use_case }}" ]; then
+            echo "ERROR: AZURE_ENV_USE_CASE is empty or not provided"
+            exit 1
+          elif [ "${{ env.azure_env_use_case }}" != "telecom" ] && [ "${{ env.azure_env_use_case }}" != "IT_helpdesk" ]; then
+            echo "ERROR: Invalid AZURE_ENV_USE_CASE '${{ env.azure_env_use_case }}'. Must be 'telecom' or 'IT_helpdesk'"
+            exit 1
+          fi
+          
+          # Validate test suite
+          if [ -z "${{ env.test_suite }}" ]; then
+            echo "ERROR: TEST_SUITE is empty or not provided"
+            exit 1
+          elif [ "${{ env.test_suite }}" != "GoldenPath-Testing" ] && [ "${{ env.test_suite }}" != "Smoke-Testing" ]; then
+            echo "ERROR: Invalid TEST_SUITE '${{ env.test_suite }}'. Must be 'GoldenPath-Testing' or 'Smoke-Testing'"
+            exit 1
+          fi
+          
+          echo "✅ Use case '${{ env.azure_env_use_case }}' and test suite '${{ env.test_suite }}' are valid"
+
       - name: Run tests(1)
         id: test1
         run: |
-          xvfb-run pytest --headed --html=report/report.html --self-contained-html
+          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          fi
         working-directory: tests/e2e-test
         continue-on-error: true
 
@@ -114,7 +151,19 @@ jobs:
         if: ${{ steps.test1.outcome == 'failure' }}
         id: test2
         run: |
-          xvfb-run pytest --headed --html=report/report.html --self-contained-html
+          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          fi
         working-directory: tests/e2e-test
         continue-on-error: true
 
@@ -127,7 +176,19 @@ jobs:
         if: ${{ steps.test2.outcome == 'failure' }}
         id: test3
         run: |
-          xvfb-run pytest --headed --html=report/report.html --self-contained-html
+          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+            if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
+            elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
+              xvfb-run pytest tests/test_ithelpdesk_gp_tc.py tests/test_ithelpdesk_smoke_tc.py --headed --html=report/report.html --self-contained-html
+            fi
+          fi
         working-directory: tests/e2e-test
 
       - name: Upload test report
@@ -137,7 +198,9 @@ jobs:
         with:
 
           name: test-report-${{ github.run_id }}
-          path: tests/e2e-test/report/*
+          path: | 
+            tests/e2e-test/report/*
+            tests/e2e-test/screenshots/*
 
       - name: Generate E2E Test Summary
         if: always()

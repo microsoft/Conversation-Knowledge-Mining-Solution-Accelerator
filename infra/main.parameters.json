@@ -58,6 +58,9 @@
     },
     "frontendContainerRegistryHostname": {
       "value": "${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT}"
+    },
+    "usecase":{
+      "value": "${AZURE_ENV_USE_CASE}"
     }
   }
 }

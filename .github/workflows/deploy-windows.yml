@@ -1,4 +1,4 @@
-name: Deploy-Test-Cleanup Windows
+name: Deploy-Test-Cleanup (v2) Windows
 on:
   # push:
   #   branches:
