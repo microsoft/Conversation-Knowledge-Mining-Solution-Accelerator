@@ -139,7 +139,7 @@ const Chat: React.FC<ChatProps> = ({
         
         return toolMessage.citations;
       } catch {
-        console.log("ERROR WHIEL PARSING TOOL CONTENT");
+        // Silently ignore parse errors for incomplete JSON chunks. This is expected during streaming
       }
     return [];
   };
@@ -255,7 +255,7 @@ const Chat: React.FC<ChatProps> = ({
               runningText = text;
             }
           } catch (e) {
-            console.error("error while parsing text before split", e);
+            // Silently ignore parse errors for incomplete JSON chunks. This is expected during streaming
           }
 
         }
@@ -337,7 +337,7 @@ const Chat: React.FC<ChatProps> = ({
               scrollChatToBottom();
             }
           } catch (e) {
-            console.log("Error while parsing charts response", e);
+            // Silently ignore parse errors for incomplete JSON chunks for chart response. This is expected during streaming
           }
         }
       }
@@ -455,7 +455,7 @@ const Chat: React.FC<ChatProps> = ({
               runningText = text;
             }
           } catch (e) {
-            console.error("error while parsing text before split", e);
+            // Ignore - will process individual chunks after splitting
           }
           if (!isChartResponseReceived) {
             //text based streaming response
@@ -510,7 +510,7 @@ const Chat: React.FC<ChatProps> = ({
                   }
                 }
               } catch (e) {
-                console.log("Error while parsing and appending content", e);
+                // Skip incomplete JSON chunks in stream
               }
             });
             if (hasError) {

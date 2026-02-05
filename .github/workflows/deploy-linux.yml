@@ -1,4 +1,4 @@
-name: Deploy-Test-Cleanup Linux
+name: Deploy-Test-Cleanup (v2) Linux
 on:
   pull_request:
     branches:

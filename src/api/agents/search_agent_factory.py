@@ -80,6 +80,7 @@ class SearchAgentFactory(BaseAgentFactory):
             instructions="You are a helpful agent. Use the tools provided and always cite your sources.",
             tools=ai_search.definitions,
             tool_resources=ai_search.resources,
+            temperature=0.7
         )
         logger.info(f"Created new agent: {agent_name} (ID: {agent.id})")
 
