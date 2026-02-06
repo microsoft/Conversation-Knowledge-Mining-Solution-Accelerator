@@ -300,3 +300,4 @@ jobs:
       azure_env_use_case: ${{ needs.validate-inputs.outputs.azure_env_use_case || 'telecom' }}
       trigger_type: ${{ github.event_name }}
     secrets: inherit
+    
