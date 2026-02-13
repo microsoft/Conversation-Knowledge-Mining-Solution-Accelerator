@@ -360,18 +360,159 @@ get_values_from_azd_env() {
 	return 0
 }
 
+# Fallback function to get values using solutionSuffix from resource group tags
+get_values_from_solution_suffix() {
+    echo ""
+    echo "==============================================="
+    echo "Attempting fallback method using solutionSuffix"
+    echo "==============================================="
+    
+    # Get solutionSuffix from resource group tags
+    local solutionSuffix=$(az group show --name "$resourceGroupName" --query "tags.SolutionSuffix" -o tsv 2>/dev/null)
+    
+    if [ -z "$solutionSuffix" ] || [ "$solutionSuffix" = "null" ]; then
+        echo "✗ Could not retrieve solutionSuffix from resource group tags"
+        return 1
+    fi
+    
+    echo "✓ Found solutionSuffix: $solutionSuffix"
+    echo ""
+    echo "Generating resource names using naming conventions..."
+    
+    # Generate resource names based on naming convention from main.bicep
+    storageAccountName="st${solutionSuffix}"
+    sqlServerName="sql-${solutionSuffix}"
+    SqlDatabaseName="sqldb-${solutionSuffix}"
+    aiSearchName="srch-${solutionSuffix}"
+    backendUserMidDisplayName="id-backend-${solutionSuffix}"
+    
+    # Hardcoded values from bicep, if changed in bicep, must be changed here too
+    fileSystem="data"
+    deploymentModel="gpt-4o-mini"
+    embeddingModel="text-embedding-ada-002"
+    cuApiVersion="2024-12-01-preview"
+    
+    echo "✓ Storage Account Name: $storageAccountName"
+    echo "✓ Storage Container Name: $fileSystem"
+    echo "✓ SQL Server Name: $sqlServerName"
+    echo "✓ SQL Database Name: $SqlDatabaseName"
+    echo "✓ AI Search Service Name: $aiSearchName"
+    echo "✓ Backend Managed Identity Name: $backendUserMidDisplayName"
+    echo "✓ Deployment Model (default): $deploymentModel"
+    echo "✓ Embedding Model (default): $embeddingModel"
+    echo "✓ CU API Version (default): $cuApiVersion"
+    echo ""
+    
+    # Fetch Backend Managed Identity Client ID (needed for operations)
+    echo "Fetching Backend Managed Identity Client ID..."
+    backendUserMidClientId=$(az identity show \
+        --name "$backendUserMidDisplayName" \
+        --resource-group "$resourceGroupName" \
+        --query "clientId" -o tsv 2>/dev/null)
+    
+    if [ -z "$backendUserMidClientId" ] || [ "$backendUserMidClientId" = "null" ]; then
+        echo "  ✗ Failed to fetch Backend Managed Identity Client ID"
+        return 1
+    fi
+    echo "  ✓ Client ID: $backendUserMidClientId"
+    
+    # Generate AI Search endpoint
+    searchEndpoint="https://${aiSearchName}.search.windows.net"
+    echo "  ✓ Search Endpoint: $searchEndpoint"
+    
+    # Fetch AI Foundry Resource ID and OpenAI Endpoint
+    echo "Fetching AI Foundry details..."
+    local aif_name="aif-${solutionSuffix}"
+    local aif_details=$(az cognitiveservices account show \
+        --name "$aif_name" \
+        --resource-group "$resourceGroupName" \
+        --query "{id:id, endpoint:properties.endpoint}" -o tsv 2>/dev/null)
+    
+    if [ -z "$aif_details" ]; then
+        echo "  ✗ Failed to fetch AI Foundry details"
+        return 1
+    fi
+    
+    # Extract values using awk (tab-separated)
+    aif_resource_id=$(echo "$aif_details" | awk '{print $1}')
+    openaiEndpoint=$(echo "$aif_details" | awk '{print $2}')
+    
+    # Ensure openaiEndpoint ends with /
+    [[ "$openaiEndpoint" != */ ]] && openaiEndpoint="${openaiEndpoint}/"
+    
+    echo "  ✓ AI Foundry Resource ID: $aif_resource_id"
+    echo "  ✓ OpenAI Endpoint: $openaiEndpoint"
+    
+    # Generate AI Agent Endpoint
+    local project_name="proj-${solutionSuffix}"
+    aiAgentEndpoint="https://${aif_name}.services.ai.azure.com/api/projects/${project_name}"
+    echo "  ✓ AI Agent Endpoint: $aiAgentEndpoint"
+    
+    # Fetch Content Understanding Foundry Resource ID and Endpoint
+    echo "Fetching Content Understanding Foundry details..."
+    local cu_name="aisa-${solutionSuffix}-cu"
+    local cu_details=$(az cognitiveservices account show \
+        --name "$cu_name" \
+        --resource-group "$resourceGroupName" \
+        --query "{id:id, endpoint:properties.endpoint}" -o tsv 2>/dev/null)
+    
+    if [ -z "$cu_details" ]; then
+        echo "  ✗ Failed to fetch Content Understanding details"
+        return 1
+    fi
+    
+    # Extract values using awk (tab-separated)
+    cu_foundry_resource_id=$(echo "$cu_details" | awk '{print $1}')
+    cuEndpoint=$(echo "$cu_details" | awk '{print $2}')
+    
+    echo "  ✓ CU Foundry Resource ID: $cu_foundry_resource_id"
+    echo "  ✓ CU Endpoint: $cuEndpoint"
+    
+    # Get usecase from resource group tags
+    echo "Fetching use case from resource group tags..."
+    usecase=$(az group show --name "$resourceGroupName" --query "tags.UseCase" -o tsv 2>/dev/null)
+    if [ -z "$usecase" ] || [ "$usecase" = "null" ]; then
+        echo "  ⚠ Could not retrieve use case from tags"
+        echo "  Available options: telecom, IT_helpdesk"
+        read -rp "  Enter use case: " usecase
+        if [ -z "$usecase" ]; then
+            echo "  ✗ Use case is required"
+            return 1
+        fi
+    fi
+    echo "  ✓ Use Case: $usecase"
+    
+    echo ""
+    echo "✓ Successfully retrieved all values using solutionSuffix fallback method"
+    return 0
+}
+
 get_values_from_az_deployment() {
 	echo "Getting values from Azure deployment outputs..."
  
-    deploymentName=$(az group show --name "$resourceGroupName" --query "tags.DeploymentName" -o tsv)
-    echo "Deployment Name (from tag): $deploymentName"
+    deploymentName=$(az group show --name "$resourceGroupName" --query "tags.DeploymentName" -o tsv 2>/dev/null)
+    
+	if [ -z "$deploymentName" ] || [ "$deploymentName" = "null" ]; then
+        echo "⚠ Deployment name not found in resource group tags. Deployment may have been deleted."
+        return 1
+    fi
+	
+	echo "Deployment Name (from tag): $deploymentName"
  
     echo "Fetching deployment outputs..."
 	# Get all outputs
     deploymentOutputs=$(az deployment group show \
         --name "$deploymentName" \
         --resource-group "$resourceGroupName" \
-        --query "properties.outputs" -o json)
+        --query "properties.outputs" -o json 2>&1)
+
+	deployment_exit_code=$?
+
+	# Check if deployment was not found
+    if [ $deployment_exit_code -ne 0 ]; then
+        echo "⚠ Deployment '$deploymentName' not found. It may have been deleted."
+        return 1
+    fi
 
 	# Helper function to extract value from deployment outputs
 	# Usage: extract_value "primaryKey" "fallbackKey"
@@ -531,24 +672,23 @@ if [ -z "$resourceGroupName" ]; then
         exit 1
     fi
 else
-    # Resource group provided - use deployment outputs
+    # Resource group provided - use deployment outputs with fallback to solutionSuffix method
 	echo ""
     echo "Resource group provided: $resourceGroupName"
 
     # Call deployment function
     if ! get_values_from_az_deployment; then
-        echo "Failed to get values from deployment outputs."
-		echo ""
-		echo "Would you like to enter the values manually? (y/n): "
-		read -r manual_input_choice
-		if [[ "$manual_input_choice" == "y" || "$manual_input_choice" == "Y" ]]; then
-			if ! get_values_from_user; then
-				echo "Error: Manual input failed."
-				exit 1
-			fi
-		else
-			echo "Exiting script."
-			exit 1
+        echo ""
+        echo "Deployment outputs method failed."
+        echo "Attempting fallback method using resource group tags and naming conventions..."
+        echo ""
+
+		# Try fallback method
+        if ! get_values_from_solution_suffix; then
+		    echo ""
+		    echo "Fallback method also failed."
+		    echo "Exiting script."
+		    exit 1
 		fi
 	fi
 fi
@@ -574,6 +714,7 @@ echo "CU Endpoint: $cuEndpoint"
 echo "CU API Version: $cuApiVersion"
 echo "AI Agent Endpoint: $aiAgentEndpoint"
 echo "Deployment Model: $deploymentModel"
+echo "Use Case: $usecase"
 echo "==============================================="
 echo ""
 

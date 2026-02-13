@@ -223,6 +223,7 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
       Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
       CreatedBy: createdBy
       DeploymentName: deployment().name
+      SolutionSuffix: solutionSuffix
       UseCase: usecase
       ...tags
     }
