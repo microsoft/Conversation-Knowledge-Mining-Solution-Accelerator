@@ -217,15 +217,17 @@ var logAnalyticsWorkspaceResourceId = useExistingLogAnalytics
 resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
   name: 'default'
   properties: {
-    tags:{
-      ...resourceGroup().tags
-      TemplateName: 'KM-Generic'
-      Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
-      CreatedBy: createdBy
-      DeploymentName: deployment().name
-      UseCase: usecase
-      ...tags
-    }
+    tags: union(
+      resourceGroup().tags ?? {},
+      tags,
+      {
+        TemplateName: 'KM-Generic'
+        Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
+        CreatedBy: createdBy
+        DeploymentName: deployment().name
+        UseCase: usecase
+      }
+    )
   }
 }
 
