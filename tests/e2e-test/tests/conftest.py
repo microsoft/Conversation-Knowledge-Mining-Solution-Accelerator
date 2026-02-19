@@ -107,8 +107,44 @@ def pytest_runtest_makereport(item, call):
         logger = logging.getLogger()
         logger.removeHandler(handler)
 
-        # Store the log output on the report object for HTML reporting
-        report.description = f"<pre>{log_output.strip()}</pre>"
+        # Check if there are subtests
+        subtests_html = ""
+        if hasattr(item, 'user_properties'):
+            item_subtests = [
+                prop[1] for prop in item.user_properties if prop[0] == "subtest"
+            ]
+            if item_subtests:
+                subtests_html = (
+                    "<div style='margin-top: 10px;'>"
+                    "<strong>Step-by-Step Details:</strong>"
+                    "<ul style='list-style: none; padding-left: 0;'>"
+                )
+                for idx, subtest in enumerate(item_subtests, 1):
+                    status = "✅ PASSED" if subtest.get('passed') else "❌ FAILED"
+                    status_color = "green" if subtest.get('passed') else "red"
+                    subtests_html += (
+                        f"<li style='margin: 10px 0; padding: 10px; "
+                        f"border-left: 3px solid {status_color}; "
+                        f"background-color: #f9f9f9;'>"
+                    )
+                    subtests_html += (
+                        f"<div style='font-weight: bold; color: {status_color};'>"
+                        f"{status} - {subtest.get('msg', f'Step {idx}')}</div>"
+                    )
+                    if subtest.get('logs'):
+                        subtests_html += (
+                            f"<pre style='margin: 5px 0; padding: 5px; "
+                            f"background-color: #fff; border: 1px solid #ddd; "
+                            f"font-size: 11px;'>{subtest.get('logs').strip()}</pre>"
+                        )
+                    subtests_html += "</li>"
+                subtests_html += "</ul></div>"
+
+        # Combine main log output with subtests
+        if subtests_html:
+            report.description = f"<pre>{log_output.strip()}</pre>{subtests_html}"
+        else:
+            report.description = f"<pre>{log_output.strip()}</pre>"
 
         # Clean up references
         log_streams.pop(item.nodeid, None)
