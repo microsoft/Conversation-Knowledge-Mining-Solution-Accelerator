@@ -742,87 +742,16 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
-module searchService 'br/public:avm/res/search/search-service:0.12.0' = {
-  name: take('avm.res.search.search-service.${aiSearchName}', 64)
-  params: {
-    // Required parameters
-    name: aiSearchName
-    enableTelemetry: enableTelemetry
-    diagnosticSettings: enableMonitoring ? [
-      {
-        workspaceResourceId: logAnalyticsWorkspaceResourceId
-      }
-    ] : null
-    disableLocalAuth: true
-    hostingMode: 'Default'
-    networkRuleSet: {
-      bypass: 'AzureServices'
-      ipRules: []
-    }
-    roleAssignments: [
-      {
-        roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '8ebe5a00-799e-43f5-93ac-243d3dce84a7' //'Search Index Data Contributor'
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
-        principalId: backendUserAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '1407120a-92aa-4202-b7e9-c0e197c71c8f' // Search Index Data Reader
-        principalId: !useExistingAiFoundryAiProject ? aiFoundryAiServices.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId : existingAiFoundryAiServicesProject!.identity.principalId
-        principalType: 'ServicePrincipal'
-      }
-      {
-        roleDefinitionIdOrName: '7ca78c08-252a-4471-8644-bb5ff32d4ba0' // Search Service Contributor
-        principalId: !useExistingAiFoundryAiProject ? aiFoundryAiServices.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId : existingAiFoundryAiServicesProject!.identity.principalId
-        principalType: 'ServicePrincipal'
-      }
-    ]
-    partitionCount: 1
-    replicaCount: 1
-    sku: 'standard'
-    semanticSearch: 'free'
-    // Use the deployment tags provided to the template
-    tags: tags
-    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: false //enablePrivateNetworking
-    ? [
-        {
-          name: 'pep-${aiSearchName}'
-          customNetworkInterfaceName: 'nic-${aiSearchName}'
-          privateDnsZoneGroup: {
-            privateDnsZoneGroupConfigs: [
-              { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId }
-            ]
-          }
-          service: 'searchService'
-          subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-        }
-      ]
-    : []
+resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
+  name: aiSearchName
+  location: location
+  sku: {
+    name: 'standard'
   }
 }
 
-// Separate module for Search Service to enable managed identity, as this reduces deployment time
-module searchServiceEnableIdentity 'br/public:avm/res/search/search-service:0.12.0' = {
+// Separate module for Search Service to enable managed identity and update other properties, as this reduces deployment time
+module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
   name: take('avm.res.search.enable-identity.${aiSearchName}', 64)
   params: {
     // Required parameters
@@ -912,7 +841,7 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
   name: guid(aiSearchName, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', aiFoundryAiServicesResourceName)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
-    principalId: searchServiceEnableIdentity.outputs.systemAssignedMIPrincipalId!
+    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
     principalType: 'ServicePrincipal'
   }
 }
@@ -926,10 +855,13 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
     isSharedToAll: true
     metadata: {
       ApiType: 'Azure'
-      ResourceId: searchService.outputs.resourceId
-      location: searchService.outputs.location
+      ResourceId: searchService.id
+      location: searchService.location
     }
   }
+  dependsOn: [
+    aiFoundryAiServices
+  ]
 }
 
 module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_connection.bicep' = if (useExistingAiFoundryAiProject) {
@@ -939,8 +871,8 @@ module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_c
     existingAIProjectName: aiFoundryAiProjectResourceName
     existingAIFoundryName: aiFoundryAiServicesResourceName
     aiSearchName: aiSearchName
-    aiSearchResourceId: searchService.outputs.resourceId
-    aiSearchLocation: searchService.outputs.location
+    aiSearchResourceId: searchService.id
+    aiSearchLocation: searchService.location
     aiSearchConnectionName: aiSearchName
   }
 }
@@ -950,7 +882,7 @@ module searchServiceToExistingAiServicesRoleAssignment 'modules/role-assignment.
   name: 'searchToExistingAiServices-roleAssignment'
   scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
   params: {
-    principalId: searchServiceEnableIdentity.outputs.systemAssignedMIPrincipalId!
+    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
     roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
     targetResourceName: aiFoundryAiServices.outputs.name
   }
