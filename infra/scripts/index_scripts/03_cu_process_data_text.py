@@ -309,6 +309,9 @@ def create_tables():
 
 create_tables()
 
+def get_field_value(fields, field_name, default=""):
+    field = fields.get(field_name, {})
+    return field.get('valueString', default)
 
 # Process files and insert into DB and Search
 async def process_files():
@@ -333,26 +336,30 @@ async def process_files():
                 response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
                 result = cu_client.poll_result(response)
                 file_name = path.name.split('/')[-1].replace("%3A", "_")
-                if USE_CASE == 'telecom':
+                if USE_CASE == 'telecom': 
                     start_time = file_name.replace(".json", "")[-19:]
                     timestamp_format = "%Y-%m-%d %H_%M_%S"
-                else:
+                else: 
                     start_time = file_name.replace(".json", "")[-16:]
                     timestamp_format = "%Y-%m-%d%H%M%S"
                 start_timestamp = datetime.strptime(start_time, timestamp_format)
                 conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
                 conversationIds.append(conversation_id)
-                duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
+                fields = result['result']['contents'][0]['fields']
+                duration_str = get_field_value(fields, 'Duration', '0')
+                try:
+                    duration = int(duration_str)
+                except (ValueError, TypeError):
+                    duration = 0
                 end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
                 start_timestamp = str(start_timestamp).split(".")[0]
-                fields = result['result']['contents'][0]['fields']
-                summary = fields['summary']['valueString']
-                satisfied = fields['satisfied']['valueString']
-                sentiment = fields['sentiment']['valueString']
-                topic = fields['topic']['valueString']
-                key_phrases = fields['keyPhrases']['valueString']
-                complaint = fields['complaint']['valueString']
-                content = fields['content']['valueString']
+                summary = get_field_value(fields, 'summary')
+                satisfied = get_field_value(fields, 'satisfied')
+                sentiment = get_field_value(fields, 'sentiment')
+                topic = get_field_value(fields, 'topic')
+                key_phrases = get_field_value(fields, 'keyPhrases')
+                complaint = get_field_value(fields, 'complaint')
+                content = get_field_value(fields, 'content')
 
                 # Collect record for batch insert
                 processed_records.append({

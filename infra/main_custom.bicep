@@ -742,19 +742,8 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
-var aiSearchConnectionName = 'foundry-search-connection-${solutionSuffix}'
-
-resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
-  name: aiSearchName
-  location: location
-  sku: {
-    name: 'standard'
-  }
-}
-
-// Separate module for Search Service to enable managed identity and update other properties, as this reduces deployment time
-module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
-  name: take('avm.res.search.enable-identity.${aiSearchName}', 64)
+module searchSearchServices 'br/public:avm/res/search/search-service:0.12.0' = {
+  name: take('avm.res.search.search-service.${aiSearchName}', 64)
   params: {
     // Required parameters
     name: aiSearchName
@@ -833,9 +822,6 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
       ]
     : []
   }
-  dependsOn: [
-    searchService
-  ]
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
@@ -843,13 +829,14 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
   name: guid(aiSearchName, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', aiFoundryAiServicesResourceName)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
-    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
+    principalId: searchSearchServices.outputs.systemAssignedMIPrincipalId!
     principalType: 'ServicePrincipal'
   }
 }
 
-resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-10-01-preview' = if (!useExistingAiFoundryAiProject) {
-  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchConnectionName}'
+// Re-enabled - using disableLocalAuth: true avoids key validation
+resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-04-01-preview' = if (!useExistingAiFoundryAiProject){
+  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchName}'
   properties: {
     category: 'CognitiveSearch'
     target: 'https://${aiSearchName}.search.windows.net'
@@ -857,13 +844,10 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
     isSharedToAll: true
     metadata: {
       ApiType: 'Azure'
-      ResourceId: searchService.id
-      location: searchService.location
+      ResourceId: searchSearchServices.outputs.resourceId
+      location: searchSearchServices.outputs.location
     }
   }
-  dependsOn: [
-    aiFoundryAiServices
-  ]
 }
 
 module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_connection.bicep' = if (useExistingAiFoundryAiProject) {
@@ -873,9 +857,9 @@ module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_c
     existingAIProjectName: aiFoundryAiProjectResourceName
     existingAIFoundryName: aiFoundryAiServicesResourceName
     aiSearchName: aiSearchName
-    aiSearchResourceId: searchService.id
-    aiSearchLocation: searchService.location
-    aiSearchConnectionName: aiSearchConnectionName
+    aiSearchResourceId: searchSearchServices.outputs.resourceId
+    aiSearchLocation: searchSearchServices.outputs.location
+    aiSearchConnectionName: aiSearchName
   }
 }
 
@@ -884,7 +868,7 @@ module searchServiceToExistingAiServicesRoleAssignment 'modules/role-assignment.
   name: 'searchToExistingAiServices-roleAssignment'
   scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
   params: {
-    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
+    principalId: searchSearchServices.outputs.systemAssignedMIPrincipalId!
     roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
     targetResourceName: aiFoundryAiServices.outputs.name
   }
@@ -1281,9 +1265,9 @@ module webSiteBackend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${backendWebSiteResourceName}', 64)
   params: {
     name: backendWebSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'api' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.?outputs.resourceId
     managedIdentities: {
       systemAssigned: true
@@ -1292,18 +1276,19 @@ module webSiteBackend 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
+      linuxFxVersion: 'PYTHON|3.11'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'uvicorn app:app --host 0.0.0.0 --port 8000'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          PYTHONUNBUFFERED: '1'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
-          AGENT_NAME_CONVERSATION: ''
-          AGENT_NAME_TITLE: ''
-          API_APP_NAME: 'api-${solutionSuffix}'
-          AZURE_AI_FOUNDRY_RESOURCE_ID: !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
@@ -1354,18 +1339,24 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${webSiteResourceName}', 64)
   params: {
     name: webSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'webapp' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.resourceId
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+      linuxFxVersion: 'NODE|20-lts'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          REACT_APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          WEBSITE_NODE_DEFAULT_VERSION: '~20'
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
@@ -1420,7 +1411,7 @@ output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiSearchName}.search.windows
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
 @description('Contains Azure AI Search connection name.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchConnectionName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchName
 
 @description('Contains Azure Cosmos DB account name.')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDb.outputs.name
@@ -1469,6 +1460,9 @@ output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 
 @description('Contains SQL server name.')
 output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
+
+@description('Client ID of the user-assigned managed identity.')
+output USER_MID string = userAssignedIdentity.outputs.clientId
 
 @description('Display name of the backend API user-assigned managed identity (also used for SQL database access).')
 output BACKEND_USER_MID_NAME string = backendUserAssignedIdentity.outputs.name
@@ -1523,18 +1517,6 @@ output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
 
 @description('Azure OpenAI Content Understanding endpoint URL.')
 output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint
-
-@description('Contains API application name.')
-output API_APP_NAME string = 'api-${solutionSuffix}'
-
-@description('Contains AI Foundry resource ID.')
-output AZURE_AI_FOUNDRY_RESOURCE_ID string = !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
-
-@description('Contains Conversation Agent name.')
-output AGENT_NAME_CONVERSATION string = ''
-
-@description('Contains Title Agent name.')
-output AGENT_NAME_TITLE string = ''
 
 @description('Industry Use Case.')
 output USE_CASE string = usecase

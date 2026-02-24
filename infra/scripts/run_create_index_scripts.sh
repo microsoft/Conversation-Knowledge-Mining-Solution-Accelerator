@@ -31,19 +31,45 @@ if ! az account show &> /dev/null; then
 	az login --use-device-code
 fi
 
-# Get signed in user and store the output
-signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
-if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
-    echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
-    az login --use-device-code
-    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
-fi
+# Determine if we're running as a user or service principal
+account_type=$(az account show --query user.type --output tsv 2>/dev/null)
 
-signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
-signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
-
-if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
-    echo "✗ Failed to extract user information after authentication"
+if [ "$account_type" == "user" ]; then
+    # Running as a user - get signed-in user info
+    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
+    if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
+        echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
+        az login --use-device-code
+        signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+    fi
+    signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+    signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to extract user information after authentication"
+        exit 1
+    fi
+    echo "✓ Running as user: $signed_user_display_name ($signed_user_id)"
+elif [ "$account_type" == "servicePrincipal" ]; then
+    # Running as a service principal - get SP object ID and display name
+    client_id=$(az account show --query user.name --output tsv 2>/dev/null)
+    if [ -n "$client_id" ]; then
+        sp_info=$(az ad sp show --id "$client_id" --query "{id:id, displayName:displayName}" -o json 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to retrieve service principal information for client ID: $client_id"
+            echo "$sp_info"
+            exit 1
+        fi
+        signed_user_id=$(echo "$sp_info" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+        signed_user_display_name=$(echo "$sp_info" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    fi
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to get service principal information"
+        exit 1
+    fi
+    echo "✓ Running as service principal: $signed_user_display_name ($signed_user_id)"
+else
+    echo "✗ Unknown account type: $account_type"
     exit 1
 fi
 
@@ -145,7 +171,18 @@ fi
 if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
     mi_display_name="$backendManagedIdentityDisplayName"
     server_fqdn="$sqlServerName.database.windows.net"
-    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
+    
+    # Determine isServicePrincipal based on account type
+    # When running as servicePrincipal, use SID-based approach
+    # When running as user, use FROM EXTERNAL PROVIDER
+    if [ "$account_type" == "servicePrincipal" ]; then
+        is_sp="true"
+    else
+        is_sp="false"
+    fi
+    
+    # Managed identity role assignments
+    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\",\"isServicePrincipal\":$is_sp},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\",\"isServicePrincipal\":$is_sp}]"
 
     if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"

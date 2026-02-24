@@ -34,6 +34,10 @@ on:
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
         required: false
         type: string
+      AZURE_ENV_USE_CASE:
+        required: false
+        type: string
+        default: 'telecom'
     outputs:
       WEB_APP_URL:
         description: "Web App URL"
@@ -65,6 +69,7 @@ jobs:
           INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
           INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "🔍 Validating workflow input parameters..."
           VALIDATION_FAILED=false
@@ -153,7 +158,7 @@ jobs:
           
           # Validate AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID (optional, if provided must be valid Resource ID)
           if [[ -n "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/microsoft\.operationalinsights/workspaces/[^/]+$ ]]; then
+            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/[Mm]icrosoft\.[Oo]perational[Ii]nsights/[Ww]orkspaces/[^/]+$ ]]; then
               echo "❌ ERROR: AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}"
               echo "   Got: '$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID'"
@@ -165,7 +170,7 @@ jobs:
           
           # Validate AZURE_EXISTING_AI_PROJECT_RESOURCE_ID (optional, if provided must be valid Resource ID)
           if [[ -n "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/(Microsoft\.MachineLearningServices/(workspaces|projects)/[^/]+|Microsoft\.CognitiveServices/accounts/[^/]+/projects/[^/]+)$ ]]; then
+            if [[ ! "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/([Mm]icrosoft\.[Mm]achine[Ll]earning[Ss]ervices/([Ww]orkspaces|[Pp]rojects)/[^/]+|[Mm]icrosoft\.[Cc]ognitive[Ss]ervices/[Aa]ccounts/[^/]+/[Pp]rojects/[^/]+)$ ]]; then
               echo "❌ ERROR: AZURE_EXISTING_AI_PROJECT_RESOURCE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.CognitiveServices/accounts/{accountName}/projects/{projectName}"
               echo "   Got: '$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID'"
@@ -173,6 +178,15 @@ jobs:
             else
               echo "✅ AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: Valid Resource ID format"
             fi
+          fi
+          
+          # Validate AZURE_ENV_USE_CASE (optional, must be 'telecom' or 'IT_helpdesk')
+          USE_CASE="${INPUT_AZURE_ENV_USE_CASE:-telecom}"
+          if [[ "$USE_CASE" != "telecom" && "$USE_CASE" != "IT_helpdesk" ]]; then
+            echo "❌ ERROR: AZURE_ENV_USE_CASE must be one of: telecom, IT_helpdesk, got: '$USE_CASE'"
+            VALIDATION_FAILED=true
+          else
+            echo "✅ AZURE_ENV_USE_CASE: '$USE_CASE' is valid"
           fi
           
           # Fail workflow if any validation failed
@@ -186,7 +200,7 @@ jobs:
           echo "✅ All input parameters validated successfully!"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Configure Parameters Based on WAF Setting
         shell: bash
@@ -224,6 +238,7 @@ jobs:
           EXP: ${{ inputs.EXP }}
           AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           set -e          
           echo "Starting azd deployment..."
@@ -246,6 +261,7 @@ jobs:
           azd env set AZURE_LOCATION="$AZURE_LOCATION"
           azd env set AZURE_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
           azd env set AZURE_ENV_IMAGETAG="$IMAGE_TAG"
+          azd env set AZURE_ENV_USE_CASE="$AZURE_ENV_USE_CASE"
           
           if [[ "$BUILD_DOCKER_IMAGE" == "true" ]]; then
             ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}")
@@ -267,7 +283,7 @@ jobs:
             if [[ -n "$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
               EXP_AI_PROJECT_ID="$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID"
             else
-              EXP_AI_PROJECT_ID="${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}"
+              EXP_AI_PROJECT_ID="${{ secrets.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}"
             fi
             
             echo "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
@@ -281,24 +297,54 @@ jobs:
           azd up --no-prompt
           
           echo "✅ Deployment succeeded."
-          echo "$DEPLOY_OUTPUT"
 
           echo "Extracting deployment outputs..."
-          DEPLOY_OUTPUT=$(azd env get-values --output json)
-          echo "Deployment output: $DEPLOY_OUTPUT"
-          
-          if [[ -z "$DEPLOY_OUTPUT" ]]; then
-            echo "Error: Deployment output is empty. Please check the deployment logs."
-            exit 1
+          API_APP_URL=$(azd env get-value API_APP_URL)
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_ENV
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_OUTPUT
+
+          WEB_APP_URL=$(azd env get-value WEB_APP_URL)
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Install ODBC Driver 18 for SQL Server
+        shell: bash
+        run: |
+          if ! [[ "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
+          then
+              echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
+              exit 1;
           fi
+              
+          # Download the package to configure the Microsoft repo
+          curl -fsSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb || { echo "Failed to download Microsoft packages config"; exit 1; }
+          # Install the package
+          sudo dpkg -i packages-microsoft-prod.deb
+          # Delete the file
+          rm packages-microsoft-prod.deb
+              
+          # Install the driver
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          echo "✅ ODBC Driver 18 for SQL Server installed successfully."
 
-          API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+      - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
 
-          WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 20
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
@@ -310,6 +356,7 @@ jobs:
           AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
           IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+          AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
           echo "## 🚀 Deploy Job Summary (Linux)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -321,6 +368,7 @@ jobs:
           echo "| **Azure Region (Infrastructure)** | \`$AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure OpenAI Region** | \`$AZURE_ENV_OPENAI_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Docker Image Tag** | \`$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Use Case** | \`$AZURE_ENV_USE_CASE\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ job.status }}" == "success" ]]; then
             echo "### ✅ Deployment Details" >> $GITHUB_STEP_SUMMARY
