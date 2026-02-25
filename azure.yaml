@@ -19,9 +19,9 @@ hooks:
         Write-Host "Web app URL: "
         Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
 
-        Write-Host "`nRun the following command in the bash terminal to create agents:"
-        Write-Host "bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh" -ForegroundColor Cyan
-        Write-Host "`nCreate and activate a virtual environment if not already done, then run the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
+        Write-Host "`nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
+        Write-Host "bash ./infra/scripts/run_create_agents_scripts.sh" -ForegroundColor Cyan
+        Write-Host "`nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
         Write-Host "bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Cyan
       shell: pwsh
       continueOnError: false
@@ -31,10 +31,10 @@ hooks:
         echo "Web app URL: "
         echo $WEB_APP_URL
 
-        echo "\nRun the following command in the bash terminal to create agents:"
-        echo "bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh"
+        echo "\nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
+        echo "bash ./infra/scripts/run_create_agents_scripts.sh"
         echo ""
-        echo "Create and activate a virtual environment if not already done, then run the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
+        echo "\nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
         echo "bash ./infra/scripts/process_sample_data.sh"
       shell: sh
       continueOnError: false
