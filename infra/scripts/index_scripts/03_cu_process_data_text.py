@@ -24,8 +24,7 @@ from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 
-from agent_framework import ChatAgent
-from agent_framework.azure import AzureAIClient
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -504,25 +503,20 @@ try:
             AsyncAzureCliCredential(process_timeout=30) as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
-            # Create chat client with topic mining agent
-            chat_client = AzureAIClient(
-                project_client=project_client,
-                agent_name=TOPIC_MINING_AGENT_NAME,
-                use_latest_version=True,
-            )
-
-            async with ChatAgent(
-                chat_client=chat_client,
-                store=False,  # No need to store conversation history
-            ) as chat_agent:
-                # Query with the topics string
-                query = f"Analyze these conversation topics and identify distinct categories: {topics_str1}"
-
-                result = await chat_agent.run(messages=query)
-                res = result.text
-                # Clean up markdown formatting if present
-                res = res.replace("```json", '').replace("```", '').strip()
-                return json.loads(res)
+            # Create provider for agent management
+            provider = AzureAIProjectAgentProvider(project_client=project_client)
+            
+            # Get agent using provider
+            agent = await provider.get_agent(name=TOPIC_MINING_AGENT_NAME)
+            
+            # Query with the topics string
+            query = f"Analyze these conversation topics and identify distinct categories: {topics_str1}"
+            
+            result = await agent.run(query)
+            res = result.text
+            # Clean up markdown formatting if present
+            res = res.replace("```json", '').replace("```", '').strip()
+            return json.loads(res)
 
     res = asyncio.run(call_topic_mining_agent(topics_str))
     for object1 in res['topics']:
@@ -543,21 +537,16 @@ try:
             AsyncAzureCliCredential(process_timeout=30) as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
-            # Create chat client with topic mapping agent
-            chat_client = AzureAIClient(
-                project_client=project_client,
-                agent_name=TOPIC_MAPPING_AGENT_NAME,
-                use_latest_version=True,
-            )
-
-            async with ChatAgent(
-                chat_client=chat_client,
-                store=False,
-            ) as chat_agent:
-                query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
-
-                result = await chat_agent.run(messages=query)
-                return result.text.strip()
+            # Create provider for agent management
+            provider = AzureAIProjectAgentProvider(project_client=project_client)
+            
+            # Get agent using provider
+            agent = await provider.get_agent(name=TOPIC_MAPPING_AGENT_NAME)
+            
+            query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
+            
+            result = await agent.run(query)
+            return result.text.strip()
 
     cursor.execute('SELECT * FROM processed_data')
     rows = [tuple(row) for row in cursor.fetchall()]

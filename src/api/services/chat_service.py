@@ -20,9 +20,7 @@ from fastapi.responses import StreamingResponse
 
 from azure.ai.projects.aio import AIProjectClient
 
-from agent_framework import ChatAgent
-from agent_framework.azure import AzureAIClient
-from agent_framework.exceptions import ServiceResponseException
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 from cachetools import TTLCache
 
@@ -119,75 +117,86 @@ class ChatService:
             await get_azure_credential_async(client_id=self.azure_client_id) as credential,
             AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
         ):
-            thread = None
             complete_response = ""
             try:
                 if not query:
                     query = "Please provide a query."
 
-                # Create chat client with existing agent
-                chat_client = AzureAIClient(
-                    project_client=project_client,
-                    agent_name=self.orchestrator_agent_name,
-                    use_latest_version=True,
-                )
+                # Create provider for agent management
+                provider = AzureAIProjectAgentProvider(project_client=project_client)
 
                 custom_tool = SQLTool(conn=await get_sqldb_connection())
-                my_tools = [custom_tool.get_sql_response]
 
                 thread_conversation_id = None
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.get(conversation_id, None)
 
-                async with ChatAgent(
-                    chat_client=chat_client,
-                    tools=my_tools,
-                    tool_choice="auto",
-                    store=True,
-                ) as chat_agent:
-                    citations = []
-                    first_chunk = True
+                # Get agent with tools using provider
+                agent = await provider.get_agent(
+                    name=self.orchestrator_agent_name,
+                    tools=custom_tool.get_sql_response
+                )
 
-                    if thread_conversation_id:
-                        thread = chat_agent.get_new_thread(service_thread_id=thread_conversation_id)
-                    else:
-                        # Create a conversation using OpenAI client
-                        openai_client = project_client.get_openai_client()
-                        conversation = await openai_client.conversations.create()
-                        thread_conversation_id = conversation.id
-                        thread = chat_agent.get_new_thread(service_thread_id=thread_conversation_id)
+                citations = []
+                first_chunk = True
+                citation_marker_map = {}  # Maps original markers to sequential numbers
+                citation_counter = 0
 
-                    async for chunk in chat_agent.run_stream(messages=query, thread=thread):
-                        # # Collect citations from Azure AI Search responses
-                        # if hasattr(chunk, "contents") and chunk.contents:
-                        #     for content in chunk.contents:
-                        #         if hasattr(content, "annotations") and content.annotations:
-                        #             citations.extend(content.annotations)
+                if not thread_conversation_id:
+                    # Create a conversation using OpenAI client for conversation continuity
+                    openai_client = project_client.get_openai_client()
+                    conversation = await openai_client.conversations.create()
+                    thread_conversation_id = conversation.id
 
+                def replace_citation_marker(match):
+                    nonlocal citation_counter
+                    marker = match.group(0)
+                    if marker not in citation_marker_map:
+                        citation_counter += 1
+                        citation_marker_map[marker] = citation_counter
+                    return f"[{citation_marker_map[marker]}]"
+
+                async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                    # Collect citations from Azure AI Search responses
+                    for content in getattr(chunk, "contents", []):
+                        annotations = getattr(content, "annotations", [])
+                        if annotations:
+                            citations.extend(annotations)
+
+                    chunk_text = str(chunk.text) if chunk.text else ""
+
+                    # Replace complete citation markers like 【4:0†source】 with [1], [2], etc.
+                    chunk_text = re.sub(r'【\d+:\d+†[^】]+】', replace_citation_marker, chunk_text)
+
+                    if chunk_text:
                         if first_chunk:
-                            if chunk is not None and chunk.text != "":
-                                first_chunk = False
-                                yield "{ \"answer\": " + str(chunk.text)
+                            first_chunk = False
+                            yield "{ \"answer\": " + chunk_text
                         else:
-                            complete_response += str(chunk.text)
-                            yield str(chunk.text)
+                            complete_response += chunk_text
+                            yield chunk_text
 
-                    cache[conversation_id] = thread_conversation_id
+                cache[conversation_id] = thread_conversation_id
 
-                    if citations:
-                        citation_list = [f"{{\"url\": \"{citation.url}\", \"title\": \"{citation.title}\"}}" for citation in citations]
-                        yield ", \"citations\": [" + ",".join(citation_list) + "]}"
-                    else:
-                        yield ", \"citations\": []}"
+                if citations:
+                    # Use dict to track unique citations by title to avoid duplicates
+                    unique_citations = {}
+                    for citation in citations:
+                        get_url = (citation.get("additional_properties") or {}).get("get_url")
+                        url = get_url if get_url else 'N/A'
+                        title = citation.get('title', 'N/A')
+                        # Use title as key to ensure uniqueness
+                        if title not in unique_citations:
+                            unique_citations[title] = {"url": url, "title": title}
 
-            except ServiceResponseException as e:
-                complete_response = str(e)
-                if "Rate limit is exceeded" in str(e):
-                    logger.error("Rate limit error: %s", e)
-                    raise ServiceResponseException(f"Rate limit is exceeded. {str(e)}") from e
+                    # Sort by title and convert to JSON string format
+                    citation_list = [
+                        f"{{\"url\": \"{item['url']}\", \"title\": \"{item['title']}\"}}"
+                        for item in sorted(unique_citations.values(), key=lambda x: x['title'])
+                    ]
+                    yield ", \"citations\": [" + ",".join(citation_list) + "]}"
                 else:
-                    logger.error("RuntimeError: %s", e)
-                    raise ServiceResponseException(f"An unexpected runtime error occurred: {str(e)}") from e
+                    yield ", \"citations\": []}"
 
             except Exception as e:
                 complete_response = str(e)
@@ -197,7 +206,19 @@ class ChatService:
                 if thread_conversation_id is not None:
                     corrupt_key = f"{conversation_id}_corrupt_{random.randint(1000, 9999)}"
                     cache[corrupt_key] = thread_conversation_id
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error streaming OpenAI text") from e
+
+                # Provide user-friendly error messages
+                error_message = str(e).lower()
+                if "too many requests" in error_message or "429" in error_message:
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="The service is currently experiencing high demand. Please try again in a few moments."
+                    ) from e
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="An error occurred while processing the request."
+                    ) from e
 
             finally:
                 # Provide a fallback response when no data is received from OpenAI.
@@ -231,22 +252,14 @@ class ChatService:
                         }
                         yield json.dumps(response) + "\n\n"
 
-            except ServiceResponseException as e:
-                error_message = str(e)
-                retry_after = "sometime"
-                if "Rate limit is exceeded" in error_message:
-                    match = re.search(r"Try again in (\d+) seconds.", error_message)
-                    if match:
-                        retry_after = f"{match.group(1)} seconds"
-                    logger.error("Rate limit error: %s", error_message)
-                    yield json.dumps({"error": f"Rate limit is exceeded. Try again in {retry_after}."}) + "\n\n"
-                else:
-                    logger.error("ServiceResponseException: %s", error_message)
-                    yield json.dumps({"error": "An error occurred. Please try again later."}) + "\n\n"
-
             except Exception as e:
                 logger.error("Unexpected error: %s", e)
-                error_response = {"error": "An error occurred while processing the request."}
+                # Extract user-friendly message from HTTPException if available
+                if isinstance(e, HTTPException):
+                    error_message = e.detail
+                else:
+                    error_message = "An error occurred while processing the request."
+                error_response = {"error": error_message}
                 yield json.dumps(error_response) + "\n\n"
 
         return generate()

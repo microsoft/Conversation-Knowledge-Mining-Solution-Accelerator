@@ -89,21 +89,24 @@ class TestHistoryService:
         mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
         mock_project_client.__aexit__ = AsyncMock(return_value=None)
         
-        mock_chat_client = MagicMock()
-        mock_chat_agent = AsyncMock()
-        mock_chat_agent.__aenter__ = AsyncMock(return_value=mock_chat_agent)
-        mock_chat_agent.__aexit__ = AsyncMock(return_value=None)
-        mock_thread = MagicMock()
-        mock_chat_agent.get_new_thread.return_value = mock_thread
-        mock_chat_agent.run = AsyncMock(return_value="Billing Help Request")
+        # Mock agent result
+        mock_result = MagicMock()
+        mock_result.text = "Billing Help Request"
+        
+        # Mock agent
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_result)
+        
+        # Mock provider
+        mock_provider = MagicMock()
+        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
 
         with patch("services.history_service.get_azure_credential_async", return_value=mock_credential):
             with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
-                with patch("services.history_service.AzureAIClient", return_value=mock_chat_client):
-                    with patch("services.history_service.ChatAgent", return_value=mock_chat_agent):
-                        result = await history_service.generate_title(conversation_messages)
-                        assert result == "Billing Help Request"
-                        mock_chat_agent.run.assert_called_once()
+                with patch("services.history_service.AzureAIProjectAgentProvider", return_value=mock_provider):
+                    result = await history_service.generate_title(conversation_messages)
+                    assert result == "Billing Help Request"
+                    mock_agent.run.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_generate_title_failed_run(self, history_service):

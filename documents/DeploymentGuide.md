@@ -350,13 +350,13 @@ az login --use-device-code
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
 ```bash
-bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh
+bash ./infra/scripts/run_create_agents_scripts.sh
 ```
 
 **If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
 
 ```bash
-bash ./infra/scripts/agent_scripts/run_create_agents_scripts.sh \
+bash ./infra/scripts/run_create_agents_scripts.sh \
    <project-endpoint> <solution-name> <gpt-model-name> \
    <ai-foundry-resource-id> <api-app-name> <azure-ai-search-connection-name> \ 
    <azure-ai-search-index> <resource-group>

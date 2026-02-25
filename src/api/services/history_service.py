@@ -7,9 +7,7 @@ from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
 
-from agent_framework import ChatAgent
-from agent_framework.azure import AzureAIClient
-from agent_framework.exceptions import ServiceResponseException
+from agent_framework.azure import AzureAIProjectAgentProvider
 
 logger = logging.getLogger(__name__)
 
@@ -72,28 +70,16 @@ class HistoryService:
                 await get_azure_credential_async(client_id=self.azure_client_id) as credential,
                 AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
             ):
-                # Create chat client with title agent
-                chat_client = AzureAIClient(
-                    project_client=project_client,
-                    agent_name=self.title_agent_name,
-                    use_latest_version=True,
-                )
+                # Create provider for agent management
+                provider = AzureAIProjectAgentProvider(project_client=project_client)
 
-                # Use ChatAgent to generate title
-                async with ChatAgent(
-                    chat_client=chat_client,
-                    tool_choice="none",
-                ) as chat_agent:
-                    thread = chat_agent.get_new_thread()
-                    result = await chat_agent.run(messages=final_prompt, thread=thread)
-                    return str(result).strip() if result is not None else "New Conversation"
+                # Get title agent using provider
+                agent = await provider.get_agent(name=self.title_agent_name)
 
-        except ServiceResponseException as e:
-            logger.error(f"ServiceResponseException generating title: {e}")
-            # Fallback to user message or default
-            if user_messages:
-                return user_messages[-1]["content"][:50]
-            return "New Conversation"
+                # Generate title using agent
+                result = await agent.run(final_prompt)
+                return str(result.text).strip() if result is not None else "New Conversation"
+
         except Exception as e:
             logger.error(f"Error generating title: {e}")
             # Fallback to user message or default

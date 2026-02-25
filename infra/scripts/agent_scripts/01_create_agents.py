@@ -1,9 +1,16 @@
-from azure.ai.projects import AIProjectClient
-from azure.identity import AzureCliCredential
 import sys
 import os
 import argparse
-from azure.ai.projects.models import PromptAgentDefinition, AzureAISearchAgentTool, FunctionTool, Tool, AzureAISearchToolResource, AISearchIndexResource, AzureAISearchQueryType
+import asyncio
+from azure.ai.projects.aio import AIProjectClient
+from azure.identity.aio import AzureCliCredential
+from azure.ai.projects.models import (
+    PromptAgentDefinition,
+    AzureAISearchAgentTool,
+    FunctionTool,
+    AzureAISearchToolResource,
+    AISearchIndexResource,
+)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 p = argparse.ArgumentParser()
@@ -19,11 +26,6 @@ solutionName = args.solution_name
 gptModelName = args.gpt_model_name
 azure_ai_search_connection_name = args.azure_ai_search_connection_name
 azure_ai_search_index = args.azure_ai_search_index
-
-project_client = AIProjectClient(
-    endpoint= ai_project_endpoint,
-    credential=AzureCliCredential(),
-)
 
 conversation_agent_instruction = '''You are a helpful assistant.
     Tool Priority:
@@ -84,52 +86,58 @@ conversation_agent_instruction = '''You are a helpful assistant.
 
 title_agent_instruction = '''You are a helpful title generator agent. Create a 4-word or less title capturing the user's core intent. No quotation marks, punctuation, or extra text. Output only the title.'''
 
-with project_client:
-
-    conversation_agent = project_client.agents.create_version(
-        agent_name = f"KM-ConversationAgent-{solutionName}",
-        definition=PromptAgentDefinition(
-            model=gptModelName,
-            instructions=conversation_agent_instruction,
-            tools=[
-                # SQL Tool - function tool (requires client-side implementation)
-                FunctionTool(
-                    name="get_sql_response",
-                    description="Execute T-SQL queries on the database to retrieve quantified, numerical, or metric-based data.",
-                    parameters={
-                        "type": "object",
-                        "properties": {
-                            "sql_query": {
-                                "type": "string",
-                                "description": "A valid T-SQL query to execute against the database."
-                            }
-                        },
-                        "required": ["sql_query"]
-                    }
-                ),
-                # Azure AI Search - built-in service tool (no client implementation needed)
-                AzureAISearchAgentTool(
-                    azure_ai_search=AzureAISearchToolResource(
-                        indexes=[
-                            AISearchIndexResource(
-                                project_connection_id=azure_ai_search_connection_name,
-                                index_name=azure_ai_search_index,
-                                query_type="vector_simple",
-                                top_k=5
-                            )
-                        ]
+async def main():
+    async with (
+        AzureCliCredential() as credential,
+        AIProjectClient(endpoint=ai_project_endpoint, credential=credential) as project_client,
+    ):
+        conversation_agent = await project_client.agents.create_version(
+            agent_name = f"KM-ConversationAgent-{solutionName}",
+            definition=PromptAgentDefinition(
+                model=gptModelName,
+                instructions=conversation_agent_instruction,
+                tools=[
+                    # SQL Tool - function tool (requires client-side implementation)
+                    FunctionTool(
+                        name="get_sql_response",
+                        description="Execute T-SQL queries on the database to retrieve quantified, numerical, or metric-based data.",
+                        parameters={
+                            "type": "object",
+                            "properties": {
+                                "sql_query": {
+                                    "type": "string",
+                                    "description": "A valid T-SQL query to execute against the database."
+                                }
+                            },
+                            "required": ["sql_query"]
+                        }
+                    ),
+                    # Azure AI Search - built-in service tool (no client implementation needed)
+                    AzureAISearchAgentTool(
+                        azure_ai_search=AzureAISearchToolResource(
+                            indexes=[
+                                AISearchIndexResource(
+                                    project_connection_id=azure_ai_search_connection_name,
+                                    index_name=azure_ai_search_index,
+                                    query_type="vector_simple",
+                                    top_k=5
+                                )
+                            ]
+                        )
                     )
-                )
-            ]
-        ),
-    )
-    
-    title_agent = project_client.agents.create_version(
-        agent_name = f"KM-TitleAgent-{solutionName}",
-        definition=PromptAgentDefinition(
-            model=gptModelName,
-            instructions=title_agent_instruction,
-        ),
-    )
-    print(f"conversationAgentName={conversation_agent.name}")
-    print(f"titleAgentName={title_agent.name}")
+                ]
+            ),
+        )
+        
+        title_agent = await project_client.agents.create_version(
+            agent_name = f"KM-TitleAgent-{solutionName}",
+            definition=PromptAgentDefinition(
+                model=gptModelName,
+                instructions=title_agent_instruction,
+            ),
+        )
+        print(f"conversationAgentName={conversation_agent.name}")
+        print(f"titleAgentName={title_agent.name}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

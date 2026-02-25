@@ -1,2 +1,3 @@
-azure-identity==1.23.0
-azure-ai-projects==2.0.0b2
+aiohttp==3.13.3
+azure-identity==1.25.2
+azure-ai-projects==2.0.0b3
