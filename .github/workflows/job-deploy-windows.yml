@@ -357,6 +357,13 @@ jobs:
             }
           }
 
+      - name: Re-authenticate with Azure (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Process Sample Data
         id: process_sample_data
         continue-on-error: true
@@ -367,6 +374,14 @@ jobs:
           echo "Running process_sample_data.sh..."
           bash ./infra/scripts/process_sample_data.sh
           echo "✅ Sample data processing completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.process_sample_data.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Retry Process Sample Data
         if: steps.process_sample_data.outcome == 'failure'
