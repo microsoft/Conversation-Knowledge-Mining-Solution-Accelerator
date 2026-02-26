@@ -49,6 +49,7 @@ on:
 jobs:
   deploy-linux:
     runs-on: ubuntu-latest
+    environment: production
     env:
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     outputs:
@@ -217,13 +218,16 @@ jobs:
       - name: Install azd
         uses: Azure/setup-azd@v2
           
-      - name: Login to AZD
-        id: login-azure
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure AZD to use Azure CLI authentication
         shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --client-secret ${{ secrets.AZURE_CLIENT_SECRET }} --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+        run: azd config set auth.useAzCliAuth "true"
 
       - name: Deploy using azd up and extract values (Linux)
         id: get_output_linux
