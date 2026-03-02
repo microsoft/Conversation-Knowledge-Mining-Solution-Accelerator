@@ -742,8 +742,17 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
-module searchSearchServices 'br/public:avm/res/search/search-service:0.12.0' = {
-  name: take('avm.res.search.search-service.${aiSearchName}', 64)
+resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
+  name: aiSearchName
+  location: location
+  sku: {
+    name: 'standard'
+  }
+}
+
+// Separate module for Search Service to enable managed identity and update other properties, as this reduces deployment time
+module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
+  name: take('avm.res.search.enable-identity.${aiSearchName}', 64)
   params: {
     // Required parameters
     name: aiSearchName
@@ -822,6 +831,9 @@ module searchSearchServices 'br/public:avm/res/search/search-service:0.12.0' = {
       ]
     : []
   }
+  dependsOn: [
+    searchService
+  ]
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
@@ -829,7 +841,7 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
   name: guid(aiSearchName, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', aiFoundryAiServicesResourceName)
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd') // Cognitive Services OpenAI User
-    principalId: searchSearchServices.outputs.systemAssignedMIPrincipalId!
+    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
     principalType: 'ServicePrincipal'
   }
 }
@@ -843,10 +855,13 @@ resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/project
     isSharedToAll: true
     metadata: {
       ApiType: 'Azure'
-      ResourceId: searchSearchServices.outputs.resourceId
-      location: searchSearchServices.outputs.location
+      ResourceId: searchService.id
+      location: searchService.location
     }
   }
+  dependsOn: [
+    aiFoundryAiServices
+  ]
 }
 
 module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_connection.bicep' = if (useExistingAiFoundryAiProject) {
@@ -856,8 +871,8 @@ module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_c
     existingAIProjectName: aiFoundryAiProjectResourceName
     existingAIFoundryName: aiFoundryAiServicesResourceName
     aiSearchName: aiSearchName
-    aiSearchResourceId: searchSearchServices.outputs.resourceId
-    aiSearchLocation: searchSearchServices.outputs.location
+    aiSearchResourceId: searchService.id
+    aiSearchLocation: searchService.location
     aiSearchConnectionName: aiSearchName
   }
 }
@@ -867,7 +882,7 @@ module searchServiceToExistingAiServicesRoleAssignment 'modules/role-assignment.
   name: 'searchToExistingAiServices-roleAssignment'
   scope: resourceGroup(aiFoundryAiServicesSubscriptionId, aiFoundryAiServicesResourceGroupName)
   params: {
-    principalId: searchSearchServices.outputs.systemAssignedMIPrincipalId!
+    principalId: searchServiceUpdate.outputs.systemAssignedMIPrincipalId!
     roleDefinitionId: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd' // Cognitive Services OpenAI User
     targetResourceName: aiFoundryAiServices.outputs.name
   }
