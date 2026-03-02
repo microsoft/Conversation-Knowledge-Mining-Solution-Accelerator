@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.40.2.10011",
-      "templateHash": "13633343500956336860"
+      "templateHash": "11209346631275672110"
     }
   },
   "parameters": {
@@ -465,6 +465,15 @@
       "resourceGroup": "[variables('aiFoundryAiServicesResourceGroupName')]",
       "name": "[format('{0}/{1}', variables('aiFoundryAiServicesResourceName'), variables('aiFoundryAiProjectResourceName'))]"
     },
+    "searchService": {
+      "type": "Microsoft.Search/searchServices",
+      "apiVersion": "2024-06-01-preview",
+      "name": "[variables('aiSearchName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "standard"
+      }
+    },
     "searchServiceToAiServicesRoleAssignment": {
       "condition": "[not(variables('useExistingAiFoundryAiProject'))]",
       "type": "Microsoft.Authorization/roleAssignments",
@@ -472,11 +481,11 @@
       "name": "[guid(variables('aiSearchName'), '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd', variables('aiFoundryAiServicesResourceName'))]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]",
-        "principalId": "[reference('searchSearchServices').outputs.systemAssignedMIPrincipalId.value]",
+        "principalId": "[reference('searchServiceUpdate').outputs.systemAssignedMIPrincipalId.value]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "searchSearchServices"
+        "searchServiceUpdate"
       ]
     },
     "projectAISearchConnection": {
@@ -491,12 +500,13 @@
         "isSharedToAll": true,
         "metadata": {
           "ApiType": "Azure",
-          "ResourceId": "[reference('searchSearchServices').outputs.resourceId.value]",
-          "location": "[reference('searchSearchServices').outputs.location.value]"
+          "ResourceId": "[resourceId('Microsoft.Search/searchServices', variables('aiSearchName'))]",
+          "location": "[reference('searchService', '2024-06-01-preview', 'full').location]"
         }
       },
       "dependsOn": [
-        "searchSearchServices"
+        "aiFoundryAiServices",
+        "searchService"
       ]
     },
     "logAnalyticsWorkspace": {
@@ -27516,9 +27526,9 @@
         }
       },
       "dependsOn": [
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -30041,18 +30051,18 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
     },
-    "searchSearchServices": {
+    "searchServiceUpdate": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
-      "name": "[take(format('avm.res.search.search-service.{0}', variables('aiSearchName')), 64)]",
+      "name": "[take(format('avm.res.search.enable-identity.{0}', variables('aiSearchName')), 64)]",
       "properties": {
         "expressionEvaluationOptions": {
           "scope": "inner"
@@ -32180,6 +32190,7 @@
         "backendUserAssignedIdentity",
         "existingAiFoundryAiServicesProject",
         "logAnalyticsWorkspace",
+        "searchService",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -32207,10 +32218,10 @@
             "value": "[variables('aiSearchName')]"
           },
           "aiSearchResourceId": {
-            "value": "[reference('searchSearchServices').outputs.resourceId.value]"
+            "value": "[resourceId('Microsoft.Search/searchServices', variables('aiSearchName'))]"
           },
           "aiSearchLocation": {
-            "value": "[reference('searchSearchServices').outputs.location.value]"
+            "value": "[reference('searchService', '2024-06-01-preview', 'full').location]"
           },
           "aiSearchConnectionName": {
             "value": "[variables('aiSearchName')]"
@@ -32285,7 +32296,7 @@
         }
       },
       "dependsOn": [
-        "searchSearchServices"
+        "searchService"
       ]
     },
     "searchServiceToExistingAiServicesRoleAssignment": {
@@ -32302,7 +32313,7 @@
         "mode": "Incremental",
         "parameters": {
           "principalId": {
-            "value": "[reference('searchSearchServices').outputs.systemAssignedMIPrincipalId.value]"
+            "value": "[reference('searchServiceUpdate').outputs.systemAssignedMIPrincipalId.value]"
           },
           "roleDefinitionId": {
             "value": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
@@ -32363,7 +32374,7 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
-        "searchSearchServices"
+        "searchServiceUpdate"
       ]
     },
     "storageAccount": {
@@ -40353,8 +40364,8 @@
       },
       "dependsOn": [
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "userAssignedIdentity",
         "virtualNetwork"
