@@ -185,21 +185,13 @@ class ChatService:
                 cache[conversation_id] = thread_conversation_id
 
                 if citations:
-                    # Use dict to track unique citations by title to avoid duplicates
-                    unique_citations = {}
+                    citation_list = []
                     for citation in citations:
                         get_url = (citation.get("additional_properties") or {}).get("get_url")
                         url = get_url if get_url else 'N/A'
                         title = citation.get('title', 'N/A')
-                        # Use title as key to ensure uniqueness
-                        if title not in unique_citations:
-                            unique_citations[title] = {"url": url, "title": title}
-
-                    # Sort by title and convert to JSON string format
-                    citation_list = [
-                        f"{{\"url\": \"{item['url']}\", \"title\": \"{item['title']}\"}}"
-                        for item in sorted(unique_citations.values(), key=lambda x: x['title'])
-                    ]
+                        citation_list.append(f"{{\"url\": \"{url}\", \"title\": \"{title}\"}}")
+                    
                     yield ", \"citations\": [" + ",".join(citation_list) + "]}"
                 else:
                     yield ", \"citations\": []}"
