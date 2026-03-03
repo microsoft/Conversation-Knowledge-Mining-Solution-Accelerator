@@ -7,11 +7,16 @@ generates embeddings, and stores processed data in SQL Server and Azure Search.
 import argparse
 import asyncio
 import json
+import logging
 import os
 import re
 import struct
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
+
+# Suppress informational warnings from agent_framework about runtime
+# tool/structured_output overrides not being supported by AzureAIClient.
+logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
 
 import pandas as pd
 import pyodbc

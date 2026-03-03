@@ -32,6 +32,10 @@ HOST_INSTRUCTIONS = "Answer questions about call center operations"
 
 logger = logging.getLogger(__name__)
 
+# Suppress informational warnings from agent_framework about runtime
+# tool/structured_output overrides not being supported by AzureAIClient.
+logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
+
 
 class ExpCache(TTLCache):
     """Extended TTLCache that deletes Azure AI agent threads when items expire."""
