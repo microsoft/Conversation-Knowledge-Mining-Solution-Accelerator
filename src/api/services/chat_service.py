@@ -191,7 +191,6 @@ class ChatService:
                         url = get_url if get_url else 'N/A'
                         title = citation.get('title', 'N/A')
                         citation_list.append(f"{{\"url\": \"{url}\", \"title\": \"{title}\"}}")
-                    
                     yield ", \"citations\": [" + ",".join(citation_list) + "]}"
                 else:
                     yield ", \"citations\": []}"
