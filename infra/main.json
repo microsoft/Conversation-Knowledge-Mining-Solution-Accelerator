@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.40.2.10011",
-      "templateHash": "17011520488912906403"
+      "version": "0.41.2.15936",
+      "templateHash": "5480941317758467379"
     }
   },
   "parameters": {
@@ -4439,8 +4439,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "9857139084182978879"
+              "version": "0.41.2.15936",
+              "templateHash": "7835683830649565955"
             }
           },
           "definitions": {
@@ -22601,8 +22601,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "9730759179052118696"
+              "version": "0.41.2.15936",
+              "templateHash": "11255056345205002263"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -23750,8 +23750,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "3022268207024386572"
+                      "version": "0.41.2.15936",
+                      "templateHash": "2352464251246464745"
                     }
                   },
                   "definitions": {
@@ -25400,8 +25400,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.40.2.10011",
-                              "templateHash": "10331519025916590333"
+                              "version": "0.41.2.15936",
+                              "templateHash": "8527060477757998371"
                             }
                           },
                           "definitions": {
@@ -25630,8 +25630,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "3022268207024386572"
+                      "version": "0.41.2.15936",
+                      "templateHash": "2352464251246464745"
                     }
                   },
                   "definitions": {
@@ -27280,8 +27280,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.40.2.10011",
-                              "templateHash": "10331519025916590333"
+                              "version": "0.41.2.15936",
+                              "templateHash": "8527060477757998371"
                             }
                           },
                           "definitions": {
@@ -27527,9 +27527,9 @@
         }
       },
       "dependsOn": [
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -32234,8 +32234,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "3013244911345442088"
+              "version": "0.41.2.15936",
+              "templateHash": "13998466922971349048"
             }
           },
           "parameters": {
@@ -32329,8 +32329,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "5940276677595603323"
+              "version": "0.41.2.15936",
+              "templateHash": "15810098719925301401"
             }
           },
           "parameters": {
@@ -54188,8 +54188,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "17957913878181935579"
+              "version": "0.41.2.15936",
+              "templateHash": "15946348041145518691"
             }
           },
           "definitions": {
@@ -55201,8 +55201,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "10706743168754451638"
+                      "version": "0.41.2.15936",
+                      "templateHash": "1185169597469996118"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -56131,8 +56131,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "17957913878181935579"
+              "version": "0.41.2.15936",
+              "templateHash": "15946348041145518691"
             }
           },
           "definitions": {
@@ -57144,8 +57144,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "10706743168754451638"
+                      "version": "0.41.2.15936",
+                      "templateHash": "1185169597469996118"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
