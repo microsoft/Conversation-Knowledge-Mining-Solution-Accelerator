@@ -382,7 +382,7 @@ async def process_files():
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
             except Exception:
-                pass
+                logging.exception("Error processing transcript file %s", path.name)
             if docs != [] and counter % 10 == 0:
                 result = search_client.upload_documents(documents=docs)
                 docs = []

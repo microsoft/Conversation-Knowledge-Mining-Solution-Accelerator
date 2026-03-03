@@ -122,6 +122,7 @@ class ChatService:
             AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
         ):
             complete_response = ""
+            db_conn = None
             try:
                 if not query:
                     query = "Please provide a query."
@@ -129,7 +130,8 @@ class ChatService:
                 # Create provider for agent management
                 provider = AzureAIProjectAgentProvider(project_client=project_client)
 
-                custom_tool = SQLTool(conn=await get_sqldb_connection())
+                db_conn = await get_sqldb_connection()
+                custom_tool = SQLTool(conn=db_conn)
 
                 thread_conversation_id = None
                 cache = self.get_thread_cache()
@@ -173,11 +175,11 @@ class ChatService:
                     chunk_text = re.sub(r'【\d+:\d+†[^】]+】', replace_citation_marker, chunk_text)
 
                     if chunk_text:
+                        complete_response += chunk_text
                         if first_chunk:
                             first_chunk = False
                             yield "{ \"answer\": " + chunk_text
                         else:
-                            complete_response += chunk_text
                             yield chunk_text
 
                 cache[conversation_id] = thread_conversation_id
@@ -225,6 +227,12 @@ class ChatService:
                     ) from e
 
             finally:
+                # Close the DB connection to prevent connection leaks
+                if db_conn is not None:
+                    try:
+                        db_conn.close()
+                    except Exception:
+                        pass
                 # Provide a fallback response when no data is received from OpenAI.
                 if complete_response == "":
                     logger.info("No response received from OpenAI.")

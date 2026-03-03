@@ -35,8 +35,6 @@ async def get_db_connection():
 
     server = config.sqldb_server
     database = config.sqldb_database
-    username = config.sqldb_username
-    password = config.sqldb_database
     mid_id = config.azure_client_id
 
     credential = None
@@ -68,18 +66,7 @@ async def get_db_connection():
             raise RuntimeError("Unable to connect using ODBC Driver 18 or 17 with Azure Credential")
     except Exception as e:
         logging.error("Failed with Azure Credential: %s", str(e))
-        # Try username/password authentication with both drivers
-        for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
-            try:
-                conn = pyodbc.connect(
-                    f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
-                    timeout=5)
-                logging.info(f"Connected using Username & Password with {driver}")
-                return conn
-            except pyodbc.Error:
-                continue
-
-        raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
+        raise RuntimeError("Unable to connect to SQL database using Microsoft Entra authentication.") from e
     finally:
         if credential and hasattr(credential, "close"):
             await credential.close()

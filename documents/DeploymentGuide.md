@@ -358,7 +358,7 @@ bash ./infra/scripts/run_create_agents_scripts.sh
 ```bash
 bash ./infra/scripts/run_create_agents_scripts.sh \
    <project-endpoint> <solution-name> <gpt-model-name> \
-   <ai-foundry-resource-id> <api-app-name> <azure-ai-search-connection-name> \ 
+   <ai-foundry-resource-id> <api-app-name> <azure-ai-search-connection-name> \
    <azure-ai-search-index> <resource-group>
 ```
 
