@@ -282,7 +282,28 @@ fi
 
 # Execute the Python scripts
 echo "Running Python agents creation script..."
-eval $(python infra/scripts/agent_scripts/01_create_agents.py --ai_project_endpoint="$projectEndpoint" --solution_name="$solutionName" --gpt_model_name="$gptModelName" --azure_ai_search_connection_name="$aiSearchConnectionName" --azure_ai_search_index="$aiSearchIndex")
+agent_output=$(python infra/scripts/agent_scripts/01_create_agents.py --ai_project_endpoint="$projectEndpoint" --solution_name="$solutionName" --gpt_model_name="$gptModelName" --azure_ai_search_connection_name="$aiSearchConnectionName" --azure_ai_search_index="$aiSearchIndex")
+
+# Parse expected key=value pairs from Python output safely
+conversationAgentName=""
+titleAgentName=""
+while IFS='=' read -r key value; do
+  # Skip empty lines or lines without '='
+  [ -z "$key" ] && continue
+  case "$key" in
+    conversationAgentName)
+      conversationAgentName="$value"
+      ;;
+    titleAgentName)
+      titleAgentName="$value"
+      ;;
+    *)
+      # Ignore any unexpected keys
+      ;;
+  esac
+done <<EOF
+$agent_output
+EOF
 
 echo "Agents creation completed."
 
@@ -293,6 +314,10 @@ az webapp config appsettings set \
   --settings AGENT_NAME_CONVERSATION="$conversationAgentName" AGENT_NAME_TITLE="$titleAgentName" \
   -o none
 
-azd env set AGENT_NAME_CONVERSATION "$conversationAgentName"
-azd env set AGENT_NAME_TITLE "$titleAgentName"
+if command -v azd >/dev/null 2>&1; then
+  azd env set AGENT_NAME_CONVERSATION "$conversationAgentName"
+  azd env set AGENT_NAME_TITLE "$titleAgentName"
+else
+  echo "Warning: 'azd' CLI not found. Skipping 'azd env set' for AGENT_NAME_CONVERSATION and AGENT_NAME_TITLE."
+fi
 echo "Environment variables updated for App Service: $apiAppName"

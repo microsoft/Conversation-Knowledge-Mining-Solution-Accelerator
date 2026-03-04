@@ -9,6 +9,7 @@ Includes thread management, caching, and integration with Azure OpenAI and FastA
 import asyncio
 import json
 import logging
+import os
 import random
 import re
 
@@ -34,7 +35,9 @@ logger = logging.getLogger(__name__)
 
 # Suppress informational warnings from agent_framework about runtime
 # tool/structured_output overrides not being supported by AzureAIClient.
-logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
+# This can be made configurable via env var if needed for debugging.
+agent_log_level = os.getenv("AGENT_FRAMEWORK_LOG_LEVEL", "ERROR").upper()
+logging.getLogger("agent_framework.azure").setLevel(getattr(logging, agent_log_level, logging.ERROR))
 
 
 class ExpCache(TTLCache):
