@@ -635,22 +635,11 @@ try:
     mined_topics = ", ".join(mined_topics_list)
     print(f"✓ Mined {len(mined_topics_list)} topics")
 
-    async def call_topic_mapping_agent(input_text, list_of_topics):
+    async def call_topic_mapping_agent(agent, input_text, list_of_topics):
         """Use Topic Mapping Agent with Agent Framework to map topic to category."""
-        async with (
-            AsyncAzureCliCredential(process_timeout=30) as async_cred,
-            AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
-        ):
-            # Create provider for agent management
-            provider = AzureAIProjectAgentProvider(project_client=project_client)
-            
-            # Get agent using provider
-            agent = await provider.get_agent(name=TOPIC_MAPPING_AGENT_NAME)
-            
-            query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
-            
-            result = await agent.run(query)
-            return result.text.strip()
+        query = f"""Find the closest topic for this text: '{input_text}' from this list of topics: {list_of_topics}"""
+        result = await agent.run(query)
+        return result.text.strip()
 
     cursor.execute('SELECT * FROM processed_data')
     rows = [tuple(row) for row in cursor.fetchall()]
@@ -661,10 +650,22 @@ try:
     # Map topics using agent asynchronously
     async def map_all_topics():
         """Map all topics to categories using agent."""
-        for _, row in df_processed_data.iterrows():
-            mined_topic_str = await call_topic_mapping_agent(row['topic'], str(mined_topics_list))
-            cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
-        conn.commit()
+        # Create credential, project client, provider, and agent once for reuse
+        async with (
+            AsyncAzureCliCredential(process_timeout=30) as async_cred,
+            AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
+        ):
+            # Create provider for agent management
+            provider = AzureAIProjectAgentProvider(project_client=project_client)
+            
+            # Get agent using provider
+            agent = await provider.get_agent(name=TOPIC_MAPPING_AGENT_NAME)
+            
+            # Process all rows using the same agent instance
+            for _, row in df_processed_data.iterrows():
+                mined_topic_str = await call_topic_mapping_agent(agent, row['topic'], str(mined_topics_list))
+                cursor.execute("UPDATE processed_data SET mined_topic = ? WHERE ConversationId = ?", (mined_topic_str, row['ConversationId']))
+            conn.commit()
 
     asyncio.run(map_all_topics())
 
