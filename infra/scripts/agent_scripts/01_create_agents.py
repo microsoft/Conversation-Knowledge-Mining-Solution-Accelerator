@@ -40,9 +40,11 @@ conversation_agent_instruction = '''You are a helpful assistant.
 
         - Always use the **Azure AI Search tool** for summaries, explanations, or insights from customer call transcripts.
             - **Always** use the search tool when asked about call content, customer issues, or transcripts.
-            - When using Azure AI Search results, you **MUST** include citation references in your response.
-            - Include citations inline using the format provided by the search tool (e.g., [doc1], [doc2]).
-            - Preserve all citation markers exactly as returned by the search tool - do not modify or remove them.
+            - **CRITICAL**: When using Azure AI Search results, you **MUST ALWAYS** include citation references in your response.
+            - **NEVER** provide information from search results without including the citation markers.
+            - Include citations inline using the exact format provided by the search tool (e.g., 【4:0†source】, 【4:1†source】).
+            - **DO NOT** remove, modify, or omit any citation markers from your response - they must appear exactly as the search tool provides them.
+            - Every fact, quote, or piece of information derived from search results must be immediately followed by its citation marker.
 
         - If multiple tools are used for a single query, return a **combined response** including all results in one structured answer.
 

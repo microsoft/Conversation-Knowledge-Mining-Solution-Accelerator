@@ -186,10 +186,29 @@ class ChatService:
 
                 if citations:
                     citation_list = []
+                    seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
+                    
                     for citation in citations:
                         get_url = (citation.get("additional_properties") or {}).get("get_url")
                         url = get_url if get_url else 'N/A'
                         title = citation.get('title', 'N/A')
+                        
+                        # Extract document ID from the get_url to use as a more meaningful title
+                        doc_id = None
+                        if get_url and title.startswith('doc_'):
+                            # URL format: .../indexes/{index_name}/docs/{document_id}?api-version=...
+                            match = re.search(r'/docs/([^?]+)', get_url)
+                            if match:
+                                doc_id = match.group(1)
+                                title = doc_id
+                        
+                        # Skip duplicate citations based on document ID
+                        if doc_id and doc_id in seen_doc_ids:
+                            continue
+                        
+                        if doc_id:
+                            seen_doc_ids.add(doc_id)
+                        
                         citation_list.append(f"{{\"url\": \"{url}\", \"title\": \"{title}\"}}")
                     yield ", \"citations\": [" + ",".join(citation_list) + "]}"
                 else:
