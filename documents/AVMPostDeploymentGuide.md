@@ -58,7 +58,7 @@ cd Conversation-Knowledge-Mining-Solution-Accelerator
 
 ---
 
-### Step 2: Run the Data Processing Script
+### Step 2: Create AI Agents
 
 #### 2.1 Login to Azure
 
@@ -71,7 +71,19 @@ az login
 > az login --use-device-code
 > ```
 
-#### 2.2 Execute the Script
+#### 2.2 Execute the Agent Creation Script
+
+Run the bash script from the output of the AVM deployment:
+
+```bash
+bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
+```
+
+> ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
+
+---
+
+### Step 3: Process Sample Data
 
 Run the bash script from the output of the AVM deployment:
 
@@ -83,7 +95,7 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 
 ---
 
-### Step 3: Access the Application
+### Step 4: Access the Application
 
 1. Navigate to the [Azure Portal](https://portal.azure.com)
 2. Open the **resource group** created during deployment
@@ -93,13 +105,13 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 
 ---
 
-### Step 4: Configure Authentication (Optional)
+### Step 5: Configure Authentication (Optional)
 
 If you want to enable authentication for your application, follow the [App Authentication Guide](./AppAuthentication.md).
 
 ---
 
-### Step 5: Verify Data Processing
+### Step 6: Verify Data Processing
 
 Confirm your deployment is working correctly:
 
@@ -111,7 +123,7 @@ Confirm your deployment is working correctly:
 
 ---
 
-### 6. Customize with Your Own Data (Optional)
+### 7. Customize with Your Own Data (Optional)
 
 To replace the sample data with your own conversational data, follow these steps:
 
@@ -149,7 +161,7 @@ bash ./infra/scripts/process_custom_data.sh \
   <AI-Search-Name> <Search-Endpoint> \
   <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
   <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-  <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version>
+  <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Solution-Name>
 ```
 
 #### VM Access for WAF Deployments

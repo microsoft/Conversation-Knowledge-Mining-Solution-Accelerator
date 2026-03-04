@@ -31,7 +31,7 @@ If you would like to update the solution to leverage your own data please follow
       <AI-Search-Name> <Search-Endpoint> \
       <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
       <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-      <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint>
+      <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Solution-Name>
     ```
 
 ## How to Login to VM Using Azure Bastion

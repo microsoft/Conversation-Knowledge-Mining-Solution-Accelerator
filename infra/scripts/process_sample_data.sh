@@ -37,6 +37,7 @@ cuApiVersion="${17}"
 aiAgentEndpoint="${18}"
 
 usecase="${19}"
+solutionName="${20}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
@@ -522,7 +523,13 @@ echo ""
 
 echo ""
 
-if [ -z "$resourceGroupName" ]; then
+# Check if all required parameters are provided
+if [ -n "$resourceGroupName" ] && [ -n "$azSubscriptionId" ] && [ -n "$storageAccountName" ] && [ -n "$fileSystem" ] && [ -n "$sqlServerName" ] && [ -n "$SqlDatabaseName" ] && [ -n "$backendUserMidClientId" ] && [ -n "$backendUserMidDisplayName" ] && [ -n "$aiSearchName" ] && [ -n "$searchEndpoint" ] && [ -n "$aif_resource_id" ] && [ -n "$cu_foundry_resource_id" ] && [ -n "$openaiEndpoint" ] && [ -n "$embeddingModel" ] && [ -n "$deploymentModel" ] && [ -n "$cuEndpoint" ] && [ -n "$cuApiVersion" ] && [ -n "$aiAgentEndpoint" ] && [ -n "$usecase" ] && [ -n "$solutionName" ]; then
+    # All parameters provided - use them directly
+    echo "All parameters provided via command line."
+    # Strip FQDN suffix from SQL server name if present
+    sqlServerName="${sqlServerName%.database.windows.net}"
+elif [ -z "$resourceGroupName" ]; then
     # No resource group provided - use azd env
     if ! get_values_from_azd_env; then
         echo "Failed to get values from azd environment."
@@ -534,7 +541,7 @@ if [ -z "$resourceGroupName" ]; then
         exit 1
     fi
 else
-    # Resource group provided - use deployment outputs
+    # Only resource group provided - use deployment outputs
 	echo ""
     echo "Resource group provided: $resourceGroupName"
 

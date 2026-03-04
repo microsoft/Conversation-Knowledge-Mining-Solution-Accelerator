@@ -357,18 +357,19 @@ bash ./infra/scripts/run_create_agents_scripts.sh
 
 ```bash
 bash ./infra/scripts/run_create_agents_scripts.sh \
+   <resource-group> \
    <project-endpoint> <solution-name> <gpt-model-name> \
-   <ai-foundry-resource-id> <api-app-name> <azure-ai-search-connection-name> \
-   <azure-ai-search-index> <resource-group>
+   <ai-foundry-resource-id> <api-app-name> \
+   <azure-ai-search-connection-name> <azure-ai-search-index>
 ```
 
 **Parameter Descriptions:**
+- **Resource Group Parameters:** Azure resource group name
 - **AI Foundry Parameters:** AI Foundry project endpoint URL and resource ID
 - **Solution Parameters:** Solution deployment name
 - **AI Model Parameters:** Deployed GPT model name
 - **Application Parameters:** API application name
 - **Search Parameters:** Azure AI Search connection name and index name
-- **Resource Group Parameters:** Azure resource group name
 
 
 **5. Run the sample data processing script:**
@@ -389,7 +390,7 @@ bash ./infra/scripts/process_sample_data.sh \
   <AI-Search-Name> <Search-Endpoint> \
   <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
   <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-  <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Use-Case>
+  <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Use-Case> <Solution-Name>
 ```
 
 **Parameter Descriptions:**
@@ -401,6 +402,7 @@ bash ./infra/scripts/process_sample_data.sh \
 - **OpenAI Parameters:** OpenAI endpoint, embedding model name, and deployment model name
 - **Content Understanding Parameters:** CU endpoint, AI agent endpoint, CU API version
 - **Use Case:** Either `telecom` or `IT_helpdesk`
+- **Solution Parameters:** Solution deployment name
 
 > **Note:** All parameter values are available in the Azure Portal by navigating to your deployed resources, or from the `azd env get-values` command output.
 

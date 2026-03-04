@@ -3,14 +3,14 @@ set -e
 echo "Started the agent creation script setup..."
 
 # Variables
-projectEndpoint="$1"
-solutionName="$2"
-gptModelName="$3"
-aiFoundryResourceId="$4"
-apiAppName="$5"
-aiSearchConnectionName="$6"
-aiSearchIndex="$7"
-resourceGroup="$8"
+resourceGroup="$1"
+projectEndpoint="$2"
+solutionName="$3"
+gptModelName="$4"
+aiFoundryResourceId="$5"
+apiAppName="$6"
+aiSearchConnectionName="$7"
+aiSearchIndex="$8"
 
 # Global variables to track original network access states for AI Foundry
 original_foundry_public_access=""
@@ -188,7 +188,11 @@ fi
 
 echo ""
 
-if [ -z "$resourceGroup" ]; then
+# Check if all required parameters are provided
+if [ -n "$resourceGroup" ] && [ -n "$projectEndpoint" ] && [ -n "$solutionName" ] && [ -n "$gptModelName" ] && [ -n "$aiFoundryResourceId" ] && [ -n "$apiAppName" ] && [ -n "$aiSearchConnectionName" ] && [ -n "$aiSearchIndex" ]; then
+    # All parameters provided - use them directly
+    echo "All parameters provided via command line."
+elif [ -z "$resourceGroup" ]; then
     # No resource group provided - use azd env
     if ! get_values_from_azd_env; then
         echo "Failed to get values from azd environment."
@@ -200,7 +204,7 @@ if [ -z "$resourceGroup" ]; then
         exit 1
     fi
 else
-    # Resource group provided - use deployment outputs
+    # Only resource group provided - use deployment outputs
 	echo ""
     echo "Resource group provided: $resourceGroup"
 
@@ -217,7 +221,7 @@ fi
 if [ -z "$projectEndpoint" ] || [ -z "$solutionName" ] || [ -z "$gptModelName" ] || [ -z "$aiFoundryResourceId" ] || [ -z "$apiAppName" ] || [ -z "$aiSearchConnectionName" ] || [ -z "$aiSearchIndex" ] || [ -z "$resourceGroup" ]; then
     echo ""
     echo "Error: Missing required parameters."
-    echo "Usage: $0 <projectEndpoint> <solutionName> <gptModelName> <aiFoundryResourceId> <apiAppName> <aiSearchConnectionName> <aiSearchIndex> <resourceGroup>"
+    echo "Usage: $0 <resourceGroup> <projectEndpoint> <solutionName> <gptModelName> <aiFoundryResourceId> <apiAppName> <aiSearchConnectionName> <aiSearchIndex>"
     echo ""
     echo "Or run without parameters to use azd environment values."
     exit 1
