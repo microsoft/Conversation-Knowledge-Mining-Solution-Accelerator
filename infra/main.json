@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "5480941317758467379"
+      "templateHash": "5174764827592423272"
     }
   },
   "parameters": {
@@ -27527,9 +27527,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -30052,9 +30052,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -40364,10 +40364,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -54139,7 +54139,7 @@
                   "AGENT_NAME_CONVERSATION": "",
                   "AGENT_NAME_TITLE": "",
                   "API_APP_NAME": "[format('api-{0}', variables('solutionSuffix'))]",
-                  "AZURE_AI_FOUNDRY_RESOURCE_ID": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]",
+                  "AI_FOUNDRY_RESOURCE_ID": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]",
                   "AZURE_OPENAI_DEPLOYMENT_MODEL": "[parameters('gptModelName')]",
                   "AZURE_OPENAI_ENDPOINT": "[if(not(empty(variables('existingOpenAIEndpoint'))), variables('existingOpenAIEndpoint'), format('https://{0}.openai.azure.com/', reference('aiFoundryAiServices').outputs.name.value))]",
                   "AZURE_OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
@@ -58328,7 +58328,7 @@
       "metadata": {
         "description": "Resource ID of the AI Foundry Project."
       },
-      "value": "[if(variables('aiFoundryAIservicesEnabled'), reference('aiFoundryAiServices').outputs.resourceId.value, '')]"
+      "value": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]"
     },
     "CU_FOUNDRY_RESOURCE_ID": {
       "type": "string",
@@ -58350,13 +58350,6 @@
         "description": "Contains API application name."
       },
       "value": "[format('api-{0}', variables('solutionSuffix'))]"
-    },
-    "AZURE_AI_FOUNDRY_RESOURCE_ID": {
-      "type": "string",
-      "metadata": {
-        "description": "Contains AI Foundry resource ID."
-      },
-      "value": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]"
     },
     "AGENT_NAME_CONVERSATION": {
       "type": "string",

@@ -96,7 +96,7 @@ get_values_from_azd_env() {
 	projectEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	gptModelName=$(azd env get-value AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
-	aiFoundryResourceId=$(azd env get-value AZURE_AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	aiFoundryResourceId=$(azd env get-value AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	apiAppName=$(azd env get-value API_APP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	aiSearchConnectionName=$(azd env get-value AZURE_AI_SEARCH_CONNECTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	aiSearchIndex=$(azd env get-value AZURE_AI_SEARCH_INDEX 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
@@ -151,7 +151,7 @@ get_values_from_az_deployment() {
 		["projectEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
 		["solutionName"]="SOLUTION_NAME"
 		["gptModelName"]="AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME"
-		["aiFoundryResourceId"]="AZURE_AI_FOUNDRY_RESOURCE_ID"
+		["aiFoundryResourceId"]="AI_FOUNDRY_RESOURCE_ID"
 		["apiAppName"]="API_APP_NAME"
 		["aiSearchConnectionName"]="AZURE_AI_SEARCH_CONNECTION_NAME"
 		["aiSearchIndex"]="AZURE_AI_SEARCH_INDEX"

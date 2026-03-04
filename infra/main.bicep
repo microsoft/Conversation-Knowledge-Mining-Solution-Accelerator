@@ -1303,7 +1303,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AGENT_NAME_CONVERSATION: ''
           AGENT_NAME_TITLE: ''
           API_APP_NAME: 'api-${solutionSuffix}'
-          AZURE_AI_FOUNDRY_RESOURCE_ID: !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
+          AI_FOUNDRY_RESOURCE_ID: !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
@@ -1516,7 +1516,7 @@ output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
 output STORAGE_CONTAINER_NAME string = 'data'
 
 @description('Resource ID of the AI Foundry Project.')
-output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.resourceId : ''
+output AI_FOUNDRY_RESOURCE_ID string = !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
 
 @description('Resource ID of the Content Understanding AI Foundry.')
 output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
@@ -1526,9 +1526,6 @@ output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint
 
 @description('Contains API application name.')
 output API_APP_NAME string = 'api-${solutionSuffix}'
-
-@description('Contains AI Foundry resource ID.')
-output AZURE_AI_FOUNDRY_RESOURCE_ID string = !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
 
 @description('Contains Conversation Agent name.')
 output AGENT_NAME_CONVERSATION string = ''
