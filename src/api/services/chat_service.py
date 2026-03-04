@@ -212,7 +212,7 @@ class ChatService:
                         if doc_id:
                             seen_doc_ids.add(doc_id)
 
-                        citation_list.append(f"{{\"url\": \"{url}\", \"title\": \"{title}\"}}")
+                        citation_list.append(json.dumps({"url": url, "title": title}))
                     yield ", \"citations\": [" + ",".join(citation_list) + "]}"
                 else:
                     yield ", \"citations\": []}"
