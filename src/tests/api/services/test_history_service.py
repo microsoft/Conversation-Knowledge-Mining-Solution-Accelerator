@@ -101,7 +101,8 @@ class TestHistoryService:
         mock_provider = MagicMock()
         mock_provider.get_agent = AsyncMock(return_value=mock_agent)
 
-        with patch("services.history_service.get_azure_credential_async", return_value=mock_credential):
+        with patch("services.history_service.get_azure_credential_async", new_callable=AsyncMock) as mock_get_cred:
+            mock_get_cred.return_value = mock_credential
             with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
                 with patch("services.history_service.AzureAIProjectAgentProvider", return_value=mock_provider):
                     result = await history_service.generate_title(conversation_messages)

@@ -65,7 +65,7 @@ class TestExpCache:
     
     @pytest.mark.asyncio
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     @patch("services.chat_service.Config")
     async def test_delete_thread_async_success(self, mock_config, mock_credential, mock_project_client_class):
         """Test successful thread deletion."""
@@ -98,7 +98,7 @@ class TestExpCache:
     
     @pytest.mark.asyncio
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     @patch("services.chat_service.Config")
     async def test_delete_thread_async_with_exception(self, mock_config, mock_credential, mock_project_client_class):
         """Test thread deletion handles exceptions gracefully."""
@@ -175,10 +175,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_success(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -238,10 +238,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_empty_query(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -295,10 +295,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_with_citations(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -364,10 +364,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_with_citation_markers(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -422,10 +422,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_cached_thread(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -485,7 +485,7 @@ class TestChatService:
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_rate_limit_error(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -537,10 +537,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_general_exception(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
@@ -584,10 +584,10 @@ class TestChatService:
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
-    @patch("services.chat_service.get_sqldb_connection")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
-    @patch("services.chat_service.get_azure_credential_async")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_no_response(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
