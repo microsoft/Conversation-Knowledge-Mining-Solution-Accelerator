@@ -345,7 +345,34 @@ az login
 az login --use-device-code
 ```
 
-**4. Run the sample data processing script:**
+**4. Run the create agent script:**
+
+The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
+
+```bash
+bash ./infra/scripts/run_create_agents_scripts.sh
+```
+
+**If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
+
+```bash
+bash ./infra/scripts/run_create_agents_scripts.sh \
+   <resource-group> \
+   <project-endpoint> <solution-name> <gpt-model-name> \
+   <ai-foundry-resource-id> <api-app-name> \
+   <azure-ai-search-connection-name> <azure-ai-search-index>
+```
+
+**Parameter Descriptions:**
+- **Resource Group Parameters:** Azure resource group name
+- **AI Foundry Parameters:** AI Foundry project endpoint URL and resource ID
+- **Solution Parameters:** Solution deployment name
+- **AI Model Parameters:** Deployed GPT model name
+- **Application Parameters:** API application name
+- **Search Parameters:** Azure AI Search connection name and index name
+
+
+**5. Run the sample data processing script:**
 
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
@@ -363,7 +390,7 @@ bash ./infra/scripts/process_sample_data.sh \
   <AI-Search-Name> <Search-Endpoint> \
   <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
   <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
-  <CU-Endpoint> <AI-Agent-Endpoint> <CU-API-Version> <Use-Case>
+  <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Use-Case> <Solution-Name>
 ```
 
 **Parameter Descriptions:**
@@ -375,6 +402,7 @@ bash ./infra/scripts/process_sample_data.sh \
 - **OpenAI Parameters:** OpenAI endpoint, embedding model name, and deployment model name
 - **Content Understanding Parameters:** CU endpoint, AI agent endpoint, CU API version
 - **Use Case:** Either `telecom` or `IT_helpdesk`
+- **Solution Parameters:** Solution deployment name
 
 > **Note:** All parameter values are available in the Azure Portal by navigating to your deployed resources, or from the `azd env get-values` command output.
 

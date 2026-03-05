@@ -34,7 +34,7 @@ const Citations = ({ answer, index }: Props) => {
         const citationContent = await fetchCitationContent(citation);
         dispatch({
             type: actionConstants.UPDATE_CITATION,
-            payload: { showCitation: true, activeCitation: {...citation, content:citationContent.content}, currentConversationIdForCitation: state?.selectedConversationId},
+            payload: { showCitation: true, activeCitation: {...citation, content:citationContent.content, title: citationContent.title}, currentConversationIdForCitation: state?.selectedConversationId},
         });
     };
 

@@ -102,7 +102,7 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
-        chat_service = ChatService(request=request)
+        chat_service = ChatService()
         result = await chat_service.stream_chat_request(conversation_id, query)
         track_event_if_configured(
             "ChatStreamSuccess",
@@ -182,16 +182,17 @@ async def fetch_azure_search_content_endpoint(request: Request):
                 if response.status_code == 200:
                     data = response.json()
                     content = data.get("content", "")
-                    return content
+                    title = data.get("sourceurl", "")
+                    return {"content": content, "title": title}
                 else:
-                    return f"Error: HTTP {response.status_code}"
+                    return {"error": f"HTTP {response.status_code}"}
             except Exception:
                 logger.exception("Exception occurred while making the HTTP request")
-                return "Error: Unable to fetch content"
+                return {"error": "Unable to fetch content"}
 
-        content = await asyncio.to_thread(fetch_content)
+        result = await asyncio.to_thread(fetch_content)
 
-        return JSONResponse(content={"content": content})
+        return JSONResponse(content=result)
 
     except Exception:
         logger.exception("Error in fetch_azure_search_content_endpoint")
