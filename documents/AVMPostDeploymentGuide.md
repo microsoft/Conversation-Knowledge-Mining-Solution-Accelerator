@@ -58,9 +58,36 @@ cd Conversation-Knowledge-Mining-Solution-Accelerator
 
 ---
 
-### Step 2: Create AI Agents
+### Step 2: Create and Activate Python Virtual Environment
 
-#### 2.1 Login to Azure
+#### 2.1 Create a Python Virtual Environment
+
+```shell
+python -m venv .venv
+```
+
+#### 2.2 Activate the Virtual Environment
+
+**For Windows (PowerShell):**
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+**For Windows (Bash):**
+```bash
+source .venv/Scripts/activate
+```
+
+**For Linux/macOS/VS Code Web (Bash):**
+```bash
+source .venv/bin/activate
+```
+
+---
+
+### Step 3: Create AI Agents
+
+#### 3.1 Login to Azure
 
 ```shell
 az login
@@ -71,7 +98,7 @@ az login
 > az login --use-device-code
 > ```
 
-#### 2.2 Execute the Agent Creation Script
+#### 3.2 Execute the Agent Creation Script
 
 Run the bash script from the output of the AVM deployment:
 
@@ -83,7 +110,7 @@ bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
 
 ---
 
-### Step 3: Process Sample Data
+### Step 4: Process Sample Data
 
 Run the bash script from the output of the AVM deployment:
 
@@ -95,7 +122,7 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 
 ---
 
-### Step 4: Access the Application
+### Step 5: Access the Application
 
 1. Navigate to the [Azure Portal](https://portal.azure.com)
 2. Open the **resource group** created during deployment
@@ -105,13 +132,13 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 
 ---
 
-### Step 5: Configure Authentication (Optional)
+### Step 6: Configure Authentication (Optional)
 
 If you want to enable authentication for your application, follow the [App Authentication Guide](./AppAuthentication.md).
 
 ---
 
-### Step 6: Verify Data Processing
+### Step 7: Verify Data Processing
 
 Confirm your deployment is working correctly:
 
@@ -123,7 +150,7 @@ Confirm your deployment is working correctly:
 
 ---
 
-### 7. Customize with Your Own Data (Optional)
+### Step 8: Customize with Your Own Data (Optional)
 
 To replace the sample data with your own conversational data, follow these steps:
 
