@@ -71,7 +71,6 @@
     "d3-color": "$d3-color",
     "nth-check": "$nth-check",
     "serialize-javascript": "^7.0.3",
-    "bfj": "^9.1.3",
-    "underscore": "^1.13.8"
+    "bfj": "^9.1.3"
   }
 }
