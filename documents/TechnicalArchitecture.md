@@ -25,7 +25,7 @@ Performs topic modeling on enriched transcript data, uncovering themes and conve
 ### Azure OpenAI Service  
 Provides large language model (LLM) capabilities to support summarization, natural language querying, and semantic enrichment.
 
-### Semantic Kernel  
+### Agent Framework  
 Handles orchestration and intelligent function calling for contextualized responses and multi-step reasoning over retrieved data.
 
 ### App Service  
