@@ -59,6 +59,9 @@
       "last 1 safari version"
     ]
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "devDependencies": {
     "@types/chart.js": "^4.0.1",
     "@types/lodash-es": "^4.17.12",
@@ -67,9 +70,8 @@
   "overrides": {
     "d3-color": "$d3-color",
     "nth-check": "$nth-check",
-    "serialize-javascript": ">=7.0.3",
-    "bfj": ">=9.1.3",
-    "underscore": ">=1.13.8",
-    "svgo": ">=3.3.3"
+    "serialize-javascript": "^7.0.3",
+    "bfj": "^9.1.3",
+    "underscore": "^1.13.8"
   }
 }
