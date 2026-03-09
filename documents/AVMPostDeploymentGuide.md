@@ -108,7 +108,7 @@ bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
 
-Alternatively, if you prefer to pass all parameters manually:
+Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
 bash ./infra/scripts/run_create_agents_scripts.sh \
@@ -129,7 +129,7 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
 
-Alternatively, if you prefer to pass all parameters manually:
+Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
 bash ./infra/scripts/process_sample_data.sh \
