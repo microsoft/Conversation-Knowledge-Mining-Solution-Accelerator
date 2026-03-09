@@ -138,13 +138,13 @@ get_values_from_az_deployment() {
 	}
 
 	# Extract each value using the helper function
-	projectEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
-	solutionName=$(extract_value "solutionName" "solutioN_NAME")
-	gptModelName=$(extract_value "azureAIAgentModelDeploymentName" "azurE_AI_AGENT_MODEL_DEPLOYMENT_NAME")
-	aiFoundryResourceId=$(extract_value "aiFoundryResourceId" "aI_FOUNDRY_RESOURCE_ID")
-	apiAppName=$(extract_value "apiAppName" "apI_APP_NAME")
-	aiSearchConnectionName=$(extract_value "azureAISearchConnectionName" "azurE_AI_SEARCH_CONNECTION_NAME")
-	aiSearchIndex=$(extract_value "azureAISearchIndex" "azurE_AI_SEARCH_INDEX")
+	projectEndpoint=$(extract_value "azureAiAgentEndpoint" "AZURE_AI_AGENT_ENDPOINT")
+	solutionName=$(extract_value "solutionName" "SOLUTION_NAME")
+	gptModelName=$(extract_value "azureAiAgentModelDeploymentName" "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME")
+	aiFoundryResourceId=$(extract_value "aiFoundryResourceId" "AI_FOUNDRY_RESOURCE_ID")
+	apiAppName=$(extract_value "apiAppName" "API_APP_NAME")
+	aiSearchConnectionName=$(extract_value "azureAISearchConnectionName" "AZURE_AI_SEARCH_CONNECTION_NAME")
+	aiSearchIndex=$(extract_value "azureAISearchIndex" "AZURE_AI_SEARCH_INDEX")
 	
 	# Define required values with their display names for error reporting
 	declare -A required_values=(
