@@ -108,6 +108,15 @@ bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
 
+Alternatively, if you prefer to pass all parameters manually:
+
+```bash
+bash ./infra/scripts/run_create_agents_scripts.sh \
+  <Resource-Group-Name> <Project-Endpoint> <Solution-Name> \
+  <GPT-Model-Name> <AI-Foundry-Resource-ID> <API-App-Name> \
+  <AI-Search-Connection-Name> <AI-Search-Index>
+```
+
 ---
 
 ### Step 4: Process Sample Data
@@ -119,6 +128,20 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 ```
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
+
+Alternatively, if you prefer to pass all parameters manually:
+
+```bash
+bash ./infra/scripts/process_sample_data.sh \
+  <Resource-Group-Name> <Azure-Subscription-ID> \
+  <Storage-Account-Name> <Storage-Container-Name> \
+  <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
+  <AI-Search-Name> <Search-Endpoint> \
+  <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+  <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
+  <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> \
+  <Use-Case> <Solution-Name>
+```
 
 ---
 
@@ -175,10 +198,12 @@ To replace the sample data with your own conversational data, follow these steps
 Run the processing script to integrate your data into the solution:
 
 ```bash
-bash ./infra/scripts/process_custom_data.sh
+bash ./infra/scripts/process_custom_data.sh <Resource-Group-Name>
 ```
 
-If you don't have `azd env` configured, pass the required parameters:
+> ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
+
+Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
 bash ./infra/scripts/process_custom_data.sh \
