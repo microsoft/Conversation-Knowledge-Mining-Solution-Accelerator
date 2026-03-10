@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "5174764827592423272"
+      "templateHash": "487190158402104640"
     }
   },
   "parameters": {
@@ -186,7 +186,7 @@
     },
     "backendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf_2025-12-02_1084",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the backend."
       }
@@ -207,7 +207,7 @@
     },
     "frontendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf_2025-12-02_1084",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the frontend."
       }
