@@ -242,10 +242,49 @@ echo "AI Search Index: $aiSearchIndex"
 echo "==============================================="
 echo ""
 
-echo "Getting signed in user id"
-signed_user_id=$(az ad signed-in-user show --query id -o tsv) || signed_user_id=${AZURE_CLIENT_ID}
+# Determine if we're running as a user or service principal
+account_type=$(az account show --query user.type --output tsv 2>/dev/null)
 
-echo "Checking if the user has Azure AI User role on the AI Foundry"
+if [ "$account_type" == "user" ]; then
+    # Running as a user - get signed-in user info
+    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
+    if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
+        echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
+        az login --use-device-code
+        signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+    fi
+    signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+    signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to extract user information after authentication"
+        exit 1
+    fi
+    echo "✓ Running as user: $signed_user_display_name ($signed_user_id)"
+elif [ "$account_type" == "servicePrincipal" ]; then
+    # Running as a service principal - get SP object ID and display name
+    client_id=$(az account show --query user.name --output tsv 2>/dev/null)
+    if [ -n "$client_id" ]; then
+        sp_info=$(az ad sp show --id "$client_id" --query "{id:id, displayName:displayName}" -o json 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to retrieve service principal information for client ID: $client_id"
+            echo "$sp_info"
+            exit 1
+        fi
+        signed_user_id=$(echo "$sp_info" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+        signed_user_display_name=$(echo "$sp_info" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    fi
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to get service principal information"
+        exit 1
+    fi
+    echo "✓ Running as service principal: $signed_user_display_name ($signed_user_id)"
+else
+    echo "✗ Unknown account type: $account_type"
+    exit 1
+fi
+
+# Check if the principal has Azure AI User role on the AI Foundry
 role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
   --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
   --scope "$aiFoundryResourceId" \
@@ -253,21 +292,18 @@ role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
   --query "[].roleDefinitionId" -o tsv)
 
 if [ -z "$role_assignment" ]; then
-    echo "User does not have the Azure AI User role. Assigning the role..."
+    echo "✓ Assigning Azure AI User role for AI Foundry"
     MSYS_NO_PATHCONV=1 az role assignment create \
       --assignee "$signed_user_id" \
       --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
       --scope "$aiFoundryResourceId" \
       --output none
-
-    if [ $? -eq 0 ]; then
-        echo "✅ Azure AI User role assigned successfully."
-    else
-        echo "❌ Failed to assign Azure AI User role."
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Azure AI User role for AI Foundry"
         exit 1
     fi
 else
-    echo "User already has the Azure AI User role."
+    echo "✓ Principal already has the Azure AI User role"
 fi
 
 
