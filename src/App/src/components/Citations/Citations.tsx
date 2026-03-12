@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { parseAnswer } from './AnswerParser';
-import { useAppContext } from '../../state/useAppContext';
-import { actionConstants } from '../../state/ActionConstants';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { updateCitation } from '../../store/slices/citationSlice';
 import "./Citations.css";
 import { AskResponse, Citation } from '../../types/AppTypes';
 import { fetchCitationContent } from '../../api/api';
@@ -13,30 +13,26 @@ interface Props {
     index: number;
 }
 
-const Citations = ({ answer, index }: Props) => {
+const Citations: React.FC<Props> = React.memo(({ answer, index }) => {
     
-    const { state, dispatch } = useAppContext();
+    const dispatch = useAppDispatch();
+    const selectedConversationId = useAppSelector((s) => s.app.selectedConversationId);
     const parsedAnswer = useMemo(() => parseAnswer(answer), [answer]);
-    const filePathTruncationLimit = 50;
-    const createCitationFilepath = (
-        citation: Citation,
-        index: number,
-        truncate: boolean = false
-    ) => {
-        let citationFilename = "";
-            citationFilename =  citation.title ? (citation.title ?? `Citation ${index}`) : `Citation ${index}`;
-        return citationFilename;
-    };
 
-    const onCitationClicked = async (
-        citation: Citation
-    ) => {
-        const citationContent = await fetchCitationContent(citation);
-        dispatch({
-            type: actionConstants.UPDATE_CITATION,
-            payload: { showCitation: true, activeCitation: {...citation, content:citationContent.content}, currentConversationIdForCitation: state?.selectedConversationId},
-        });
-    };
+    const createCitationFilepath = useCallback(
+        (citation: Citation, idx: number, _truncate: boolean = false): string => {
+            return citation.title ? (citation.title ?? `Citation ${idx}`) : `Citation ${idx}`;
+        },
+        []
+    );
+
+    const onCitationClicked = useCallback(
+        async (citation: Citation) => {
+            const citationContent = await fetchCitationContent(citation);
+            dispatch(updateCitation({ showCitation: true, activeCitation: {...citation, content:citationContent.content}, currentConversationIdForCitation: selectedConversationId}));
+        },
+        [dispatch, selectedConversationId]
+    );
 
 
     return (
@@ -75,7 +71,8 @@ const Citations = ({ answer, index }: Props) => {
                 );
             })}
         </div>)
-};
+});
 
+Citations.displayName = "Citations";
 
 export default Citations;
