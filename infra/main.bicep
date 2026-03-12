@@ -1303,7 +1303,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AGENT_NAME_CONVERSATION: ''
           AGENT_NAME_TITLE: ''
           API_APP_NAME: 'api-${solutionSuffix}'
-          AI_FOUNDRY_RESOURCE_ID: !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
+          AI_FOUNDRY_RESOURCE_ID: aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
