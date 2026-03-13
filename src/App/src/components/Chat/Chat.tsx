@@ -178,7 +178,7 @@ const Chat: React.FC<ChatProps> = ({
             </div>
           )}
         {!Boolean(isFetchingConvMessages) &&
-          messages.map((msg: any, index: number) => (
+          messages.map((msg, index: number) => (
             <div key={index} className={`chat-message ${msg.role}`}>
               {(() => {
                  const isLastAssistantMessage =
