@@ -225,9 +225,11 @@ const Chat: React.FC<ChatProps> = ({
                               answer: msg.content,
                               citations:
                                 msg.role === "assistant" && msg.citations
-                                  ? Array.isArray(msg.citations) && typeof msg.citations[0] === "string"
+                                  ? typeof msg.citations === "string"
                                     ? parseCitationFromMessage(msg.citations)
-                                    : msg.citations
+                                    : Array.isArray(msg.citations)
+                                      ? msg.citations
+                                      : []
                                   : [],
                             }}
                             index={index}
