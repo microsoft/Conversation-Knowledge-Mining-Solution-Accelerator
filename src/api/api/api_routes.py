@@ -12,23 +12,12 @@ from services.chat_service import ChatService
 from services.chart_service import ChartService
 from common.logging.event_utils import track_event_if_configured
 from helpers.azure_credential_utils import get_azure_credential
-from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
-
-# Check if the Application Insights Instrumentation Key is set in the environment variables
-instrumentation_key = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-if instrumentation_key:
-    # Configure Application Insights if the Instrumentation Key is found
-    configure_azure_monitor(connection_string=instrumentation_key)
-    logging.info("Application Insights configured with the provided Instrumentation Key")
-else:
-    # Log a warning if the Instrumentation Key is not found
-    logging.warning("No Application Insights Instrumentation Key found. Skipping configuration")
 
 
 @router.get("/fetchChartData")
@@ -43,6 +32,10 @@ async def fetch_chart_data():
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_chart_data: %s", str(e))
+        track_event_if_configured("FetchChartDataError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -53,7 +46,7 @@ async def fetch_chart_data():
 @router.post("/fetchChartDataWithFilters")
 async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
     try:
-        logger.info(f"Received filters: {chart_filters}")
+        logger.info("Received filters: %s", chart_filters)
         chart_service = ChartService()
         response = await chart_service.fetch_chart_data_with_filters(chart_filters)
         track_event_if_configured(
@@ -69,6 +62,10 @@ async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_chart_data_with_filters: %s", str(e))
+        track_event_if_configured("FetchChartDataWithFiltersError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -88,6 +85,10 @@ async def fetch_filter_data():
         return JSONResponse(content=response)
     except Exception as e:
         logger.exception("Error in fetch_filter_data: %s", str(e))
+        track_event_if_configured("FetchFilterDataError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -102,6 +103,17 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
+        
+        # Track chat request initiation
+        track_event_if_configured("ChatRequestReceived", {
+            "conversation_id": conversation_id
+        })
+        
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
+        
         chat_service = ChatService()
         result = await chat_service.stream_chat_request(conversation_id, query)
         track_event_if_configured(
@@ -112,6 +124,14 @@ async def conversation(request: Request):
 
     except Exception as ex:
         logger.exception("Error in conversation endpoint: %s", str(ex))
+        
+        # Track specific error type
+        track_event_if_configured("ChatRequestError", {
+            "conversation_id": request_json.get("conversation_id") if 'request_json' in locals() else "",
+            "error": str(ex),
+            "error_type": type(ex).__name__
+        })
+        
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(ex)
@@ -129,6 +149,10 @@ async def get_layout_config():
             return JSONResponse(content=layout_config_json)    # Return the parsed JSON
         except json.JSONDecodeError as e:
             logger.exception("Failed to parse layout config JSON: %s", str(e))
+            track_event_if_configured("LayoutConfigParseError", {
+                "error": str(e),
+                "error_type": "JSONDecodeError"
+            })
             span = trace.get_current_span()
             if span is not None:
                 span.record_exception(e)

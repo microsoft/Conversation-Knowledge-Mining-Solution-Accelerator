@@ -81,7 +81,7 @@ class HistoryService:
                 return str(result.text).strip() if result is not None else "New Conversation"
 
         except Exception as e:
-            logger.error(f"Error generating title: {e}")
+            logger.error("Error generating title: %s", str(e))
             # Fallback to user message or default
             if user_messages:
                 return user_messages[-1]["content"][:50]
@@ -185,16 +185,16 @@ class HistoryService:
             message_feedback: str) -> Optional[dict]:
         try:
             logger.info(
-                f"Updating feedback for message_id: {message_id} by user: {user_id}")
+                "Updating feedback for message_id: %s by user: %s", message_id, user_id)
             cosmos_conversation_client = self.init_cosmosdb_client()
             updated_message = await cosmos_conversation_client.update_message_feedback(user_id, message_id, message_feedback)
 
             if updated_message:
                 logger.info(
-                    f"Successfully updated message_id: {message_id} with feedback: {message_feedback}")
+                    "Successfully updated message_id: %s with feedback: %s", message_id, message_feedback)
                 return updated_message
             else:
-                logger.warning(f"Message ID {message_id} not found or access denied")
+                logger.warning("Message ID %s not found or access denied", message_id)
                 return None
         except Exception:
             logger.exception(
@@ -219,12 +219,12 @@ class HistoryService:
             conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
 
             if not conversation:
-                logger.warning(f"Conversation {conversation_id} not found.")
+                logger.warning("Conversation %s not found for delete operation", conversation_id)
                 return False
 
             if conversation["userId"] != user_id:
                 logger.warning(
-                    f"User {user_id} does not have permission to delete {conversation_id}.")
+                    "User %s does not have permission to delete conversation %s", user_id, conversation_id)
                 return False
 
             # Delete associated messages first (if applicable)
@@ -233,11 +233,11 @@ class HistoryService:
             # Delete the conversation itself
             await cosmos_conversation_client.delete_conversation(user_id, conversation_id)
 
-            logger.info(f"Successfully deleted conversation {conversation_id}.")
+            logger.info("Successfully deleted conversation %s for user %s", conversation_id, user_id)
             return True
 
         except Exception as e:
-            logger.exception(f"Error deleting conversation {conversation_id}: {e}")
+            logger.exception("Error deleting conversation %s for user %s", conversation_id, user_id)
             return False
 
     async def get_conversations(self, user_id: str, offset: int, limit: int):
@@ -259,7 +259,7 @@ class HistoryService:
 
             return conversations or []
         except Exception:
-            logger.exception(f"Error retrieving conversations for user {user_id}")
+            logger.exception("Error retrieving conversations for user %s", user_id)
             return []
 
     async def get_messages(self, user_id: str, conversation_id: str):
@@ -281,7 +281,7 @@ class HistoryService:
             # Fetch conversation to ensure it exists and belongs to the user
             conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
             if not conversation:
-                logger.warning(f"Conversation {conversation_id} not found.")
+                logger.warning("Conversation %s not found for get_messages operation", conversation_id)
                 return []
 
             # Fetch messages associated with the conversation
@@ -290,7 +290,7 @@ class HistoryService:
 
         except Exception as e:
             logger.exception(
-                f"Error retrieving messages for conversation {conversation_id}: {e}")
+                "Error retrieving messages for conversation %s", conversation_id)
             return []
 
     async def get_conversation_messages(self, user_id: str, conversation_id: str):
@@ -313,7 +313,7 @@ class HistoryService:
             conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
             if not conversation:
                 logger.warning(
-                    f"Conversation {conversation_id} not found for user {user_id}.")
+                    "Conversation %s not found for user %s", conversation_id, user_id)
                 return None
 
             # Get messages related to the conversation
@@ -356,24 +356,24 @@ class HistoryService:
             # Ensure the conversation exists and belongs to the user
             conversation = await cosmos_conversation_client.get_conversation(conversation_id)
             if not conversation:
-                logger.warning(f"Conversation {conversation_id} not found.")
+                logger.warning("Conversation %s not found for clear messages operation", conversation_id)
                 return False
 
             if conversation["user_id"] != user_id:
                 logger.warning(
-                    f"User {user_id} does not have permission to clear messages in {conversation_id}.")
+                    "User %s does not have permission to clear messages in conversation %s", user_id, conversation_id)
                 return False
 
             # Delete all messages associated with the conversation
             await cosmos_conversation_client.delete_messages(conversation_id, user_id)
 
             logger.info(
-                f"Successfully cleared messages in conversation {conversation_id}.")
+                "Successfully cleared messages in conversation %s for user %s", conversation_id, user_id)
             return True
 
         except Exception as e:
             logger.exception(
-                f"Error clearing messages for conversation {conversation_id}: {e}")
+                "Error clearing messages for conversation %s", conversation_id)
             return False
 
     async def ensure_cosmos(self):
@@ -391,5 +391,5 @@ class HistoryService:
             success, err = await cosmos_conversation_client.ensure()
             return success, err
         except Exception as e:
-            logger.exception(f"Error ensuring CosmosDB configuration: {e}")
+            logger.exception("Error ensuring CosmosDB configuration")
             return False, str(e)
