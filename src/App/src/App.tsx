@@ -175,13 +175,18 @@ const Dashboard: React.FC = () => {
 
   const getHistoryListData = async () => {
     if (!hasMoreRecords) return;
-    const convs = await dispatch(fetchChatHistory(offset)).unwrap();
-    if (convs !== null) {
-      if (convs.length === OFFSET_INCREMENT) {
-        setOffset((o) => o + OFFSET_INCREMENT);
-      } else if (convs.length < OFFSET_INCREMENT) {
-        setHasMoreRecords(false);
+    try {
+      const convs = await dispatch(fetchChatHistory(offset)).unwrap();
+      if (convs !== null) {
+        if (convs.length === OFFSET_INCREMENT) {
+          setOffset((o) => o + OFFSET_INCREMENT);
+        } else if (convs.length < OFFSET_INCREMENT) {
+          setHasMoreRecords(false);
+        }
       }
+    } catch (error) {
+      // Swallow or log the error to avoid unhandled promise rejections.
+      // console.error("Failed to fetch chat history:", error);
     }
   };
 
