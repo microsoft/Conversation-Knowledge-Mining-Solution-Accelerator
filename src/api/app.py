@@ -40,6 +40,17 @@ logging.basicConfig(
 for logger_name in AZURE_LOGGING_PACKAGES:
     logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
 
+# Suppress noisy OpenTelemetry and Azure Monitor logs
+logging.getLogger("opentelemetry.sdk").setLevel(logging.ERROR)
+logging.getLogger("opentelemetry.instrumentation.httpx").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.instrumentation.aiohttp-client").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
+
+# Configure Azure Monitor and OpenTelemetry imports
+from azure.monitor.opentelemetry import configure_azure_monitor  # noqa: E402
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # noqa: E402
+
 
 def build_app() -> FastAPI:
     """
@@ -66,6 +77,24 @@ def build_app() -> FastAPI:
     async def health_check():
         """Health check endpoint"""
         return {"status": "healthy"}
+
+    # Configure Azure Monitor and instrument FastAPI for OpenTelemetry
+    # This enables automatic request tracing, dependency tracking, and proper operation_id
+    instrumentation_key = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if instrumentation_key:
+        # Configure Application Insights telemetry with live metrics
+        # Set disable_offline_storage=True to reduce logs about offline storage
+        configure_azure_monitor(
+            connection_string=instrumentation_key,
+            enable_live_metrics=True,
+            disable_offline_storage=True  # Reduces "Storing events" logs
+        )
+
+        # Instrument FastAPI app to automatically trace all requests
+        FastAPIInstrumentor.instrument_app(fastapi_app)
+        logging.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
+    else:
+        logging.warning("No Application Insights connection string found. Telemetry disabled.")
 
     return fastapi_app
 

@@ -1,27 +1,15 @@
 import logging
-import os
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from auth.auth_utils import get_authenticated_user_details
 from services.history_service import HistoryService
 from common.logging.event_utils import track_event_if_configured
-from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
-
-# Check if the Application Insights Instrumentation Key is set in the environment variables
-instrumentation_key = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-if instrumentation_key:
-    # Configure Application Insights if the Instrumentation Key is found
-    configure_azure_monitor(connection_string=instrumentation_key)
-    logging.info("Application Insights configured with the provided Instrumentation Key")
-else:
-    # Log a warning if the Instrumentation Key is not found
-    logging.warning("No Application Insights Instrumentation Key found. Skipping configuration")
 
 # Single instance of HistoryService (if applicable)
 history_service = HistoryService()
@@ -40,6 +28,11 @@ async def update_conversation(request: Request):
 
         if not conversation_id:
             raise HTTPException(status_code=400, detail="No conversation_id found")
+
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
 
         # Call HistoryService to update conversation
         update_response = await history_service.update_conversation(user_id, request_json)
@@ -65,6 +58,10 @@ async def update_conversation(request: Request):
         )
     except Exception as e:
         logger.exception("Exception in /history/update: %s", str(e))
+        track_event_if_configured("ConversationUpdateError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -126,6 +123,10 @@ async def update_message_feedback(request: Request):
 
     except Exception as e:
         logger.exception("Exception in /history/message_feedback: %s", str(e))
+        track_event_if_configured("MessageFeedbackError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -150,6 +151,11 @@ async def delete_conversation(request: Request):
             })
             raise HTTPException(status_code=400, detail="conversation_id is required")
 
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
+
         # Delete conversation using HistoryService
         deleted = await history_service.delete_conversation(user_id, conversation_id)
         if deleted:
@@ -173,6 +179,10 @@ async def delete_conversation(request: Request):
                 detail=f"Conversation {conversation_id} not found or user does not have permission.")
     except Exception as e:
         logger.exception("Exception in /history/delete: %s", str(e))
+        track_event_if_configured("ConversationDeleteError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -191,7 +201,7 @@ async def list_conversations(
             request_headers=request.headers)
         user_id = authenticated_user["user_principal_id"]
 
-        logger.info(f"user_id: {user_id}, offset: {offset}, limit: {limit}")
+        logger.info("Fetching conversations - user_id: %s, offset: %s, limit: %s", user_id, offset, limit)
 
         # Get conversations
         conversations = await history_service.get_conversations(user_id, offset=offset, limit=limit)
@@ -216,6 +226,10 @@ async def list_conversations(
 
     except Exception as e:
         logger.exception("Exception in /history/list: %s", str(e))
+        track_event_if_configured("ConversationsListError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -240,6 +254,11 @@ async def get_conversation_messages(request: Request):
                 "user_id": user_id
             })
             raise HTTPException(status_code=400, detail="conversation_id is required")
+
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
 
         # Get conversation details
         conversationMessages = await history_service.get_conversation_messages(user_id, conversation_id)
@@ -266,6 +285,10 @@ async def get_conversation_messages(request: Request):
 
     except Exception as e:
         logger.exception("Exception in /history/read: %s", str(e))
+        track_event_if_configured("ConversationReadError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -291,6 +314,12 @@ async def rename_conversation(request: Request):
                 "user_id": user_id
             })
             raise HTTPException(status_code=400, detail="conversation_id is required")
+
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
+
         if not title:
             track_event_if_configured("RenameConversationValidationError", {
                 "error": "title is required",
@@ -310,6 +339,10 @@ async def rename_conversation(request: Request):
 
     except Exception as e:
         logger.exception("Exception in /history/rename: %s", str(e))
+        track_event_if_configured("ConversationRenameError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -351,6 +384,10 @@ async def delete_all_conversations(request: Request):
 
     except Exception as e:
         logging.exception("Exception in /history/delete_all: %s", str(e))
+        track_event_if_configured("AllConversationsDeleteError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -377,6 +414,11 @@ async def clear_messages(request: Request):
             })
             raise HTTPException(status_code=400, detail="conversation_id is required")
 
+        # Attach conversation_id to current span for Application Insights correlation
+        span = trace.get_current_span()
+        if span and conversation_id:
+            span.set_attribute("conversation_id", conversation_id)
+
         # Delete conversation messages from CosmosDB
         success = await history_service.clear_messages(user_id, conversation_id)
 
@@ -400,6 +442,10 @@ async def clear_messages(request: Request):
 
     except Exception as e:
         logger.exception("Exception in /history/clear: %s", str(e))
+        track_event_if_configured("MessagesClearError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
@@ -429,6 +475,10 @@ async def ensure_cosmos():
             status_code=200)
     except Exception as e:
         logger.exception("Exception in /history/ensure: %s", str(e))
+        track_event_if_configured("CosmosDBEnsureError", {
+            "error": str(e),
+            "error_type": type(e).__name__
+        })
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(e)
