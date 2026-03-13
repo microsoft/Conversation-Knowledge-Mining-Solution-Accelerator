@@ -11,7 +11,7 @@ from azure.monitor.events.extension import track_event
 
 def track_event_if_configured(event_name: str, event_data: dict):
     """Track custom event to Application Insights if configured.
-    
+
     Args:
         event_name: Name of the event to track
         event_data: Dictionary of event properties
