@@ -47,7 +47,7 @@ logging.getLogger("opentelemetry.instrumentation.aiohttp-client").setLevel(loggi
 logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
 logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
 
-# Configure Azure Monitor and OpenTelemetry before importing routes
+# Configure Azure Monitor and OpenTelemetry imports
 from azure.monitor.opentelemetry import configure_azure_monitor  # noqa: E402
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # noqa: E402
 
