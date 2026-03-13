@@ -61,9 +61,7 @@ export type UserInfo = {
 export async function getUserInfo(): Promise<UserInfo[]> {
   try {
     // /.auth/me is an absolute path outside the API base URL
-    const response = await httpClient.request<Response>("/.auth/me", {
-      rawResponse: true,
-    });
+    const response = await fetch("/.auth/me");
     if (!response.ok) {
       console.error(
         "No identity provider found. Access to chat will be blocked."
