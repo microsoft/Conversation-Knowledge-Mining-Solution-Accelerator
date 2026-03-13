@@ -1522,8 +1522,8 @@ output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
 @description('Name of the Storage Container.')
 output STORAGE_CONTAINER_NAME string = 'data'
 
-@description('Resource ID of the AI Foundry Project.')
-output AI_FOUNDRY_RESOURCE_ID string = !empty(existingAiFoundryAiProjectResourceId) ? existingAiFoundryAiProjectResourceId : aiFoundryAiServices.outputs.resourceId
+@description('Resource ID of the AI Foundry.')
+output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAiServices.outputs.resourceId
 
 @description('Resource ID of the Content Understanding AI Foundry.')
 output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId

@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "487190158402104640"
+      "templateHash": "5621595257944878269"
     }
   },
   "parameters": {
@@ -30052,9 +30052,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -54139,7 +54139,7 @@
                   "AGENT_NAME_CONVERSATION": "",
                   "AGENT_NAME_TITLE": "",
                   "API_APP_NAME": "[format('api-{0}', variables('solutionSuffix'))]",
-                  "AI_FOUNDRY_RESOURCE_ID": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]",
+                  "AI_FOUNDRY_RESOURCE_ID": "[reference('aiFoundryAiServices').outputs.resourceId.value]",
                   "AZURE_OPENAI_DEPLOYMENT_MODEL": "[parameters('gptModelName')]",
                   "AZURE_OPENAI_ENDPOINT": "[if(not(empty(variables('existingOpenAIEndpoint'))), variables('existingOpenAIEndpoint'), format('https://{0}.openai.azure.com/', reference('aiFoundryAiServices').outputs.name.value))]",
                   "AZURE_OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
@@ -58326,9 +58326,9 @@
     "AI_FOUNDRY_RESOURCE_ID": {
       "type": "string",
       "metadata": {
-        "description": "Resource ID of the AI Foundry Project."
+        "description": "Resource ID of the AI Foundry."
       },
-      "value": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), parameters('existingAiFoundryAiProjectResourceId'), reference('aiFoundryAiServices').outputs.resourceId.value)]"
+      "value": "[reference('aiFoundryAiServices').outputs.resourceId.value]"
     },
     "CU_FOUNDRY_RESOURCE_ID": {
       "type": "string",
