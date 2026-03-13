@@ -236,7 +236,7 @@ class HistoryService:
             logger.info("Successfully deleted conversation %s for user %s", conversation_id, user_id)
             return True
 
-        except Exception as e:
+        except Exception:
             logger.exception("Error deleting conversation %s for user %s", conversation_id, user_id)
             return False
 
@@ -288,7 +288,7 @@ class HistoryService:
             messages = await cosmos_conversation_client.get_messages(conversation_id)
             return messages
 
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Error retrieving messages for conversation %s", conversation_id)
             return []
@@ -371,7 +371,7 @@ class HistoryService:
                 "Successfully cleared messages in conversation %s for user %s", conversation_id, user_id)
             return True
 
-        except Exception as e:
+        except Exception:
             logger.exception(
                 "Error clearing messages for conversation %s", conversation_id)
             return False

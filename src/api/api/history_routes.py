@@ -1,5 +1,4 @@
 import logging
-import os
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from auth.auth_utils import get_authenticated_user_details

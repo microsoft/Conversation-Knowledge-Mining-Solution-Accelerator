@@ -103,17 +103,17 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
-        
+
         # Track chat request initiation
         track_event_if_configured("ChatRequestReceived", {
             "conversation_id": conversation_id
         })
-        
+
         # Attach conversation_id to current span for Application Insights correlation
         span = trace.get_current_span()
         if span and conversation_id:
             span.set_attribute("conversation_id", conversation_id)
-        
+
         chat_service = ChatService()
         result = await chat_service.stream_chat_request(conversation_id, query)
         track_event_if_configured(
@@ -124,14 +124,14 @@ async def conversation(request: Request):
 
     except Exception as ex:
         logger.exception("Error in conversation endpoint: %s", str(ex))
-        
+
         # Track specific error type
         track_event_if_configured("ChatRequestError", {
             "conversation_id": request_json.get("conversation_id") if 'request_json' in locals() else "",
             "error": str(ex),
             "error_type": type(ex).__name__
         })
-        
+
         span = trace.get_current_span()
         if span is not None:
             span.record_exception(ex)

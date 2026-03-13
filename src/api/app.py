@@ -48,8 +48,8 @@ logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(l
 logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
 
 # Configure Azure Monitor and OpenTelemetry before importing routes
-from azure.monitor.opentelemetry import configure_azure_monitor
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from azure.monitor.opentelemetry import configure_azure_monitor  # noqa: E402
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # noqa: E402
 
 
 def build_app() -> FastAPI:
@@ -89,7 +89,7 @@ def build_app() -> FastAPI:
             enable_live_metrics=True,
             disable_offline_storage=True  # Reduces "Storing events" logs
         )
-        
+
         # Instrument FastAPI app to automatically trace all requests
         FastAPIInstrumentor.instrument_app(fastapi_app)
         logging.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
