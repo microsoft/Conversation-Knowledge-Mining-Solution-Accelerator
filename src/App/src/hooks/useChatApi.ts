@@ -5,6 +5,7 @@ import type {
   ChartDataResponse,
   ConversationRequest,
   ParsedChunk,
+  Citation,
 } from "../types/AppTypes";
 import { callConversationApi } from "../api/api";
 import { generateUUIDv4 } from "../utils/messageUtils";
@@ -64,8 +65,8 @@ export function useChatApi({
   }, []);
 
   const parseCitationFromMessage = useCallback((message: any) => {
-    const toolMessage = safeParse<{ citations?: string[] }>("{" + message, {});
-    return toolMessage?.citations ?? [];
+    const toolMessage = safeParse<{ citations?: Citation[] }>("{" + message, {});
+    return toolMessage.citations ?? ([] as Citation[]);
   }, []);
 
   // ──────────────────────────────────────────────
