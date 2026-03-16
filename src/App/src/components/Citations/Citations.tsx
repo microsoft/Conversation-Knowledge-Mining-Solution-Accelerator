@@ -29,7 +29,7 @@ const Citations: React.FC<Props> = React.memo(({ answer, index }) => {
     const onCitationClicked = useCallback(
         async (citation: Citation) => {
             const citationContent = await fetchCitationContent(citation);
-            dispatch(updateCitation({ showCitation: true, activeCitation: {...citation, content:citationContent.content}, currentConversationIdForCitation: selectedConversationId}));
+            dispatch(updateCitation({ showCitation: true, activeCitation: {...citation, content:citationContent.content, title: citationContent.title}, currentConversationIdForCitation: selectedConversationId}));
         },
         [dispatch, selectedConversationId]
     );
