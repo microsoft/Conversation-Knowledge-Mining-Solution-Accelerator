@@ -70,11 +70,36 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - **Default:** 150k tokens (minimum)
 - **Optimal:** More than 150k tokens (recommended for best performance)
 
-> **Note:** When you run `azd up`, the deployment will automatically show you regions with available quota, so this pre-check is optional but helpful for planning purposes. You can customize these settings later in [Step 3.3: Advanced Configuration](#33-advanced-configuration-optional).
+> **Note:** When you run `azd up`, the deployment will automatically show you regions with available quota, so this pre-check is optional but helpful for planning purposes. You can customize these settings later in [Step 4.3: Advanced Configuration](#43-advanced-configuration-optional).
 
 📖 **Adjust Quota:** Follow [Azure GPT Quota Settings](./AzureGPTQuotaSettings.md) if needed.
 
-## Step 2: Choose Your Deployment Environment
+## Step 2: Deploy using GitHub Copilot Prompt
+
+If you prefer a guided deployment experience using **GitHub Copilot**, you can use the prompt below to walk through the entire deployment process step by step. Simply copy the prompt into GitHub Copilot Chat and follow the instructions it provides.
+
+> 💡 **Tip:** This is the fastest way to deploy if you already have GitHub Copilot enabled in your editor.
+
+**Copy the following prompt and paste it into GitHub Copilot Chat:**
+
+```text
+Follow the step-by-step guide in DeploymentGuide.md for Conversation Knowledge Mining Solution Accelerator (CKM v2).
+Ask: WAF deployment or Non-WAF deployment?
+WAF (Production): Copy main.waf.parameters.json → main.parameters.json, set VM credentials Non-WAF (Dev/POC): Skip to Advanced Configuration Ask: Customize deployment parameters? (see CustomizingAzdParameters.md)
+Run: azd auth login → azd up
+Environment: 3-16 alphanumeric chars Regions: East US, East US2, Australia East, UK South, France Central Verify: Azure Portal → Resource Group → App Service → Default domain
+Configure auth per AppAuthentication.md Run bash file after deployment completion
+Important:
+NO code changes to repository files Run commands step-by-step, wait for completion Explain each step before running On errors, troubleshoot using TroubleShootingSteps.md
+```
+
+Copilot will walk you through each step, running commands one at a time and troubleshooting any errors using [TroubleShootingSteps.md](./TroubleShootingSteps.md).
+
+If you prefer to deploy manually, continue with the steps below.
+
+---
+
+## Step 3: Choose Your Deployment Environment
 
 Select one of the following options to deploy the Conversational Knowledge Mining Solution Accelerator:
 
@@ -99,7 +124,7 @@ Select one of the following options to deploy the Conversational Knowledge Minin
 1. Click the badge above (may take several minutes to load)
 2. Accept default values on the Codespaces creation page
 3. Wait for the environment to initialize (includes all deployment tools)
-4. Proceed to [Step 3: Configure Deployment Settings](#step-3-configure-deployment-settings)
+4. Proceed to [Step 4: Configure Deployment Settings](#step-4-configure-deployment-settings)
 
 </details>
 
@@ -116,7 +141,7 @@ Select one of the following options to deploy the Conversational Knowledge Minin
 1. Start Docker Desktop
 2. Click the badge above to open in Dev Containers
 3. Wait for the container to build and start (includes all deployment tools)
-4. Proceed to [Step 3: Configure Deployment Settings](#step-3-configure-deployment-settings)
+4. Proceed to [Step 4: Configure Deployment Settings](#step-4-configure-deployment-settings)
 
 </details>
 
@@ -172,7 +197,7 @@ Select one of the following options to deploy the Conversational Knowledge Minin
    azd init -t microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/
    ```
 3. Open the project folder in your terminal
-4. Proceed to [Step 3: Configure Deployment Settings](#step-3-configure-deployment-settings)
+4. Proceed to [Step 4: Configure Deployment Settings](#step-4-configure-deployment-settings)
 
 **PowerShell Users:** If you encounter script execution issues, run:
 ```powershell
@@ -181,11 +206,11 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 </details>
 
-## Step 3: Configure Deployment Settings
+## Step 4: Configure Deployment Settings
 
 Review the configuration options below. You can customize any settings that meet your needs, or leave them as defaults to proceed with a standard deployment.
 
-### 3.1 Choose Deployment Type (Optional)
+### 4.1 Choose Deployment Type (Optional)
 
 | **Aspect** | **Development/Testing (Default)** | **Production** |
 |------------|-----------------------------------|----------------|
@@ -207,9 +232,9 @@ Copy the contents from the production configuration file to your main parameters
 5. Select all existing content (Ctrl+A) and paste the copied content (Ctrl+V)
 6. Save the file (Ctrl+S)
 
-### 3.2 Set VM Credentials (Optional - Production Deployment Only)
+### 4.2 Set VM Credentials (Optional - Production Deployment Only)
 
-> **Note:** This section only applies if you selected **Production** deployment type in section 3.1. VMs are not deployed in the default Development/Testing configuration.
+> **Note:** This section only applies if you selected **Production** deployment type in section 4.1. VMs are not deployed in the default Development/Testing configuration.
 
 By default, random GUIDs are generated for VM credentials. To set custom credentials:
 
@@ -218,7 +243,7 @@ azd env set AZURE_ENV_VM_ADMIN_USERNAME <your-username>
 azd env set AZURE_ENV_VM_ADMIN_PASSWORD <your-password>
 ```
 
-### 3.3 Advanced Configuration (Optional)
+### 4.3 Advanced Configuration (Optional)
 
 <details>
 <summary><b>Configurable Parameters</b></summary>
@@ -253,11 +278,11 @@ To optimize costs and integrate with your existing Azure infrastructure, you can
 
 </details>
 
-## Step 4: Deploy the Solution
+## Step 5: Deploy the Solution
 
 💡 **Before You Start:** If you encounter any issues during deployment, check our [Troubleshooting Guide](./TroubleShootingSteps.md) for common solutions.
 
-### 4.1 Authenticate with Azure
+### 5.1 Authenticate with Azure
 
 ```shell
 azd auth login
@@ -273,7 +298,7 @@ azd auth login --tenant-id <tenant-id>
    > 2. Navigate to **Microsoft Entra ID** from the left-hand menu.
    > 3. Under the **Overview** section, locate the **Tenant ID** field. Copy the value displayed.
 
-### 4.2 Start Deployment
+### 5.2 Start Deployment
 
 ```shell
 azd up
@@ -293,7 +318,7 @@ azd up
 
 **⚠️ Deployment Issues:** If you encounter errors or timeouts, try a different region as there may be capacity constraints. For detailed error solutions, see our [Troubleshooting Guide](./TroubleShootingSteps.md).
 
-### 4.3 Get Application URL
+### 5.3 Get Application URL
 
 After successful deployment:
 1. Open [Azure Portal](https://portal.azure.com/)
@@ -307,7 +332,7 @@ After successful deployment:
 
 ⚠️ **Important:** Complete the following steps to process sample data and configure authentication before accessing the application.
 
-### 4.4 Process Sample Data
+### 5.4 Process Sample Data
 
 After the infrastructure deployment completes, follow these steps to process and load the sample data:
 
@@ -408,22 +433,22 @@ bash ./infra/scripts/process_sample_data.sh \
 
 **Expected Processing Time:** 5-10 minutes depending on the amount of sample data.
 
-## Step 5: Post-Deployment Configuration
+## Step 6: Post-Deployment Configuration
 
-### 5.1 Configure Authentication (Required)
+### 6.1 Configure Authentication (Required)
 
 **This step is mandatory for application access:**
 
 1. Follow [App Authentication Configuration](./AppAuthentication.md)
 2. Wait up to 10 minutes for authentication changes to take effect
 
-### 5.2 Verify Deployment
+### 6.2 Verify Deployment
 
-1. Access your application using the URL from Step 4.3
+1. Access your application using the URL from Step 5.3
 2. Confirm the application loads successfully
 3. Verify you can sign in with your authenticated account
 
-### 5.3 Test the Application
+### 6.3 Test the Application
 
 Follow these specific steps to verify the conversation knowledge mining functionality:
 
@@ -452,7 +477,7 @@ Follow these specific steps to verify the conversation knowledge mining function
 - ✅ Working analytics visualizations
 - ✅ Proper sentiment analysis and key phrase detection
 
-## Step 6: Clean Up (Optional)
+## Step 7: Clean Up (Optional)
 
 ### Remove All Resources
 
