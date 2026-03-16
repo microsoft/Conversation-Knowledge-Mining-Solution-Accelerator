@@ -456,8 +456,8 @@ jobs:
             echo "Current branch: $BRANCH_NAME"
             
             if [[ "$BRANCH_NAME" == "main" ]]; then
-              IMAGE_TAG="latest_waf"
-              echo "Using main branch - image tag: latest_waf"
+              IMAGE_TAG="latest_afv2"
+              echo "Using main branch - image tag: latest_afv2"
             elif [[ "$BRANCH_NAME" == "dev" ]]; then
               IMAGE_TAG="dev"
               echo "Using dev branch - image tag: dev"
@@ -471,8 +471,8 @@ jobs:
               IMAGE_TAG="dependabotchanges"
               echo "Using dependabotchanges branch - image tag: dependabotchanges"
             else
-              IMAGE_TAG="latest_waf"
-              echo "Using default for branch '$BRANCH_NAME' - image tag: latest_waf"
+              IMAGE_TAG="latest_afv2"
+              echo "Using default for branch '$BRANCH_NAME' - image tag: latest_afv2"
             fi
             
             echo "Using existing Docker image tag: $IMAGE_TAG"

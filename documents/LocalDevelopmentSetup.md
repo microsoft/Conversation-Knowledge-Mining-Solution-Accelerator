@@ -532,6 +532,12 @@ AZURE_EXISTING_AI_PROJECT_RESOURCE_ID=<ai-project-resource-id>
 AZURE_AI_AGENT_ENDPOINT=<ai-agent-endpoint>
 AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=<agent-model-deployment>
 
+# Agent Framework v2 Configuration (Set by deployment)
+AI_FOUNDRY_RESOURCE_ID=<ai-foundry-resource-id>
+API_APP_NAME=<api-app-name>
+AGENT_NAME_CONVERSATION=<conversation-agent-name>
+AGENT_NAME_TITLE=<title-agent-name>
+
 # Azure AI Search Configuration
 AZURE_AI_SEARCH_ENDPOINT=<search-endpoint>
 AZURE_AI_SEARCH_INDEX=call_transcripts_index
@@ -573,6 +579,7 @@ REACT_APP_LAYOUT_CONFIG=<layout-config-json>
 > - Set `APP_ENV=dev` for local development. This enables Azure CLI authentication.
 > - Ensure you're logged in via `az login` before running the backend.
 > - Set `APP_ENV=prod` only when deploying to Azure App Service with Managed Identity.
+> - **Agent Framework v2 Variables**: The `AI_FOUNDRY_RESOURCE_ID` and `API_APP_NAME` are automatically set during `azd up`. The `AGENT_NAME_CONVERSATION` and `AGENT_NAME_TITLE` are populated when you run the `run_create_agents_scripts.sh` script (see Step 4.4 in [Deployment Guide](./DeploymentGuide.md)).
 
 ### 4.3. Install Backend API Dependencies
 

@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.40.2.10011",
-      "templateHash": "11209346631275672110"
+      "version": "0.41.2.15936",
+      "templateHash": "5621595257944878269"
     }
   },
   "parameters": {
@@ -186,7 +186,7 @@
     },
     "backendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf_2025-12-02_1084",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the backend."
       }
@@ -207,7 +207,7 @@
     },
     "frontendContainerImageTag": {
       "type": "string",
-      "defaultValue": "latest_waf_2025-12-02_1084",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. The Container Image Tag to deploy on the frontend."
       }
@@ -407,6 +407,7 @@
     "aiFoundryAiServicesCUResourceName": "[format('aif-{0}-cu', variables('solutionSuffix'))]",
     "aiServicesNameCu": "[format('aisa-{0}-cu', variables('solutionSuffix'))]",
     "aiSearchName": "[format('srch-{0}', variables('solutionSuffix'))]",
+    "aiSearchConnectionName": "[format('foundry-search-connection-{0}', variables('solutionSuffix'))]",
     "storageAccountName": "[format('st{0}', variables('solutionSuffix'))]",
     "cosmosDbResourceName": "[format('cosmos-{0}', variables('solutionSuffix'))]",
     "cosmosDbDatabaseName": "db_conversation_history",
@@ -492,7 +493,7 @@
       "condition": "[not(variables('useExistingAiFoundryAiProject'))]",
       "type": "Microsoft.CognitiveServices/accounts/projects/connections",
       "apiVersion": "2025-10-01-preview",
-      "name": "[format('{0}/{1}/{2}', variables('aiFoundryAiServicesResourceName'), variables('aiFoundryAiServicesAiProjectResourceName'), variables('aiSearchName'))]",
+      "name": "[format('{0}/{1}/{2}', variables('aiFoundryAiServicesResourceName'), variables('aiFoundryAiServicesAiProjectResourceName'), variables('aiSearchConnectionName'))]",
       "properties": {
         "category": "CognitiveSearch",
         "target": "[format('https://{0}.search.windows.net', variables('aiSearchName'))]",
@@ -4438,8 +4439,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "9857139084182978879"
+              "version": "0.41.2.15936",
+              "templateHash": "7835683830649565955"
             }
           },
           "definitions": {
@@ -22600,8 +22601,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "9730759179052118696"
+              "version": "0.41.2.15936",
+              "templateHash": "11255056345205002263"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -23749,8 +23750,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "3022268207024386572"
+                      "version": "0.41.2.15936",
+                      "templateHash": "2352464251246464745"
                     }
                   },
                   "definitions": {
@@ -25399,8 +25400,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.40.2.10011",
-                              "templateHash": "10331519025916590333"
+                              "version": "0.41.2.15936",
+                              "templateHash": "8527060477757998371"
                             }
                           },
                           "definitions": {
@@ -25629,8 +25630,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "3022268207024386572"
+                      "version": "0.41.2.15936",
+                      "templateHash": "2352464251246464745"
                     }
                   },
                   "definitions": {
@@ -27279,8 +27280,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.40.2.10011",
-                              "templateHash": "10331519025916590333"
+                              "version": "0.41.2.15936",
+                              "templateHash": "8527060477757998371"
                             }
                           },
                           "definitions": {
@@ -27526,9 +27527,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -30051,9 +30052,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -32224,7 +32225,7 @@
             "value": "[reference('searchService', '2024-06-01-preview', 'full').location]"
           },
           "aiSearchConnectionName": {
-            "value": "[variables('aiSearchName')]"
+            "value": "[variables('aiSearchConnectionName')]"
           }
         },
         "template": {
@@ -32233,8 +32234,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "3013244911345442088"
+              "version": "0.41.2.15936",
+              "templateHash": "13998466922971349048"
             }
           },
           "parameters": {
@@ -32328,8 +32329,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "5940276677595603323"
+              "version": "0.41.2.15936",
+              "templateHash": "15810098719925301401"
             }
           },
           "parameters": {
@@ -40363,10 +40364,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -54135,6 +54136,10 @@
                 "name": "appsettings",
                 "properties": {
                   "REACT_APP_LAYOUT_CONFIG": "[variables('reactAppLayoutConfig')]",
+                  "AGENT_NAME_CONVERSATION": "",
+                  "AGENT_NAME_TITLE": "",
+                  "API_APP_NAME": "[format('api-{0}', variables('solutionSuffix'))]",
+                  "AI_FOUNDRY_RESOURCE_ID": "[reference('aiFoundryAiServices').outputs.resourceId.value]",
                   "AZURE_OPENAI_DEPLOYMENT_MODEL": "[parameters('gptModelName')]",
                   "AZURE_OPENAI_ENDPOINT": "[if(not(empty(variables('existingOpenAIEndpoint'))), variables('existingOpenAIEndpoint'), format('https://{0}.openai.azure.com/', reference('aiFoundryAiServices').outputs.name.value))]",
                   "AZURE_OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
@@ -54183,8 +54188,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "17957913878181935579"
+              "version": "0.41.2.15936",
+              "templateHash": "15946348041145518691"
             }
           },
           "definitions": {
@@ -55196,8 +55201,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "10706743168754451638"
+                      "version": "0.41.2.15936",
+                      "templateHash": "1185169597469996118"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -56126,8 +56131,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.40.2.10011",
-              "templateHash": "17957913878181935579"
+              "version": "0.41.2.15936",
+              "templateHash": "15946348041145518691"
             }
           },
           "definitions": {
@@ -57139,8 +57144,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.40.2.10011",
-                      "templateHash": "10706743168754451638"
+                      "version": "0.41.2.15936",
+                      "templateHash": "1185169597469996118"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -58099,7 +58104,7 @@
       "metadata": {
         "description": "Contains Azure AI Search connection name."
       },
-      "value": "[variables('aiSearchName')]"
+      "value": "[variables('aiSearchConnectionName')]"
     },
     "AZURE_COSMOSDB_ACCOUNT": {
       "type": "string",
@@ -58321,9 +58326,9 @@
     "AI_FOUNDRY_RESOURCE_ID": {
       "type": "string",
       "metadata": {
-        "description": "Resource ID of the AI Foundry Project."
+        "description": "Resource ID of the AI Foundry."
       },
-      "value": "[if(variables('aiFoundryAIservicesEnabled'), reference('aiFoundryAiServices').outputs.resourceId.value, '')]"
+      "value": "[reference('aiFoundryAiServices').outputs.resourceId.value]"
     },
     "CU_FOUNDRY_RESOURCE_ID": {
       "type": "string",
@@ -58338,6 +58343,27 @@
         "description": "Azure OpenAI Content Understanding endpoint URL."
       },
       "value": "[reference('cognitiveServicesCu').outputs.endpoint.value]"
+    },
+    "API_APP_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Contains API application name."
+      },
+      "value": "[format('api-{0}', variables('solutionSuffix'))]"
+    },
+    "AGENT_NAME_CONVERSATION": {
+      "type": "string",
+      "metadata": {
+        "description": "Contains Conversation Agent name."
+      },
+      "value": ""
+    },
+    "AGENT_NAME_TITLE": {
+      "type": "string",
+      "metadata": {
+        "description": "Contains Title Agent name."
+      },
+      "value": ""
     },
     "USE_CASE": {
       "type": "string",
