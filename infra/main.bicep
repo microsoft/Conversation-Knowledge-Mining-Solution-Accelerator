@@ -112,7 +112,7 @@ param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
+param backendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
 
 @description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
 param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
@@ -121,7 +121,7 @@ param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_waf_2025-12-02_1084'
+param frontendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -742,6 +742,8 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
+var aiSearchConnectionName = 'foundry-search-connection-${solutionSuffix}'
+
 resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   name: aiSearchName
   location: location
@@ -847,7 +849,7 @@ resource searchServiceToAiServicesRoleAssignment 'Microsoft.Authorization/roleAs
 }
 
 resource projectAISearchConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-10-01-preview' = if (!useExistingAiFoundryAiProject) {
-  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchName}'
+  name: '${aiFoundryAiServicesResourceName}/${aiFoundryAiServicesAiProjectResourceName}/${aiSearchConnectionName}'
   properties: {
     category: 'CognitiveSearch'
     target: 'https://${aiSearchName}.search.windows.net'
@@ -873,7 +875,7 @@ module existing_AIProject_SearchConnectionModule 'modules/deploy_aifp_aisearch_c
     aiSearchName: aiSearchName
     aiSearchResourceId: searchService.id
     aiSearchLocation: searchService.location
-    aiSearchConnectionName: aiSearchName
+    aiSearchConnectionName: aiSearchConnectionName
   }
 }
 
@@ -1298,6 +1300,10 @@ module webSiteBackend 'modules/web-sites.bicep' = {
         name: 'appsettings'
         properties: {
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
+          AGENT_NAME_CONVERSATION: ''
+          AGENT_NAME_TITLE: ''
+          API_APP_NAME: 'api-${solutionSuffix}'
+          AI_FOUNDRY_RESOURCE_ID: aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
@@ -1414,7 +1420,7 @@ output AZURE_AI_SEARCH_ENDPOINT string = 'https://${aiSearchName}.search.windows
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
 @description('Contains Azure AI Search connection name.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = aiSearchConnectionName
 
 @description('Contains Azure Cosmos DB account name.')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDb.outputs.name
@@ -1509,14 +1515,23 @@ output STORAGE_ACCOUNT_NAME string = storageAccount.outputs.name
 @description('Name of the Storage Container.')
 output STORAGE_CONTAINER_NAME string = 'data'
 
-@description('Resource ID of the AI Foundry Project.')
-output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAIservicesEnabled ? aiFoundryAiServices.outputs.resourceId : ''
+@description('Resource ID of the AI Foundry.')
+output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAiServices.outputs.resourceId
 
 @description('Resource ID of the Content Understanding AI Foundry.')
 output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
 
 @description('Azure OpenAI Content Understanding endpoint URL.')
 output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint
+
+@description('Contains API application name.')
+output API_APP_NAME string = 'api-${solutionSuffix}'
+
+@description('Contains Conversation Agent name.')
+output AGENT_NAME_CONVERSATION string = ''
+
+@description('Contains Title Agent name.')
+output AGENT_NAME_TITLE string = ''
 
 @description('Industry Use Case.')
 output USE_CASE string = usecase

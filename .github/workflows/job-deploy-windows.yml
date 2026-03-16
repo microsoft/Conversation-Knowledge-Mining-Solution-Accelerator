@@ -364,6 +364,43 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Run Create Agents Scripts
+        id: run_create_agents_scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "Running run_create_agents_scripts.sh..."
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Run Create Agents Scripts
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
+          sleep 20
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully on retry."
+
+      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Process Sample Data
         id: process_sample_data
         continue-on-error: true
@@ -435,6 +472,7 @@ jobs:
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
+            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
             echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY

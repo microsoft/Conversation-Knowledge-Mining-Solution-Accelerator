@@ -39,10 +39,10 @@
       "value": "${AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY}"
     },
     "backendContainerImageTag": {
-      "value": "${AZURE_ENV_IMAGETAG=latest_waf}"
+      "value": "${AZURE_ENV_IMAGETAG=latest_afv2}"
     },
     "frontendContainerImageTag": {
-      "value": "${AZURE_ENV_IMAGETAG=latest_waf}"
+      "value": "${AZURE_ENV_IMAGETAG=latest_afv2}"
     },
     "enableTelemetry": {
       "value": "${AZURE_ENV_ENABLE_TELEMETRY}"
