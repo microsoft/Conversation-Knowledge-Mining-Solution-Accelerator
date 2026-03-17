@@ -93,6 +93,20 @@ Important:
 NO code changes to repository files Run commands step-by-step, wait for completion Explain each step before running On errors, troubleshoot using TroubleShootingSteps.md
 ```
 
+During the deployment, you will be prompted with the following questions:
+
+WAF / Non-WAF:
+1. Yes - will implement WAF configuration
+2. No - will perform non-WAF deployment
+
+Advanced Configuration Changes:
+1. Yes - will implement advanced changes to AI model configurations and resources
+2. No - will keep default values
+
+App Authentication Configuration:
+1. Yes - will provide steps to implement in Azure portal
+2. No - will skip this step
+
 Copilot will walk you through each step, running commands one at a time and troubleshooting any errors using [TroubleShootingSteps.md](./TroubleShootingSteps.md).
 
 If you prefer to deploy manually, continue with the steps below.
