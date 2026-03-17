@@ -2,6 +2,9 @@ name: Azure Template Validation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - psl-github-issue-azdup
 
 permissions:
   contents: read
