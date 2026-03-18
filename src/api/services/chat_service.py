@@ -147,7 +147,6 @@ class ChatService:
                 )
 
                 citations = []
-                first_chunk = True
                 citation_marker_map = {}  # Maps original markers to sequential numbers
                 citation_counter = 0
 
@@ -179,14 +178,11 @@ class ChatService:
 
                     if chunk_text:
                         complete_response += chunk_text
-                        if first_chunk:
-                            first_chunk = False
-                            yield "{ \"answer\": " + chunk_text
-                        else:
-                            yield chunk_text
+                        yield ("assistant", chunk_text)
 
                 cache[conversation_id] = thread_conversation_id
 
+                # Yield citations as a separate tool message
                 if citations:
                     citation_list = []
                     seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
@@ -212,10 +208,10 @@ class ChatService:
                         if doc_id:
                             seen_doc_ids.add(doc_id)
 
-                        citation_list.append(json.dumps({"url": url, "title": title}))
-                    yield ", \"citations\": [" + ",".join(citation_list) + "]}"
+                        citation_list.append({"url": url, "title": title})
+                    yield ("tool", json.dumps(citation_list))
                 else:
-                    yield ", \"citations\": []}"
+                    yield ("tool", "[]")
 
             except Exception as e:
                 complete_response = str(e)
@@ -249,7 +245,7 @@ class ChatService:
                 # Provide a fallback response when no data is received from OpenAI.
                 if complete_response == "":
                     logger.info("No response received from OpenAI.")
-                    yield "I cannot answer this question with the current data. Please rephrase or add more details."
+                    yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
 
     async def stream_chat_request(self, conversation_id, query):
         """
@@ -258,20 +254,15 @@ class ChatService:
 
         async def generate():
             try:
-                assistant_content = ""
-                async for chunk in self.stream_openai_text(conversation_id, query):
-                    if isinstance(chunk, dict):
-                        chunk = json.dumps(chunk)  # Convert dict to JSON string
-                    assistant_content += str(chunk)
-
-                    if assistant_content:
-                        # Optimized response - only send fields used by frontend
+                async for role, content in self.stream_openai_text(conversation_id, query):
+                    if content:
                         response = {
                             "choices": [
                                 {
-                                    "messages": [
-                                        {"role": "assistant", "content": assistant_content}
-                                    ]
+                                    "delta": {
+                                        "role": role,
+                                        "content": content
+                                    }
                                 }
                             ]
                         }

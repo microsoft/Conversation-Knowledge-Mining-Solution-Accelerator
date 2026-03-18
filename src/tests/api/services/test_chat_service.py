@@ -642,11 +642,11 @@ class TestChatService:
     @pytest.mark.asyncio
     async def test_stream_chat_request_success(self, chat_service):
         """Test successful stream_chat_request."""
-        # Mock stream_openai_text to return chunks
+        # Mock stream_openai_text to return (role, content) tuples
         async def mock_stream(*args, **kwargs):
-            yield '{ "answer": "Hello'
-            yield ' World'
-            yield ', "citations": []}'
+            yield ("assistant", "Hello")
+            yield ("assistant", " World")
+            yield ("tool", '[{"url": "http://example.com", "title": "doc1"}]')
         
         chat_service.stream_openai_text = mock_stream
 
@@ -657,12 +657,29 @@ class TestChatService:
         async for chunk in generator:
             chunks.append(chunk)
 
-        # Verify
-        assert len(chunks) > 0
+        # Verify: 2 assistant chunks + 1 tool chunk = 3 total
+        assert len(chunks) == 3
         for chunk in chunks:
             data = json.loads(chunk.strip())
             assert "choices" in data
             assert isinstance(data["choices"], list)
+            delta = data["choices"][0]["delta"]
+            assert "content" in delta
+            assert "role" in delta
+
+        # Verify assistant deltas carry answer text
+        d0 = json.loads(chunks[0].strip())["choices"][0]["delta"]
+        assert d0["role"] == "assistant"
+        assert d0["content"] == "Hello"
+
+        d1 = json.loads(chunks[1].strip())["choices"][0]["delta"]
+        assert d1["role"] == "assistant"
+        assert d1["content"] == " World"
+
+        # Verify citations come as role "tool"
+        d2 = json.loads(chunks[2].strip())["choices"][0]["delta"]
+        assert d2["role"] == "tool"
+        assert "doc1" in d2["content"]
 
     @pytest.mark.asyncio
     async def test_stream_chat_request_http_exception(self, chat_service):
