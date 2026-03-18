@@ -14,6 +14,7 @@ permissions:
 jobs:
   template_validation_job:
     runs-on: ubuntu-latest
+    environment: production
     name: Template validation
 
     steps:
