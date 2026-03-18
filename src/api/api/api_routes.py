@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @router.get("/fetchChartData")
 async def fetch_chart_data():
     try:
+        logger.info("GET /fetchChartData called")
         chart_service = ChartService()
         response = await chart_service.fetch_chart_data()
         track_event_if_configured(
@@ -76,6 +77,7 @@ async def fetch_chart_data_with_filters(chart_filters: ChartFilters):
 @router.get("/fetchFilterData")
 async def fetch_filter_data():
     try:
+        logger.info("GET /fetchFilterData called")
         chart_service = ChartService()
         response = await chart_service.fetch_filter_data()
         track_event_if_configured(
@@ -103,6 +105,8 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
+        logger.info("POST /chat called: conversation_id=%s, query_length=%d",
+                    conversation_id, len(query) if query else 0)
 
         # Track chat request initiation
         track_event_if_configured("ChatRequestReceived", {
@@ -116,6 +120,7 @@ async def conversation(request: Request):
 
         chat_service = ChatService()
         result = await chat_service.stream_chat_request(conversation_id, query)
+        logger.info("Chat stream initiated successfully for conversation_id=%s", conversation_id)
         track_event_if_configured(
             "ChatStreamSuccess",
             {"conversation_id": conversation_id, "query": query}
@@ -141,6 +146,7 @@ async def conversation(request: Request):
 
 @router.get("/layout-config")
 async def get_layout_config():
+    logger.info("GET /layout-config called")
     layout_config_str = os.getenv("REACT_APP_LAYOUT_CONFIG", "")
     if layout_config_str:
         try:
@@ -164,6 +170,7 @@ async def get_layout_config():
 
 @router.get("/display-chart-default")
 async def get_chart_config():
+    logger.info("GET /display-chart-default called")
     chart_config = os.getenv("DISPLAY_CHART_DEFAULT", "")
     if chart_config:
         track_event_if_configured("ChartDisplayDefaultFetched", {"value": chart_config})
@@ -182,6 +189,7 @@ async def fetch_azure_search_content_endpoint(request: Request):
         # Parse the request JSON
         request_json = await request.json()
         url = request_json.get("url")
+        logger.info("POST /fetch-azure-search-content called: url=%s", url)
 
         if not url:
             return JSONResponse(content={"error": "URL is required"}, status_code=400)
@@ -207,8 +215,10 @@ async def fetch_azure_search_content_endpoint(request: Request):
                     data = response.json()
                     content = data.get("content", "")
                     title = data.get("sourceurl", "")
+                    logger.info("Azure Search content fetched successfully: url=%s", url)
                     return {"content": content, "title": title}
                 else:
+                    logger.warning("Azure Search content fetch failed: url=%s, status=%d", url, response.status_code)
                     return {"error": f"HTTP {response.status_code}"}
             except Exception:
                 logger.exception("Exception occurred while making the HTTP request")

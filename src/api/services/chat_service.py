@@ -120,6 +120,8 @@ class ChatService:
         """
         Get a streaming text response from OpenAI.
         """
+        logger.info("stream_openai_text called: conversation_id=%s, query_length=%d",
+                    conversation_id, len(query) if query else 0)
         async with (
             await get_azure_credential_async(client_id=self.azure_client_id) as credential,
             AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
@@ -139,12 +141,17 @@ class ChatService:
                 thread_conversation_id = None
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.get(conversation_id, None)
+                if thread_conversation_id:
+                    logger.info("Reusing existing thread %s for conversation %s",
+                                thread_conversation_id, conversation_id)
 
                 # Get agent with tools using provider
+                logger.info("Retrieving orchestrator agent: '%s'", self.orchestrator_agent_name)
                 agent = await provider.get_agent(
                     name=self.orchestrator_agent_name,
                     tools=custom_tool.get_sql_response
                 )
+                logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
                 citations = []
                 first_chunk = True
@@ -153,9 +160,11 @@ class ChatService:
 
                 if not thread_conversation_id:
                     # Create a conversation using OpenAI client for conversation continuity
+                    logger.info("No existing thread found, creating new thread for conversation %s", conversation_id)
                     openai_client = project_client.get_openai_client()
                     conversation = await openai_client.conversations.create()
                     thread_conversation_id = conversation.id
+                    logger.info("New thread created: %s for conversation %s", thread_conversation_id, conversation_id)
 
                 def replace_citation_marker(match):
                     nonlocal citation_counter
@@ -165,6 +174,8 @@ class ChatService:
                         citation_marker_map[marker] = citation_counter
                     return f"[{citation_marker_map[marker]}]"
 
+                logger.info("Starting agent.run stream for conversation %s, thread %s",
+                            conversation_id, thread_conversation_id)
                 async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
@@ -181,10 +192,13 @@ class ChatService:
                         complete_response += chunk_text
                         if first_chunk:
                             first_chunk = False
+                            logger.info("First chunk received for conversation %s, streaming response", conversation_id)
                             yield "{ \"answer\": " + chunk_text
                         else:
                             yield chunk_text
 
+                logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
+                            conversation_id, len(complete_response), len(citations))
                 cache[conversation_id] = thread_conversation_id
 
                 if citations:
@@ -255,6 +269,7 @@ class ChatService:
         """
         Handles streaming chat requests.
         """
+        logger.info("stream_chat_request called: conversation_id=%s", conversation_id)
 
         async def generate():
             try:
