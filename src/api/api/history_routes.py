@@ -232,9 +232,9 @@ async def list_conversations(
                 status_code=404)
         track_event_if_configured("ConversationsListed", {
             "user_id": user_id,
-            "offset": str(offset),
-            "limit": str(limit),
-            "conversation_count": str(len(conversations))
+            "offset": offset,
+            "limit": limit,
+            "conversation_count": len(conversations)
         })
         return JSONResponse(content=conversations, status_code=200)
 
@@ -294,7 +294,7 @@ async def get_conversation_messages(request: Request):
         track_event_if_configured("ConversationRead", {
             "user_id": user_id,
             "conversation_id": conversation_id,
-            "message_count": str(len(conversationMessages))
+            "message_count": len(conversationMessages)
         })
 
         return JSONResponse(
@@ -404,7 +404,7 @@ async def delete_all_conversations(request: Request):
 
         track_event_if_configured("AllConversationsDeleted", {
             "user_id": user_id,
-            "deleted_count": str(len(conversations))
+            "deleted_count": len(conversations)
         })
 
         return JSONResponse(

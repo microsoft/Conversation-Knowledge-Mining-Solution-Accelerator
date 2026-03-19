@@ -203,8 +203,8 @@ class ChatService:
                 track_event_if_configured("ChatResponseCompleted", {
                     "conversation_id": conversation_id,
                     "user_id": user_id,
-                    "response_length": str(len(complete_response)),
-                    "citation_count": str(len(citations)),
+                    "response_length": len(complete_response),
+                    "citation_count": len(citations),
                     "response_content": complete_response[:8192] if len(complete_response) > 8192 else complete_response
                 })
                 cache[conversation_id] = thread_conversation_id
