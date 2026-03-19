@@ -213,7 +213,7 @@ class ChatService:
 
                         citation_list.append({"url": url, "title": title})
                     yield ("tool", json.dumps(citation_list))
-                else:
+                elif complete_response:
                     yield ("tool", "[]")
 
             except Exception as e:

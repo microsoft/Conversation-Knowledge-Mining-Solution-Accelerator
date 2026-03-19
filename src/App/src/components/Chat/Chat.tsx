@@ -351,59 +351,51 @@ const Chat: React.FC<ChatProps> = ({
         const reader = response.body.getReader();
         let accumulatedContent = "";
         let hasError = false;
+        // lineBuffer holds incomplete JSON across reader.read() boundaries
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = new TextDecoder("utf-8").decode(value);
-          try {
-            const textObj = JSON.parse(text);
-            if (textObj?.object?.data) {
-              accumulatedContent = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.object?.message) {
-              accumulatedContent = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.error) {
-              hasError = true;
-              accumulatedContent = text;
-            }
-          } catch (e) {
-            // Ignore - will process individual chunks after splitting
-          }
-          if (!isChartResponseReceived) {
-            // Parse JSON-lines format: split by newlines and accumulate delta content
-            const objects = text.split("\n").filter((val) => val !== "");
-            
-            for (let index = 0; index < objects.length; index++) {
-              const textValue = objects[index];
-              try {
-                if (textValue !== "" && textValue !== "{}") {
-                  const parsed: ParsedChunk = JSON.parse(textValue);
-                  if (parsed?.error && !hasError) {
-                    hasError = true;
-                    accumulatedContent = parsed?.error;
-                  } else if (typeof parsed === "object" && !hasError) {
-                    const delta = parsed?.choices?.[0]?.delta;
-                    const deltaRole = delta?.role;
-                    const deltaContent = delta?.content;
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? ""; // Keep last (potentially incomplete) line for next read
 
-                    if (deltaRole === "assistant" && deltaContent) {
-                      accumulatedContent += deltaContent;
-                    }
-                    // Skip tool citations for chart requests
-                  }
-                }
-              } catch (e) {
-                // Skip incomplete JSON chunks in stream
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if ((textObj as any)?.object?.data) {
+                accumulatedContent = line;
+                isChartResponseReceived = true;
+                break;
               }
+              if ((textObj as any)?.object?.message) {
+                accumulatedContent = line;
+                isChartResponseReceived = true;
+                break;
+              }
+              if (textObj?.error && !hasError) {
+                hasError = true;
+                accumulatedContent = line;
+                break;
+              }
+              if (!isChartResponseReceived && !hasError) {
+                const delta = textObj?.choices?.[0]?.delta;
+                if (delta?.role === "assistant" && delta?.content) {
+                  accumulatedContent += delta.content;
+                }
+                // Skip tool citations for chart requests
+              }
+            } catch (e) {
+              // Skip incomplete JSON chunks in stream
             }
-            
-            if (hasError) {
-              console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
-              break;
-            }
+          }
+
+          if (hasError || isChartResponseReceived) {
+            if (hasError) console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
           }
         }
         // END OF STREAMING
@@ -536,81 +528,76 @@ const Chat: React.FC<ChatProps> = ({
         let runningText = "";
         let hasError = false;
         let accumulatedContent = ""; // Accumulate all delta chunks across reads
+        // lineBuffer holds incomplete JSON lines across reader.read() boundaries
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = new TextDecoder("utf-8").decode(value);
-          try {
-            const textObj = JSON.parse(text);
-            if (textObj?.object?.data) {
-              runningText = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.object?.message) {
-              runningText = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.error) {
-              hasError = true;
-              runningText = text;
-            }
-          } catch (e) {
-            // Ignore - will process individual chunks after splitting
-          }
-          if (!isChartResponseReceived) {
-            //text based streaming response
-            const objects = text.split("\n").filter((val) => val !== "");
-            
-            for (let index = 0; index < objects.length; index++) {
-              const textValue = objects[index];
-              try {
-                if (textValue !== "" && textValue !== "{}") {
-                  const parsed: ParsedChunk = JSON.parse(textValue);
-                  if (parsed?.error && !hasError) {
-                    hasError = true;
-                    runningText = textValue; // Store full JSON string so JSON.parse(runningText).error works downstream
-                  } else if (typeof parsed === "object" && !hasError) {
-                    const delta = parsed?.choices?.[0]?.delta;
-                    const deltaRole = delta?.role;
-                    const deltaContent = delta?.content;
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? ""; // Keep last (potentially incomplete) line for next read
 
-                    if (deltaRole === "tool" && deltaContent) {
-                      // Citations arrive as a single tool message
-                      streamMessage.citations = deltaContent;
-                      if (!isChartQuery(userMessage)) {
-                        dispatch({
-                          type: actionConstants.UPDATE_MESSAGE_BY_ID,
-                          payload: streamMessage,
-                        });
-                      }
-                    } else if (deltaRole === "assistant" && deltaContent) {
-                      accumulatedContent += deltaContent;
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if ((textObj as any)?.object?.data) {
+                runningText = line;
+                isChartResponseReceived = true;
+                break;
+              }
+              if ((textObj as any)?.object?.message) {
+                runningText = line;
+                isChartResponseReceived = true;
+                break;
+              }
+              if (textObj?.error && !hasError) {
+                hasError = true;
+                runningText = line; // Store full JSON string so JSON.parse(runningText).error works downstream
+                break;
+              }
+              if (!isChartResponseReceived && !hasError) {
+                const delta = textObj?.choices?.[0]?.delta;
+                const deltaRole = delta?.role;
+                const deltaContent = delta?.content;
 
-                      if (isChartQuery(userMessage)) {
-                        // For chart queries, just accumulate for post-stream parsing
-                        runningText = accumulatedContent;
-                      } else {
-                        streamMessage.content = accumulatedContent;
-                        streamMessage.role = ASSISTANT;
+                if (deltaRole === "tool" && deltaContent) {
+                  // Citations arrive as a single tool message
+                  streamMessage.citations = deltaContent;
+                  if (!isChartQuery(userMessage)) {
+                    dispatch({
+                      type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                      payload: streamMessage,
+                    });
+                  }
+                } else if (deltaRole === "assistant" && deltaContent) {
+                  accumulatedContent += deltaContent;
 
-                        dispatch({
-                          type: actionConstants.UPDATE_MESSAGE_BY_ID,
-                          payload: streamMessage,
-                        });
-                        scrollChatToBottom();
-                      }
-                    }
+                  if (isChartQuery(userMessage)) {
+                    // For chart queries, just accumulate for post-stream parsing
+                    runningText = accumulatedContent;
+                  } else {
+                    streamMessage.content = accumulatedContent;
+                    streamMessage.role = ASSISTANT;
+
+                    dispatch({
+                      type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                      payload: streamMessage,
+                    });
+                    scrollChatToBottom();
                   }
                 }
-              } catch (e) {
-                // Skip incomplete JSON chunks in stream
               }
+            } catch (e) {
+              // Skip incomplete JSON chunks in stream
             }
-            
-            if (hasError) {
-              console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
-              break;
-            }
+          }
+
+          if (hasError) {
+            console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
           }
         }
         // END OF STREAMING
