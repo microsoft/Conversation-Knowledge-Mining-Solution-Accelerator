@@ -62,6 +62,8 @@ async def update_conversation(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/update: %s", str(e))
         track_event_if_configured("ConversationUpdateError", {
+            "user_id": locals().get("user_id", ""),
+            "conversation_id": locals().get("conversation_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -128,6 +130,7 @@ async def update_message_feedback(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/message_feedback: %s", str(e))
         track_event_if_configured("MessageFeedbackError", {
+            "user_id": locals().get("user_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -186,6 +189,8 @@ async def delete_conversation(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/delete: %s", str(e))
         track_event_if_configured("ConversationDeleteError", {
+            "user_id": locals().get("user_id", ""),
+            "conversation_id": locals().get("conversation_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -224,15 +229,16 @@ async def list_conversations(
                 status_code=404)
         track_event_if_configured("ConversationsListed", {
             "user_id": user_id,
-            "offset": offset,
-            "limit": limit,
-            "conversation_count": len(conversations)
+            "offset": str(offset),
+            "limit": str(limit),
+            "conversation_count": str(len(conversations))
         })
         return JSONResponse(content=conversations, status_code=200)
 
     except Exception as e:
         logger.exception("Exception in /history/list: %s", str(e))
         track_event_if_configured("ConversationsListError", {
+            "user_id": locals().get("user_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -282,7 +288,7 @@ async def get_conversation_messages(request: Request):
         track_event_if_configured("ConversationRead", {
             "user_id": user_id,
             "conversation_id": conversation_id,
-            "message_count": len(conversationMessages)
+            "message_count": str(len(conversationMessages))
         })
 
         return JSONResponse(
@@ -294,6 +300,8 @@ async def get_conversation_messages(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/read: %s", str(e))
         track_event_if_configured("ConversationReadError", {
+            "user_id": locals().get("user_id", ""),
+            "conversation_id": locals().get("conversation_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -333,7 +341,8 @@ async def rename_conversation(request: Request):
         if not title:
             track_event_if_configured("RenameConversationValidationError", {
                 "error": "title is required",
-                "user_id": user_id
+                "user_id": user_id,
+                "conversation_id": conversation_id
             })
             raise HTTPException(status_code=400, detail="title is required")
 
@@ -351,6 +360,8 @@ async def rename_conversation(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/rename: %s", str(e))
         track_event_if_configured("ConversationRenameError", {
+            "user_id": locals().get("user_id", ""),
+            "conversation_id": locals().get("conversation_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -387,7 +398,7 @@ async def delete_all_conversations(request: Request):
 
         track_event_if_configured("AllConversationsDeleted", {
             "user_id": user_id,
-            "deleted_count": len(conversations)
+            "deleted_count": str(len(conversations))
         })
 
         return JSONResponse(
@@ -397,8 +408,9 @@ async def delete_all_conversations(request: Request):
         )
 
     except Exception as e:
-        logging.exception("Exception in /history/delete_all: %s", str(e))
+        logger.exception("Exception in /history/delete_all: %s", str(e))
         track_event_if_configured("AllConversationsDeleteError", {
+            "user_id": locals().get("user_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })
@@ -459,6 +471,8 @@ async def clear_messages(request: Request):
     except Exception as e:
         logger.exception("Exception in /history/clear: %s", str(e))
         track_event_if_configured("MessagesClearError", {
+            "user_id": locals().get("user_id", ""),
+            "conversation_id": locals().get("conversation_id", ""),
             "error": str(e),
             "error_type": type(e).__name__
         })

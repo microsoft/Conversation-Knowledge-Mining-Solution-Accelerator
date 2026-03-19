@@ -12,6 +12,7 @@ from services.chat_service import ChatService
 from services.chart_service import ChartService
 from common.logging.event_utils import track_event_if_configured
 from helpers.azure_credential_utils import get_azure_credential
+from auth.auth_utils import get_authenticated_user_details
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
@@ -105,12 +106,15 @@ async def conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         query = request_json.get("query")
+        authenticated_user = get_authenticated_user_details(request_headers=request.headers)
+        user_id = authenticated_user.get("user_principal_id", "")
         logger.info("POST /chat called: conversation_id=%s, query_length=%d",
                     conversation_id, len(query) if query else 0)
 
         # Track chat request initiation
         track_event_if_configured("ChatRequestReceived", {
-            "conversation_id": conversation_id
+            "conversation_id": conversation_id,
+            "user_id": user_id
         })
 
         # Attach conversation_id to current span for Application Insights correlation
@@ -119,11 +123,11 @@ async def conversation(request: Request):
             span.set_attribute("conversation_id", conversation_id)
 
         chat_service = ChatService()
-        result = await chat_service.stream_chat_request(conversation_id, query)
+        result = await chat_service.stream_chat_request(conversation_id, query, user_id=user_id)
         logger.info("Chat stream initiated successfully for conversation_id=%s", conversation_id)
         track_event_if_configured(
             "ChatStreamSuccess",
-            {"conversation_id": conversation_id, "query": query}
+            {"conversation_id": conversation_id, "user_id": user_id, "query": query}
         )
         return StreamingResponse(result, media_type="application/json-lines")
 
@@ -133,6 +137,7 @@ async def conversation(request: Request):
         # Track specific error type
         track_event_if_configured("ChatRequestError", {
             "conversation_id": request_json.get("conversation_id") if 'request_json' in locals() else "",
+            "user_id": locals().get("user_id", ""),
             "error": str(ex),
             "error_type": type(ex).__name__
         })

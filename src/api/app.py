@@ -9,6 +9,8 @@ and registers API routers.
 import logging
 import os
 from fastapi import FastAPI
+
+logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
@@ -20,6 +22,7 @@ from api.history_routes import router as history_router
 # Configure Azure Monitor and OpenTelemetry imports
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from common.logging.span_filters import DropASGIResponseBodySpanProcessor, DropCosmosDependencySpanProcessor
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +42,13 @@ logging.basicConfig(
     level=getattr(logging, AZURE_BASIC_LOGGING_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# Suppress noisy Azure SDK and OpenTelemetry internal loggers.
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies._universal").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.sdk").setLevel(logging.WARNING)
+logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
 
 # Package config: Azure loggers set to WARNING to suppress INFO
 for logger_name in AZURE_LOGGING_PACKAGES:
@@ -79,25 +89,21 @@ def build_app() -> FastAPI:
         # Configure Application Insights telemetry with live metrics
         configure_azure_monitor(
             connection_string=instrumentation_key,
-            enable_live_metrics=True
+            enable_live_metrics=True,
+            span_processors=[
+                DropASGIResponseBodySpanProcessor(),
+                DropCosmosDependencySpanProcessor()
+            ]
         )
-
-        # Suppress noisy OpenTelemetry logs
-        logging.getLogger("opentelemetry.sdk").setLevel(logging.ERROR)
-        logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
-        logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
-        logging.getLogger("azure.core.pipeline.policies._universal").setLevel(logging.WARNING)
-        logging.getLogger("azure.core.pipeline.policies").setLevel(logging.WARNING)
-        logging.getLogger("azure.identity").setLevel(logging.WARNING)
 
         # Instrument FastAPI app — exclude health-check URL to reduce telemetry noise
         FastAPIInstrumentor.instrument_app(
             fastapi_app,
             excluded_urls="health"
         )
-        logging.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
+        logger.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
     else:
-        logging.warning("No Application Insights connection string found. Telemetry disabled.")
+        logger.warning("No Application Insights connection string found. Telemetry disabled.")
 
     return fastapi_app
 

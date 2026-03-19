@@ -8,6 +8,8 @@ import logging
 import os
 from azure.monitor.events.extension import track_event
 
+logger = logging.getLogger(__name__)
+
 
 def track_event_if_configured(event_name: str, event_data: dict):
     """Track custom event to Application Insights if configured.
@@ -20,4 +22,4 @@ def track_event_if_configured(event_name: str, event_data: dict):
     if instrumentation_key:
         track_event(event_name, event_data)
     else:
-        logging.warning("Skipping track_event for %s as Application Insights is not configured", event_name)
+        logger.debug("Skipping track_event for %s: Application Insights is not configured", event_name)

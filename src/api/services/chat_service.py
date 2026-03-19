@@ -13,6 +13,7 @@ import os
 import random
 import re
 
+from common.logging.event_utils import track_event_if_configured
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
@@ -56,7 +57,7 @@ class ExpCache(TTLCache):
                 asyncio.create_task(self._delete_thread_async(thread_conversation_id))
                 logger.info("Scheduled thread deletion: %s", thread_conversation_id)
             except Exception as e:
-                logger.error("Failed to schedule thread deletion for key %s: %s", key, e)
+                logger.exception("Failed to schedule thread deletion for key %s: %s", key, e)
         return items
 
     def popitem(self):
@@ -67,7 +68,7 @@ class ExpCache(TTLCache):
             asyncio.create_task(self._delete_thread_async(thread_conversation_id))
             logger.info("Scheduled thread deletion (LRU evict): %s", thread_conversation_id)
         except Exception as e:
-            logger.error("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
+                logger.exception("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
         return key, thread_conversation_id
 
     async def _delete_thread_async(self, thread_conversation_id: str):
@@ -86,7 +87,7 @@ class ExpCache(TTLCache):
                     await openai_client.conversations.delete(conversation_id=thread_conversation_id)
                     logger.info("Thread deleted successfully: %s", thread_conversation_id)
         except Exception as e:
-            logger.error("Failed to delete thread %s: %s", thread_conversation_id, e)
+            logger.exception("Failed to delete thread %s: %s", thread_conversation_id, e)
         finally:
             # Close credential to prevent unclosed client session warnings
             if credential is not None:
@@ -116,7 +117,7 @@ class ChatService:
             thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
         return thread_cache
 
-    async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
+    async def stream_openai_text(self, conversation_id: str, query: str, user_id: str = "") -> StreamingResponse:
         """
         Get a streaming text response from OpenAI.
         """
@@ -199,6 +200,13 @@ class ChatService:
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
+                track_event_if_configured("ChatResponseCompleted", {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "response_length": str(len(complete_response)),
+                    "citation_count": str(len(citations)),
+                    "response_content": complete_response[:8192] if len(complete_response) > 8192 else complete_response
+                })
                 cache[conversation_id] = thread_conversation_id
 
                 if citations:
@@ -233,7 +241,7 @@ class ChatService:
 
             except Exception as e:
                 complete_response = str(e)
-                logger.error("Error in stream_openai_text: %s", e)
+                logger.exception("Error in stream_openai_text: %s", e)
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.pop(conversation_id, None)
                 if thread_conversation_id is not None:
@@ -265,7 +273,7 @@ class ChatService:
                     logger.info("No response received from OpenAI.")
                     yield "I cannot answer this question with the current data. Please rephrase or add more details."
 
-    async def stream_chat_request(self, conversation_id, query):
+    async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """
         Handles streaming chat requests.
         """
@@ -274,7 +282,7 @@ class ChatService:
         async def generate():
             try:
                 assistant_content = ""
-                async for chunk in self.stream_openai_text(conversation_id, query):
+                async for chunk in self.stream_openai_text(conversation_id, query, user_id=user_id):
                     if isinstance(chunk, dict):
                         chunk = json.dumps(chunk)  # Convert dict to JSON string
                     assistant_content += str(chunk)
@@ -293,7 +301,7 @@ class ChatService:
                         yield json.dumps(response) + "\n\n"
 
             except Exception as e:
-                logger.error("Unexpected error: %s", e)
+                logger.exception("Unexpected error: %s", e)
                 # Extract user-friendly message from HTTPException if available
                 if isinstance(e, HTTPException):
                     error_message = e.detail

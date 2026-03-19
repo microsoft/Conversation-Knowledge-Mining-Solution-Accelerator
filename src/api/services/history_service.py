@@ -84,7 +84,7 @@ class HistoryService:
                 return title
 
         except Exception as e:
-            logger.error("Error generating title: %s", str(e))
+            logger.exception("Error generating title: %s", str(e))
             # Fallback to user message or default
             if user_messages:
                 return user_messages[-1]["content"][:50]
@@ -215,7 +215,7 @@ class HistoryService:
                 return None
         except Exception:
             logger.exception(
-                f"Error updating message feedback for message_id: {message_id}")
+                "Error updating message feedback for message_id: %s", message_id)
             raise
 
     async def delete_conversation(self, user_id: str, conversation_id: str) -> bool:
@@ -356,7 +356,7 @@ class HistoryService:
             return messages
         except Exception:
             logger.exception(
-                f"Error retrieving conversation {conversation_id} for user {user_id}")
+                "Error retrieving conversation %s for user %s", conversation_id, user_id)
             return None
 
     async def clear_messages(self, user_id: str, conversation_id: str) -> bool:
