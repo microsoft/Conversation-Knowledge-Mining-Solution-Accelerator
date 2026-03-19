@@ -307,7 +307,7 @@ jobs:
           if [[ "$INPUT_EXP" == "true" ]]; then
             EXP_ENABLED="true"
             echo "✅ EXP explicitly enabled by user input"
-          if [[ -n "$INPUT_LOG_ANALYTICS_WORKSPACE_RID" ]] || [[ -n "$INPUT_AI_PROJECT_RESOURCE_ID" ]]; then
+          elif [[ -n "$INPUT_LOG_ANALYTICS_WORKSPACE_RID" ]] || [[ -n "$INPUT_AI_PROJECT_RESOURCE_ID" ]]; then
             echo "🔧 AUTO-ENABLING EXP: EXP parameter values were provided but EXP was not explicitly enabled."
             echo ""
             echo "You provided values for:"
