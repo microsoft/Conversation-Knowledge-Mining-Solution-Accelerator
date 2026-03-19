@@ -348,7 +348,7 @@ get_values_from_azd_env() {
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
 	deploymentModel=$(azd env get-value AZURE_ENV_GPT_MODEL_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
-	usecase=$(azd env get-value AZURE_ENV_USE_CASE 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	usecase=$(azd env get-value USE_CASE 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
@@ -406,7 +406,7 @@ get_values_from_az_deployment() {
 	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "AZURE_AI_AGENT_ENDPOINT")
 	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "AZURE_CONTENT_UNDERSTANDING_API_VERSION")
 	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "AZURE_ENV_GPT_MODEL_NAME")
-	usecase=$(extract_value "useCase" "AZURE_ENV_USE_CASE")
+	usecase=$(extract_value "useCase" "USE_CASE")
 	solutionName=$(extract_value "solutionName" "SOLUTION_NAME")
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
@@ -430,7 +430,7 @@ get_values_from_az_deployment() {
 		["aiAgentEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
 		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
 		["deploymentModel"]="AZURE_ENV_GPT_MODEL_NAME"
-		["usecase"]="AZURE_ENV_USE_CASE"
+		["usecase"]="USE_CASE"
 		["solutionName"]="SOLUTION_NAME"
 	)
 

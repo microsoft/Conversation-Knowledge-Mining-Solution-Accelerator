@@ -1485,7 +1485,7 @@ output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 output ACR_NAME string = acrName
 
 @description('Contains Azure environment image tag.')
-output AZURE_ENV_IMAGETAG string = backendContainerImageTag
+output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 
 @description('Contains existing AI project resource ID.')
 output AZURE_ENV_FOUNDRY_PROJECT_RID string = existingAiFoundryAiProjectResourceId
@@ -1524,4 +1524,4 @@ output AGENT_NAME_CONVERSATION string = ''
 output AGENT_NAME_TITLE string = ''
 
 @description('Industry Use Case.')
-output AZURE_ENV_USE_CASE string = usecase
+output USE_CASE string = usecase

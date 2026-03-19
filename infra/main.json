@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "13921942843037582313"
+      "templateHash": "17657354608868947427"
     }
   },
   "parameters": {
@@ -58256,7 +58256,7 @@
       },
       "value": "[variables('acrName')]"
     },
-    "AZURE_ENV_IMAGETAG": {
+    "AZURE_ENV_IMAGE_TAG": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure environment image tag."
@@ -58347,7 +58347,7 @@
       },
       "value": ""
     },
-    "AZURE_ENV_USE_CASE": {
+    "USE_CASE": {
       "type": "string",
       "metadata": {
         "description": "Industry Use Case."
