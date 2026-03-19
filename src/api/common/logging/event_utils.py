@@ -22,4 +22,4 @@ def track_event_if_configured(event_name: str, event_data: dict):
     if instrumentation_key:
         track_event(event_name, event_data)
     else:
-        logger.debug("Skipping track_event for %s: Application Insights is not configured", event_name)
+        logger.warning("Skipping track_event for %s: Application Insights is not configured", event_name)
