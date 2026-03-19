@@ -12,6 +12,7 @@ import logging
 import os
 import random
 import re
+from typing import AsyncGenerator
 
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
@@ -116,9 +117,12 @@ class ChatService:
             thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
         return thread_cache
 
-    async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
+    async def stream_openai_text(self, conversation_id: str, query: str) -> AsyncGenerator[tuple[str, str], None]:
         """
         Get a streaming text response from OpenAI.
+        
+        Yields:
+            tuple[str, str]: (role, content) tuples where role is "assistant" or "tool"
         """
         async with (
             await get_azure_credential_async(client_id=self.azure_client_id) as credential,

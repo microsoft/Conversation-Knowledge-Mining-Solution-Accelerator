@@ -73,12 +73,12 @@ const Chat: React.FC<ChatProps> = ({
     }
     
     // Handle explicit error responses like {"error": "Chart cannot be generated"}
-    if (typeof chartResponse === 'object' && 'error' in chartResponse) {
+    if (chartResponse && typeof chartResponse === 'object' && 'error' in chartResponse) {
       return chartResponse.error;
     }
 
     // Unwrap { "answer": ..., "citations": ... } wrapper
-    if (typeof chartResponse === 'object' && 'answer' in chartResponse) {
+    if (chartResponse && typeof chartResponse === 'object' && 'answer' in chartResponse) {
       if (
         chartResponse.answer === "" ||
         chartResponse.answer === undefined ||
@@ -345,7 +345,7 @@ const Chat: React.FC<ChatProps> = ({
       if (response?.body) {
         let isChartResponseReceived = false;
         const reader = response.body.getReader();
-        let runningText = "";
+        let accumulatedContent = "";
         let hasError = false;
         while (true) {
           const { done, value } = await reader.read();
@@ -353,30 +353,60 @@ const Chat: React.FC<ChatProps> = ({
           const text = new TextDecoder("utf-8").decode(value);
           try {
             const textObj = JSON.parse(text);
-            
-            // Handle delta format - accumulate assistant content, process tool citations
-            const delta = textObj?.choices?.[0]?.delta;
-            if (delta?.role === "assistant" && delta?.content) {
-              runningText = runningText + delta.content;
-            } else if (delta?.role === "tool" && delta?.content) {
-              // Citations for chart flow - store separately if needed
-            } else if (textObj?.object?.data) {
-              runningText = text;
+            if (textObj?.object?.data) {
+              accumulatedContent = text;
               isChartResponseReceived = true;
             }
-            
+            if (textObj?.object?.message) {
+              accumulatedContent = text;
+              isChartResponseReceived = true;
+            }
             if (textObj?.error) {
               hasError = true;
-              runningText = text;
+              accumulatedContent = text;
             }
           } catch (e) {
-            // Silently ignore parse errors for incomplete JSON chunks. This is expected during streaming
+            // Ignore - will process individual chunks after splitting
           }
+          if (!isChartResponseReceived) {
+            // Parse JSON-lines format: split by newlines and accumulate delta content
+            const objects = text.split("\n").filter((val) => val !== "");
+            
+            for (let index = 0; index < objects.length; index++) {
+              const textValue = objects[index];
+              try {
+                if (textValue !== "" && textValue !== "{}") {
+                  const parsed: ParsedChunk = JSON.parse(textValue);
+                  if (parsed?.error && !hasError) {
+                    hasError = true;
+                    accumulatedContent = parsed?.error;
+                  } else if (typeof parsed === "object" && !hasError) {
+                    const delta = parsed?.choices?.[0]?.delta;
+                    const deltaRole = delta?.role;
+                    const deltaContent = delta?.content;
 
+                    if (deltaRole === "assistant" && deltaContent) {
+                      accumulatedContent += deltaContent;
+                    }
+                    // Skip tool citations for chart requests
+                  }
+                }
+              } catch (e) {
+                // Skip incomplete JSON chunks in stream
+              }
+            }
+            
+            if (hasError) {
+              console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+              break;
+            }
+          }
         }
         // END OF STREAMING
         if (hasError) {
-          const errorMsg = JSON.parse(runningText).error;
+          const errorMsg = typeof accumulatedContent === "string" && accumulatedContent.startsWith("{")
+            ? JSON.parse(accumulatedContent).error
+            : accumulatedContent;
           const errorMessage: ChatMessage = {
             id: generateUUIDv4(),
             role: ERROR,
@@ -384,14 +414,16 @@ const Chat: React.FC<ChatProps> = ({
             date: new Date().toISOString(),
           };
           updatedMessages = [newMessage, errorMessage];
-          dispatch({
-            type: actionConstants.UPDATE_MESSAGES,
-            payload: [errorMessage],
-          });
-          scrollChatToBottom();
+          if (!isAutomatic) {
+            dispatch({
+              type: actionConstants.UPDATE_MESSAGES,
+              payload: [errorMessage],
+            });
+            scrollChatToBottom();
+          }
         } else if (isChartQuery(question)) {
           try {
-            const chartResponse = parseChartResponse(runningText);
+            const chartResponse = parseChartResponse(accumulatedContent);
             updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, conversationId, isAutomatic);
           } catch (e) {
             // Silently ignore parse errors for incomplete JSON chunks for chart response. This is expected during streaming

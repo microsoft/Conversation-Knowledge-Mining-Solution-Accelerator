@@ -229,12 +229,15 @@ class TestChatService:
         async for chunk in chat_service.stream_openai_text("conv123", "test query"):
             result_chunks.append(chunk)
 
-        # Verify
+        # Verify - stream_openai_text now yields (role, content) tuples
         assert len(result_chunks) > 0
-        full_response = "".join(result_chunks)
-        assert "Hello" in full_response
-        assert "World" in full_response
-        assert "citations" in full_response
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        tool_content = "".join(content for role, content in result_chunks if role == "tool")
+        
+        assert "Hello" in assistant_content
+        assert "World" in assistant_content
+        # Citations come in tool message
+        assert len(tool_content) > 0  # Should have citations as JSON array
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -356,11 +359,14 @@ class TestChatService:
         async for chunk in chat_service.stream_openai_text("conv123", "test query"):
             result_chunks.append(chunk)
 
-        # Verify citations are included
-        full_response = "".join(result_chunks)
-        assert "citations" in full_response
-        assert "Test Documentation" in full_response
-        assert "http://example.com/doc" in full_response
+        # Verify citations are included - stream_openai_text now yields (role, content) tuples
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        tool_content = "".join(content for role, content in result_chunks if role == "tool")
+        
+        assert "Answer with citation" in assistant_content
+        # Citations are sent as tool message with JSON
+        assert "Test Documentation" in tool_content
+        assert "http://example.com/doc" in tool_content
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -415,10 +421,12 @@ class TestChatService:
             result_chunks.append(chunk)
 
         # Verify citation markers are replaced with [1], [2], etc.
-        full_response = "".join(result_chunks)
-        assert "[1]" in full_response
-        assert "[2]" in full_response
-        assert "【" not in full_response  # Original markers should be replaced
+        # stream_openai_text now yields (role, content) tuples
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        
+        assert "[1]" in assistant_content
+        assert "[2]" in assistant_content
+        assert "【" not in assistant_content  # Original markers should be replaced
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -636,8 +644,9 @@ class TestChatService:
             result_chunks.append(chunk)
 
         # Verify fallback message is provided
-        full_response = "".join(result_chunks)
-        assert "cannot answer" in full_response.lower() or "citations" in full_response
+        # stream_openai_text now yields (role, content) tuples
+        full_response = "".join(content for role, content in result_chunks if role == "assistant")
+        assert "cannot answer" in full_response.lower()
 
     @pytest.mark.asyncio
     async def test_stream_chat_request_success(self, chat_service):
