@@ -331,7 +331,6 @@ module applicationInsights 'br/public:avm/res/insights/component:0.7.1' = if (en
     flowType: 'Bluefield'
     // WAF aligned configuration for Monitoring
     workspaceResourceId: enableMonitoring ? logAnalyticsWorkspaceResourceId : ''
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
   }
 }
 // ========== Virtual Network and Networking Components ========== //
