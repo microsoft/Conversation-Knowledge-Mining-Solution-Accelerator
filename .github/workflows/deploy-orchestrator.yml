@@ -47,7 +47,7 @@ on:
         required: false
         default: ''
         type: string
-      azure_existing_ai_project_resource_id:
+      azure_env_foundry_project_rid:
         description: 'AI Project Resource ID (Optional)'
         required: false
         default: ''
@@ -92,7 +92,7 @@ jobs:
       build_docker_image: ${{ inputs.build_docker_image }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
       azure_env_log_analytics_workspace_id: ${{ inputs.azure_env_log_analytics_workspace_id }}
-      azure_existing_ai_project_resource_id: ${{ inputs.azure_existing_ai_project_resource_id }}
+      azure_env_foundry_project_rid: ${{ inputs.azure_env_foundry_project_rid }}
       azure_env_use_case: ${{ inputs.azure_env_use_case }}
       docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
