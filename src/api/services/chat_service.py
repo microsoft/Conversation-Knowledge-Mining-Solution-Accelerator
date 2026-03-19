@@ -18,7 +18,6 @@ from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
 from fastapi import HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from azure.ai.projects.aio import AIProjectClient
 
@@ -120,7 +119,7 @@ class ChatService:
     async def stream_openai_text(self, conversation_id: str, query: str) -> AsyncGenerator[tuple[str, str], None]:
         """
         Get a streaming text response from OpenAI.
-        
+
         Yields:
             tuple[str, str]: (role, content) tuples where role is "assistant" or "tool"
         """
