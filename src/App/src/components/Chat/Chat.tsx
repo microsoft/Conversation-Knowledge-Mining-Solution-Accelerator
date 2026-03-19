@@ -82,7 +82,7 @@ const Chat: React.FC<ChatProps> = ({
       if (
         chartResponse.answer === "" ||
         chartResponse.answer === undefined ||
-        (typeof chartResponse.answer === "object" && Object.keys(chartResponse.answer).length === 0)
+        (chartResponse.answer !== null && typeof chartResponse.answer === "object" && Object.keys(chartResponse.answer).length === 0)
       ) {
         return "Chart can't be generated, please try again.";
       }
@@ -97,7 +97,6 @@ const Chat: React.FC<ChatProps> = ({
     chartResponse: any,
     streamMessage: ChatMessage,
     newMessage: ChatMessage,
-    conversationId: string,
     suppressErrors: boolean = false
   ): ChatMessage[] => {
     let updatedMessages: ChatMessage[] = [];
@@ -424,7 +423,7 @@ const Chat: React.FC<ChatProps> = ({
         } else if (isChartQuery(question)) {
           try {
             const chartResponse = parseChartResponse(accumulatedContent);
-            updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, conversationId, isAutomatic);
+            updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, isAutomatic);
           } catch (e) {
             // Silently ignore parse errors for incomplete JSON chunks for chart response. This is expected during streaming
           }
@@ -466,11 +465,12 @@ const Chat: React.FC<ChatProps> = ({
           type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
           payload: false,
         });
-        dispatch({
-          type: actionConstants.UPDATE_STREAMING_FLAG,
-          payload: false,
-        });
       }
+      // Always reset streaming flag to prevent UI from getting stuck
+      dispatch({
+        type: actionConstants.UPDATE_STREAMING_FLAG,
+        payload: false,
+      });
       setIsChartLoading(false);
     }
     return abortController.abort();
@@ -627,7 +627,7 @@ const Chat: React.FC<ChatProps> = ({
         } else if (isChartQuery(userMessage)) {
           try {
             const chartResponse = parseChartResponse(accumulatedContent);
-            updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, conversationId);
+            updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage);
           } catch (e) {
             console.log("Error while parsing charts response", e);
           }
