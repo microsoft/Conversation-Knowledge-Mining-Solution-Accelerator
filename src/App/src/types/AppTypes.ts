@@ -145,7 +145,7 @@ export type HistoryMetaData = {
 
 export type ParsedChunk = {
   error?: string;
-  choices: Array<{
+  choices?: Array<{
     messages?: Array<{
       content: string;
       role: string;

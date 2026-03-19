@@ -77,6 +77,11 @@ const Chat: React.FC<ChatProps> = ({
       return chartResponse.error;
     }
 
+    // Unwrap { "object": { "type": ..., "data": ... } } shape from chart service
+    if (chartResponse && typeof chartResponse === 'object' && 'object' in chartResponse) {
+      chartResponse = chartResponse.object;
+    }
+
     // Unwrap { "answer": ..., "citations": ... } wrapper
     if (chartResponse && typeof chartResponse === 'object' && 'answer' in chartResponse) {
       if (
@@ -563,7 +568,7 @@ const Chat: React.FC<ChatProps> = ({
                   const parsed: ParsedChunk = JSON.parse(textValue);
                   if (parsed?.error && !hasError) {
                     hasError = true;
-                    runningText = parsed?.error;
+                    runningText = textValue; // Store full JSON string so JSON.parse(runningText).error works downstream
                   } else if (typeof parsed === "object" && !hasError) {
                     const delta = parsed?.choices?.[0]?.delta;
                     const deltaRole = delta?.role;
