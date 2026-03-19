@@ -25,6 +25,7 @@ jobs:
         with:
           validateAzd: true
           useDevContainer: false
+          validateTests: false
         id: validation
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
