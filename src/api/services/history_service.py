@@ -65,7 +65,10 @@ class HistoryService:
         combined_content = "\n".join([msg["content"] for msg in user_messages])
         final_prompt = f"Generate a title for:\n{combined_content}"
 
-        logger.info("Generating title using agent '%s' for %d user message(s)", self.title_agent_name, len(user_messages))
+        logger.info(
+            "Generating title using agent '%s' for %d user message(s)",
+            self.title_agent_name, len(user_messages)
+        )
         try:
             async with (
                 await get_azure_credential_async(client_id=self.azure_client_id) as credential,
@@ -95,13 +98,13 @@ class HistoryService:
         messages = request_json.get("messages", [])
         if not conversation_id:
             raise ValueError("No conversation_id found")
-        logger.info("update_conversation called: conversation_id=%s, user_id=%s, message_count=%d",
-                    conversation_id, user_id, len(messages))
+        logger.info("update_conversation called: conversation_id=%s, message_count=%d",
+                    conversation_id, len(messages))
         cosmos_conversation_client = self.init_cosmosdb_client()
         # Retrieve or create conversation
         conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
         if not conversation:
-            logger.info("Conversation %s not found, creating new conversation for user %s", conversation_id, user_id)
+            logger.info("Conversation %s not found, creating new conversation", conversation_id)
             title = await self.generate_title(messages)
             conversation = await cosmos_conversation_client.create_conversation(
                 user_id=user_id, conversation_id=conversation_id, title=title
@@ -178,15 +181,19 @@ class HistoryService:
         if not conversation_id:
             raise ValueError("No conversation_id found")
 
-        logger.info("rename_conversation called: conversation_id=%s, user_id=%s, new_title='%s'",
-                    conversation_id, user_id, title)
+        logger.info("rename_conversation called: conversation_id=%s, new_title='%s'",
+                    conversation_id, title)
         cosmos_conversation_client = self.init_cosmosdb_client()
         conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
 
         if not conversation:
             raise HTTPException(
                 status_code=404,
-                detail=f"Conversation {conversation_id} was not found. It either does not exist or the logged-in user does not have access to it.")
+                detail=(
+                    f"Conversation {conversation_id} was not found. "
+                    "It either does not exist or the logged-in user does not have access to it."
+                )
+            )
 
         conversation["title"] = title
         updated_conversation = await cosmos_conversation_client.upsert_conversation(
@@ -204,7 +211,9 @@ class HistoryService:
             logger.info(
                 "Updating feedback for message_id: %s by user: %s", message_id, user_id)
             cosmos_conversation_client = self.init_cosmosdb_client()
-            updated_message = await cosmos_conversation_client.update_message_feedback(user_id, message_id, message_feedback)
+            updated_message = await cosmos_conversation_client.update_message_feedback(
+                user_id, message_id, message_feedback
+            )
 
             if updated_message:
                 logger.info(
@@ -250,11 +259,11 @@ class HistoryService:
             # Delete the conversation itself
             await cosmos_conversation_client.delete_conversation(user_id, conversation_id)
 
-            logger.info("Successfully deleted conversation %s for user %s", conversation_id, user_id)
+            logger.info("Successfully deleted conversation %s", conversation_id)
             return True
 
         except Exception:
-            logger.exception("Error deleting conversation %s for user %s", conversation_id, user_id)
+            logger.exception("Error deleting conversation %s", conversation_id)
             return False
 
     async def get_conversations(self, user_id: str, offset: int, limit: int):
@@ -268,17 +277,17 @@ class HistoryService:
             list: A list of conversation objects or an empty list if none exist.
         """
         try:
-            logger.info("get_conversations called: user_id=%s, offset=%d, limit=%d", user_id, offset, limit)
+            logger.info("get_conversations called: offset=%d, limit=%d", offset, limit)
             cosmos_conversation_client = self.init_cosmosdb_client()
             if not cosmos_conversation_client:
                 raise ValueError("CosmosDB is not configured or unavailable")
 
             conversations = await cosmos_conversation_client.get_conversations(user_id, offset=offset, limit=limit)
             count = len(conversations) if conversations else 0
-            logger.info("Retrieved %d conversation(s) for user %s", count, user_id)
+            logger.info("Retrieved %d conversation(s)", count)
             return conversations or []
         except Exception:
-            logger.exception("Error retrieving conversations for user %s", user_id)
+            logger.exception("Error retrieving conversations")
             return []
 
     async def get_messages(self, user_id: str, conversation_id: str):
@@ -293,7 +302,7 @@ class HistoryService:
             list: A list of messages in the conversation.
         """
         try:
-            logger.info("get_messages called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+            logger.info("get_messages called: conversation_id=%s", conversation_id)
             cosmos_conversation_client = self.init_cosmosdb_client()
             if not cosmos_conversation_client:
                 raise ValueError("CosmosDB is not configured or unavailable")
@@ -306,7 +315,10 @@ class HistoryService:
 
             # Fetch messages associated with the conversation
             messages = await cosmos_conversation_client.get_messages(conversation_id)
-            logger.info("Retrieved %d message(s) for conversation %s", len(messages) if messages else 0, conversation_id)
+            logger.info(
+                "Retrieved %d message(s) for conversation %s",
+                len(messages) if messages else 0, conversation_id
+            )
             return messages
 
         except Exception:
@@ -330,7 +342,7 @@ class HistoryService:
             if not cosmos_conversation_client:
                 raise ValueError("CosmosDB is not configured or unavailable")
 
-            logger.info("get_conversation_messages called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+            logger.info("get_conversation_messages called: conversation_id=%s", conversation_id)
             # Fetch the conversation details
             conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
             if not conversation:

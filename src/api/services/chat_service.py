@@ -68,7 +68,7 @@ class ExpCache(TTLCache):
             asyncio.create_task(self._delete_thread_async(thread_conversation_id))
             logger.info("Scheduled thread deletion (LRU evict): %s", thread_conversation_id)
         except Exception as e:
-                logger.exception("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
+            logger.exception("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
         return key, thread_conversation_id
 
     async def _delete_thread_async(self, thread_conversation_id: str):

@@ -25,7 +25,7 @@ async def update_conversation(request: Request):
         # Parse request body
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-        logger.info("POST /history/update called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+        logger.info("POST /history/update called: conversation_id=%s", conversation_id)
 
         if not conversation_id:
             raise HTTPException(status_code=400, detail="No conversation_id found")
@@ -85,7 +85,7 @@ async def update_message_feedback(request: Request):
         request_json = await request.json()
         message_id = request_json.get("message_id")
         message_feedback = request_json.get("message_feedback")
-        logger.info("POST /history/message_feedback called: message_id=%s, user_id=%s", message_id, user_id)
+        logger.info("POST /history/message_feedback called: message_id=%s", message_id)
 
         if not message_id:
             track_event_if_configured("MessageFeedbackValidationError", {
@@ -124,7 +124,10 @@ async def update_message_feedback(request: Request):
             })
             raise HTTPException(
                 status_code=404,
-                detail=f"Unable to update message {message_id}. It either does not exist or the user does not have access to it."
+                detail=(
+                    f"Unable to update message {message_id}. "
+                    "It either does not exist or the user does not have access to it."
+                )
             )
 
     except Exception as e:
@@ -151,7 +154,7 @@ async def delete_conversation(request: Request):
         # Parse request body
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-        logger.info("DELETE /history/delete called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+        logger.info("DELETE /history/delete called: conversation_id=%s", conversation_id)
         if not conversation_id:
             track_event_if_configured("DeleteConversationValidationError", {
                 "error": "conversation_id is missing",
@@ -167,7 +170,7 @@ async def delete_conversation(request: Request):
         # Delete conversation using HistoryService
         deleted = await history_service.delete_conversation(user_id, conversation_id)
         if deleted:
-            logger.info("Conversation deleted successfully: conversation_id=%s, user_id=%s", conversation_id, user_id)
+            logger.info("Conversation deleted successfully: conversation_id=%s", conversation_id)
             track_event_if_configured("ConversationDeleted", {
                 "user_id": user_id,
                 "conversation_id": conversation_id
@@ -212,7 +215,7 @@ async def list_conversations(
             request_headers=request.headers)
         user_id = authenticated_user["user_principal_id"]
 
-        logger.info("Fetching conversations - user_id: %s, offset: %s, limit: %s", user_id, offset, limit)
+        logger.info("Fetching conversations - offset: %s, limit: %s", offset, limit)
 
         # Get conversations
         conversations = await history_service.get_conversations(user_id, offset=offset, limit=limit)
@@ -259,7 +262,7 @@ async def get_conversation_messages(request: Request):
         # Parse request body
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-        logger.info("POST /history/read called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+        logger.info("POST /history/read called: conversation_id=%s", conversation_id)
 
         if not conversation_id:
             track_event_if_configured("ReadConversationValidationError", {
@@ -282,7 +285,10 @@ async def get_conversation_messages(request: Request):
             })
             raise HTTPException(
                 status_code=404,
-                detail=f"Conversation {conversation_id} was not found. It either does not exist or the user does not have access to it."
+                detail=(
+                    f"Conversation {conversation_id} was not found. "
+                    "It either does not exist or the user does not have access to it."
+                )
             )
         logger.info("Returning %d message(s) for conversation %s", len(conversationMessages), conversation_id)
         track_event_if_configured("ConversationRead", {
@@ -323,8 +329,8 @@ async def rename_conversation(request: Request):
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
         title = request_json.get("title")
-        logger.info("POST /history/rename called: conversation_id=%s, user_id=%s, new_title='%s'",
-                    conversation_id, user_id, title)
+        logger.info("POST /history/rename called: conversation_id=%s, new_title='%s'",
+                    conversation_id, title)
 
         if not conversation_id:
             track_event_if_configured("RenameConversationValidationError", {
@@ -379,7 +385,7 @@ async def delete_all_conversations(request: Request):
         authenticated_user = get_authenticated_user_details(
             request_headers=request.headers)
         user_id = authenticated_user["user_principal_id"]
-        logger.info("DELETE /history/delete_all called: user_id=%s", user_id)
+        logger.info("DELETE /history/delete_all called")
 
         # Get all user conversations
         conversations = await history_service.get_conversations(user_id, offset=0, limit=None)
@@ -391,10 +397,10 @@ async def delete_all_conversations(request: Request):
                                 detail=f"No conversations for {user_id} were found")
 
         # Delete all conversations
-        logger.info("Deleting %d conversation(s) for user %s", len(conversations), user_id)
+        logger.info("Deleting %d conversation(s)", len(conversations))
         for conversation in conversations:
             await history_service.delete_conversation(user_id, conversation["id"])
-        logger.info("All conversations deleted successfully for user %s", user_id)
+        logger.info("All conversations deleted successfully")
 
         track_event_if_configured("AllConversationsDeleted", {
             "user_id": user_id,
@@ -432,7 +438,7 @@ async def clear_messages(request: Request):
         # Parse request body
         request_json = await request.json()
         conversation_id = request_json.get("conversation_id")
-        logger.info("POST /history/clear called: conversation_id=%s, user_id=%s", conversation_id, user_id)
+        logger.info("POST /history/clear called: conversation_id=%s", conversation_id)
 
         if not conversation_id:
             track_event_if_configured("ClearMessagesValidationError", {
@@ -457,7 +463,7 @@ async def clear_messages(request: Request):
             raise HTTPException(
                 status_code=404,
                 detail="Failed to clear messages or conversation not found")
-        logger.info("Messages cleared successfully for conversation %s, user %s", conversation_id, user_id)
+        logger.info("Messages cleared successfully for conversation %s", conversation_id)
         track_event_if_configured("MessagesCleared", {
             "user_id": user_id,
             "conversation_id": conversation_id
@@ -518,7 +524,10 @@ async def ensure_cosmos():
 
         if "Invalid credentials" in cosmos_exception:
             return JSONResponse(content={"error": "Invalid credentials"}, status_code=401)
-        elif "Invalid CosmosDB database name" in cosmos_exception or "Invalid CosmosDB container name" in cosmos_exception:
+        elif (
+            "Invalid CosmosDB database name" in cosmos_exception
+            or "Invalid CosmosDB container name" in cosmos_exception
+        ):
             return JSONResponse(content={"error": "Invalid CosmosDB configuration"}, status_code=422)
         else:
             return JSONResponse(

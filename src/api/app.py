@@ -9,8 +9,6 @@ and registers API routers.
 import logging
 import os
 from fastapi import FastAPI
-
-logger = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
@@ -23,6 +21,8 @@ from api.history_routes import router as history_router
 from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from common.logging.span_filters import DropASGIResponseBodySpanProcessor, DropCosmosDependencySpanProcessor
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -53,7 +53,6 @@ logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(
 # Package config: Azure loggers set to WARNING to suppress INFO
 for logger_name in AZURE_LOGGING_PACKAGES:
     logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
-
 
 
 def build_app() -> FastAPI:
