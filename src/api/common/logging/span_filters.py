@@ -3,6 +3,8 @@ Custom OpenTelemetry SpanProcessor filters to reduce telemetry noise in Applicat
 """
 
 import logging
+from urllib.parse import urlparse
+
 from opentelemetry.sdk.trace import SpanProcessor, ReadableSpan
 from opentelemetry.trace import SpanContext, TraceFlags
 
@@ -22,6 +24,20 @@ def _unsample(span: ReadableSpan) -> None:
     except (AttributeError, TypeError) as e:
         # Gracefully handle SDK changes where _context might not be mutable
         logger.debug("Unable to unsample span %s: %s", span.name, e)
+
+
+def _is_cosmos_host(span_name: str) -> bool:
+    """
+    Safely determine if the span name contains a Cosmos DB host.
+    """
+    try:
+        parsed = urlparse(span_name)
+        host = parsed.hostname or ""
+
+        return host == "documents.azure.com" or host.endswith(".documents.azure.com")
+    except Exception as e:
+        logger.debug("Failed to parse span name '%s': %s", span_name, e)
+        return False
 
 
 class DropASGIResponseBodySpanProcessor(SpanProcessor):
@@ -72,8 +88,7 @@ class DropCosmosDependencySpanProcessor(SpanProcessor):
         span_name = span.name or ""
         if (
             attrs.get("db.system") == "cosmosdb"
-            or ".documents.azure.com" in span_name
-            or span_name.endswith("documents.azure.com")
+            or _is_cosmos_host(span_name)
         ):
             _unsample(span)
 
