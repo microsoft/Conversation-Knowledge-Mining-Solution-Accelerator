@@ -14,9 +14,6 @@ logger = logging.getLogger(__name__)
 def track_event_if_configured(event_name: str, event_data: dict):
     """Track custom event to Application Insights if configured.
 
-    Telemetry is strictly best-effort: any failure is logged at WARNING
-    level and never propagated, so callers are not affected.
-
     Args:
         event_name: Name of the event to track
         event_data: Dictionary of event properties
@@ -26,6 +23,6 @@ def track_event_if_configured(event_name: str, event_data: dict):
         try:
             track_event(event_name, event_data)
         except Exception:
-            logger.warning("Failed to track event '%s'; telemetry is best-effort", event_name, exc_info=True)
+            logger.warning("Failed to track event '%s'", event_name, exc_info=True)
     else:
         logger.warning("Skipping track_event for %s: Application Insights is not configured", event_name)
