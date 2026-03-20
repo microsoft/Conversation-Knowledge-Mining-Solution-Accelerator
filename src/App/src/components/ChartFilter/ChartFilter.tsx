@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Stack,
   DefaultButton,
@@ -13,9 +13,11 @@ import {
 } from "@fluentui/react";
 import "./ChartFilter.css";
 import { type SelectedFilters } from "../../types/AppTypes";
-import { defaultSelectedFilters, sentimentIcons } from "../../configs/Utils";
-import { useAppContext } from "../../state/useAppContext";
-import { actionConstants } from "../../state/ActionConstants";
+import { defaultSelectedFilters, sentimentIcons } from "../../utils/chartUtils";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { selectSelectedFilters, selectFiltersMeta } from "../../store/selectors";
+import { setSelectedFilters } from "../../store/slices/dashboardsSlice";
+import { useDebounce } from "../../hooks";
 import {
   ArrowClockwise20Regular,
   CalendarLtr20Regular,
@@ -32,8 +34,9 @@ interface FilterComponentProps {
 }
 
 const ChartFilter: React.FC<FilterComponentProps> = (props) => {
-  const { state, dispatch } = useAppContext();
-  const { selectedFilters, filtersMeta } = state.dashboards;
+  const dispatch = useAppDispatch();
+  const selectedFilters = useAppSelector(selectSelectedFilters);
+  const filtersMeta = useAppSelector(selectFiltersMeta);
   const { applyFilters, fetchingCharts } = props;
   const initialDateRange = typeof Array.isArray(selectedFilters.DateRange)
     ? selectedFilters.DateRange
@@ -53,17 +56,22 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
   const [isCsatMenuOpen, setIsCsatMenuOpen] = useState(false);
   const [isTopicsMenuOpen, setIsTopicsMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 250);
 
-  const filteredTopics = filtersMeta?.Topic?.filter((option) =>
-    option.displayValue.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTopics = useMemo(
+    () =>
+      filtersMeta?.Topic?.filter((option) =>
+        option.displayValue.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      ),
+    [filtersMeta?.Topic, debouncedSearchQuery]
   );
 
-  const onSearchChange = (
-    ev: React.KeyboardEvent<HTMLInputElement>,
-    newValue: string
-  ) => {
-    setSearchQuery(newValue || "");
-  };
+  const onSearchChange = useCallback(
+    (ev: React.KeyboardEvent<HTMLInputElement>, newValue: string) => {
+      setSearchQuery(newValue || "");
+    },
+    []
+  );
 
   const handleTopicSelection = (e: any, key: string) => {
     e.preventDefault();
@@ -91,10 +99,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
     updatedFilters.Sentiment = selectedCsat;
     updatedFilters.DateRange = startDate;
     applyFilters(updatedFilters);
-    dispatch({
-      type: actionConstants.UPDATE_SELECTED_FILTERS,
-      payload: updatedFilters,
-    });
+    dispatch(setSelectedFilters(updatedFilters));
   };
 
   const handleResetFilters = () => {
@@ -171,7 +176,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
     () => ({
       onRenderMenuList: renderMenuList,
       items: filteredTopics.length
-        ? (filteredTopics?.map((option) => ({
+        ? (filteredTopics?.map((option: { key: string; displayValue: string }) => ({
             key: option.key,
             text: option.displayValue,
             canCheck: true,
