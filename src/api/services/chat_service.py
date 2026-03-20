@@ -105,7 +105,6 @@ class ChatService:
 
     def __init__(self):
         config = Config()
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.orchestrator_agent_name = config.orchestrator_agent_name
         self.azure_client_id = config.azure_client_id
         self.ai_project_endpoint = config.ai_project_endpoint

@@ -28,7 +28,6 @@ class HistoryService:
             and self.azure_cosmosdb_conversations_container
         )
 
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.azure_client_id = config.azure_client_id
         self.title_agent_name = config.title_agent_name
 

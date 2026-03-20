@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "15865612374745110055"
+      "templateHash": "7728833592924913941"
     }
   },
   "parameters": {
@@ -120,13 +120,6 @@
       "defaultValue": "2024-07-18",
       "metadata": {
         "description": "Optional. Version of the GPT model to deploy."
-      }
-    },
-    "azureOpenAIApiVersion": {
-      "type": "string",
-      "defaultValue": "2025-01-01-preview",
-      "metadata": {
-        "description": "Optional. Version of the Azure OpenAI API."
       }
     },
     "azureAiAgentApiVersion": {
@@ -3672,8 +3665,7 @@
           "flowType": {
             "value": "Bluefield"
           },
-          "workspaceResourceId": "[if(parameters('enableMonitoring'), if(variables('useExistingLogAnalytics'), createObject('value', parameters('existingLogAnalyticsWorkspaceId')), createObject('value', reference('logAnalyticsWorkspace').outputs.resourceId.value)), createObject('value', ''))]",
-          "diagnosticSettings": "[if(parameters('enableMonitoring'), createObject('value', createArray(createObject('workspaceResourceId', if(variables('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference('logAnalyticsWorkspace').outputs.resourceId.value)))), createObject('value', null()))]"
+          "workspaceResourceId": "[if(parameters('enableMonitoring'), if(variables('useExistingLogAnalytics'), createObject('value', parameters('existingLogAnalyticsWorkspaceId')), createObject('value', reference('logAnalyticsWorkspace').outputs.resourceId.value)), createObject('value', ''))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -27527,9 +27519,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "backendUserAssignedIdentity",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
@@ -30052,9 +30044,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "logAnalyticsWorkspace",
         "userAssignedIdentity",
         "virtualNetwork"
@@ -40364,10 +40356,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -54140,10 +54132,6 @@
                   "AGENT_NAME_TITLE": "",
                   "API_APP_NAME": "[format('api-{0}', variables('solutionSuffix'))]",
                   "AI_FOUNDRY_RESOURCE_ID": "[reference('aiFoundryAiServices').outputs.resourceId.value]",
-                  "AZURE_OPENAI_DEPLOYMENT_MODEL": "[parameters('gptModelName')]",
-                  "AZURE_OPENAI_ENDPOINT": "[if(not(empty(variables('existingOpenAIEndpoint'))), variables('existingOpenAIEndpoint'), format('https://{0}.openai.azure.com/', reference('aiFoundryAiServices').outputs.name.value))]",
-                  "AZURE_OPENAI_API_VERSION": "[parameters('azureOpenAIApiVersion')]",
-                  "AZURE_OPENAI_RESOURCE": "[reference('aiFoundryAiServices').outputs.name.value]",
                   "AZURE_AI_AGENT_ENDPOINT": "[if(not(empty(variables('existingProjEndpoint'))), variables('existingProjEndpoint'), reference('aiFoundryAiServices').outputs.aiProjectInfo.value.apiEndpoint)]",
                   "AZURE_AI_AGENT_API_VERSION": "[parameters('azureAiAgentApiVersion')]",
                   "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME": "[parameters('gptModelName')]",
@@ -58036,7 +58024,7 @@
       },
       "value": "[parameters('location')]"
     },
-    "AZURE_CONTENT_UNDERSTANDING_LOCATION": {
+    "AZURE_ENV_CU_LOCATION": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure Content Understanding Location."
@@ -58134,14 +58122,14 @@
       },
       "value": "True"
     },
-    "AZURE_OPENAI_DEPLOYMENT_MODEL": {
+    "AZURE_ENV_GPT_MODEL_NAME": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure OpenAI deployment model name."
       },
       "value": "[parameters('gptModelName')]"
     },
-    "AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY": {
+    "AZURE_ENV_GPT_MODEL_CAPACITY": {
       "type": "int",
       "metadata": {
         "description": "Contains Azure OpenAI deployment model capacity."
@@ -58155,33 +58143,26 @@
       },
       "value": "[format('https://{0}.openai.azure.com/', reference('aiFoundryAiServices').outputs.name.value)]"
     },
-    "AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE": {
+    "AZURE_ENV_MODEL_DEPLOYMENT_TYPE": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure OpenAI model deployment type."
       },
       "value": "[parameters('deploymentType')]"
     },
-    "AZURE_OPENAI_EMBEDDING_MODEL": {
+    "AZURE_ENV_EMBEDDING_MODEL_NAME": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure OpenAI embedding model name."
       },
       "value": "[parameters('embeddingModel')]"
     },
-    "AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY": {
+    "AZURE_ENV_EMBEDDING_DEPLOYMENT_CAPACITY": {
       "type": "int",
       "metadata": {
         "description": "Contains Azure OpenAI embedding model capacity."
       },
       "value": "[parameters('embeddingDeploymentCapacity')]"
-    },
-    "AZURE_OPENAI_API_VERSION": {
-      "type": "string",
-      "metadata": {
-        "description": "Contains Azure OpenAI API version."
-      },
-      "value": "[parameters('azureOpenAIApiVersion')]"
     },
     "AZURE_CONTENT_UNDERSTANDING_API_VERSION": {
       "type": "string",
@@ -58274,14 +58255,14 @@
       },
       "value": "[variables('acrName')]"
     },
-    "AZURE_ENV_IMAGETAG": {
+    "AZURE_ENV_IMAGE_TAG": {
       "type": "string",
       "metadata": {
         "description": "Contains Azure environment image tag."
       },
       "value": "[parameters('backendContainerImageTag')]"
     },
-    "AZURE_EXISTING_AI_PROJECT_RESOURCE_ID": {
+    "AZURE_ENV_FOUNDRY_PROJECT_RID": {
       "type": "string",
       "metadata": {
         "description": "Contains existing AI project resource ID."
