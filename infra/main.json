@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "10018822605270845513"
+      "templateHash": "8063559554038132231"
     }
   },
   "parameters": {
@@ -27551,7 +27551,7 @@
             "value": "[format('nic-{0}', variables('aiFoundryAiServicesResourceName'))]"
           },
           "location": {
-            "value": "[parameters('aiServiceLocation')]"
+            "value": "[parameters('location')]"
           },
           "tags": {
             "value": "[parameters('tags')]"
@@ -30849,7 +30849,7 @@
             "value": "[format('nic-{0}', variables('aiFoundryAiServicesCUResourceName'))]"
           },
           "location": {
-            "value": "[parameters('contentUnderstandingLocation')]"
+            "value": "[parameters('location')]"
           },
           "tags": {
             "value": "[parameters('tags')]"

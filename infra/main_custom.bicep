@@ -661,7 +661,7 @@ module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.
   params: {
     name: 'pep-${aiFoundryAiServicesResourceName}'
     customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
-    location: aiServiceLocation
+    location: location
     tags: tags
     privateLinkServiceConnections: [
       {
@@ -734,7 +734,7 @@ module cognitiveServicesCuPrivateEndpoint 'br/public:avm/res/network/private-end
   params: {
     name: 'pep-${aiFoundryAiServicesCUResourceName}'
     customNetworkInterfaceName: 'nic-${aiFoundryAiServicesCUResourceName}'
-    location: contentUnderstandingLocation
+    location: location
     tags: tags
     privateLinkServiceConnections: [
       {
