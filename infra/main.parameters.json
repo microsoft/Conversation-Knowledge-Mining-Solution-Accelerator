@@ -17,7 +17,7 @@
     "aiServiceLocation": {
       "value": "${AZURE_ENV_OPENAI_LOCATION}"
     },
-    "gptModelDeploymentType": {
+    "deploymentType": {
       "value": "${AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE}"
     },
     "gptModelName": {
@@ -29,7 +29,7 @@
     "azureOpenAIApiVersion":{
       "value": "${AZURE_OPENAI_API_VERSION}"
     },
-    "gptModelCapacity": {
+    "gptDeploymentCapacity": {
       "value": "${AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY}"
     },
     "embeddingModel": {
