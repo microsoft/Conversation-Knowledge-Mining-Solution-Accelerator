@@ -34,6 +34,8 @@ Leverages Azure Content Understanding, Foundry IQ, Azure OpenAI Service, Azure A
 
 <br/>
 
+## Features
+
 ### Key features
 <details open>  
 <summary>Click to learn more about the key features this solution enables</summary>  
@@ -58,6 +60,8 @@ Summarized conversations, topic generation, and key phrase extraction support fa
 
 
 <br /><br />
+## Getting Started
+
 <h2><img src="./documents/Images/ReadMe/quick-deploy.png" width="48" />
 Quick deploy
 </h2>
@@ -79,6 +83,8 @@ Follow the quick deploy steps on the deployment guide to deploy this solution 
 
 <br/>
 
+## Guidance
+
 ### Prerequisites and costs
 To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups, resources, app registrations, and assign roles at the resource group level**. This should include Contributor role at the subscription level and  Role Based Access Control role on the subscription and/or resource group level. Follow the steps in [Azure Account Set Up](./documents/AzureAccountSetUp.md).
 
@@ -96,6 +102,11 @@ _Note: This is not meant to outline all costs as selected SKUs, scaled use, cust
 
 <br/>
 
+>⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
+either by deleting the resource group in the Portal or running `azd down`.
+
+## Resources
+
 | Product | Description | Tier / Expected Usage Notes | Cost |
 |---|---|---|---|
 | [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
@@ -112,8 +123,6 @@ _Note: This is not meant to outline all costs as selected SKUs, scaled use, cust
 
 <br/>
 
->⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
-either by deleting the resource group in the Portal or running `azd down`.
 
 <br /><br />
 <h2><img src="./documents/Images/ReadMe/business-scenario.png" width="48" />
