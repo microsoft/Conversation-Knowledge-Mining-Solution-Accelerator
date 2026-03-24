@@ -35,7 +35,7 @@ def process_rag_response(rag_response, query):
         {query}
         {rag_response}
         """
-        logger.info(f">>> Processing chart data for response: {rag_response}")
+        logger.info("Processing chart data for response: %s", rag_response)
         completion = client.chat.completions.create(
             model=config.azure_openai_deployment_model,
             messages=[
@@ -45,10 +45,10 @@ def process_rag_response(rag_response, query):
             temperature=0,
         )
         chart_data = completion.choices[0].message.content.strip().replace("```json", "").replace("```", "")
-        logger.info(f">>> Generated chart data: {chart_data}")
+        logger.info("Generated chart data: %s", chart_data)
         return json.loads(chart_data)
     except Exception as e:
-        logger.error(f"Error processing RAG response: {e}")
+        logger.error("Error processing RAG response: %s", str(e))
         return {"error": "Chart could not be generated from this data. Please ask a different question."}
 
 
