@@ -158,6 +158,7 @@ class ChatService:
                 logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
                 citations = []
+                citation_json = "[]"
                 citation_marker_map = {}  # Maps original markers to sequential numbers
                 citation_counter = 0
 
@@ -206,7 +207,7 @@ class ChatService:
                 })
                 cache[conversation_id] = thread_conversation_id
 
-                # Yield citations as a separate tool message
+                citation_json = "[]"
                 if citations:
                     citation_list = []
                     seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
@@ -233,9 +234,7 @@ class ChatService:
                             seen_doc_ids.add(doc_id)
 
                         citation_list.append({"url": url, "title": title})
-                    yield ("tool", json.dumps(citation_list))
-                elif complete_response:
-                    yield ("tool", "[]")
+                    citation_json = json.dumps(citation_list)
 
             except Exception as e:
                 complete_response = str(e)
@@ -266,10 +265,13 @@ class ChatService:
                         db_conn.close()
                     except Exception:
                         pass
-                # Provide a fallback response when no data is received from OpenAI.
-                if complete_response == "":
+
+                if complete_response == "" and not citations:
                     logger.info("No response received from OpenAI.")
                     yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
+
+                if complete_response or citations:
+                    yield ("tool", citation_json)
 
     async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """
