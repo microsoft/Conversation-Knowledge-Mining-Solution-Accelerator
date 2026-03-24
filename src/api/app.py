@@ -17,6 +17,13 @@ import uvicorn
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
 
+# Configure Azure Monitor and OpenTelemetry imports
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from common.logging.span_filters import DropASGIResponseBodySpanProcessor, DropCosmosDependencySpanProcessor
+
+logger = logging.getLogger(__name__)
+
 # Load environment variables
 load_dotenv()
 
@@ -35,6 +42,13 @@ logging.basicConfig(
     level=getattr(logging, AZURE_BASIC_LOGGING_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# Suppress noisy Azure SDK and OpenTelemetry internal loggers.
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies._universal").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.sdk").setLevel(logging.WARNING)
+logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
 
 # Package config: Azure loggers set to WARNING to suppress INFO
 for logger_name in AZURE_LOGGING_PACKAGES:
@@ -66,6 +80,29 @@ def build_app() -> FastAPI:
     async def health_check():
         """Health check endpoint"""
         return {"status": "healthy"}
+
+    # Configure Azure Monitor and instrument FastAPI for OpenTelemetry
+    # This enables automatic request tracing, dependency tracking, and proper operation_id
+    instrumentation_key = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if instrumentation_key:
+        # Configure Application Insights telemetry with live metrics
+        configure_azure_monitor(
+            connection_string=instrumentation_key,
+            enable_live_metrics=True,
+            span_processors=[
+                DropASGIResponseBodySpanProcessor(),
+                DropCosmosDependencySpanProcessor()
+            ]
+        )
+
+        # Instrument FastAPI app — exclude health-check URL to reduce telemetry noise
+        FastAPIInstrumentor.instrument_app(
+            fastapi_app,
+            excluded_urls="health"
+        )
+        logger.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
+    else:
+        logger.warning("No Application Insights connection string found. Telemetry disabled.")
 
     return fastapi_app
 
