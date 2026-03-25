@@ -198,9 +198,11 @@ const Chat: React.FC<ChatProps> = ({
       try {
         let parsed;
         if (typeof message === "string") {
-          // Handle legacy format: citations stored as '"citations": [...]' fragment
+          // Handle legacy format: citations stored as '"citations": [...]' or '"citations": [...]}' fragment
           if (message.trim().startsWith('"citations":')) {
-            parsed = JSON.parse(`{${message}}`);
+            const wrapped = `{${message.trim()}}`;
+            // Legacy format may include a trailing brace; collapse double }} to single }
+            parsed = JSON.parse(wrapped.replace(/\}\}$/, '}'));
           } else {
             parsed = JSON.parse(message);
           }
