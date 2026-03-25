@@ -375,7 +375,7 @@ const Chat: React.FC<ChatProps> = ({
             content: errorMsg,
             date: new Date().toISOString(),
           };
-          updatedMessages = [newMessage, errorMessage];
+          updatedMessages = isAutomatic ? [] : [newMessage, errorMessage];
           if (!isAutomatic) {
             dispatch({
               type: actionConstants.UPDATE_MESSAGES,
@@ -388,7 +388,7 @@ const Chat: React.FC<ChatProps> = ({
           updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, isAutomatic);
         }
       }
-      // Only save to DB if not automatic or if chart was successfully generated
+      // Only save to DB if not automatic or if a valid chart was produced
       if (!isAutomatic || updatedMessages.length > 0) {
         saveToDB(updatedMessages, conversationId, 'graph');
       }

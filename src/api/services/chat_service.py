@@ -269,12 +269,11 @@ class ChatService:
 
                 # Only emit fallback and tool citations if no error occurred
                 if not had_error:
-                    if complete_response == "" and not citations:
+                    if complete_response == "":
                         logger.info("No response received from OpenAI.")
                         yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
 
-                    if complete_response or citations:
-                        yield ("tool", citation_json)
+                    yield ("tool", citation_json)
 
     async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """
