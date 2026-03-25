@@ -132,6 +132,7 @@ class ChatService:
         ):
             complete_response = ""
             db_conn = None
+            had_error = False
             try:
                 if not query:
                     query = "Please provide a query."
@@ -237,7 +238,7 @@ class ChatService:
                     citation_json = json.dumps(citation_list)
 
             except Exception as e:
-                complete_response = str(e)
+                had_error = True
                 logger.exception("Error in stream_openai_text: %s", e)
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.pop(conversation_id, None)
@@ -266,12 +267,14 @@ class ChatService:
                     except Exception:
                         pass
 
-                if complete_response == "" and not citations:
-                    logger.info("No response received from OpenAI.")
-                    yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
+                # Only emit fallback and tool citations if no error occurred
+                if not had_error:
+                    if complete_response == "" and not citations:
+                        logger.info("No response received from OpenAI.")
+                        yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
 
-                if complete_response or citations:
-                    yield ("tool", citation_json)
+                    if complete_response or citations:
+                        yield ("tool", citation_json)
 
     async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """

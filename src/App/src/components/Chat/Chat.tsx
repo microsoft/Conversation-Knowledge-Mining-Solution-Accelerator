@@ -196,7 +196,18 @@ const Chat: React.FC<ChatProps> = ({
   const parseCitationFromMessage = (message : any): Citation[] => {
       if (!message) return [];
       try {
-        const parsed = typeof message === "string" ? JSON.parse(message) : message;
+        let parsed;
+        if (typeof message === "string") {
+          // Handle legacy format: citations stored as '"citations": [...]' fragment
+          if (message.trim().startsWith('"citations":')) {
+            parsed = JSON.parse(`{${message}}`);
+          } else {
+            parsed = JSON.parse(message);
+          }
+        } else {
+          parsed = message;
+        }
+        
         if (Array.isArray(parsed)) {
           return parsed.map((item: any, idx: number) => ({
             content: item.content || "",
