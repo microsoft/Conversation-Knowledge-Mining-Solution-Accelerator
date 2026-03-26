@@ -159,7 +159,6 @@ class ChatService:
                 logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
                 citations = []
-                citation_json = "[]"
                 citation_marker_map = {}  # Maps original markers to sequential numbers
                 citation_counter = 0
 
