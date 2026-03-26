@@ -9,6 +9,12 @@ import io
 import logging
 from bs4 import BeautifulSoup
 import atexit
+from datetime import datetime
+
+# Create screenshots directory if it doesn't exist
+SCREENSHOTS_DIR = os.path.join(os.path.dirname(__file__), "screenshots")
+os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+print(f"Screenshots will be saved to: {SCREENSHOTS_DIR}")  # Debug line
 
 @pytest.fixture(scope="session")
 def login_logout():
@@ -51,8 +57,44 @@ def pytest_html_report_title(report):
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
+    """Generate test report with logs, subtest details, and screenshots on failure"""
     outcome = yield
     report = outcome.get_result()
+
+    # Capture screenshot on failure
+    if report.when == "call" and report.failed:
+        # Get the page fixture if it exists
+        if "login_logout" in item.fixturenames:
+            page = item.funcargs.get("login_logout")
+            if page:
+                try:
+                    # Generate screenshot filename with timestamp
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    test_name = item.name.replace(" ", "_").replace("/", "_")
+                    screenshot_name = f"screenshot_{test_name}_{timestamp}.png"
+                    screenshot_path = os.path.join(SCREENSHOTS_DIR, screenshot_name)
+
+                    # Take screenshot
+                    page.screenshot(path=screenshot_path)
+
+                    # Add screenshot link to report
+                    if not hasattr(report, 'extra'):
+                        report.extra = []
+
+                    # Add screenshot as a link in the Links column
+                    # Use relative path from report.html location
+                    relative_path = os.path.relpath(
+                        screenshot_path,
+                        os.path.dirname(os.path.abspath("report.html"))
+                    )
+
+                    # pytest-html expects this format for extras
+                    from pytest_html import extras
+                    report.extra.append(extras.url(relative_path, name='Screenshot'))
+
+                    logging.info("Screenshot saved: %s", screenshot_path)
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    logging.error("Failed to capture screenshot: %s", str(exc))
 
     handler, stream = log_streams.get(item.nodeid, (None, None))
 

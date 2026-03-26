@@ -112,6 +112,7 @@ jobs:
     name: Azure Setup
     if: inputs.trigger_type != 'workflow_dispatch' || inputs.existing_webapp_url == '' || inputs.existing_webapp_url == null
     runs-on: ubuntu-latest
+    environment: production
     outputs:
       RESOURCE_GROUP_NAME: ${{ steps.check_create_rg.outputs.RESOURCE_GROUP_NAME }}
       ENV_NAME: ${{ steps.generate_env_name.outputs.ENV_NAME }}
@@ -322,20 +323,18 @@ jobs:
           echo "Final EXP status: $EXP_ENABLED"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Login to Azure
-        shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       
       - name: Run Quota Check
         id: quota-check
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           GPT_MIN_CAPACITY: ${{ env.GPT_MIN_CAPACITY }}
           TEXT_EMBEDDING_MIN_CAPACITY: ${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
@@ -457,8 +456,8 @@ jobs:
             echo "Current branch: $BRANCH_NAME"
             
             if [[ "$BRANCH_NAME" == "main" ]]; then
-              IMAGE_TAG="latest"
-              echo "Using main branch - image tag: latest"
+              IMAGE_TAG="latest_afv2"
+              echo "Using main branch - image tag: latest_afv2"
             elif [[ "$BRANCH_NAME" == "dev" ]]; then
               IMAGE_TAG="dev"
               echo "Using dev branch - image tag: dev"
@@ -466,12 +465,14 @@ jobs:
               IMAGE_TAG="demo"
               echo "Using demo branch - image tag: demo"
             elif [[ "$BRANCH_NAME" == "hotfix" ]]; then
-              BASE_TAG="hotfix"
+              IMAGE_TAG="hotfix"
+              echo "Using hotfix branch - image tag: hotfix"
             elif [[ "$BRANCH_NAME" == "dependabotchanges" ]]; then
-              BASE_TAG="dependabotchanges"
+              IMAGE_TAG="dependabotchanges"
+              echo "Using dependabotchanges branch - image tag: dependabotchanges"
             else
-              IMAGE_TAG="latest"
-              echo "Using default for branch '$BRANCH_NAME' - image tag: latest"
+              IMAGE_TAG="latest_afv2"
+              echo "Using default for branch '$BRANCH_NAME' - image tag: latest_afv2"
             fi
             
             echo "Using existing Docker image tag: $IMAGE_TAG"
@@ -509,9 +510,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Configuration | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---------------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trigger Type** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Branch** | \`${{ env.BRANCH_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Runner OS** | \`$INPUT_RUNNER_OS\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **WAF Enabled** | $WAF_ENABLED_DISPLAY |" >> $GITHUB_STEP_SUMMARY
           echo "| **EXP Enabled** | $EXP_DISPLAY |" >> $GITHUB_STEP_SUMMARY
           echo "| **Run E2E Tests** | \`${{ env.RUN_E2E_TESTS }}\` |" >> $GITHUB_STEP_SUMMARY

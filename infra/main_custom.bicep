@@ -112,7 +112,7 @@ param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
+param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
 param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
@@ -121,7 +121,7 @@ param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
+param frontendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -331,6 +331,7 @@ module applicationInsights 'br/public:avm/res/insights/component:0.7.1' = if (en
     flowType: 'Bluefield'
     // WAF aligned configuration for Monitoring
     workspaceResourceId: enableMonitoring ? logAnalyticsWorkspaceResourceId : ''
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
   }
 }
 // ========== Virtual Network and Networking Components ========== //
@@ -654,7 +655,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
   }
 }
 
-// ========== AI Foundry Private Endpoint ========== //
+// ========== AI Foundry: Separate Private Endpoint ========== //
 module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.1' = if (enablePrivateNetworking && !useExistingAiFoundryAiProject) {
   name: take('pep-${aiFoundryAiServicesResourceName}-deployment', 64)
   params: {
@@ -858,9 +859,6 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
       ]
     : []
   }
-  dependsOn: [
-    searchService
-  ]
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
@@ -1306,9 +1304,9 @@ module webSiteBackend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${backendWebSiteResourceName}', 64)
   params: {
     name: backendWebSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'api' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.?outputs.resourceId
     managedIdentities: {
       systemAssigned: true
@@ -1317,18 +1315,19 @@ module webSiteBackend 'modules/web-sites.bicep' = {
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
+      linuxFxVersion: 'PYTHON|3.11'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'uvicorn app:app --host 0.0.0.0 --port 8000'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          PYTHONUNBUFFERED: '1'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
-          AGENT_NAME_CONVERSATION: ''
-          AGENT_NAME_TITLE: ''
-          API_APP_NAME: 'api-${solutionSuffix}'
-          AI_FOUNDRY_RESOURCE_ID: aiFoundryAiServices.outputs.resourceId
           AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
           AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
           AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
@@ -1379,21 +1378,24 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${webSiteResourceName}', 64)
   params: {
     name: webSiteResourceName
-    tags: tags
+    tags: union(tags, { 'azd-service-name': 'webapp' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.resourceId
-    managedIdentities: {
-      systemAssigned: true
-    }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+      linuxFxVersion: 'NODE|20-lts'
       minTlsVersion: '1.2'
+      alwaysOn: true
+      appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+          ENABLE_ORYX_BUILD: 'true'
+          REACT_APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          WEBSITE_NODE_DEFAULT_VERSION: '~20'
           APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
@@ -1497,6 +1499,9 @@ output SQLDB_DATABASE string = 'sqldb-${solutionSuffix}'
 
 @description('Contains SQL server name.')
 output SQLDB_SERVER string = '${sqlDBModule.outputs.name }${environment().suffixes.sqlServerHostname}'
+
+@description('Client ID of the user-assigned managed identity.')
+output USER_MID string = userAssignedIdentity.outputs.clientId
 
 @description('Display name of the backend API user-assigned managed identity (also used for SQL database access).')
 output BACKEND_USER_MID_NAME string = backendUserAssignedIdentity.outputs.name

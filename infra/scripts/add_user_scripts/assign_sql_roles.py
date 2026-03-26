@@ -7,10 +7,28 @@ import argparse
 import json
 import sys
 import struct
+import uuid
 import pyodbc
 from azure.identity import AzureCliCredential
 
 SQL_COPT_SS_ACCESS_TOKEN = 1256
+
+
+def client_id_to_sid(client_id: str) -> str:
+    """
+    Convert a client ID (GUID) to a SQL Server SID format.
+    This allows creating users without requiring MS Graph permissions.
+    
+    Args:
+        client_id: The client ID (GUID) of the managed identity
+        
+    Returns:
+        str: Hexadecimal SID string for use in CREATE USER statement
+    """
+    # Convert the client ID to bytes using UUID
+    guid_bytes = uuid.UUID(client_id).bytes_le
+    # Convert to hexadecimal string
+    return "0x" + guid_bytes.hex().upper()
 
 def connect_with_token(server: str, database: str, credential: AzureCliCredential):
     """
@@ -63,6 +81,7 @@ def assign_sql_roles(server, database, roles_json):
             client_id = role_assignment.get("clientId")
             display_name = role_assignment.get("displayName")
             role = role_assignment.get("role")
+            is_service_principal = role_assignment.get("isServicePrincipal", False)
             
             if not client_id or not display_name or not role:
                 continue
@@ -73,9 +92,16 @@ def assign_sql_roles(server, database, roles_json):
             user_exists = cursor.fetchone()[0] > 0
             
             if not user_exists:
-                # Create user from external provider
-                create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
                 try:
+                    if is_service_principal:
+                        # For service principals/managed identities, use SID-based approach
+                        # This doesn't require MS Graph permissions on SQL Server
+                        sid = client_id_to_sid(client_id)
+                        create_user_sql = f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E"
+                    else:
+                        # For regular users, use standard external provider approach
+                        create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
+                    
                     cursor.execute(create_user_sql)
                     conn.commit()
                     print(f"✓ Created user: {display_name}")

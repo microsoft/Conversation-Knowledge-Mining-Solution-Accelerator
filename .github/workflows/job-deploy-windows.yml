@@ -53,6 +53,7 @@ on:
 jobs:
   deploy-windows:
     runs-on: windows-latest
+    environment: production
     env:
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     outputs:
@@ -203,7 +204,7 @@ jobs:
           echo "✅ All input parameters validated successfully!"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure Parameters Based on WAF Setting
         shell: bash
@@ -220,14 +221,16 @@ jobs:
       - name: Setup Azure Developer CLI (Windows)
         uses: Azure/setup-azd@v2
 
-      - name: Login to AZD
-        id: login-azure
-        shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --client-secret ${{ secrets.AZURE_CLIENT_SECRET }} --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Configure AZD to use Azure CLI authentication
+        shell: bash
+        run: azd config set auth.useAzCliAuth "true"
 
       - name: Deploy using azd up and extract values (Windows)
         id: get_output_windows
@@ -287,7 +290,7 @@ jobs:
             if ($env:INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID -ne "") {
               $EXP_AI_PROJECT_ID = $env:INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID
             } else {
-              $EXP_AI_PROJECT_ID = "${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}"
+              $EXP_AI_PROJECT_ID = "${{ secrets.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}"
             }
             
             Write-Host "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
@@ -305,21 +308,128 @@ jobs:
 
           # Get deployment outputs using azd
           Write-Host "Extracting deployment outputs..."
-          $DEPLOY_OUTPUT = azd env get-values --output json | ConvertFrom-Json
-          Write-Host "Deployment output: $($DEPLOY_OUTPUT | ConvertTo-Json -Depth 10)"
           
-          if (-not $DEPLOY_OUTPUT) {
-            Write-Host "Error: Deployment output is empty. Please check the deployment logs."
-            exit 1
-          }
-
-          $API_APP_URL = $DEPLOY_OUTPUT.API_APP_URL
+          $API_APP_URL = azd env get-value API_APP_URL
           "API_APP_URL=$API_APP_URL" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "API_APP_URL=$API_APP_URL" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          $WEB_APP_URL = $DEPLOY_OUTPUT.WEB_APP_URL
+          $WEB_APP_URL = azd env get-value WEB_APP_URL
           "WEB_APP_URL=$WEB_APP_URL" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "WEB_APP_URL=$WEB_APP_URL" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Install ODBC Driver 18 for SQL Server
+        shell: pwsh
+        run: |
+          Write-Host "Installing ODBC Driver 18 for SQL Server on Windows..."
+          
+          # Download and install the ODBC Driver installer with error handling
+          $installerUrl = "https://go.microsoft.com/fwlink/?linkid=2249004"
+          $installerPath = "$env:TEMP\msodbcsql.msi"
+          
+          try {
+            Write-Host "Downloading ODBC Driver installer from $installerUrl ..."
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing -ErrorAction Stop
+          
+            if (-not (Test-Path $installerPath)) {
+              throw "ODBC Driver installer was not downloaded to expected path: $installerPath"
+            }
+          
+            Write-Host "Running ODBC Driver installer..."
+            $msiArgs = "/i `"$installerPath`" /quiet IACCEPTMSODBCSQLLICENSETERMS=YES"
+            $process = Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -NoNewWindow -PassThru
+          
+            if ($process.ExitCode -ne 0) {
+              throw "ODBC Driver installer exited with code $($process.ExitCode)."
+            }
+          
+            Write-Host "✅ ODBC Driver 18 installation complete"
+          }
+          catch {
+            Write-Error "Failed to install ODBC Driver 18 for SQL Server: $($_.Exception.Message)"
+            if (Test-Path $installerPath) {
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+            exit 1
+          }
+          finally {
+            if (Test-Path $installerPath) {
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+            }
+          }
+
+      - name: Re-authenticate with Azure (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Create Agents Scripts
+        id: run_create_agents_scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "Running run_create_agents_scripts.sh..."
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Run Create Agents Scripts
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
+          sleep 20
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully on retry."
+
+      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.process_sample_data.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        env:
+          PYTHONIOENCODING: utf-8
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 20
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
@@ -362,6 +472,7 @@ jobs:
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
+            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
             echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY

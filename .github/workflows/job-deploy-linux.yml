@@ -49,6 +49,7 @@ on:
 jobs:
   deploy-linux:
     runs-on: ubuntu-latest
+    environment: production
     env:
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     outputs:
@@ -200,7 +201,7 @@ jobs:
           echo "✅ All input parameters validated successfully!"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Configure Parameters Based on WAF Setting
         shell: bash
@@ -217,13 +218,16 @@ jobs:
       - name: Install azd
         uses: Azure/setup-azd@v2
           
-      - name: Login to AZD
-        id: login-azure
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure AZD to use Azure CLI authentication
         shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --client-secret ${{ secrets.AZURE_CLIENT_SECRET }} --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+        run: azd config set auth.useAzCliAuth "true"
 
       - name: Deploy using azd up and extract values (Linux)
         id: get_output_linux
@@ -283,7 +287,7 @@ jobs:
             if [[ -n "$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
               EXP_AI_PROJECT_ID="$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID"
             else
-              EXP_AI_PROJECT_ID="${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}"
+              EXP_AI_PROJECT_ID="${{ secrets.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}"
             fi
             
             echo "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
@@ -297,24 +301,102 @@ jobs:
           azd up --no-prompt
           
           echo "✅ Deployment succeeded."
-          echo "$DEPLOY_OUTPUT"
 
           echo "Extracting deployment outputs..."
-          DEPLOY_OUTPUT=$(azd env get-values --output json)
-          echo "Deployment output: $DEPLOY_OUTPUT"
-          
-          if [[ -z "$DEPLOY_OUTPUT" ]]; then
-            echo "Error: Deployment output is empty. Please check the deployment logs."
-            exit 1
+          API_APP_URL=$(azd env get-value API_APP_URL)
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_ENV
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_OUTPUT
+
+          WEB_APP_URL=$(azd env get-value WEB_APP_URL)
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Install ODBC Driver 18 for SQL Server
+        shell: bash
+        run: |
+          if ! [[ "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
+          then
+              echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
+              exit 1;
           fi
+              
+          # Download the package to configure the Microsoft repo
+          curl -fsSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb || { echo "Failed to download Microsoft packages config"; exit 1; }
+          # Install the package
+          sudo dpkg -i packages-microsoft-prod.deb
+          # Delete the file
+          rm packages-microsoft-prod.deb
+              
+          # Install the driver
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          echo "✅ ODBC Driver 18 for SQL Server installed successfully."
 
-          API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+      - name: Re-authenticate with Azure (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-          WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
+      - name: Run Create Agents Scripts
+        id: run_create_agents_scripts
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running run_create_agents_scripts.sh..."
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Run Create Agents Scripts
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
+          sleep 20
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully on retry."
+
+      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.process_sample_data.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 20
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
@@ -345,6 +427,7 @@ jobs:
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
+            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
             echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
