@@ -229,12 +229,15 @@ class TestChatService:
         async for chunk in chat_service.stream_openai_text("conv123", "test query"):
             result_chunks.append(chunk)
 
-        # Verify
+        # Verify - stream_openai_text now yields (role, content) tuples
         assert len(result_chunks) > 0
-        full_response = "".join(result_chunks)
-        assert "Hello" in full_response
-        assert "World" in full_response
-        assert "citations" in full_response
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        tool_content = "".join(content for role, content in result_chunks if role == "tool")
+        
+        assert "Hello" in assistant_content
+        assert "World" in assistant_content
+        # Citations come in tool message
+        assert len(tool_content) > 0  # Should have citations as JSON array
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -356,11 +359,14 @@ class TestChatService:
         async for chunk in chat_service.stream_openai_text("conv123", "test query"):
             result_chunks.append(chunk)
 
-        # Verify citations are included
-        full_response = "".join(result_chunks)
-        assert "citations" in full_response
-        assert "Test Documentation" in full_response
-        assert "http://example.com/doc" in full_response
+        # Verify citations are included - stream_openai_text now yields (role, content) tuples
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        tool_content = "".join(content for role, content in result_chunks if role == "tool")
+        
+        assert "Answer with citation" in assistant_content
+        # Citations are sent as tool message with JSON
+        assert "Test Documentation" in tool_content
+        assert "http://example.com/doc" in tool_content
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -415,10 +421,72 @@ class TestChatService:
             result_chunks.append(chunk)
 
         # Verify citation markers are replaced with [1], [2], etc.
-        full_response = "".join(result_chunks)
-        assert "[1]" in full_response
-        assert "[2]" in full_response
-        assert "【" not in full_response  # Original markers should be replaced
+        # stream_openai_text now yields (role, content) tuples
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+        
+        assert "[1]" in assistant_content
+        assert "[2]" in assistant_content
+        assert "【" not in assistant_content  # Original markers should be replaced
+
+    @pytest.mark.asyncio
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
+    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
+    async def test_stream_openai_text_with_citation_markers_without_dagger(
+        self, mock_credential, mock_project_client_class, mock_provider_class,
+        mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test streaming replaces citation markers that lack the † character."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_openai_client = MagicMock()
+        mock_conversation = MagicMock()
+        mock_conversation.id = "test-thread-id"
+        mock_openai_client.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_project_client.get_openai_client.return_value = mock_openai_client
+        mock_project_client_class.return_value = mock_project_client
+
+        # Mock agent with mixed citation markers (with and without †)
+        mock_agent = MagicMock()
+        mock_chunk = MagicMock()
+        mock_chunk.text = "Answer 【4:1†source】 and 【4:3 source】 and 【4:4 source】"
+        mock_chunk.contents = []
+
+        async def mock_run(*args, **kwargs):
+            yield mock_chunk
+
+        mock_agent.run = mock_run
+
+        mock_provider = MagicMock()
+        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
+        mock_provider_class.return_value = mock_provider
+
+        mock_sqldb_conn.return_value = AsyncMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", "test query"):
+            result_chunks.append(chunk)
+
+        # Verify all citation markers are replaced
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+
+        assert "[1]" in assistant_content
+        assert "[2]" in assistant_content
+        assert "[3]" in assistant_content
+        assert "【" not in assistant_content  # All markers should be replaced
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -636,17 +704,18 @@ class TestChatService:
             result_chunks.append(chunk)
 
         # Verify fallback message is provided
-        full_response = "".join(result_chunks)
-        assert "cannot answer" in full_response.lower() or "citations" in full_response
+        # stream_openai_text now yields (role, content) tuples
+        full_response = "".join(content for role, content in result_chunks if role == "assistant")
+        assert "cannot answer" in full_response.lower()
 
     @pytest.mark.asyncio
     async def test_stream_chat_request_success(self, chat_service):
         """Test successful stream_chat_request."""
-        # Mock stream_openai_text to return chunks
+        # Mock stream_openai_text to return (role, content) tuples
         async def mock_stream(*args, **kwargs):
-            yield '{ "answer": "Hello'
-            yield ' World'
-            yield ', "citations": []}'
+            yield ("assistant", "Hello")
+            yield ("assistant", " World")
+            yield ("tool", '[{"url": "http://example.com", "title": "doc1"}]')
         
         chat_service.stream_openai_text = mock_stream
 
@@ -657,12 +726,29 @@ class TestChatService:
         async for chunk in generator:
             chunks.append(chunk)
 
-        # Verify
-        assert len(chunks) > 0
+        # Verify: 2 assistant chunks + 1 tool chunk = 3 total
+        assert len(chunks) == 3
         for chunk in chunks:
             data = json.loads(chunk.strip())
             assert "choices" in data
             assert isinstance(data["choices"], list)
+            delta = data["choices"][0]["delta"]
+            assert "content" in delta
+            assert "role" in delta
+
+        # Verify assistant deltas carry answer text
+        d0 = json.loads(chunks[0].strip())["choices"][0]["delta"]
+        assert d0["role"] == "assistant"
+        assert d0["content"] == "Hello"
+
+        d1 = json.loads(chunks[1].strip())["choices"][0]["delta"]
+        assert d1["role"] == "assistant"
+        assert d1["content"] == " World"
+
+        # Verify citations come as role "tool"
+        d2 = json.loads(chunks[2].strip())["choices"][0]["delta"]
+        assert d2["role"] == "tool"
+        assert "doc1" in d2["content"]
 
     @pytest.mark.asyncio
     async def test_stream_chat_request_http_exception(self, chat_service):

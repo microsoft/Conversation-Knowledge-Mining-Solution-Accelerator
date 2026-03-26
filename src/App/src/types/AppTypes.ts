@@ -145,16 +145,16 @@ export type HistoryMetaData = {
 
 export type ParsedChunk = {
   error?: string;
-  choices: [
-    {
-      messages: [
-        {
-          content: string;
-          role: string;
-        }
-      ];
-    }
-  ];
+  choices?: Array<{
+    messages?: Array<{
+      content: string;
+      role: string;
+    }>;
+    delta?: {
+      content: string;
+      role: "assistant" | "tool";
+    };
+  }>;
 };
 
 export type ToolMessageContent = {
