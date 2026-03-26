@@ -37,6 +37,7 @@ cuApiVersion="${17}"
 aiAgentEndpoint="${18}"
 
 usecase="${19}"
+solutionName="${20}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
@@ -348,12 +349,13 @@ get_values_from_azd_env() {
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
 	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	usecase=$(azd env get-value USE_CASE 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$usecase" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$usecase" ] || [ -z "$solutionName" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	fi
@@ -380,31 +382,32 @@ get_values_from_az_deployment() {
 		local fallback_key="$2"
 		local value
 		
-		value=$(echo "$deploymentOutputs" | grep -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		if [ -z "$value" ] && [ -n "$fallback_key" ]; then
-			value=$(echo "$deploymentOutputs" | grep -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+			value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		fi
 		echo "$value"
 	}
 
 	# Extract each value using the helper function
-	storageAccountName=$(extract_value "storageAccountName" "storagE_ACCOUNT_NAME")
-	fileSystem=$(extract_value "storageContainerName" "storagE_CONTAINER_NAME")
-	sqlServerName=$(extract_value "sqlDBServer" "sqldB_SERVER")
-	SqlDatabaseName=$(extract_value "sqlDBDatabase" "sqldB_DATABASE")
-	backendUserMidClientId=$(extract_value "backendUserMid" "backenD_USER_MID")
-	backendUserMidDisplayName=$(extract_value "backendUserMidName" "backenD_USER_MID_NAME")
-	aiSearchName=$(extract_value "azureAISearchName" "azurE_AI_SEARCH_NAME")
-	searchEndpoint=$(extract_value "azureAISearchEndpoint" "azurE_AI_SEARCH_ENDPOINT")
-	aif_resource_id=$(extract_value "aiFoundryResourceId" "aI_FOUNDRY_RESOURCE_ID")
-	cu_foundry_resource_id=$(extract_value "cuFoundryResourceId" "cU_FOUNDRY_RESOURCE_ID")
-	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "azurE_OPENAI_ENDPOINT")
-	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "azurE_OPENAI_EMBEDDING_MODEL")
-	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "azurE_OPENAI_CU_ENDPOINT")
-	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
-	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "azurE_CONTENT_UNDERSTANDING_API_VERSION")
-	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "azurE_OPENAI_DEPLOYMENT_MODEL")
-	usecase=$(extract_value "useCase" "usE_CASE")
+	storageAccountName=$(extract_value "storageAccountName" "STORAGE_ACCOUNT_NAME")
+	fileSystem=$(extract_value "storageContainerName" "STORAGE_CONTAINER_NAME")
+	sqlServerName=$(extract_value "sqlDBServer" "SQLDB_SERVER")
+	SqlDatabaseName=$(extract_value "sqlDBDatabase" "SQLDB_DATABASE")
+	backendUserMidClientId=$(extract_value "backendUserMid" "BACKEND_USER_MID")
+	backendUserMidDisplayName=$(extract_value "backendUserMidName" "BACKEND_USER_MID_NAME")
+	aiSearchName=$(extract_value "azureAISearchName" "AZURE_AI_SEARCH_NAME")
+	searchEndpoint=$(extract_value "azureAISearchEndpoint" "AZURE_AI_SEARCH_ENDPOINT")
+	aif_resource_id=$(extract_value "aiFoundryResourceId" "AI_FOUNDRY_RESOURCE_ID")
+	cu_foundry_resource_id=$(extract_value "cuFoundryResourceId" "CU_FOUNDRY_RESOURCE_ID")
+	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "AZURE_OPENAI_ENDPOINT")
+	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "AZURE_OPENAI_EMBEDDING_MODEL")
+	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "AZURE_OPENAI_CU_ENDPOINT")
+	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "AZURE_AI_AGENT_ENDPOINT")
+	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "AZURE_CONTENT_UNDERSTANDING_API_VERSION")
+	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "AZURE_OPENAI_DEPLOYMENT_MODEL")
+	usecase=$(extract_value "useCase" "USE_CASE")
+	solutionName=$(extract_value "solutionName" "SOLUTION_NAME")
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
@@ -428,6 +431,7 @@ get_values_from_az_deployment() {
 		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
 		["deploymentModel"]="AZURE_OPENAI_DEPLOYMENT_MODEL"
 		["usecase"]="USE_CASE"
+		["solutionName"]="SOLUTION_NAME"
 	)
 
 	# Validate and collect missing values
@@ -519,7 +523,13 @@ echo ""
 
 echo ""
 
-if [ -z "$resourceGroupName" ]; then
+# Check if all required parameters are provided
+if [ -n "$resourceGroupName" ] && [ -n "$azSubscriptionId" ] && [ -n "$storageAccountName" ] && [ -n "$fileSystem" ] && [ -n "$sqlServerName" ] && [ -n "$SqlDatabaseName" ] && [ -n "$backendUserMidClientId" ] && [ -n "$backendUserMidDisplayName" ] && [ -n "$aiSearchName" ] && [ -n "$searchEndpoint" ] && [ -n "$aif_resource_id" ] && [ -n "$cu_foundry_resource_id" ] && [ -n "$openaiEndpoint" ] && [ -n "$embeddingModel" ] && [ -n "$deploymentModel" ] && [ -n "$cuEndpoint" ] && [ -n "$cuApiVersion" ] && [ -n "$aiAgentEndpoint" ] && [ -n "$usecase" ] && [ -n "$solutionName" ]; then
+    # All parameters provided - use them directly
+    echo "All parameters provided via command line."
+    # Strip FQDN suffix from SQL server name if present
+    sqlServerName="${sqlServerName%.database.windows.net}"
+elif [ -z "$resourceGroupName" ]; then
     # No resource group provided - use azd env
     if ! get_values_from_azd_env; then
         echo "Failed to get values from azd environment."
@@ -531,7 +541,7 @@ if [ -z "$resourceGroupName" ]; then
         exit 1
     fi
 else
-    # Resource group provided - use deployment outputs
+    # Only resource group provided - use deployment outputs
 	echo ""
     echo "Resource group provided: $resourceGroupName"
 
@@ -574,6 +584,7 @@ echo "CU Endpoint: $cuEndpoint"
 echo "CU API Version: $cuApiVersion"
 echo "AI Agent Endpoint: $aiAgentEndpoint"
 echo "Deployment Model: $deploymentModel"
+echo "Solution Name: $solutionName"
 echo "==============================================="
 echo ""
 
@@ -596,7 +607,7 @@ echo "copy_kb_files.sh completed successfully."
 # Call run_create_index_scripts.sh
 echo "Running run_create_index_scripts.sh"
 # Pass all required environment variables and backend managed identity info for role assignment
-bash "$SCRIPT_DIR/run_create_index_scripts.sh" "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint" "$usecase"
+bash "$SCRIPT_DIR/run_create_index_scripts.sh" "$resourceGroupName" "$aiSearchName" "$searchEndpoint" "$sqlServerName" "$SqlDatabaseName" "$backendUserMidDisplayName" "$backendUserMidClientId" "$storageAccountName" "$openaiEndpoint" "$deploymentModel" "$embeddingModel" "$cuEndpoint" "$cuApiVersion" "$aif_resource_id" "$cu_foundry_resource_id" "$aiAgentEndpoint" "$usecase" "$solutionName"
 if [ $? -ne 0 ]; then
 	echo "Error: run_create_index_scripts.sh failed."
 	exit 1

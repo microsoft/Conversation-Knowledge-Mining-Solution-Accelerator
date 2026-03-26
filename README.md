@@ -22,7 +22,7 @@ Analysts working with large volumes of conversational data can use this solution
 Solution overview
 </h2>
 
-Leverages Azure Content Understanding, Foundry IQ, Azure OpenAI Service, Semantic Kernel, Azure SQL Database, and Cosmos DB to process large volumes of conversational data. Audio and text inputs are analyzed through event-driven pipelines to extract and vectorize key information, orchestrate intelligent responses, and power an interactive web front-end for exploring insights using natural language.
+Leverages Azure Content Understanding, Foundry IQ, Azure OpenAI Service, Azure AI Agent Framework, Azure SQL Database, and Cosmos DB to process large volumes of conversational data. Audio and text inputs are analyzed through event-driven pipelines to extract and vectorize key information, orchestrate intelligent responses, and power an interactive web front-end for exploring insights using natural language.
 
 ### Solution architecture
 |![image](./documents/Images/ReadMe/solution-architecture.png)|
@@ -33,6 +33,8 @@ Leverages Azure Content Understanding, Foundry IQ, Azure OpenAI Service, Semanti
 [Technical Architecture](./documents/TechnicalArchitecture.md)
 
 <br/>
+
+## Features
 
 ### Key features
 <details open>  
@@ -58,6 +60,8 @@ Summarized conversations, topic generation, and key phrase extraction support fa
 
 
 <br /><br />
+## Getting Started
+
 <h2><img src="./documents/Images/ReadMe/quick-deploy.png" width="48" />
 Quick deploy
 </h2>
@@ -79,6 +83,8 @@ Follow the quick deploy steps on the deployment guide to deploy this solution 
 
 <br/>
 
+## Guidance
+
 ### Prerequisites and costs
 To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups, resources, app registrations, and assign roles at the resource group level**. This should include Contributor role at the subscription level and  Role Based Access Control role on the subscription and/or resource group level. Follow the steps in [Azure Account Set Up](./documents/AzureAccountSetUp.md).
 
@@ -96,25 +102,27 @@ _Note: This is not meant to outline all costs as selected SKUs, scaled use, cust
 
 <br/>
 
+>⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
+either by deleting the resource group in the Portal or running `azd down`.
+
+## Resources
+
 | Product | Description | Tier / Expected Usage Notes | Cost |
 |---|---|---|---|
 | [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
 | [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search) | Powers vector-based semantic search for retrieving indexed conversation data. | Standard S1; costs scale with document count and replica/partition settings. | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
 | [Azure Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview) | Stores transcripts, intermediate outputs, and application assets. | Standard LRS; usage-based cost by storage/operations. | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
-| [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) | Secures secrets, credentials, and keys used across the application. | Standard Tier; cost per operation (e.g., secret retrieval). | [Pricing](https://azure.microsoft.com/pricing/details/key-vault/) |
+
 | [Azure AI Services (OpenAI)](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/overview) | Enables language understanding, summarization, entity extraction, and chat capabilities using GPT models. | S0 Tier; pricing depends on token volume and model used (e.g., GPT-4o-mini). | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
 | [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/overview) | Hosts microservices and APIs powering the front-end and backend orchestration. | Consumption plan with 0.5 vCPU, 1GiB memory; includes a free usage tier. | [Pricing](https://azure.microsoft.com/pricing/details/container-apps/) |
 | [Azure Container Registry](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-intro) | Stores and serves container images used by Azure Container Apps. | Basic Tier; fixed daily cost per registry. | [Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
 | [Azure Monitor / Log Analytics](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview) | Collects and analyzes telemetry and logs from services and containers. | Pay-as-you-go; charges based on data ingestion volume. | [Pricing](https://azure.microsoft.com/pricing/details/monitor/) |
 | [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview) | Stores structured data including insights, metadata, and indexed results. | General Purpose Tier; can be provisioned or serverless. Fixed cost if provisioned. | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
 | [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction) | Used for fast, globally distributed NoSQL data storage for chat history and vector metadata. | Autoscale or provisioned throughput; fixed minimum cost if provisioned. | [Pricing](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/) |
-| [Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-overview) | Executes lightweight, serverless backend logic and event-driven workflows. | Consumption Tier; billed per execution and duration. | [Pricing](https://azure.microsoft.com/en-us/pricing/details/functions/) |
 
 
 <br/>
 
->⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
-either by deleting the resource group in the Portal or running `azd down`.
 
 <br /><br />
 <h2><img src="./documents/Images/ReadMe/business-scenario.png" width="48" />
@@ -173,9 +181,7 @@ Supporting documentation
 
 ### Security guidelines
 
-This solution uses [Azure Key Vault](https://learn.microsoft.com/en-us/azure/key-vault/general/overview) to securely store secrets, connection strings, and API keys required by application components.
-
-It also leverages [Managed Identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources during local development and production deployment, eliminating the need for hard-coded credentials.
+This solution leverages [Managed Identity](https://learn.microsoft.com/en-us/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources during local development and production deployment, eliminating the need for hard-coded credentials.
 
 To maintain strong security practices, it is recommended that GitHub repositories built on this solution enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) to detect accidental secret exposure.
 
@@ -194,9 +200,16 @@ Check out similar solution accelerators
 | [Document&nbsp;knowledge&nbsp;mining](https://github.com/microsoft/Document-Knowledge-Mining-Solution-Accelerator) | 	Identify relevant documents, summarize unstructured information, and generate document templates. |
 | [Content&nbsp;processing](https://github.com/microsoft/document-generation-solution-accelerator) | Extracts data from multi-modal content, maps it to schemas with confidence scoring and user validation, and enables accurate processing of documents like contracts, claims, and invoices. |
 
-
 <br/>
 
+💡 Want to get familiar with Microsoft's AI and Data Engineering best practices? Check out our playbooks to learn more
+
+| Playbook | Description |
+|:---|:---|
+| [AI&nbsp;playbook](https://learn.microsoft.com/en-us/ai/playbook/) | The Artificial Intelligence (AI) Playbook provides enterprise software engineers with solutions, capabilities, and code developed to solve real-world AI problems. |
+| [Data&nbsp;playbook](https://learn.microsoft.com/en-us/data-engineering/playbook/understanding-data-playbook) | The data playbook provides enterprise software engineers with solutions which contain code developed to solve real-world problems. Everything in the playbook is developed with, and validated by, some of Microsoft's largest and most influential customers and partners. |
+
+<br/> 
 
 ## Provide feedback
 
