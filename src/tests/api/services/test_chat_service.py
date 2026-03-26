@@ -434,6 +434,66 @@ class TestChatService:
     @patch("services.chat_service.AzureAIProjectAgentProvider")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
+    async def test_stream_openai_text_with_citation_markers_without_dagger(
+        self, mock_credential, mock_project_client_class, mock_provider_class,
+        mock_sqldb_conn, mock_sql_tool, chat_service
+    ):
+        """Test streaming replaces citation markers that lack the † character."""
+        # Setup mocks
+        mock_cred = AsyncMock()
+        mock_cred.__aenter__ = AsyncMock(return_value=mock_cred)
+        mock_cred.__aexit__ = AsyncMock(return_value=None)
+        mock_credential.return_value = mock_cred
+
+        mock_project_client = MagicMock()
+        mock_project_client.__aenter__ = AsyncMock(return_value=mock_project_client)
+        mock_project_client.__aexit__ = AsyncMock(return_value=None)
+        mock_openai_client = MagicMock()
+        mock_conversation = MagicMock()
+        mock_conversation.id = "test-thread-id"
+        mock_openai_client.conversations.create = AsyncMock(return_value=mock_conversation)
+        mock_project_client.get_openai_client.return_value = mock_openai_client
+        mock_project_client_class.return_value = mock_project_client
+
+        # Mock agent with mixed citation markers (with and without †)
+        mock_agent = MagicMock()
+        mock_chunk = MagicMock()
+        mock_chunk.text = "Answer 【4:1†source】 and 【4:3 source】 and 【4:4 source】"
+        mock_chunk.contents = []
+
+        async def mock_run(*args, **kwargs):
+            yield mock_chunk
+
+        mock_agent.run = mock_run
+
+        mock_provider = MagicMock()
+        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
+        mock_provider_class.return_value = mock_provider
+
+        mock_sqldb_conn.return_value = AsyncMock()
+        mock_tool_instance = MagicMock()
+        mock_tool_instance.get_sql_response = MagicMock()
+        mock_sql_tool.return_value = mock_tool_instance
+
+        # Execute
+        result_chunks = []
+        async for chunk in chat_service.stream_openai_text("conv123", "test query"):
+            result_chunks.append(chunk)
+
+        # Verify all citation markers are replaced
+        assistant_content = "".join(content for role, content in result_chunks if role == "assistant")
+
+        assert "[1]" in assistant_content
+        assert "[2]" in assistant_content
+        assert "[3]" in assistant_content
+        assert "【" not in assistant_content  # All markers should be replaced
+
+    @pytest.mark.asyncio
+    @patch("services.chat_service.SQLTool")
+    @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
+    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.AIProjectClient")
+    @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_cached_thread(
         self, mock_credential, mock_project_client_class, mock_provider_class,
         mock_sqldb_conn, mock_sql_tool, chat_service

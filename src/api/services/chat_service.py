@@ -190,8 +190,8 @@ class ChatService:
 
                     chunk_text = str(chunk.text) if chunk.text else ""
 
-                    # Replace complete citation markers like 【4:0†source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†[^】]+】', replace_citation_marker, chunk_text)
+                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
 
                     if chunk_text:
                         complete_response += chunk_text
