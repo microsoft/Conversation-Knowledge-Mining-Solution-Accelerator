@@ -236,8 +236,9 @@ class TestChatService:
         
         assert "Hello" in assistant_content
         assert "World" in assistant_content
-        # Citations come in tool message
-        assert len(tool_content) > 0  # Should have citations as JSON array
+        # Citations come in tool message as a valid JSON array
+        citations = json.loads(tool_content)
+        assert isinstance(citations, list)
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
@@ -364,9 +365,14 @@ class TestChatService:
         tool_content = "".join(content for role, content in result_chunks if role == "tool")
         
         assert "Answer with citation" in assistant_content
-        # Citations are sent as tool message with JSON
-        assert "Test Documentation" in tool_content
-        assert "http://example.com/doc" in tool_content
+        # Citations are sent as tool message with JSON; validate structure and contents
+        citations = json.loads(tool_content)
+        assert isinstance(citations, list)
+        assert len(citations) >= 1
+        first_citation = citations[0]
+        assert isinstance(first_citation, dict)
+        assert first_citation.get("title") == "Test Documentation"
+        assert first_citation.get("url") == "http://example.com/doc"
 
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
