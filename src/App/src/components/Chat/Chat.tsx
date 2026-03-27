@@ -21,7 +21,7 @@ import {
   type ConversationRequest,
   type ParsedChunk,
   type ChatMessage,
-  ToolMessageContent,
+  type Citation,
 } from "../../types/AppTypes";
 import { callConversationApi, getIsChartDisplayDefault, historyUpdate } from "../../api/api";
 import { ChatAdd24Regular } from "@fluentui/react-icons";
@@ -63,6 +63,68 @@ const Chat: React.FC<ChatProps> = ({
     }
   }, []);
 
+  // Helper function to parse chart response from accumulated content
+  const parseChartResponse = (content: string): any => {
+    let chartResponse: any;
+    try {
+      chartResponse = JSON.parse(content);
+    } catch {
+      return content; // Non-JSON string — returned as error message by handleChartResult
+    }
+
+    // Handle explicit error responses like {"error": "Chart cannot be generated"}
+    if (chartResponse?.error) {
+      return chartResponse.error;
+    }
+
+    // Unwrap { "object": { "type": ..., "data": ... } } shape from chart service
+    if (chartResponse?.object) {
+      return chartResponse.object;
+    }
+
+    return chartResponse;
+  };
+
+  // Helper function to handle chart result dispatching
+  const handleChartResult = (
+    chartResponse: any,
+    streamMessage: ChatMessage,
+    newMessage: ChatMessage,
+    suppressErrors: boolean = false
+  ): ChatMessage[] => {
+    if (chartResponse?.type && chartResponse?.data) {
+      // Valid chart data
+      streamMessage.content = chartResponse as unknown as ChartDataResponse;
+      streamMessage.role = ASSISTANT;
+      const chartMessage = { ...streamMessage };
+      dispatch({
+        type: actionConstants.UPDATE_MESSAGE_BY_ID,
+        payload: chartMessage,
+      });
+      scrollChatToBottom();
+      return [newMessage, chartMessage];
+    }
+
+    // Everything else is an error — suppress for automatic chart generation
+    if (suppressErrors) {
+      console.log("Auto-chart generation failed (suppressed):", chartResponse);
+      return [];
+    }
+
+    const errorMsg = typeof chartResponse === "string"
+      ? chartResponse
+      : JSON.stringify(chartResponse);
+    streamMessage.content = errorMsg;
+    streamMessage.role = ERROR;
+    const errorMessage = { ...streamMessage };
+    dispatch({
+      type: actionConstants.UPDATE_MESSAGE_BY_ID,
+      payload: errorMessage,
+    });
+    scrollChatToBottom();
+    return [newMessage, errorMessage];
+  };
+
   const saveToDB = async (newMessages: ChatMessage[], convId: string, reqType: string = 'Text') => {
     if (!convId || !newMessages.length) {
       return;
@@ -76,7 +138,7 @@ const Chat: React.FC<ChatProps> = ({
     if (((reqType !== 'graph' && reqType !== 'error') &&  newMessages[newMessages.length - 1].role !== ERROR) && isCharthDisplayDefault ){
       setIsChartLoading(true);
       setTimeout(()=>{
-        makeApiRequestForChart('show in a graph by default', convId, newMessages[newMessages.length - 1].content as string)
+        makeApiRequestForChart('show in a graph by default', convId, true)
       },5000)
       
     }
@@ -131,15 +193,40 @@ const Chat: React.FC<ChatProps> = ({
   };
 
 
-  const parseCitationFromMessage = (message : any) => {
-
+  const parseCitationFromMessage = (message : any): Citation[] => {
+      if (!message) return [];
       try {
-        message = '{'+ message 
-        const toolMessage = JSON.parse(message as string) as ToolMessageContent;
+        let parsed;
+        if (typeof message === "string") {
+          // Handle legacy format: citations stored as '"citations": [...]' or '"citations": [...]}' fragment
+          if (message.trim().startsWith('"citations":')) {
+            const wrapped = `{${message.trim()}}`;
+            // Legacy format may include a trailing brace; collapse double }} to single }
+            parsed = JSON.parse(wrapped.replace(/\}\}$/, '}'));
+          } else {
+            parsed = JSON.parse(message);
+          }
+        } else {
+          parsed = message;
+        }
         
-        return toolMessage.citations;
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: any, idx: number) => ({
+            content: item.content || "",
+            id: String(idx + 1),
+            title: item.title || null,
+            filepath: item.filepath || null,
+            url: item.url || null,
+            metadata: item.metadata || null,
+            chunk_id: item.chunk_id || null,
+            reindex_id: String(idx + 1),
+          } as Citation));
+        }
+        if (parsed?.citations && Array.isArray(parsed.citations)) {
+          return parsed.citations;
+        }
       } catch {
-        // Silently ignore parse errors for incomplete JSON chunks. This is expected during streaming
+        // Silently ignore parse errors for incomplete JSON chunks during streaming
       }
     return [];
   };
@@ -188,7 +275,7 @@ const Chat: React.FC<ChatProps> = ({
   const makeApiRequestForChart = async (
     question: string,
     conversationId: string,
-    lrg: string
+    isAutomatic: boolean = false
   ) => {
     if (generatingResponse || !question.trim()) {
       return;
@@ -200,19 +287,23 @@ const Chat: React.FC<ChatProps> = ({
       content: question,
       date: new Date().toISOString()
     };
-    dispatch({
-      type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
-      payload: true,
-    });
-    scrollChatToBottom();
-    dispatch({
-      type: actionConstants.UPDATE_MESSAGES,
-      payload: [newMessage],
-    });
-    dispatch({
-      type: actionConstants.UPDATE_USER_MESSAGE,
-      payload:  questionInputRef?.current?.value || "",
-    });
+    
+    // Only dispatch UI updates if this is NOT an automatic request
+    if (!isAutomatic) {
+      dispatch({
+        type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+        payload: true,
+      });
+      scrollChatToBottom();
+      dispatch({
+        type: actionConstants.UPDATE_MESSAGES,
+        payload: [newMessage],
+      });
+      dispatch({
+        type: actionConstants.UPDATE_USER_MESSAGE,
+        payload:  questionInputRef?.current?.value || "",
+      });
+    }
     const abortController = new AbortController();
     abortFuncs.current.unshift(abortController);
 
@@ -236,112 +327,71 @@ const Chat: React.FC<ChatProps> = ({
 
 
       if (response?.body) {
-        let isChartResponseReceived = false;
         const reader = response.body.getReader();
-        let runningText = "";
+        let accumulatedContent = "";
         let hasError = false;
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = new TextDecoder("utf-8").decode(value);
-          try {
-            const textObj = JSON.parse(text);
-            if (textObj?.object?.data) {
-              runningText = text;
-              isChartResponseReceived = true;
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? "";
+
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if (textObj?.error) {
+                hasError = true;
+                accumulatedContent = line;
+                break;
+              }
+              const delta = textObj?.choices?.[0]?.delta;
+              if (delta?.role === "assistant" && delta?.content) {
+                accumulatedContent += delta.content;
+              }
+              // Skip tool citations for chart requests
+            } catch {
+              // Skip incomplete JSON chunks in stream
             }
-            if (textObj?.error) {
-              hasError = true;
-              runningText = text;
-            }
-          } catch (e) {
-            // Silently ignore parse errors for incomplete JSON chunks. This is expected during streaming
           }
 
+          if (hasError) {
+            console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
+          }
         }
         // END OF STREAMING
         if (hasError) {
-          const errorMsg = JSON.parse(runningText).error;
+          const errorMsg = accumulatedContent.startsWith("{")
+            ? JSON.parse(accumulatedContent).error
+            : accumulatedContent;
           const errorMessage: ChatMessage = {
             id: generateUUIDv4(),
             role: ERROR,
             content: errorMsg,
             date: new Date().toISOString(),
           };
-          updatedMessages = [newMessage, errorMessage];
-          dispatch({
-            type: actionConstants.UPDATE_MESSAGES,
-            payload: [errorMessage],
-          });
-          scrollChatToBottom();
-        } else if (isChartQuery(question)) {
-          try {
-            const parsedChartResponse = JSON.parse(runningText);
-            if (
-              "object" in parsedChartResponse &&
-              parsedChartResponse?.object?.type &&
-              parsedChartResponse?.object?.data
-            ) {
-              // CHART CHECKING
-              try {
-                const chartMessage: ChatMessage = {
-                  id: generateUUIDv4(),
-                  role: ASSISTANT,
-                  content:
-                    parsedChartResponse.object as unknown as ChartDataResponse,
-                  date: new Date().toISOString(),
-                };
-                updatedMessages = [newMessage, chartMessage];
-                // Update messages with the response content
-                dispatch({
-                  type: actionConstants.UPDATE_MESSAGES,
-                  payload: [chartMessage],
-                });
-                scrollChatToBottom();
-              } catch (e) {
-                console.error("Error handling assistant response:", e);
-                const chartMessage: ChatMessage = {
-                  id: generateUUIDv4(),
-                  role: ASSISTANT,
-                  content: "Error while generating Chart.",
-                  date: new Date().toISOString(),
-                };
-                updatedMessages = [newMessage, chartMessage];
-                dispatch({
-                  type: actionConstants.UPDATE_MESSAGES,
-                  payload: [chartMessage],
-                });
-                scrollChatToBottom();
-              }
-            } else if (
-              parsedChartResponse.error 
-            ) {
-              const errorMsg =
-                parsedChartResponse.error ||
-                parsedChartResponse?.object?.message;
-              const errorMessage: ChatMessage = {
-                id: generateUUIDv4(),
-                role: ERROR,
-                content: errorMsg,
-                date: new Date().toISOString(),
-              };
-              updatedMessages = [
-                ...state.chat.messages,
-                newMessage,
-                errorMessage,
-              ];
-              dispatch({
-                type: actionConstants.UPDATE_MESSAGES,
-                payload: [errorMessage],
-              });
-              scrollChatToBottom();
-            }
-          } catch (e) {
-            // Silently ignore parse errors for incomplete JSON chunks for chart response. This is expected during streaming
+          updatedMessages = isAutomatic ? [] : [newMessage, errorMessage];
+          if (!isAutomatic) {
+            dispatch({
+              type: actionConstants.UPDATE_MESSAGES,
+              payload: [errorMessage],
+            });
+            scrollChatToBottom();
           }
+        } else {
+          const chartResponse = parseChartResponse(accumulatedContent);
+          updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, isAutomatic);
         }
       }
-      saveToDB(updatedMessages, conversationId, 'graph');
+      // Only save to DB if not automatic or if a valid chart was produced
+      if (!isAutomatic || updatedMessages.length > 0) {
+        saveToDB(updatedMessages, conversationId, 'graph');
+      }
     } catch (e) {
       console.log("Caught with an error while chat and save", e);
       if (abortController.signal.aborted) {
@@ -354,10 +404,12 @@ const Chat: React.FC<ChatProps> = ({
           "@@@ Abort Signal detected: Formed updated msgs",
           updatedMessages
         );
-        saveToDB(updatedMessages, conversationId, 'graph');
+        if (!isAutomatic) {
+          saveToDB(updatedMessages, conversationId, 'graph');
+        }
       }
 
-      if (!abortController.signal.aborted) {
+      if (!abortController.signal.aborted && !isAutomatic) {
         if (e instanceof Error) {
           alert(e.message);
         } else {
@@ -367,12 +419,13 @@ const Chat: React.FC<ChatProps> = ({
         }
       }
     } finally {
-
-
-      dispatch({
-        type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
-        payload: false,
-      });
+      if (!isAutomatic) {
+        dispatch({
+          type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+          payload: false,
+        });
+      }
+      // Always reset streaming flag to prevent UI from getting stuck
       dispatch({
         type: actionConstants.UPDATE_STREAMING_FLAG,
         payload: false,
@@ -432,97 +485,75 @@ const Chat: React.FC<ChatProps> = ({
       );
 
       if (response?.body) {
-        let isChartResponseReceived = false;
         const reader = response.body.getReader();
-        let runningText = "";
+        const isChart = isChartQuery(userMessage);
         let hasError = false;
+        let errorLine = "";
+        let accumulatedContent = "";
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const text = new TextDecoder("utf-8").decode(value);
-          try {
-            const textObj = JSON.parse(text);
-            if (textObj?.object?.data) {
-              runningText = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.object?.message) {
-              runningText = text;
-              isChartResponseReceived = true;
-            }
-            if (textObj?.error) {
-              hasError = true;
-              runningText = text;
-            }
-          } catch (e) {
-            // Ignore - will process individual chunks after splitting
-          }
-          if (!isChartResponseReceived) {
-            //text based streaming response
-            const objects = text.split("\n").filter((val) => val !== "");
-            let answerText='';
-            let citationString ='';
-            let answerTextStart  = 0;
-            objects.forEach((textValue, index) => {
-              try {
-                if (textValue !== "" && textValue !== "{}") {
-                  const parsed: ParsedChunk = JSON.parse(textValue);
-                  if (parsed?.error && !hasError) {
-                    hasError = true;
-                    runningText = parsed?.error;
-                  } else if (isChartQuery(userMessage) && !hasError) {
-                    runningText = runningText + textValue;
-                  } else if (typeof parsed === "object" && !hasError) {
-                    const responseContent  = parsed?.choices?.[0]?.messages?.[0]?.content;
-                     
-                    const answerKey = `"answer":`;
-                    const answerStartIndex  = responseContent.indexOf(answerKey);
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? "";
 
-                    if (answerStartIndex  !== -1) {
-                      answerTextStart  =responseContent .indexOf(`"answer":`) +9;
-                    } 
-                 
-                    const citationsKey = `"citations":`;
-                    const citationsStartIndex = responseContent.indexOf(citationsKey);
-
-                    if(citationsStartIndex > answerTextStart ){
-                      answerText = responseContent .substring(answerTextStart, citationsStartIndex).trim();
-                      citationString = responseContent .substring(citationsStartIndex).trim();
-                    }else{
-                      answerText = responseContent .substring(answerTextStart).trim();
-                    }
-
-                      answerText = answerText.replace(/^"+|"+$|,$/g, '');// first ""
-                      answerText = answerText.replace(/[",]+$/, ''); // last ",
-                      answerText = answerText.replace(/\\n/g, "  \n");
-                    
-                    
-                    streamMessage.content = answerText || "";
-                    streamMessage.role =
-                      parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT;
-
-                    streamMessage.citations = citationString;
-                    dispatch({
-                      type: actionConstants.UPDATE_MESSAGE_BY_ID,
-                      payload: streamMessage,
-                    });
-                    scrollChatToBottom();
-                  }
-                }
-              } catch (e) {
-                // Skip incomplete JSON chunks in stream
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if (textObj?.error) {
+                hasError = true;
+                errorLine = line;
+                break;
               }
-            });
-            if (hasError) {
-              console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
-              break;
+              const delta = textObj?.choices?.[0]?.delta;
+              const deltaRole = delta?.role;
+              const deltaContent = delta?.content;
+
+              if (deltaRole === "tool" && deltaContent) {
+                streamMessage.citations = deltaContent;
+                if (!isChart) {
+                  dispatch({
+                    type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                    payload: streamMessage,
+                  });
+                }
+              } else if (deltaRole === "assistant" && deltaContent) {
+                accumulatedContent += deltaContent;
+                if (!isChart) {
+                  streamMessage.content = accumulatedContent;
+                  streamMessage.role = ASSISTANT;
+                  dispatch({
+                    type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                    payload: streamMessage,
+                  });
+                  scrollChatToBottom();
+                }
+              }
+            } catch {
+              // Skip incomplete JSON chunks in stream
             }
+          }
+
+          if (hasError) {
+            console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
           }
         }
         // END OF STREAMING
         if (hasError) {
-          const errorMsg = JSON.parse(runningText).error === "Attempted to access streaming response content, without having called `read()`."?"An error occurred. Please try again later.": JSON.parse(runningText).error;
-          
+          let errorMsg: string;
+          try {
+            const parsed = JSON.parse(errorLine);
+            errorMsg = parsed.error === "Attempted to access streaming response content, without having called `read()`."
+              ? "An error occurred. Please try again later."
+              : parsed.error;
+          } catch {
+            errorMsg = errorLine;
+          }
           const errorMessage: ChatMessage = {
             id: generateUUIDv4(),
             role: ERROR,
@@ -535,99 +566,10 @@ const Chat: React.FC<ChatProps> = ({
             payload: [errorMessage],
           });
           scrollChatToBottom();
-        } else if (isChartQuery(userMessage)) {
-          try {
-            const splitRunningText = runningText.split("}{");
-            let parsedChartResponse: any = {};
-            parsedChartResponse= JSON.parse("{" + splitRunningText[splitRunningText.length - 1]);
-            let chartResponse : any = {};
-            try {
-              chartResponse = JSON.parse(parsedChartResponse?.choices[0]?.messages[0]?.content)
-            } catch (e) {
-              chartResponse = parsedChartResponse?.choices[0]?.messages[0]?.content;
-            }
-            
-            if (typeof chartResponse === 'object' &&  'answer' in chartResponse) {
-              if (
-                chartResponse.answer === "" ||
-                chartResponse.answer === undefined ||
-                (typeof chartResponse.answer === "object" && Object.keys(chartResponse.answer).length === 0)
-              ) {
-                chartResponse = "Chart can't be generated, please try again.";
-              } else {
-                chartResponse = chartResponse.answer;
-              }
-            }
-            
-            if (
-              chartResponse?.type &&
-              chartResponse?.data
-            ) {
-              // CHART CHECKING
-              try {
-                const chartMessage: ChatMessage = {
-                  id: generateUUIDv4(),
-                  role: ASSISTANT,
-                  content:
-                    chartResponse as unknown as ChartDataResponse,
-                  date: new Date().toISOString(),
-                };
-                updatedMessages = [newMessage, chartMessage];
-                // Update messages with the response content
-                dispatch({
-                  type: actionConstants.UPDATE_MESSAGES,
-                  payload: [chartMessage],
-                });
-                scrollChatToBottom();
-              } catch (e) {
-                console.error("Error handling assistant response:", e);
-                const chartMessage: ChatMessage = {
-                  id: generateUUIDv4(),
-                  role: ASSISTANT,
-                  content: "Error while generating Chart.",
-                  date: new Date().toISOString(),
-                };
-                updatedMessages = [newMessage, chartMessage];
-                dispatch({
-                  type: actionConstants.UPDATE_MESSAGES,
-                  payload: [chartMessage],
-                });
-                scrollChatToBottom();
-              }
-            } else if (
-              parsedChartResponse?.error ||
-              parsedChartResponse?.choices[0]?.messages[0]?.content
-            ) {
-              let content = parsedChartResponse?.choices[0]?.messages[0]?.content;
-              let displayContent = content;
-              try {
-                const parsed = typeof content === "string" ? JSON.parse(content) : content;
-                if (parsed && typeof parsed === "object" && "answer" in parsed) {
-                  displayContent = parsed.answer;
-                }
-              } catch {
-                displayContent = content;
-              }
-              const errorMsg =
-                parsedChartResponse?.error ||
-                parsedChartResponse?.choices[0]?.messages[0]?.content
-              const errorMessage: ChatMessage = {
-                id: generateUUIDv4(),
-                role: ERROR,
-                content: errorMsg,
-                date: new Date().toISOString(),
-              };
-              updatedMessages = [newMessage, errorMessage];
-              dispatch({
-                type: actionConstants.UPDATE_MESSAGES,
-                payload: [errorMessage],
-              });
-              scrollChatToBottom();
-            }
-          } catch (e) {
-            console.log("Error while parsing charts response", e);
-          }
-        } else if (!isChartResponseReceived) {
+        } else if (isChart) {
+          const chartResponse = parseChartResponse(accumulatedContent);
+          updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage);
+        } else {
           updatedMessages = [newMessage, streamMessage];
         }
       }
