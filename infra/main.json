@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "8063559554038132231"
+      "templateHash": "1513217229588073092"
     }
   },
   "parameters": {
@@ -56,7 +56,7 @@
           "type": "location",
           "usageName": [
             "OpenAI.GlobalStandard.gpt-4o-mini,150",
-            "OpenAI.GlobalStandard.text-embedding-ada-002,80"
+            "OpenAI.GlobalStandard.text-embedding-3-small,80"
           ]
         },
         "description": "Required. Location for AI Foundry deployment. This is the location where the AI Foundry resources will be deployed."
@@ -153,9 +153,9 @@
     },
     "embeddingModel": {
       "type": "string",
-      "defaultValue": "text-embedding-ada-002",
+      "defaultValue": "text-embedding-3-small",
       "allowedValues": [
-        "text-embedding-ada-002"
+        "text-embedding-3-small"
       ],
       "minLength": 1,
       "metadata": {
@@ -400,7 +400,7 @@
           "name": "GlobalStandard",
           "capacity": "[parameters('embeddingDeploymentCapacity')]"
         },
-        "version": "2",
+        "version": "1",
         "raiPolicyName": "Microsoft.Default"
       }
     ],
@@ -28303,9 +28303,9 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "virtualNetwork"
       ]
     },
@@ -31600,9 +31600,9 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "cognitiveServicesCu",
         "virtualNetwork"
       ]
@@ -41911,10 +41911,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -57645,6 +57645,11 @@
           },
           "serverFarmResourceId": {
             "value": "[reference('webServerFarm').outputs.resourceId.value]"
+          },
+          "managedIdentities": {
+            "value": {
+              "systemAssigned": true
+            }
           },
           "siteConfig": {
             "value": {

@@ -36,7 +36,7 @@ param location string
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
 })
@@ -97,9 +97,9 @@ param gptDeploymentCapacity int = 150
 @minLength(1)
 @description('Optional. Name of the Text Embedding model to deploy.')
 @allowed([
-  'text-embedding-ada-002'
+  'text-embedding-3-small'
 ])
-param embeddingModel string = 'text-embedding-ada-002'
+param embeddingModel string = 'text-embedding-3-small'
 
 @minValue(10)
 @description('Optional. Capacity of the Embedding Model deployment.')
@@ -563,7 +563,7 @@ var aiModelDeployments = [
       name: 'GlobalStandard'
       capacity: embeddingDeploymentCapacity
     }
-    version: '2'
+    version: '1'
     raiPolicyName: 'Microsoft.Default'
   }
 ]
