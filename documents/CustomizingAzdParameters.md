@@ -18,7 +18,7 @@ By default this template will use the environment name as the prefix to prevent 
 | `AZURE_ENV_GPT_MODEL_NAME`          | string  | `gpt-4o-mini`            | Specifies the GPT model name (e.g., `gpt-4`, `gpt-4o-mini`).               |
 | `AZURE_ENV_GPT_MODEL_VERSION`                 | string  | `2024-07-18`             | Sets the Azure model version (allowed: `2024-08-06`, etc.).                |
 | `AZURE_ENV_GPT_MODEL_CAPACITY` | integer | `30`                     | Sets the GPT model capacity.                                               |
-| `AZURE_ENV_EMBEDDING_MODEL_NAME`            | string  | `text-embedding-ada-002` | Sets the name of the embedding model to use.                               |
+| `AZURE_ENV_EMBEDDING_MODEL_NAME`            | string  | `text-embedding-3-small` | Sets the name of the embedding model to use.                               |
 | `AZURE_ENV_IMAGE_TAG`                      | string  | `latest_afv2`        | Sets the image tag (`latest_afv2`, `dev`, `hotfix`, etc.).   |
 | `AZURE_ENV_EMBEDDING_DEPLOYMENT_CAPACITY`   | integer | `80`                     | Sets the capacity for the embedding model deployment.                      |
 | `AZURE_ENV_LOG_ANALYTICS_WORKSPACE_RID`    | string  | Guide to get your [Existing Workspace ID](/documents/re-use-log-analytics.md)            | Reuses an existing Log Analytics Workspace instead of creating a new one.  |

@@ -16,7 +16,7 @@ Use one of the following scripts based on your needs:
     ```sh
     curl -L -o quota_check_params.sh "https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/infra/scripts/quota_check_params.sh"
     chmod +x quota_check_params.sh
-    ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
+    ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-3-small:20 eastus)
     ```
     
 ## **If using VS Code or Codespaces**
@@ -26,7 +26,7 @@ Use one of the following scripts based on your needs:
    **To check quota for a specific model and capacity:**  
 
     ```sh
-    ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
+    ./quota_check_params.sh <model_name:capacity> [<model_region>] (e.g., gpt-4o-mini:30,text-embedding-3-small:20 eastus)
     ```
 
 2. If you see the error `_bash: az: command not found_`, install Azure CLI:  
@@ -38,5 +38,5 @@ Use one of the following scripts based on your needs:
 3. Rerun the script after installing Azure CLI.
    
     **Parameters**
-    - `<model_name:capacity>`: The name and required capacity for each model, in the format model_name:capacity (**e.g., gpt-4o-mini:30,text-embedding-ada-002:20**).
+    - `<model_name:capacity>`: The name and required capacity for each model, in the format model_name:capacity (**e.g., gpt-4o-mini:30,text-embedding-3-small:20**).
     - `[<model_region>] (optional)`: The Azure region to check first. If not provided, all supported regions will be checked (**e.g., eastus**).
