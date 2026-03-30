@@ -1515,9 +1515,6 @@ output ACR_NAME string = acrName
 @description('Contains Azure environment image tag.')
 output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 
-@description('Contains existing AI project resource ID.')
-output AZURE_ENV_FOUNDRY_PROJECT_RID string = existingAiFoundryAiProjectResourceId
-
 @description('Contains Application Insights connection string.')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
 
