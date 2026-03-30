@@ -72,9 +72,6 @@
     "nth-check": "$nth-check",
     "flatted": "^3.4.2",
     "node-forge": "^1.4.0",
-    "@types/jest": {
-      "picomatch": "^4.0.4"
-    },
     "react-scripts": {
       "picomatch": "^4.0.4"
     },
