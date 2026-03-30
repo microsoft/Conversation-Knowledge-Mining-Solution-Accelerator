@@ -2,19 +2,42 @@
 Custom OpenTelemetry SpanProcessor filters to reduce telemetry noise in Application Insights.
 """
 
+import logging
+from urllib.parse import urlparse
+
 from opentelemetry.sdk.trace import SpanProcessor, ReadableSpan
 from opentelemetry.trace import SpanContext, TraceFlags
+
+logger = logging.getLogger(__name__)
 
 
 def _unsample(span: ReadableSpan) -> None:
     """Set trace_flags to 0 so BatchSpanProcessor skips exporting this span."""
-    span._context = SpanContext(
-        trace_id=span.context.trace_id,
-        span_id=span.context.span_id,
-        is_remote=span.context.is_remote,
-        trace_flags=TraceFlags(0),
-        trace_state=span.context.trace_state,
-    )
+    try:
+        span._context = SpanContext(
+            trace_id=span.context.trace_id,
+            span_id=span.context.span_id,
+            is_remote=span.context.is_remote,
+            trace_flags=TraceFlags(0),
+            trace_state=span.context.trace_state,
+        )
+    except (AttributeError, TypeError) as e:
+        # Gracefully handle SDK changes where _context might not be mutable
+        logger.debug("Unable to unsample span %s: %s", span.name, e)
+
+
+def _is_cosmos_host(span_name: str) -> bool:
+    """
+    Safely determine if the span name contains a Cosmos DB host.
+    """
+    try:
+        parsed = urlparse(span_name)
+        host = parsed.hostname or ""
+
+        return host == "documents.azure.com" or host.endswith(".documents.azure.com")
+    except Exception as e:
+        logger.debug("Failed to parse span name '%s': %s", span_name, e)
+        return False
 
 
 class DropASGIResponseBodySpanProcessor(SpanProcessor):
@@ -62,9 +85,10 @@ class DropCosmosDependencySpanProcessor(SpanProcessor):
 
     def on_end(self, span: ReadableSpan) -> None:
         attrs = span.attributes or {}
+        span_name = span.name or ""
         if (
             attrs.get("db.system") == "cosmosdb"
-            or "documents.azure.com" in (span.name or "")
+            or _is_cosmos_host(span_name)
         ):
             _unsample(span)
 

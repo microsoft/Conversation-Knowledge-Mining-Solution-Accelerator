@@ -12,13 +12,13 @@ import logging
 import os
 import random
 import re
+from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
 from fastapi import HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from azure.ai.projects.aio import AIProjectClient
 
@@ -116,9 +116,12 @@ class ChatService:
             thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
         return thread_cache
 
-    async def stream_openai_text(self, conversation_id: str, query: str, user_id: str = "") -> StreamingResponse:
+    async def stream_openai_text(self, conversation_id: str, query: str, user_id: str = "") -> AsyncGenerator[tuple[str, str], None]:
         """
         Get a streaming text response from OpenAI.
+
+        Yields:
+            tuple[str, str]: (role, content) tuples where role is "assistant" or "tool"
         """
         logger.info("stream_openai_text called: conversation_id=%s, query_length=%d",
                     conversation_id, len(query) if query else 0)
@@ -128,6 +131,7 @@ class ChatService:
         ):
             complete_response = ""
             db_conn = None
+            had_error = False
             try:
                 if not query:
                     query = "Please provide a query."
@@ -154,7 +158,6 @@ class ChatService:
                 logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
                 citations = []
-                first_chunk = True
                 citation_marker_map = {}  # Maps original markers to sequential numbers
                 citation_counter = 0
 
@@ -185,17 +188,12 @@ class ChatService:
 
                     chunk_text = str(chunk.text) if chunk.text else ""
 
-                    # Replace complete citation markers like 【4:0†source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†[^】]+】', replace_citation_marker, chunk_text)
+                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
 
                     if chunk_text:
                         complete_response += chunk_text
-                        if first_chunk:
-                            first_chunk = False
-                            logger.info("First chunk received for conversation %s, streaming response", conversation_id)
-                            yield "{ \"answer\": " + chunk_text
-                        else:
-                            yield chunk_text
+                        yield ("assistant", chunk_text)
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
@@ -208,6 +206,7 @@ class ChatService:
                 })
                 cache[conversation_id] = thread_conversation_id
 
+                citation_json = "[]"
                 if citations:
                     citation_list = []
                     seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
@@ -233,13 +232,11 @@ class ChatService:
                         if doc_id:
                             seen_doc_ids.add(doc_id)
 
-                        citation_list.append(json.dumps({"url": url, "title": title}))
-                    yield ", \"citations\": [" + ",".join(citation_list) + "]}"
-                else:
-                    yield ", \"citations\": []}"
+                        citation_list.append({"url": url, "title": title})
+                    citation_json = json.dumps(citation_list)
 
             except Exception as e:
-                complete_response = str(e)
+                had_error = True
                 logger.exception("Error in stream_openai_text: %s", e)
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.pop(conversation_id, None)
@@ -267,10 +264,14 @@ class ChatService:
                         db_conn.close()
                     except Exception:
                         pass
-                # Provide a fallback response when no data is received from OpenAI.
-                if complete_response == "":
-                    logger.info("No response received from OpenAI.")
-                    yield "I cannot answer this question with the current data. Please rephrase or add more details."
+
+                # Only emit fallback and tool citations if no error occurred
+                if not had_error:
+                    if complete_response == "":
+                        logger.info("No response received from OpenAI.")
+                        yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
+
+                    yield ("tool", citation_json)
 
     async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """
@@ -280,20 +281,15 @@ class ChatService:
 
         async def generate():
             try:
-                assistant_content = ""
-                async for chunk in self.stream_openai_text(conversation_id, query, user_id=user_id):
-                    if isinstance(chunk, dict):
-                        chunk = json.dumps(chunk)  # Convert dict to JSON string
-                    assistant_content += str(chunk)
-
-                    if assistant_content:
-                        # Optimized response - only send fields used by frontend
+                async for role, content in self.stream_openai_text(conversation_id, query, user_id=user_id):
+                    if content:
                         response = {
                             "choices": [
                                 {
-                                    "messages": [
-                                        {"role": "assistant", "content": assistant_content}
-                                    ]
+                                    "delta": {
+                                        "role": role,
+                                        "content": content
+                                    }
                                 }
                             ]
                         }
