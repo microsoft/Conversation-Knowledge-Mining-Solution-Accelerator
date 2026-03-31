@@ -21,9 +21,9 @@ By default this template will use the environment name as the prefix to prevent 
 | `AZURE_ENV_EMBEDDING_MODEL_NAME`            | string  | `text-embedding-3-small` | Sets the name of the embedding model to use.                               |
 | `AZURE_ENV_IMAGE_TAG`                      | string  | `latest_afv2`        | Sets the image tag (`latest_afv2`, `dev`, `hotfix`, etc.).   |
 | `AZURE_ENV_EMBEDDING_DEPLOYMENT_CAPACITY`   | integer | `80`                     | Sets the capacity for the embedding model deployment.                      |
-| `AZURE_ENV_LOG_ANALYTICS_WORKSPACE_RID`    | string  | Guide to get your [Existing Workspace ID](/documents/re-use-log-analytics.md)            | Reuses an existing Log Analytics Workspace instead of creating a new one.  |
+| `AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID`    | string  | Guide to get your [Existing Workspace ID](/documents/re-use-log-analytics.md)            | Reuses an existing Log Analytics Workspace instead of creating a new one.  |
 | `USE_LOCAL_BUILD`    | string  | `false`           | Indicates whether to use a local container build for deployment.  |
-| `AZURE_ENV_FOUNDRY_PROJECT_RID`    | string  | `<Existing AI Project resource Id>`            | Reuses an existing AIFoundry and AIFoundryProject instead of creating a new one.  |
+| `AZURE_EXISTING_AIPROJECT_RESOURCE_ID`    | string  | `<Existing AI Project resource Id>`            | Reuses an existing AIFoundry and AIFoundryProject instead of creating a new one.  |
 | `AZURE_ENV_VM_ADMIN_USERNAME`  | string | `take(newGuid(), 20)`               | The administrator username for the virtual machine.         |
 | `AZURE_ENV_VM_ADMIN_PASSWORD`  | string | `newGuid()`               | The administrator password for the virtual machine.         |
 | `AZURE_ENV_VM_SIZE`  | string | `Standard_D2s_v5`               | The size/SKU of the Jumpbox Virtual Machine (e.g., `Standard_D2s_v5`, `Standard_DS2_v2`).         |

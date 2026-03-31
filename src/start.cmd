@@ -119,7 +119,7 @@ for /f "tokens=1,* delims==" %%A in ('type "%ENV_FILE_FOR_ROLES%"') do (
     if "%%A"=="AZURE_COSMOSDB_ACCOUNT" set AZURE_COSMOSDB_ACCOUNT=%%~B
     if "%%A"=="AZURE_AI_FOUNDRY_NAME" set "AI_FOUNDRY_NAME=%%~B"
     if "%%A"=="AZURE_AI_SEARCH_NAME" set "SEARCH_SERVICE_NAME=%%~B"
-    if "%%A"=="AZURE_ENV_FOUNDRY_PROJECT_RID" set "EXISTING_AI_PROJECT_RESOURCE_ID=%%~B"
+    if "%%A"=="AZURE_EXISTING_AIPROJECT_RESOURCE_ID" set "EXISTING_AI_PROJECT_RESOURCE_ID=%%~B"
     if "%%A"=="SQLDB_SERVER" (
         set SQLDB_SERVER=%%~B
         for /f "tokens=1 delims=." %%C in ("%%~B") do set SQLDB_SERVER_NAME=%%C

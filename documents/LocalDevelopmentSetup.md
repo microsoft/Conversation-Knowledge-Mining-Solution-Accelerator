@@ -528,7 +528,7 @@ AZURE_AI_PROJECT_CONN_STRING=<ai-project-connection-string>
 AZURE_AI_AGENT_API_VERSION=2024-11-01-preview
 AZURE_AI_PROJECT_NAME=<ai-project-name>
 AZURE_AI_FOUNDRY_NAME=<ai-foundry-resource-name>
-AZURE_ENV_FOUNDRY_PROJECT_RID=<ai-project-resource-id>
+AZURE_EXISTING_AIPROJECT_RESOURCE_ID=<ai-project-resource-id>
 AZURE_AI_AGENT_ENDPOINT=<ai-agent-endpoint>
 AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=<agent-model-deployment>
 
