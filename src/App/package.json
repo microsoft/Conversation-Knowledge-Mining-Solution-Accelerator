@@ -70,6 +70,11 @@
   "overrides": {
     "d3-color": "$d3-color",
     "nth-check": "$nth-check",
+    "flatted": "^3.4.2",
+    "node-forge": "^1.4.0",
+    "react-scripts": {
+      "picomatch": "^4.0.4"
+    },
     "serialize-javascript": "^7.0.3",
     "bfj": "^9.1.3"
   }
