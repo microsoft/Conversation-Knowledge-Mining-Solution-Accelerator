@@ -528,7 +528,7 @@ AZURE_AI_PROJECT_CONN_STRING=<ai-project-connection-string>
 AZURE_AI_AGENT_API_VERSION=2024-11-01-preview
 AZURE_AI_PROJECT_NAME=<ai-project-name>
 AZURE_AI_FOUNDRY_NAME=<ai-foundry-resource-name>
-AZURE_EXISTING_AI_PROJECT_RESOURCE_ID=<ai-project-resource-id>
+AZURE_EXISTING_AIPROJECT_RESOURCE_ID=<ai-project-resource-id>
 AZURE_AI_AGENT_ENDPOINT=<ai-agent-endpoint>
 AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=<agent-model-deployment>
 
@@ -543,14 +543,6 @@ AZURE_AI_SEARCH_ENDPOINT=<search-endpoint>
 AZURE_AI_SEARCH_INDEX=call_transcripts_index
 AZURE_AI_SEARCH_CONNECTION_NAME=<search-connection-name>
 AZURE_AI_SEARCH_NAME=<search-service-name>
-
-# Azure OpenAI Configuration
-AZURE_OPENAI_DEPLOYMENT_MODEL=<model-deployment-name>
-AZURE_OPENAI_ENDPOINT=<openai-endpoint>
-AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE=<deployment-type>
-AZURE_OPENAI_EMBEDDING_MODEL=<embedding-model-name>
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
-AZURE_OPENAI_RESOURCE=<openai-resource-name>
 
 # Cosmos DB Configuration
 AZURE_COSMOSDB_ACCOUNT=<cosmos-account-name>

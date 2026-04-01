@@ -5,6 +5,6 @@
 3. **Go to** the `Management Center` from the bottom-left navigation menu.  
 4. Select `Quota`  
    - Click on the `GlobalStandard` dropdown.  
-   - Select the required **GPT model** (`GPT-4, GPT-4o, GPT-4o Mini`) or **Embeddings model** (`text-embedding-ada-002`).  
+   - Select the required **GPT model** (`GPT-4, GPT-4o, GPT-4o Mini`) or **Embeddings model** (`text-embedding-3-small`).  
    - Choose the **region** where the deployment is hosted.  
 5. Request More Quota or delete any unused model deployments as needed.  
