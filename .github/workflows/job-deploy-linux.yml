@@ -28,7 +28,7 @@ on:
         required: false
         type: string
         default: 'false'
-      AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID:
+      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
         required: false
         type: string
       AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
@@ -68,7 +68,7 @@ jobs:
           INPUT_BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           INPUT_EXP: ${{ inputs.EXP }}
           INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
-          INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
+          INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
           INPUT_AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
@@ -157,15 +157,15 @@ jobs:
             echo "✅ WAF_ENABLED: '$INPUT_WAF_ENABLED' is valid"
           fi
           
-          # Validate AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID (optional, if provided must be valid Resource ID)
-          if [[ -n "$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" ]]; then
-            if [[ ! "$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/[Mm]icrosoft\.[Oo]perational[Ii]nsights/[Ww]orkspaces/[^/]+$ ]]; then
-              echo "❌ ERROR: AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID is invalid. Must be a valid Azure Resource ID format:"
+          # Validate AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID (optional, if provided must be valid Resource ID)
+          if [[ -n "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
+            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/[Mm]icrosoft\.[Oo]perational[Ii]nsights/[Ww]orkspaces/[^/]+$ ]]; then
+              echo "❌ ERROR: AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}"
-              echo "   Got: '$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID'"
+              echo "   Got: '$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID'"
               VALIDATION_FAILED=true
             else
-              echo "✅ AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: Valid Resource ID format"
+              echo "✅ AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: Valid Resource ID format"
             fi
           fi
           
@@ -240,7 +240,7 @@ jobs:
           IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
           BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           EXP: ${{ inputs.EXP }}
-          AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
+          AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
           AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
           AZURE_ENV_USE_CASE: ${{ inputs.AZURE_ENV_USE_CASE }}
         run: |
@@ -278,10 +278,10 @@ jobs:
           if [[ "$EXP" == "true" ]]; then
             echo "✅ EXP ENABLED - Setting EXP parameters..."
             
-            if [[ -n "$AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" ]]; then
-              EXP_LOG_ANALYTICS_ID="$AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID"
+            if [[ -n "$AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
+              EXP_LOG_ANALYTICS_ID="$AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID"
             else
-              EXP_LOG_ANALYTICS_ID="${{ secrets.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}"
+              EXP_LOG_ANALYTICS_ID="${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}"
             fi
             
             if [[ -n "$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
@@ -290,9 +290,9 @@ jobs:
               EXP_AI_PROJECT_ID="${{ secrets.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}"
             fi
             
-            echo "AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: $EXP_LOG_ANALYTICS_ID"
+            echo "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
             echo "AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: $EXP_AI_PROJECT_ID"
-            azd env set AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID="$EXP_LOG_ANALYTICS_ID"
+            azd env set AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID="$EXP_LOG_ANALYTICS_ID"
             azd env set AZURE_EXISTING_AI_PROJECT_RESOURCE_ID="$EXP_AI_PROJECT_ID"
           else
             echo "❌ EXP DISABLED - Skipping EXP parameters"
