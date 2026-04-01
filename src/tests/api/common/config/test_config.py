@@ -11,10 +11,6 @@ def mock_env_vars():
         "SQLDB_SERVER": "test_server",
         "SQLDB_USERNAME": "test_user",
         "SQLDB_USER_MID": "test_mid",
-        "AZURE_OPENAI_ENDPOINT": "https://openai.test",
-        "AZURE_OPENAI_DEPLOYMENT_MODEL": "gpt-4",
-        "AZURE_OPENAI_API_VERSION": "2023-03-15-preview",
-        "AZURE_OPENAI_RESOURCE": "test_resource",
         "AZURE_AI_SEARCH_ENDPOINT": "https://search.test",
         "AZURE_AI_SEARCH_API_KEY": "search_key",
         "AZURE_AI_SEARCH_INDEX": "test_index",
@@ -38,12 +34,6 @@ def test_config_initialization(mock_env_vars):
         assert config.sqldb_username == "test_user"
         assert config.driver == "{ODBC Driver 18 for SQL Server}"
         assert config.mid_id == "test_mid"
-
-        # Azure OpenAI config
-        assert config.azure_openai_endpoint == "https://openai.test"
-        assert config.azure_openai_deployment_model == "gpt-4"
-        assert config.azure_openai_api_version == "2023-03-15-preview"
-        assert config.azure_openai_resource == "test_resource"
 
         # Azure AI Search config
         assert config.azure_ai_search_endpoint == "https://search.test"
