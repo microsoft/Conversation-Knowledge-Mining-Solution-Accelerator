@@ -42,7 +42,7 @@ on:
         required: false
         default: 'GoldenPath-Testing'
         type: string
-      azure_env_log_analytics_workspace_id:
+      azure_env_existing_log_analytics_workspace_rid:
         description: 'Log Analytics Workspace ID (Optional)'
         required: false
         default: ''
@@ -91,7 +91,7 @@ jobs:
       exp: ${{ inputs.exp }}
       build_docker_image: ${{ inputs.build_docker_image }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}
-      azure_env_log_analytics_workspace_id: ${{ inputs.azure_env_log_analytics_workspace_id }}
+      azure_env_existing_log_analytics_workspace_rid: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
       azure_existing_ai_project_resource_id: ${{ inputs.azure_existing_ai_project_resource_id }}
       azure_env_use_case: ${{ inputs.azure_env_use_case }}
       docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
