@@ -1,49 +1,54 @@
-name: Deploy to Azure
+name: Azure Dev Deploy
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches:
-  #     - main
 
-# Set up permissions for deploying with secretless Azure federated credentials
-# https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure?tabs=azure-portal%2Clinux#set-up-azure-login-with-openid-connect-authentication
 permissions:
-  id-token: write
   contents: read
+  id-token: write
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     environment: production
     env:
-      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_ENV_OPENAI_LOCATION: ${{ vars.AZURE_ENV_OPENAI_LOCATION || 'eastus2' }}
+      AZURE_ENV_AI_SERVICE_LOCATION: ${{ vars.AZURE_LOCATION || 'eastus2' }}
       AZURE_ENV_USE_CASE: ${{ vars.AZURE_ENV_USE_CASE || 'telecom' }}
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
       - name: Install azd
-        uses: Azure/setup-azd@v2.0.0
+        uses: Azure/setup-azd@v2
 
-      - name: Log in with Azure (Federated Credentials)
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to AZD
+        shell: bash
         run: |
-          azd auth login `
-            --client-id "$Env:AZURE_CLIENT_ID" `
-            --federated-credential-provider "github" `
-            --tenant-id "$Env:AZURE_TENANT_ID"
-        shell: pwsh
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider "github" \
+            --tenant-id "$AZURE_TENANT_ID"
 
-      - name: Provision Infrastructure
-        run: azd provision --no-prompt
-        env:
-          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
-
-      - name: Deploy Application
-        run: azd deploy --no-prompt
+      - name: Provision and Deploy
+        shell: bash
+        run: |
+          if ! azd env select "$AZURE_ENV_NAME"; then
+            azd env new "$AZURE_ENV_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" --location "$AZURE_LOCATION" --no-prompt
+          fi
+          azd config set defaults.subscription "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_ENV_AI_SERVICE_LOCATION="$AZURE_ENV_AI_SERVICE_LOCATION"
+          azd env set AZURE_ENV_USE_CASE="$AZURE_ENV_USE_CASE"
+          azd up --no-prompt
