@@ -30,7 +30,7 @@ jobs:
           AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
           AZURE_ENV_AI_SERVICE_LOCATION: ${{ vars.AZURE_ENV_AI_SERVICE_LOCATION || 'eastus2' }}
-          AZURE_ENV_USE_CASE: ${{ vars.AZURE_ENV_USE_CASE || 'telecom' }}
+          USE_CASE: ${{ vars.USE_CASE || 'telecom' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
 
