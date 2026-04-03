@@ -299,7 +299,7 @@ jobs:
         env:
           INPUT_EXP: ${{ inputs.EXP }}
           INPUT_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
-          INPUT_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}
+          INPUT_AI_PROJECT_RESOURCE_ID: ${{ inputs.azure_existing_aiproject_resource_id }}
         run: |
           echo "🔍 Validating EXP configuration..."
           
