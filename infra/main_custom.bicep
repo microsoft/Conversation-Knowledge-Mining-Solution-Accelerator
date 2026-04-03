@@ -36,7 +36,7 @@ param location string
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
 })
@@ -79,9 +79,6 @@ param gptModelName string = 'gpt-4o-mini'
 @description('Optional. Version of the GPT model to deploy.')
 param gptModelVersion string = '2024-07-18'
 
-@description('Optional. Version of the Azure OpenAI API.')
-param azureOpenAIApiVersion string = '2025-01-01-preview'
-
 @description('Optional. Version of AI Agent API.')
 param azureAiAgentApiVersion string = '2025-05-01'
 
@@ -97,9 +94,9 @@ param gptDeploymentCapacity int = 150
 @minLength(1)
 @description('Optional. Name of the Text Embedding model to deploy.')
 @allowed([
-  'text-embedding-ada-002'
+  'text-embedding-3-small'
 ])
-param embeddingModel string = 'text-embedding-ada-002'
+param embeddingModel string = 'text-embedding-3-small'
 
 @minValue(10)
 @description('Optional. Capacity of the Embedding Model deployment.')
@@ -150,7 +147,7 @@ param vmAdminUsername string?
 param vmAdminPassword string?
 
 @description('Optional. Size of the Jumpbox Virtual Machine when created. Set to custom value if enablePrivateNetworking is true.')
-param vmSize string = 'Standard_DS2_v2'
+param vmSize string = 'Standard_D2s_v5'
 
 @description('Optional: Existing Log Analytics Workspace Resource ID')
 param existingLogAnalyticsWorkspaceId string = ''
@@ -384,7 +381,7 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
   name: take('avm.res.compute.virtual-machine.${jumpboxVmName}', 64)
   params: {
     name: take(jumpboxVmName, 15) // Shorten VM name to 15 characters to avoid Azure limits
-    vmSize: vmSize ?? 'Standard_DS2_v2'
+    vmSize: vmSize ?? 'Standard_D2s_v5'
     location: location
     adminUsername: vmAdminUsername ?? 'JumpboxAdminUser'
     adminPassword: vmAdminPassword ?? 'JumpboxAdminP@ssw0rd1234!'
@@ -563,7 +560,7 @@ var aiModelDeployments = [
       name: 'GlobalStandard'
       capacity: embeddingDeploymentCapacity
     }
-    version: '2'
+    version: '1'
     raiPolicyName: 'Microsoft.Default'
   }
 ]
@@ -636,31 +633,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
     // WAF aligned configuration for Monitoring
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: (enablePrivateNetworking &&  empty(existingAiFoundryAiProjectResourceId))
-      ? ([
-          {
-            name: 'pep-${aiFoundryAiServicesResourceName}'
-            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
-            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                {
-                  name: 'ai-services-dns-zone-cognitiveservices'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-                }
-                {
-                  name: 'ai-services-dns-zone-openai'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
-                }
-                {
-                  name: 'ai-services-dns-zone-aiservices'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
-                }
-              ]
-            }
-          }
-        ])
-      : []
+    privateEndpoints: []
     deployments: [
       for aiModelDeployment in aiModelDeployments: {
         name: aiModelDeployment.name
@@ -676,6 +649,43 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
         }
       }
     ]
+  }
+}
+
+// ========== AI Foundry: Separate Private Endpoint ========== //
+module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.1' = if (enablePrivateNetworking && !useExistingAiFoundryAiProject) {
+  name: take('pep-${aiFoundryAiServicesResourceName}-deployment', 64)
+  params: {
+    name: 'pep-${aiFoundryAiServicesResourceName}'
+    customNetworkInterfaceName: 'nic-${aiFoundryAiServicesResourceName}'
+    location: location
+    tags: tags
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-${aiFoundryAiServicesResourceName}-connection'
+        properties: {
+          privateLinkServiceId: aiFoundryAiServices!.outputs.resourceId
+          groupIds: ['account']
+        }
+      }
+    ]
+    privateDnsZoneGroup: {
+      privateDnsZoneGroupConfigs: [
+        {
+          name: 'ai-services-dns-zone-cognitiveservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-openai'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-aiservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
+        }
+      ]
+    }
+    subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
   }
 }
 
@@ -704,31 +714,7 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
       // staticsEnabled: false
     }
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: (enablePrivateNetworking)
-      ? ([
-          {
-            name: 'pep-${aiFoundryAiServicesCUResourceName}'
-            customNetworkInterfaceName: 'nic-${aiFoundryAiServicesCUResourceName}'
-            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-            privateDnsZoneGroup: {
-              privateDnsZoneGroupConfigs: [
-                {
-                  name: 'ai-services-cu-dns-zone-cognitiveservices'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-                }
-                {
-                  name: 'ai-services-cu-dns-zone-openai'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
-                }
-                {
-                  name: 'ai-services-cu-dns-zone-aiservices'
-                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
-                }
-              ]
-            }
-          }
-        ])
-      : []
+    privateEndpoints: []
     roleAssignments: [
       {
         roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
@@ -736,6 +722,43 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
         principalType: 'ServicePrincipal'
       }
     ]
+  }
+}
+
+// ========== AI Services CU: Separate Private Endpoint ========== //
+module cognitiveServicesCuPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.1' = if (enablePrivateNetworking) {
+  name: take('pep-${aiFoundryAiServicesCUResourceName}-deployment', 64)
+  params: {
+    name: 'pep-${aiFoundryAiServicesCUResourceName}'
+    customNetworkInterfaceName: 'nic-${aiFoundryAiServicesCUResourceName}'
+    location: location
+    tags: tags
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-${aiFoundryAiServicesCUResourceName}-connection'
+        properties: {
+          privateLinkServiceId: cognitiveServicesCu.outputs.resourceId
+          groupIds: ['account']
+        }
+      }
+    ]
+    privateDnsZoneGroup: {
+      privateDnsZoneGroupConfigs: [
+        {
+          name: 'ai-services-cu-dns-zone-cognitiveservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-cu-dns-zone-openai'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-cu-dns-zone-aiservices'
+          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
+        }
+      ]
+    }
+    subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
   }
 }
 
@@ -1302,10 +1325,6 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           ENABLE_ORYX_BUILD: 'true'
           PYTHONUNBUFFERED: '1'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
-          AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
-          AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
-          AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
-          AZURE_OPENAI_RESOURCE: aiFoundryAiServices.outputs.name
           AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
           AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
@@ -1394,7 +1413,7 @@ output RESOURCE_GROUP_NAME string = resourceGroup().name
 output RESOURCE_GROUP_LOCATION string = location
 
 @description('Contains Azure Content Understanding Location.')
-output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
+output AZURE_ENV_CU_LOCATION string = contentUnderstandingLocation
 
 // @description('Contains Azure Secondary Location.')
 // output AZURE_SECONDARY_LOCATION string = secondaryLocation
@@ -1439,25 +1458,22 @@ output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
 output AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
 @description('Contains Azure OpenAI deployment model name.')
-output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
+output AZURE_ENV_GPT_MODEL_NAME string = gptModelName
 
 @description('Contains Azure OpenAI deployment model capacity.')
-output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
+output AZURE_ENV_GPT_MODEL_CAPACITY int = gptDeploymentCapacity
 
 @description('Contains Azure OpenAI endpoint URL.')
 output AZURE_OPENAI_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
 
 @description('Contains Azure OpenAI model deployment type.')
-output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
+output AZURE_ENV_MODEL_DEPLOYMENT_TYPE string = deploymentType
 
 @description('Contains Azure OpenAI embedding model name.')
-output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
+output AZURE_ENV_EMBEDDING_MODEL_NAME string = embeddingModel
 
 @description('Contains Azure OpenAI embedding model capacity.')
-output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
-
-@description('Contains Azure OpenAI API version.')
-output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
+output AZURE_ENV_EMBEDDING_DEPLOYMENT_CAPACITY int = embeddingDeploymentCapacity
 
 @description('Contains Content Understanding API version.')
 output AZURE_CONTENT_UNDERSTANDING_API_VERSION string = azureContentUnderstandingApiVersion
@@ -1502,10 +1518,10 @@ output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 output ACR_NAME string = acrName
 
 @description('Contains Azure environment image tag.')
-output AZURE_ENV_IMAGETAG string = backendContainerImageTag
+output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 
 @description('Contains existing AI project resource ID.')
-output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = existingAiFoundryAiProjectResourceId
+output AZURE_EXISTING_AIPROJECT_RESOURCE_ID string = existingAiFoundryAiProjectResourceId
 
 @description('Contains Application Insights connection string.')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''

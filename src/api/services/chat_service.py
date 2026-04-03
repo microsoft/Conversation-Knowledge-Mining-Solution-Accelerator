@@ -12,12 +12,13 @@ import logging
 import os
 import random
 import re
+from typing import AsyncGenerator
 
+from common.logging.event_utils import track_event_if_configured
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
 from fastapi import HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from azure.ai.projects.aio import AIProjectClient
 
@@ -56,7 +57,7 @@ class ExpCache(TTLCache):
                 asyncio.create_task(self._delete_thread_async(thread_conversation_id))
                 logger.info("Scheduled thread deletion: %s", thread_conversation_id)
             except Exception as e:
-                logger.error("Failed to schedule thread deletion for key %s: %s", key, e)
+                logger.exception("Failed to schedule thread deletion for key %s: %s", key, e)
         return items
 
     def popitem(self):
@@ -67,7 +68,7 @@ class ExpCache(TTLCache):
             asyncio.create_task(self._delete_thread_async(thread_conversation_id))
             logger.info("Scheduled thread deletion (LRU evict): %s", thread_conversation_id)
         except Exception as e:
-            logger.error("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
+            logger.exception("Failed to schedule thread deletion for key %s (LRU evict): %s", key, e)
         return key, thread_conversation_id
 
     async def _delete_thread_async(self, thread_conversation_id: str):
@@ -86,7 +87,7 @@ class ExpCache(TTLCache):
                     await openai_client.conversations.delete(conversation_id=thread_conversation_id)
                     logger.info("Thread deleted successfully: %s", thread_conversation_id)
         except Exception as e:
-            logger.error("Failed to delete thread %s: %s", thread_conversation_id, e)
+            logger.exception("Failed to delete thread %s: %s", thread_conversation_id, e)
         finally:
             # Close credential to prevent unclosed client session warnings
             if credential is not None:
@@ -104,7 +105,6 @@ class ChatService:
 
     def __init__(self):
         config = Config()
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.orchestrator_agent_name = config.orchestrator_agent_name
         self.azure_client_id = config.azure_client_id
         self.ai_project_endpoint = config.ai_project_endpoint
@@ -116,16 +116,22 @@ class ChatService:
             thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
         return thread_cache
 
-    async def stream_openai_text(self, conversation_id: str, query: str) -> StreamingResponse:
+    async def stream_openai_text(self, conversation_id: str, query: str, user_id: str = "") -> AsyncGenerator[tuple[str, str], None]:
         """
         Get a streaming text response from OpenAI.
+
+        Yields:
+            tuple[str, str]: (role, content) tuples where role is "assistant" or "tool"
         """
+        logger.info("stream_openai_text called: conversation_id=%s, query_length=%d",
+                    conversation_id, len(query) if query else 0)
         async with (
             await get_azure_credential_async(client_id=self.azure_client_id) as credential,
             AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
         ):
             complete_response = ""
             db_conn = None
+            had_error = False
             try:
                 if not query:
                     query = "Please provide a query."
@@ -139,23 +145,29 @@ class ChatService:
                 thread_conversation_id = None
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.get(conversation_id, None)
+                if thread_conversation_id:
+                    logger.info("Reusing existing thread %s for conversation %s",
+                                thread_conversation_id, conversation_id)
 
                 # Get agent with tools using provider
+                logger.info("Retrieving orchestrator agent: '%s'", self.orchestrator_agent_name)
                 agent = await provider.get_agent(
                     name=self.orchestrator_agent_name,
                     tools=custom_tool.get_sql_response
                 )
+                logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
                 citations = []
-                first_chunk = True
                 citation_marker_map = {}  # Maps original markers to sequential numbers
                 citation_counter = 0
 
                 if not thread_conversation_id:
                     # Create a conversation using OpenAI client for conversation continuity
+                    logger.info("No existing thread found, creating new thread for conversation %s", conversation_id)
                     openai_client = project_client.get_openai_client()
                     conversation = await openai_client.conversations.create()
                     thread_conversation_id = conversation.id
+                    logger.info("New thread created: %s for conversation %s", thread_conversation_id, conversation_id)
 
                 def replace_citation_marker(match):
                     nonlocal citation_counter
@@ -165,6 +177,8 @@ class ChatService:
                         citation_marker_map[marker] = citation_counter
                     return f"[{citation_marker_map[marker]}]"
 
+                logger.info("Starting agent.run stream for conversation %s, thread %s",
+                            conversation_id, thread_conversation_id)
                 async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
@@ -174,19 +188,25 @@ class ChatService:
 
                     chunk_text = str(chunk.text) if chunk.text else ""
 
-                    # Replace complete citation markers like 【4:0†source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†[^】]+】', replace_citation_marker, chunk_text)
+                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
 
                     if chunk_text:
                         complete_response += chunk_text
-                        if first_chunk:
-                            first_chunk = False
-                            yield "{ \"answer\": " + chunk_text
-                        else:
-                            yield chunk_text
+                        yield ("assistant", chunk_text)
 
+                logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
+                            conversation_id, len(complete_response), len(citations))
+                track_event_if_configured("ChatResponseCompleted", {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "response_length": len(complete_response),
+                    "citation_count": len(citations),
+                    "response_content": complete_response[:8192] if len(complete_response) > 8192 else complete_response
+                })
                 cache[conversation_id] = thread_conversation_id
 
+                citation_json = "[]"
                 if citations:
                     citation_list = []
                     seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
@@ -212,14 +232,12 @@ class ChatService:
                         if doc_id:
                             seen_doc_ids.add(doc_id)
 
-                        citation_list.append(json.dumps({"url": url, "title": title}))
-                    yield ", \"citations\": [" + ",".join(citation_list) + "]}"
-                else:
-                    yield ", \"citations\": []}"
+                        citation_list.append({"url": url, "title": title})
+                    citation_json = json.dumps(citation_list)
 
             except Exception as e:
-                complete_response = str(e)
-                logger.error("Error in stream_openai_text: %s", e)
+                had_error = True
+                logger.exception("Error in stream_openai_text: %s", e)
                 cache = self.get_thread_cache()
                 thread_conversation_id = cache.pop(conversation_id, None)
                 if thread_conversation_id is not None:
@@ -246,39 +264,39 @@ class ChatService:
                         db_conn.close()
                     except Exception:
                         pass
-                # Provide a fallback response when no data is received from OpenAI.
-                if complete_response == "":
-                    logger.info("No response received from OpenAI.")
-                    yield "I cannot answer this question with the current data. Please rephrase or add more details."
 
-    async def stream_chat_request(self, conversation_id, query):
+                # Only emit fallback and tool citations if no error occurred
+                if not had_error:
+                    if complete_response == "":
+                        logger.info("No response received from OpenAI.")
+                        yield ("assistant", "I cannot answer this question with the current data. Please rephrase or add more details.")
+
+                    yield ("tool", citation_json)
+
+    async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
         """
         Handles streaming chat requests.
         """
+        logger.info("stream_chat_request called: conversation_id=%s", conversation_id)
 
         async def generate():
             try:
-                assistant_content = ""
-                async for chunk in self.stream_openai_text(conversation_id, query):
-                    if isinstance(chunk, dict):
-                        chunk = json.dumps(chunk)  # Convert dict to JSON string
-                    assistant_content += str(chunk)
-
-                    if assistant_content:
-                        # Optimized response - only send fields used by frontend
+                async for role, content in self.stream_openai_text(conversation_id, query, user_id=user_id):
+                    if content:
                         response = {
                             "choices": [
                                 {
-                                    "messages": [
-                                        {"role": "assistant", "content": assistant_content}
-                                    ]
+                                    "delta": {
+                                        "role": role,
+                                        "content": content
+                                    }
                                 }
                             ]
                         }
                         yield json.dumps(response) + "\n\n"
 
             except Exception as e:
-                logger.error("Unexpected error: %s", e)
+                logger.exception("Unexpected error: %s", e)
                 # Extract user-friendly message from HTTPException if available
                 if isinstance(e, HTTPException):
                     error_message = e.detail

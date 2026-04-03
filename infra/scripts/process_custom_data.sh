@@ -333,11 +333,11 @@ get_values_from_azd_env() {
 	cu_foundry_resource_id=$(azd env get-value CU_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	searchEndpoint=$(azd env get-value AZURE_AI_SEARCH_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
 	openaiEndpoint=$(azd env get-value AZURE_OPENAI_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+/?$')
-	embeddingModel=$(azd env get-value AZURE_OPENAI_EMBEDDING_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	embeddingModel=$(azd env get-value AZURE_ENV_EMBEDDING_MODEL_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	cuEndpoint=$(azd env get-value AZURE_OPENAI_CU_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
-	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	deploymentModel=$(azd env get-value AZURE_ENV_GPT_MODEL_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
@@ -371,9 +371,9 @@ get_values_from_az_deployment() {
 		local fallback_key="$2"
 		local value
 		
-		value=$(echo "$deploymentOutputs" | grep -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		if [ -z "$value" ] && [ -n "$fallback_key" ]; then
-			value=$(echo "$deploymentOutputs" | grep -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+			value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		fi
 		echo "$value"
 	}
@@ -390,11 +390,11 @@ get_values_from_az_deployment() {
 	aif_resource_id=$(extract_value "aiFoundryResourceId" "AI_FOUNDRY_RESOURCE_ID")
 	cu_foundry_resource_id=$(extract_value "cuFoundryResourceId" "CU_FOUNDRY_RESOURCE_ID")
 	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "AZURE_OPENAI_ENDPOINT")
-	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "AZURE_OPENAI_EMBEDDING_MODEL")
+	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "AZURE_ENV_EMBEDDING_MODEL_NAME")
 	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "AZURE_OPENAI_CU_ENDPOINT")
 	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "AZURE_AI_AGENT_ENDPOINT")
 	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "AZURE_CONTENT_UNDERSTANDING_API_VERSION")
-	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "AZURE_OPENAI_DEPLOYMENT_MODEL")
+	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "AZURE_ENV_GPT_MODEL_NAME")
 	solutionName=$(extract_value "solutionName" "SOLUTION_NAME")
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
@@ -413,11 +413,11 @@ get_values_from_az_deployment() {
 		["cu_foundry_resource_id"]="CU_FOUNDRY_RESOURCE_ID"
 		["searchEndpoint"]="AZURE_AI_SEARCH_ENDPOINT"
 		["openaiEndpoint"]="AZURE_OPENAI_ENDPOINT"
-		["embeddingModel"]="AZURE_OPENAI_EMBEDDING_MODEL"
+		["embeddingModel"]="AZURE_ENV_EMBEDDING_MODEL_NAME"
 		["cuEndpoint"]="AZURE_OPENAI_CU_ENDPOINT"
 		["aiAgentEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
 		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
-		["deploymentModel"]="AZURE_OPENAI_DEPLOYMENT_MODEL"
+		["deploymentModel"]="AZURE_ENV_GPT_MODEL_NAME"
 		["solutionName"]="SOLUTION_NAME"
 	)
 
