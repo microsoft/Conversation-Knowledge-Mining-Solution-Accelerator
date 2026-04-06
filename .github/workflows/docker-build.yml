@@ -6,6 +6,14 @@ on:
       - main
       - dev
       - demo
+    paths:
+      - 'src/App/**'
+      - 'src/api/**'
+      - 'src/**/*.Dockerfile'
+      - 'src/gunicorn.conf.py'
+      - 'src/start.sh'
+      - 'src/start.cmd'
+      - '.github/workflows/docker-build.yml'
   pull_request:
     types:
       - opened
@@ -16,6 +24,14 @@ on:
       - main
       - dev
       - demo
+    paths:
+      - 'src/App/**'
+      - 'src/api/**'
+      - 'src/**/*.Dockerfile'
+      - 'src/gunicorn.conf.py'
+      - 'src/start.sh'
+      - 'src/start.cmd'
+      - '.github/workflows/docker-build.yml'
   workflow_dispatch:
 
 permissions:
