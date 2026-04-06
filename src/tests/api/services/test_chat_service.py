@@ -14,7 +14,7 @@ def chat_service():
     """Create a ChatService instance for testing."""
     with patch("services.chat_service.Config") as mock_config:
         mock_config_instance = MagicMock()
-        mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
+
         mock_config_instance.orchestrator_agent_name = "test-orchestrator"
         mock_config_instance.azure_client_id = "test-client-id"
         mock_config_instance.ai_project_endpoint = "https://test.endpoint.com"
@@ -150,7 +150,6 @@ class TestChatService:
         """Test ChatService initialization."""
         # Configure mock Config
         mock_config_instance = MagicMock()
-        mock_config_instance.azure_openai_deployment_model = "gpt-4o-mini"
         mock_config_instance.orchestrator_agent_name = "test-orchestrator"
         mock_config_instance.azure_client_id = "test-client-id"
         mock_config_instance.ai_project_endpoint = "https://test.endpoint.com"
@@ -158,7 +157,6 @@ class TestChatService:
         
         service = ChatService()
         
-        assert service.azure_openai_deployment_name == "gpt-4o-mini"
         assert service.orchestrator_agent_name == "test-orchestrator"
         assert service.azure_client_id == "test-client-id"
         assert service.ai_project_endpoint == "https://test.endpoint.com"

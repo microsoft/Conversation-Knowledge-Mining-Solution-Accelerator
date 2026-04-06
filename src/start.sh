@@ -79,7 +79,7 @@ setup_environment() {
                 AZURE_COSMOSDB_ACCOUNT) AZURE_COSMOSDB_ACCOUNT="$value" ;;
                 AZURE_AI_FOUNDRY_NAME) AI_FOUNDRY_NAME="$value" ;;
                 AZURE_AI_SEARCH_NAME) SEARCH_SERVICE_NAME="$value" ;;
-                AZURE_EXISTING_AI_PROJECT_RESOURCE_ID) EXISTING_AI_PROJECT_RESOURCE_ID="$value" ;;
+                AZURE_EXISTING_AIPROJECT_RESOURCE_ID) EXISTING_AI_PROJECT_RESOURCE_ID="$value" ;;
                 SQLDB_SERVER) 
                     SQLDB_SERVER="$value"
                     SQLDB_SERVER_NAME="${value%%.*}"
