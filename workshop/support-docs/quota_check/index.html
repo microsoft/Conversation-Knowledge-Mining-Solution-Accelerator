@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -1519,7 +1519,7 @@ Use one of the following scripts based on your needs:  </p>
 <span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code>```sh
 curl -L -o quota_check_params.sh &quot;https://raw.githubusercontent.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/main/infra/scripts/quota_check_params.sh&quot;
 chmod +x quota_check_params.sh
-./quota_check_params.sh &lt;model_name:capacity&gt; [&lt;model_region&gt;] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
+./quota_check_params.sh &lt;model_name:capacity&gt; [&lt;model_region&gt;] (e.g., gpt-4o-mini:30,text-embedding-3-small:20 eastus)
 ```
 </code></pre></div></td></tr></table></div>
 <h2 id="if-using-vs-code-or-codespaces"><strong>If using VS Code or Codespaces</strong><a class="headerlink" href="#if-using-vs-code-or-codespaces" title="Permanent link">&para;</a></h2>
@@ -1530,7 +1530,7 @@ chmod +x quota_check_params.sh
 <div class="highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">Text Only</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
 <span class="normal">2</span>
 <span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code>```sh
-./quota_check_params.sh &lt;model_name:capacity&gt; [&lt;model_region&gt;] (e.g., gpt-4o-mini:30,text-embedding-ada-002:20 eastus)
+./quota_check_params.sh &lt;model_name:capacity&gt; [&lt;model_region&gt;] (e.g., gpt-4o-mini:30,text-embedding-3-small:20 eastus)
 ```
 </code></pre></div></td></tr></table></div>
 <ol>
@@ -1542,7 +1542,7 @@ az<span class="w"> </span>login
 </code></pre></div></td></tr></table></div>
 3. Rerun the script after installing Azure CLI.</p>
 <p><strong>Parameters</strong>
-- <code>&lt;model_name:capacity&gt;</code>: The name and required capacity for each model, in the format model_name:capacity (<strong>e.g., gpt-4o-mini:30,text-embedding-ada-002:20</strong>).
+- <code>&lt;model_name:capacity&gt;</code>: The name and required capacity for each model, in the format model_name:capacity (<strong>e.g., gpt-4o-mini:30,text-embedding-3-small:20</strong>).
 - <code>[&lt;model_region&gt;] (optional)</code>: The Azure region to check first. If not provided, all supported regions will be checked (<strong>e.g., eastus</strong>).</p>
 </li>
 </ol>
