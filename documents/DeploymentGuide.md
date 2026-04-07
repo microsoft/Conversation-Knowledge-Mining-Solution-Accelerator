@@ -6,6 +6,9 @@ This guide walks you through deploying the Conversation Knowledge Mining Solutio
 
 🆘 **Need Help?** If you encounter any issues during deployment, check our [Troubleshooting Guide](./TroubleShootingSteps.md) for solutions to common problems.
 
+> **Note: SFI Issues Encountered During Deployment**
+</br>To prevent SFI issues, ensure deployment is done with WAF-supported versions [Click here](#step-3-configure-deployment-settings).
+
 ## Step 1: Prerequisites & Setup
 
 ### 1.1 Azure Account Requirements
