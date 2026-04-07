@@ -69,6 +69,9 @@ Quick deploy
 ### How to install or deploy
 Follow the quick deploy steps on the deployment guide to deploy this solution to your own Azure subscription.
 
+> **Note: SFI Issues Encountered During Deployment**
+</br>To prevent SFI issues, ensure deployment is done with WAF-supported versions [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
+
 [Click here to launch the deployment guide](./documents/DeploymentGuide.md)
 <br/><br/>
 
