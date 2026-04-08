@@ -6,7 +6,7 @@ This guide walks you through deploying the Conversation Knowledge Mining Solutio
 
 🆘 **Need Help?** If you encounter any issues during deployment, check our [Troubleshooting Guide](./TroubleShootingSteps.md) for solutions to common problems.
 
-> **Note**: If your tenant enforces Secure Future Initiative (SFI)-related restrictions (e.g., blocked public access, stricter network/security policies, or limited resource configurations), deploy the WAF-supported version to ensure compliance. To configure, [Click here](#step-3-configure-deployment-settings).
+> **Note**: If your tenant enforces Secure Future Initiative (SFI) restrictions, note that these policies may run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, verify whether it is due to SFI restrictions. In such cases, consider deploying the WAF-supported version to ensure compliance. To configure, [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
 
 ## Step 1: Prerequisites & Setup
 
