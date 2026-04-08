@@ -58,8 +58,8 @@ export const segregateItems = (items: Conversation[]): SegregatedGroup[] => {
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
-  // Sort descending by updatedAt
-  items.sort(
+  // Sort descending by updatedAt without mutating the input array
+  const sortedItems = [...items].sort(
     (a, b) =>
       new Date(b.updatedAt ?? new Date()).getTime() -
       new Date(a.updatedAt ?? new Date()).getTime()
@@ -72,7 +72,7 @@ export const segregateItems = (items: Conversation[]): SegregatedGroup[] => {
     Older: [] as Conversation[],
   };
 
-  items.forEach((item) => {
+  sortedItems.forEach((item) => {
     const itemDate = new Date(item.updatedAt ?? new Date());
     const itemDateOnly = itemDate.toDateString();
 

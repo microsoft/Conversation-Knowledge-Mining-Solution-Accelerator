@@ -24,6 +24,29 @@ export function createErrorResponse(
   return new Response(null, { status, statusText });
 }
 
+function normalizeError(
+  error: unknown,
+  fallbackMessage = "Request failed after retries"
+): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (typeof error === "string" && error.trim()) {
+    return new Error(error);
+  }
+
+  if (error !== undefined && error !== null) {
+    try {
+      return new Error(JSON.stringify(error));
+    } catch {
+      return new Error(String(error));
+    }
+  }
+
+  return new Error(fallbackMessage);
+}
+
 // ──────────────────────────────────────────────
 //  Retry with exponential back-off
 // ──────────────────────────────────────────────
@@ -77,7 +100,7 @@ export async function retryRequest<T>(
     }
   }
 
-  throw lastError;
+  throw normalizeError(lastError);
 }
 
 // ──────────────────────────────────────────────

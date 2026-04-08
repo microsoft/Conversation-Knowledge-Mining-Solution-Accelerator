@@ -85,10 +85,11 @@ export interface ChartParseResult {
  */
 export function parseChartContent(runningText: string): ChartParseResult {
   const splitRunningText = runningText.split("}{");
-  const parsedChartResponse = safeParse<any>(
-    "{" + splitRunningText[splitRunningText.length - 1],
-    null
-  );
+  const lastSegment = splitRunningText[splitRunningText.length - 1]?.trim() ?? "";
+  const normalizedSegment = lastSegment.startsWith("{")
+    ? lastSegment
+    : `{${lastSegment}`;
+  const parsedChartResponse = safeParse<any>(normalizedSegment, null);
 
   if (!parsedChartResponse) return { kind: null };
 

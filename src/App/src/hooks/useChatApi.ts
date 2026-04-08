@@ -287,7 +287,7 @@ export function useChatApi({
                       const responseContent =
                         parsed?.choices?.[0]?.messages?.[0]?.content;
                       const extracted = extractAnswerAndCitations(
-                        responseContent,
+                        responseContent || "",
                         parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
                       );
 
