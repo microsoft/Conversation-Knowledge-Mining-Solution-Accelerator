@@ -77,7 +77,7 @@ Follow the quick deploy steps on the deployment guide to deploy this solution 
 
 <br/>
 
-> **Note**: If your tenant enforces Secure Future Initiative (SFI)-related restrictions (e.g., blocked public access, stricter network/security policies, or limited resource configurations), deploy the WAF-supported version to ensure compliance. To configure, [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
+> **Note**: If your tenant enforces Secure Future Initiative (SFI) restrictions, note that these policies may run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, verify whether it is due to SFI restrictions. In such cases, consider deploying the WAF-supported version to ensure compliance. To configure, [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
 
 > ⚠️ **Important: Check Azure OpenAI Quota Availability**
  <br/>To ensure sufficient quota is available in your subscription, please follow [quota check instructions guide](./documents/QuotaCheck.md) before you deploy the solution.
