@@ -24,6 +24,16 @@ export function useChatHistorySave() {
         return;
       }
 
+      const hasAssistantMessage = newMessages.some(
+        (msg) => msg.role === "assistant" && Boolean(msg.content)
+      );
+
+      if (!hasAssistantMessage) {
+        dispatch(setGeneratingResponse(false));
+        dispatch(setHistoryUpdateAPIPending(false));
+        return;
+      }
+
       const isNewConversation = reqType !== "graph" ? !selectedConversationId : false;
       dispatch(setHistoryUpdateAPIPending(true));
 
