@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type RefObject } from "react";
 
 /**
  * Auto-resizes a `<textarea>` to fit its content, up to an
@@ -10,7 +10,7 @@ import { useEffect } from "react";
  * @param maxRows Maximum visible rows before scrolling kicks in (default 6)
  */
 export function useTextareaAutoResize(
-  ref: React.RefObject<HTMLTextAreaElement>,
+  ref: RefObject<HTMLTextAreaElement>,
   value: string,
   maxRows: number = 6
 ) {

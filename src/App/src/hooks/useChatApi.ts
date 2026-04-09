@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import type {
   ChatMessage,
@@ -30,7 +30,7 @@ interface UseChatApiOptions {
   /** Persist messages to the database */
   saveToDB: (msgs: ChatMessage[], convId: string, reqType?: string) => Promise<void>;
   /** Ref to the textarea so we can refocus after send */
-  questionInputRef: React.RefObject<HTMLTextAreaElement>;
+  questionInputRef: RefObject<HTMLTextAreaElement>;
   /** Whether to auto-request a chart after every successful text response */
   isChartDisplayDefault: boolean;
 }
@@ -64,8 +64,34 @@ export function useChatApi({
     return chartKeywords.some((kw) => query.toLowerCase().includes(kw));
   }, []);
 
-  const parseCitationFromMessage = useCallback((message: any) => {
-    const toolMessage = safeParse<{ citations?: Citation[] }>("{" + message, {});
+  const parseCitationFromMessage = useCallback((message: any): Citation[] => {
+    if (Array.isArray(message)) {
+      return message as Citation[];
+    }
+    if (message && typeof message === "object") {
+      return Array.isArray(message.citations)
+        ? (message.citations as Citation[])
+        : ([] as Citation[]);
+    }
+    if (typeof message !== "string") {
+      return [] as Citation[];
+    }
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) {
+      return [] as Citation[];
+    }
+    if (trimmedMessage.startsWith("{")) {
+      const toolMessage = safeParse<{ citations?: Citation[] }>(trimmedMessage, {});
+      return toolMessage.citations ?? ([] as Citation[]);
+    }
+    if (trimmedMessage.startsWith("[")) {
+      return safeParse<Citation[]>(trimmedMessage, []);
+    }
+    // Legacy fragment format: missing leading `{`
+    const toolMessage = safeParse<{ citations?: Citation[] }>(
+      "{" + trimmedMessage,
+      {}
+    );
     return toolMessage.citations ?? ([] as Citation[]);
   }, []);
 
@@ -74,7 +100,10 @@ export function useChatApi({
   // ──────────────────────────────────────────────
   const makeApiRequestForChart = useCallback(
     async (question: string, conversationId: string, _lrg: string) => {
-      if (generatingResponse || !question.trim()) return;
+      if (generatingResponse || !question.trim()) {
+        setIsChartLoading(false);
+        return;
+      }
 
       const newMessage: ChatMessage = {
         id: generateUUIDv4(),
@@ -198,8 +227,9 @@ export function useChatApi({
         dispatch(setGeneratingResponse(false));
         dispatch(setStreamingFlag(false));
         setIsChartLoading(false);
+        const idx = abortFuncs.current.indexOf(abortController);
+        if (idx > -1) abortFuncs.current.splice(idx, 1);
       }
-      return abortController.abort();
     },
     [
       dispatch,
@@ -253,59 +283,117 @@ export function useChatApi({
           let runningText = "";
           let hasError = false;
 
+          const decoder = new TextDecoder("utf-8");
+          let lineBuffer = "";
+          let chartResponseBuffer = "";
+
+          // Process complete NDJSON lines from the buffer
+          const processNdjsonText = (bufferText: string) => {
+            const objects = bufferText.split("\n").filter((val) => val !== "");
+            let answerText = "";
+            let citationString = "";
+            objects.forEach((textValue) => {
+              if (textValue !== "" && textValue !== "{}") {
+                const parsed = safeParse<ParsedChunk | null>(textValue, null);
+                if (parsed) {
+                  if (parsed?.error && !hasError) {
+                    hasError = true;
+                    runningText = parsed?.error;
+                  } else if (isChartQuery(userMessage) && !hasError) {
+                    runningText = runningText + textValue;
+                  } else if (typeof parsed === "object" && !hasError) {
+                    const responseContent =
+                      parsed?.choices?.[0]?.messages?.[0]?.content;
+                    const messageRole =
+                      parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT;
+
+                    if (messageRole === "tool") {
+                      const toolPayload = safeParse<any>(responseContent || "", null);
+                      if (toolPayload?.citations) {
+                        streamMessage.citations = JSON.stringify(toolPayload.citations);
+                      }
+                    } else {
+                      const extracted = extractAnswerAndCitations(
+                        responseContent || "",
+                        ASSISTANT
+                      );
+                      answerText = extracted.answer;
+                      if (extracted.citations) {
+                        citationString = extracted.citations;
+                      }
+                      streamMessage.content = answerText || "";
+                      streamMessage.role = ASSISTANT;
+                      streamMessage.citations = citationString;
+                    }
+                    dispatch(updateMessageById(streamMessage));
+                    scrollToBottom();
+                  }
+                }
+              }
+            });
+          };
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const text = new TextDecoder("utf-8").decode(value);
-            const textObj = safeParse<any>(text, null);
+            const text = decoder.decode(value, { stream: true });
+
+            // Buffer the full response for chart/error detection
+            chartResponseBuffer += text;
+            const textObj = safeParse<any>(chartResponseBuffer, null);
             if (textObj?.object?.data) {
-              runningText = text;
+              runningText = chartResponseBuffer;
               isChartResponseReceived = true;
             }
             if (textObj?.object?.message) {
-              runningText = text;
+              runningText = chartResponseBuffer;
               isChartResponseReceived = true;
             }
             if (textObj?.error) {
               hasError = true;
-              runningText = text;
+              runningText = chartResponseBuffer;
             }
+
             if (!isChartResponseReceived) {
-              const objects = text.split("\n").filter((val) => val !== "");
-              let answerText = "";
-              let citationString = "";
-              objects.forEach((textValue) => {
-                if (textValue !== "" && textValue !== "{}") {
-                  const parsed = safeParse<ParsedChunk | null>(textValue, null);
-                  if (parsed) {
-                    if (parsed?.error && !hasError) {
-                      hasError = true;
-                      runningText = parsed?.error;
-                    } else if (isChartQuery(userMessage) && !hasError) {
-                      runningText = runningText + textValue;
-                    } else if (typeof parsed === "object" && !hasError) {
-                      const responseContent =
-                        parsed?.choices?.[0]?.messages?.[0]?.content;
-                      const extracted = extractAnswerAndCitations(
-                        responseContent || "",
-                        parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
-                      );
-
-                      answerText = extracted.answer;
-                      citationString = extracted.citations;
-
-                      streamMessage.content = answerText || "";
-                      streamMessage.role = extracted.role;
-                      streamMessage.citations = citationString;
-                      dispatch(updateMessageById(streamMessage));
-                      scrollToBottom();
-                    }
-                  }
-                }
-              });
+              // Buffer lines across chunks — only parse complete lines
+              lineBuffer += text;
+              const lines = lineBuffer.split("\n");
+              lineBuffer = lines.pop() ?? ""; // keep last partial line
+              const completeText = lines.filter((val) => val !== "").join("\n");
+              if (completeText !== "") {
+                processNdjsonText(completeText);
+              }
               if (hasError) {
                 break;
               }
+            }
+          }
+
+          // Flush decoder and process any remaining buffered data
+          const finalText = decoder.decode();
+          if (finalText) {
+            chartResponseBuffer += finalText;
+            if (!isChartResponseReceived) {
+              lineBuffer += finalText;
+            }
+          }
+          const finalChartObj = safeParse<any>(chartResponseBuffer, null);
+          if (finalChartObj?.object?.data) {
+            runningText = chartResponseBuffer;
+            isChartResponseReceived = true;
+          }
+          if (finalChartObj?.object?.message) {
+            runningText = chartResponseBuffer;
+            isChartResponseReceived = true;
+          }
+          if (finalChartObj?.error && !hasError) {
+            hasError = true;
+            runningText = chartResponseBuffer;
+          }
+          if (!isChartResponseReceived && !hasError) {
+            const finalLine = lineBuffer.trim();
+            if (finalLine !== "" && finalLine !== "{}") {
+              processNdjsonText(finalLine);
             }
           }
 
@@ -363,13 +451,24 @@ export function useChatApi({
             updatedMessages[updatedMessages.length - 1]?.role !== ERROR &&
             isChartDisplayDefault
           ) {
+            const preservedUserMessage = userMessage;
+            const chartSourceMessage = updatedMessages[updatedMessages.length - 1]
+              ?.content as string;
             setIsChartLoading(true);
             setTimeout(() => {
-              makeApiRequestForChart(
-                "show in a graph by default",
+              void makeApiRequestForChart(
+                "",
                 conversationId,
-                updatedMessages[updatedMessages.length - 1]?.content as string
-              );
+                chartSourceMessage
+              )
+                .catch(() => {
+                  // Automatic chart generation should not surface errors to the user.
+                })
+                .finally(() => {
+                  dispatch(setUserMessage(preservedUserMessage));
+                  dispatch(setGeneratingResponse(false));
+                  dispatch(setStreamingFlag(false));
+                });
             }, 5000);
           }
           saveToDB(updatedMessages, conversationId, isChatReq);
@@ -391,8 +490,9 @@ export function useChatApi({
       } finally {
         dispatch(setGeneratingResponse(false));
         dispatch(setStreamingFlag(false));
+        const idx = abortFuncs.current.indexOf(abortController);
+        if (idx > -1) abortFuncs.current.splice(idx, 1);
       }
-      return abortController.abort();
     },
     [
       dispatch,
