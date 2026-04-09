@@ -284,21 +284,37 @@ export function useChatApi({
                     } else if (isChartQuery(userMessage) && !hasError) {
                       runningText = runningText + textValue;
                     } else if (typeof parsed === "object" && !hasError) {
-                      const responseContent =
-                        parsed?.choices?.[0]?.messages?.[0]?.content;
-                      const extracted = extractAnswerAndCitations(
-                        responseContent || "",
-                        parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
-                      );
+                      const delta = parsed?.choices?.[0]?.delta;
 
-                      answerText = extracted.answer;
-                      citationString = extracted.citations;
+                      if (delta?.role === "tool" && delta?.content) {
+                        streamMessage.citations = delta.content;
+                        dispatch(updateMessageById({ ...streamMessage }));
+                      } else if (delta?.role === "assistant" && delta?.content) {
+                        runningText += delta.content;
+                        streamMessage.content = runningText;
+                        streamMessage.role = ASSISTANT;
+                        dispatch(updateMessageById({ ...streamMessage }));
+                        scrollToBottom();
+                      } else {
+                        const responseContent =
+                          parsed?.choices?.[0]?.messages?.[0]?.content;
 
-                      streamMessage.content = answerText || "";
-                      streamMessage.role = extracted.role;
-                      streamMessage.citations = citationString;
-                      dispatch(updateMessageById(streamMessage));
-                      scrollToBottom();
+                        if (responseContent) {
+                          const extracted = extractAnswerAndCitations(
+                            responseContent,
+                            parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
+                          );
+
+                          answerText = extracted.answer;
+                          citationString = extracted.citations;
+
+                          streamMessage.content = answerText || "";
+                          streamMessage.role = extracted.role;
+                          streamMessage.citations = citationString;
+                          dispatch(updateMessageById({ ...streamMessage }));
+                          scrollToBottom();
+                        }
+                      }
                     }
                   }
                 }

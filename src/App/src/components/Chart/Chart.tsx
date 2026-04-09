@@ -11,7 +11,6 @@ import WordCloudChart from "../../chartComponents/WordCloudChart";
 import TopicTable from "../../chartComponents/TopicTable";
 import Card from "../../chartComponents/Card";
 import ChartFilter from "../ChartFilter/ChartFilter";
-import "./Chat.css";
 import "./Chart.css";
 import {
   type ChartConfigItem,

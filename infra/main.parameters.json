@@ -56,24 +56,7 @@
     "frontendContainerRegistryHostname": {
       "value": "${AZURE_ENV_CONTAINER_REGISTRY_ENDPOINT}"
     },
-    "enableMonitoring": {
-      "value": true
-    },
-    "enablePrivateNetworking": {
-      "value": true
-    },
-    "enableScalability": {
-      "value": true
-    },
-    "vmAdminUsername": {
-      "value": "${AZURE_ENV_VM_ADMIN_USERNAME}"
-    },
-    "vmAdminPassword": {
-      "value": "${AZURE_ENV_VM_ADMIN_PASSWORD}"
-    },
-    "vmSize": {
-      "value": "${AZURE_ENV_VM_SIZE}"
-    },
+    
     "usecase":{
       "value": "${USE_CASE}"
     }

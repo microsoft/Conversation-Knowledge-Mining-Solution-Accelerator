@@ -10,6 +10,7 @@ import { ChatAdd24Regular } from "@fluentui/react-icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import supersub from "remark-supersub";
+import "./Chat.css";
 
 import { getIsChartDisplayDefault } from "../../api/api";
 import ChatChart from "../ChatChart/ChatChart";
@@ -188,13 +189,13 @@ const Chat: React.FC<ChatProps> = ({
               {(() => {
                  const isLastAssistantMessage =
                  msg.role === "assistant" && index === messages.length - 1;
-                if ((msg.role === "user") && typeof msg.content === "string") {
-                  if (msg.content == "show in a graph by default") return null;
-                    return (
-                      <div className="user-message">
-                        <span>{msg.content}</span>
-                      </div>
-                    );
+                if (msg.role === "user" && typeof msg.content === "string") {
+                  if (msg.content === "show in a graph by default") return null;
+                  return (
+                    <div className="user-message">
+                      <span>{msg.content}</span>
+                    </div>
+                  );
 
                 }
                 const chartContent = msg.content as ChartDataResponse;
