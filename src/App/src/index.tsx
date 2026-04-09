@@ -4,16 +4,17 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { initializeIcons } from "@fluentui/react";
-import AppProvider from './state/AppProvider';
+import { Provider } from 'react-redux';
+import { store } from './store/store';
 initializeIcons();
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 root.render(
-  <AppProvider>
+  <Provider store={store}>
     <App />
-  </AppProvider>
+  </Provider>
 );
 
 // If you want to start measuring performance in your app, pass a function
