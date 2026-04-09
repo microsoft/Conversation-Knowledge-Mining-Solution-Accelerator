@@ -280,66 +280,111 @@ export function useChatApi({
         if (response?.body) {
           let isChartResponseReceived = false;
           const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
           let runningText = "";
           let hasError = false;
+          let lineBuffer = "";
+          let chartResponseBuffer = "";
+
+          const processNdjsonText = (rawText: string) => {
+            const trimmedText = rawText.trim();
+            if (trimmedText === "" || trimmedText === "{}") {
+              return;
+            }
+
+            const parsed = safeParse<ParsedChunk | null>(trimmedText, null);
+            if (!parsed) {
+              return;
+            }
+
+            if (parsed?.error && !hasError) {
+              hasError = true;
+              runningText = parsed.error;
+              return;
+            }
+
+            if (isChartQuery(userMessage) && !hasError) {
+              runningText += trimmedText;
+              return;
+            }
+
+            if (typeof parsed === "object" && !hasError) {
+              const delta = parsed?.choices?.[0]?.delta;
+
+              if (delta?.role === "tool" && delta?.content) {
+                streamMessage.citations = delta.content;
+                dispatch(updateMessageById({ ...streamMessage }));
+                return;
+              }
+
+              if (delta?.content) {
+                runningText += delta.content;
+                streamMessage.content = runningText;
+                streamMessage.role = delta.role || ASSISTANT;
+                dispatch(updateMessageById({ ...streamMessage }));
+                scrollToBottom();
+                return;
+              }
+
+              const responseContent =
+                parsed?.choices?.[0]?.messages?.[0]?.content;
+
+              if (responseContent) {
+                const extracted = extractAnswerAndCitations(
+                  responseContent,
+                  parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
+                );
+
+                streamMessage.content = extracted.answer || "";
+                streamMessage.role = extracted.role;
+                streamMessage.citations = extracted.citations;
+                dispatch(updateMessageById({ ...streamMessage }));
+                scrollToBottom();
+              }
+            }
+          };
 
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            const text = new TextDecoder("utf-8").decode(value);
-            const textObj = safeParse<any>(text, null);
+
+            const text = decoder.decode(value, { stream: true });
+            if (!text) continue;
+
+            chartResponseBuffer += text;
+
+            const textObj =
+              safeParse<any>(chartResponseBuffer, null) ??
+              safeParse<any>(text, null);
+
             if (textObj?.object?.data) {
-              runningText = text;
+              runningText = chartResponseBuffer;
               isChartResponseReceived = true;
             }
             if (textObj?.object?.message) {
-              runningText = text;
+              runningText = chartResponseBuffer;
               isChartResponseReceived = true;
             }
             if (textObj?.error) {
               hasError = true;
-              runningText = text;
+              runningText = chartResponseBuffer;
             }
+
             if (!isChartResponseReceived) {
-              const objects = text.split("\n").filter((val) => val !== "");
-              let answerText = "";
-              let citationString = "";
-              objects.forEach((textValue) => {
-                if (textValue !== "" && textValue !== "{}") {
-                  const parsed = safeParse<ParsedChunk | null>(textValue, null);
-                  if (parsed) {
-                    if (parsed?.error && !hasError) {
-                      hasError = true;
-                      runningText = parsed?.error;
-                    } else if (isChartQuery(userMessage) && !hasError) {
-                      runningText = runningText + textValue;
-                    } else if (typeof parsed === "object" && !hasError) {
-                      const responseContent =
-                        parsed?.choices?.[0]?.messages?.[0]?.content;
-                      const extracted = extractAnswerAndCitations(
-                        responseContent || "",
-                        parsed?.choices?.[0]?.messages?.[0]?.role || ASSISTANT
-                      );
+              lineBuffer += text;
+              const lines = lineBuffer.split("\n");
+              lineBuffer = lines.pop() ?? "";
 
-                      answerText = extracted.answer;
-                      citationString = extracted.citations;
-
-                      streamMessage.content = answerText || "";
-                      streamMessage.role = extracted.role;
-                      streamMessage.citations = citationString;
-                      dispatch(updateMessageById(streamMessage));
-                      scrollToBottom();
-                    }
-                  }
-                }
+              lines.forEach((line) => {
+                processNdjsonText(line);
               });
+
               if (hasError) {
                 break;
               }
             }
           }
 
-          // Flush decoder and process any remaining buffered data
           const finalText = decoder.decode();
           if (finalText) {
             chartResponseBuffer += finalText;
@@ -347,6 +392,7 @@ export function useChatApi({
               lineBuffer += finalText;
             }
           }
+
           const finalChartObj = safeParse<any>(chartResponseBuffer, null);
           if (finalChartObj?.object?.data) {
             runningText = chartResponseBuffer;
@@ -361,10 +407,7 @@ export function useChatApi({
             runningText = chartResponseBuffer;
           }
           if (!isChartResponseReceived && !hasError) {
-            const finalLine = lineBuffer.trim();
-            if (finalLine !== "" && finalLine !== "{}") {
-              processNdjsonText(finalLine);
-            }
+            processNdjsonText(lineBuffer);
           }
 
           // END OF STREAMING

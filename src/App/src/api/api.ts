@@ -139,6 +139,7 @@ export const historyList = async (
   try {
     const payload = await httpClient.get("/history/list", {
       params: { offset },
+      retry: true,
     });
     if (!Array.isArray(payload)) {
       console.error("There was an issue fetching your data.");
@@ -189,8 +190,15 @@ export async function getLayoutConfig(): Promise<{
   charts: ChartConfigItem[];
 }> {
   try {
-    const data = await httpClient.get("/api/layout-config");
-    if (data) return data;
+    const data = await httpClient.get("/api/layout-config", { retry: true });
+    if (
+      data &&
+      typeof data === "object" &&
+      "appConfig" in data &&
+      Array.isArray((data as { charts?: unknown[] }).charts)
+    ) {
+      return data as { appConfig: AppConfig; charts: ChartConfigItem[] };
+    }
   } catch {
     console.error("Failed to parse Layout config data");
   }
@@ -201,8 +209,14 @@ export async function getIsChartDisplayDefault(): Promise<{
   isChartDisplayDefault: boolean;
 }> {
   try {
-    const responseData = await httpClient.get("/api/display-chart-default");
-    if (responseData) {
+    const responseData = await httpClient.get("/api/display-chart-default", {
+      retry: true,
+    });
+    if (
+      responseData &&
+      typeof responseData === "object" &&
+      "isChartDisplayDefault" in responseData
+    ) {
       const tempChartDisplayFlag =
         String(responseData.isChartDisplayDefault).toLowerCase() === "true";
       return { isChartDisplayDefault: tempChartDisplayFlag };

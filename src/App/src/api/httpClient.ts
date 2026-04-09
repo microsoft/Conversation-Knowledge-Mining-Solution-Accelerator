@@ -258,8 +258,35 @@ class HttpClient {
 // Singleton instance + default interceptors
 // ---------------------------------------------------------------------------
 
+function resolveApiBaseURL(): string {
+  const configuredBaseURL = (process.env.REACT_APP_API_BASE_URL ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+
+  if (
+    configuredBaseURL &&
+    configuredBaseURL !== "APP_API_BASE_URL" &&
+    configuredBaseURL !== "undefined"
+  ) {
+    return configuredBaseURL;
+  }
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+
+    if (
+      hostname.startsWith("app-") &&
+      hostname.endsWith(".azurewebsites.net")
+    ) {
+      return `${protocol}//${hostname.replace(/^app-/, "api-")}`;
+    }
+  }
+
+  return "";
+}
+
 const httpClient = new HttpClient({
-  baseURL: process.env.REACT_APP_API_BASE_URL ?? "",
+  baseURL: resolveApiBaseURL(),
   timeout: 30_000,
   headers: {
     "Content-Type": "application/json",

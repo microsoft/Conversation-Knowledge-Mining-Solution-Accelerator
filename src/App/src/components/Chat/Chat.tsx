@@ -43,7 +43,9 @@ const Chat: React.FC<ChatProps> = ({
   const isFetchingConvMessages = useAppSelector((s) => s.chatHistory.isFetchingConvMessages);
   const isHistoryUpdateAPIPending = useAppSelector((s) => s.chatHistory.isHistoryUpdateAPIPending);
 
+  const activeConversationId = selectedConversationId || generatedConversationId;
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
+  const previousConversationIdRef = useRef(activeConversationId);
   const [isChartDisplayDefault, setIsChartDisplayDefault] = useState(false);
 
   // ── Custom hooks ──────────────────────────────
@@ -93,7 +95,14 @@ const Chat: React.FC<ChatProps> = ({
   }, []);
 
   useEffect(() => {
-    if (generatingResponse || isStreamingInProgress) {
+    const previousConversationId = previousConversationIdRef.current;
+
+    if (
+      previousConversationId &&
+      activeConversationId &&
+      previousConversationId !== activeConversationId &&
+      (generatingResponse || isStreamingInProgress)
+    ) {
       const chatAPISignal = abortFuncs.current.shift();
       if (chatAPISignal) {
         chatAPISignal.abort(
@@ -101,7 +110,9 @@ const Chat: React.FC<ChatProps> = ({
         );
       }
     }
-  }, [selectedConversationId, abortFuncs, generatingResponse, isStreamingInProgress]);
+
+    previousConversationIdRef.current = activeConversationId;
+  }, [activeConversationId, abortFuncs, generatingResponse, isStreamingInProgress]);
   useEffect(() => {
     if (!isFetchingConvMessages) {
       scrollToBottom("auto");
@@ -112,28 +123,25 @@ const Chat: React.FC<ChatProps> = ({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        const conversationId = selectedConversationId || generatedConversationId;
         if (userMessage.trim()) {
-          void makeApiRequestWithCosmosDB(userMessage, conversationId);
+          void makeApiRequestWithCosmosDB(userMessage, activeConversationId);
         }
         questionInputRef.current?.focus();
       }
     },
     [
-      selectedConversationId,
-      generatedConversationId,
+      activeConversationId,
       userMessage,
       makeApiRequestWithCosmosDB,
     ]
   );
 
   const onClickSend = useCallback(() => {
-    const conversationId = selectedConversationId || generatedConversationId;
     if (userMessage) {
-      makeApiRequestWithCosmosDB(userMessage, conversationId);
+      makeApiRequestWithCosmosDB(userMessage, activeConversationId);
     }
     questionInputRef?.current?.focus();
-  }, [selectedConversationId, generatedConversationId, userMessage, makeApiRequestWithCosmosDB]);
+  }, [activeConversationId, userMessage, makeApiRequestWithCosmosDB]);
 
   const setUserMessageValue = useCallback(
     (value: string) => {
