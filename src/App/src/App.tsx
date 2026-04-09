@@ -145,10 +145,12 @@ const Dashboard: React.FC = () => {
         }
       }
     } else {
-      const threeColumn = appConfig.THREE_COLUMN as Record<string, number>;
+      const threeColumn = {
+        ...(appConfig.THREE_COLUMN as Record<string, number>),
+      };
       threeColumn.DASHBOARD =
         threeColumn.DASHBOARD > 55 ? threeColumn.DASHBOARD : 55;
-      setPanelWidths({ ...threeColumn });
+      setPanelWidths(threeColumn);
     }
   };
 
