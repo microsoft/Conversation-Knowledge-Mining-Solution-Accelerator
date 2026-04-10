@@ -11,25 +11,36 @@ import {
   CosmosDBHealth,
   CosmosDBStatus,
 } from "../types/AppTypes";
-import httpClient from "./httpClient";
-import { createErrorResponse } from "../utils/apiUtils";
-
-// ---------------------------------------------------------------------------
-// Chart data
-// ---------------------------------------------------------------------------
+const baseURL = process.env.REACT_APP_API_BASE_URL;// base API URL
 
 export const fetchChartData = async () => {
   try {
-    return await httpClient.get("/api/fetchChartData");
+    const response = await fetch(`${baseURL}/api/fetchChartData`);
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to fetch chart data:", error);
-    throw error;
+    throw error; // Rethrow the error so the calling function can handle it
   }
 };
 
 export const fetchChartDataWithFilters = async (bodyData: any) => {
   try {
-    return await httpClient.post("/api/fetchChartDataWithFilters", bodyData);
+    const response = await fetch(`${baseURL}/api/fetchChartDataWithFilters`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify(bodyData),
+    });
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to fetch filtered chart data:", error);
     throw error;
@@ -38,16 +49,17 @@ export const fetchChartDataWithFilters = async (bodyData: any) => {
 
 export const fetchFilterData = async () => {
   try {
-    return await httpClient.get("/api/fetchFilterData");
+    const response = await fetch(`${baseURL}/api/fetchFilterData`);
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to fetch filter data:", error);
     throw error;
   }
 };
-
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
 
 export type UserInfo = {
   access_token: string;
@@ -59,275 +71,380 @@ export type UserInfo = {
 };
 
 export async function getUserInfo(): Promise<UserInfo[]> {
-  try {
-    // /.auth/me is an absolute path outside the API base URL
-    const response = await fetch("/.auth/me");
-    if (!response.ok) {
-      console.error(
-        "No identity provider found. Access to chat will be blocked."
-      );
-      return [];
-    }
-    const payload = await response.json();
-    const userClaims = payload[0]?.user_claims || [];
-    const objectIdClaim = userClaims.find(
-      (claim: any) =>
-        claim.typ ===
-        "http://schemas.microsoft.com/identity/claims/objectidentifier"
-    );
-    const userId = objectIdClaim?.val;
-    if (userId) {
-      localStorage.setItem("userId", userId);
-    }
-    return payload;
-  } catch {
-    console.error("Failed to fetch user info");
+  const response = await fetch(`/.auth/me`);
+  if (!response.ok) {
+    console.error("No identity provider found. Access to chat will be blocked.");
     return [];
   }
+  const payload = await response.json();
+  const userClaims = payload[0]?.user_claims || [];
+  const objectIdClaim = userClaims.find(
+    (claim: any) =>
+      claim.typ === "http://schemas.microsoft.com/identity/claims/objectidentifier"
+  );
+  const userId = objectIdClaim?.val;
+  if (userId) {
+    localStorage.setItem("userId", userId);
+  }
+  return payload;
 }
 
-// ---------------------------------------------------------------------------
-// Conversation history
-// ---------------------------------------------------------------------------
+
+function getUserIdFromLocalStorage(): string | null {
+  return localStorage.getItem("userId");
+}
 
 export const historyRead = async (convId: string): Promise<ChatMessage[]> => {
-  try {
-    const res = await httpClient.request<Response>("/history/read", {
-      method: "POST",
-      body: { conversation_id: convId },
-      rawResponse: true,
-    });
-
-    if (!res.ok) {
-      return historyReadResponse.messages.map((msg: any) => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content.content,
-        date: msg.createdAt,
-        feedback: msg.feedback ?? undefined,
-        context: msg.context,
-        citations: msg.content.citations,
-        contentType: msg.contentType,
-      }));
-    }
-
-    const payload = await res.json();
-    const messages: ChatMessage[] = [];
-    if (Array.isArray(payload?.messages)) {
-      payload.messages.forEach((msg: any) => {
-        messages.push({
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/read`, {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: convId,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        return historyReadResponse.messages.map((msg: any) => ({
           id: msg.id,
           role: msg.role,
           content: msg.content.content,
           date: msg.createdAt,
           feedback: msg.feedback ?? undefined,
           context: msg.context,
-          citations: msg.content.citations,
           contentType: msg.contentType,
+        }));
+      }
+      const payload = await res.json();
+      const messages: ChatMessage[] = [];
+
+      if (Array.isArray(payload?.messages)) {
+        payload.messages.forEach((msg: any) => {
+          const message: ChatMessage = {
+            id: msg.id,
+            role: msg.role,
+            content: msg.content.content,
+            date: msg.createdAt,
+            feedback: msg.feedback ?? undefined,
+            context: msg.context,
+            citations: msg.content.citations,
+            contentType: msg.contentType,
+          };
+          messages.push(message);
         });
-      });
-    }
-    return messages;
-  } catch {
-    return [];
-  }
+      }
+      return messages;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.");
+      return [];
+    });
+  return response;
 };
 
 export const historyList = async (
   offset = 0
 ): Promise<Conversation[] | null> => {
-  try {
-    const payload = await httpClient.get("/history/list", {
-      params: { offset },
-      retry: true,
+  const userId = getUserIdFromLocalStorage();
+  let response = await fetch(`${baseURL}/history/list?offset=${offset}`, {
+    method: "GET",
+  headers: {
+    "Content-Type": "application/json",
+    "X-Ms-Client-Principal-Id": userId || "",
+  },
+})
+    .then(async (res) => {
+      let payload = await res.json();
+      if (!Array.isArray(payload)) {
+        console.error("There was an issue fetching your data.");
+        return null;
+      }
+      const conversations: Conversation[] = payload.map((conv: any) => {
+        const conversation: Conversation = {
+          id: conv.id,
+          title: conv.title,
+          date: conv.createdAt,
+          updatedAt: conv?.updatedAt,
+          messages: [],
+        };
+        return conversation;
+      });
+      return conversations;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.", _err);
+      const conversations: Conversation[] = historyListResponse.map(
+        (conv: any) => {
+          const conversation: Conversation = {
+            id: conv.id,
+            title: conv.title,
+            date: conv.createdAt,
+            updatedAt: conv?.updatedAt,
+            messages: [],
+          };
+          return conversation;
+        }
+      );
+      return conversations;
     });
-    if (!Array.isArray(payload)) {
-      console.error("There was an issue fetching your data.");
-      return null;
-    }
-    return payload.map((conv: any): Conversation => ({
-      id: conv.id,
-      title: conv.title,
-      date: conv.createdAt,
-      updatedAt: conv?.updatedAt,
-      messages: [],
-    }));
-  } catch {
-    console.error("There was an issue fetching your data.");
-    return historyListResponse.map(
-      (conv: any): Conversation => ({
-        id: conv.id,
-        title: conv.title,
-        date: conv.createdAt,
-        updatedAt: conv?.updatedAt,
-        messages: [],
-      })
-    );
-  }
+  return response;
 };
 
 export const historyUpdate = async (
   messages: ChatMessage[],
   convId: string
 ): Promise<Response> => {
-  try {
-    return await httpClient.request<Response>("/history/update", {
-      method: "POST",
-      body: { conversation_id: convId, messages },
-      rawResponse: true,
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/update`, {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: convId,
+      messages: messages,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then(async (res) => {
+      return res;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.");
+      const errRes: Response = {
+        ...new Response(),
+        ok: false,
+        status: 500,
+      };
+      return errRes;
     });
-  } catch {
-    return createErrorResponse();
-  }
+  return response;
 };
-
-// ---------------------------------------------------------------------------
-// Layout & config
-// ---------------------------------------------------------------------------
 
 export async function getLayoutConfig(): Promise<{
   appConfig: AppConfig;
   charts: ChartConfigItem[];
 }> {
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/api/layout-config`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  });
   try {
-    const data = await httpClient.get("/api/layout-config", { retry: true });
-    if (
-      data &&
-      typeof data === "object" &&
-      "appConfig" in data &&
-      Array.isArray((data as { charts?: unknown[] }).charts)
-    ) {
-      return data as { appConfig: AppConfig; charts: ChartConfigItem[] };
+    if (response.ok) {
+      const layoutConfigData = await response.json();
+      return layoutConfigData;
     }
   } catch {
     console.error("Failed to parse Layout config data");
   }
-  return { appConfig: null, charts: [] };
+  return {
+    appConfig: null,
+    charts: [],
+  };
 }
 
 export async function getIsChartDisplayDefault(): Promise<{
   isChartDisplayDefault: boolean;
 }> {
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/api/display-chart-default`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  });
   try {
-    const responseData = await httpClient.get("/api/display-chart-default", {
-      retry: true,
-    });
-    if (
-      responseData &&
-      typeof responseData === "object" &&
-      "isChartDisplayDefault" in responseData
-    ) {
-      const tempChartDisplayFlag =
-        String(responseData.isChartDisplayDefault).toLowerCase() === "true";
-      return { isChartDisplayDefault: tempChartDisplayFlag };
+    if (response.ok) {
+      const responseData = await response.json();
+      const tempChartDisplayFlag = responseData.isChartDisplayDefault.toLowerCase() == 'true' ? true : false
+      return { isChartDisplayDefault: tempChartDisplayFlag }
     }
   } catch {
     console.error("Failed to get chart config flag");
   }
-  return { isChartDisplayDefault: true };
+  return {
+    isChartDisplayDefault: true
+  };
 }
-
-// ---------------------------------------------------------------------------
-// Chat
-// ---------------------------------------------------------------------------
 
 export async function callConversationApi(
   options: ConversationRequest,
   abortSignal: AbortSignal
 ): Promise<Response> {
-  const response = await httpClient.request<Response>("/api/chat", {
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/api/chat`, {
     method: "POST",
-    body: { query: options.query, conversation_id: options.id },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+    body: JSON.stringify({
+      query: options.query,
+      conversation_id: options.id
+    }),
     signal: abortSignal,
-    rawResponse: true,
-    timeout: 0, // no client-side timeout – caller controls via abortSignal
   });
 
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(JSON.stringify(errorData.error));
   }
+
   return response;
 }
-
-// ---------------------------------------------------------------------------
-// History management
-// ---------------------------------------------------------------------------
 
 export const historyRename = async (
   convId: string,
   title: string
 ): Promise<Response> => {
-  try {
-    return await httpClient.request<Response>("/history/rename", {
-      method: "POST",
-      body: { conversation_id: convId, title },
-      rawResponse: true,
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/rename`, {
+    method: "POST",
+    body: JSON.stringify({
+      conversation_id: convId,
+      title: title,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then((res) => {
+      return res;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.");
+      const errRes: Response = {
+        ...new Response(),
+        ok: false,
+        status: 500,
+      };
+      return errRes;
     });
-  } catch {
-    return createErrorResponse();
-  }
+  return response;
 };
 
 export const historyDelete = async (convId: string): Promise<Response> => {
-  try {
-    return await httpClient.request<Response>("/history/delete", {
-      method: "DELETE",
-      body: { conversation_id: convId },
-      rawResponse: true,
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/delete`, {
+    method: "DELETE",
+    body: JSON.stringify({
+      conversation_id: convId,
+    }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then((res) => {
+      return res;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.");
+      const errRes: Response = {
+        ...new Response(),
+        ok: false,
+        status: 500,
+      };
+      return errRes;
     });
-  } catch {
-    return createErrorResponse();
-  }
+  return response;
 };
 
 export const historyDeleteAll = async (): Promise<Response> => {
-  try {
-    return await httpClient.request<Response>("/history/delete_all", {
-      method: "DELETE",
-      body: {},
-      rawResponse: true,
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/delete_all`, {
+    method: "DELETE",
+    body: JSON.stringify({}),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then((res) => {
+      return res;
+    })
+    .catch((_err) => {
+      console.error("There was an issue fetching your data.");
+      const errRes: Response = {
+        ...new Response(),
+        ok: false,
+        status: 500,
+      };
+      return errRes;
     });
-  } catch {
-    return createErrorResponse();
-  }
+  return response;
 };
 
 export const historyEnsure = async (): Promise<CosmosDBHealth> => {
-  try {
-    const res = await httpClient.request<Response>("/history/ensure", {
-      rawResponse: true,
+  const userId = getUserIdFromLocalStorage();
+  const response = await fetch(`${baseURL}/history/ensure`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Ms-Client-Principal-Id": userId || "",
+    },
+  })
+    .then(async (res) => {
+      const respJson = await res.json();
+      let formattedResponse;
+      if (respJson.message) {
+        formattedResponse = CosmosDBStatus.Working;
+      } else {
+        if (res.status === 500) {
+          formattedResponse = CosmosDBStatus.NotWorking;
+        } else if (res.status === 401) {
+          formattedResponse = CosmosDBStatus.InvalidCredentials;
+        } else if (res.status === 422) {
+          formattedResponse = respJson.error;
+        } else {
+          formattedResponse = CosmosDBStatus.NotConfigured;
+        }
+      }
+      if (!res.ok) {
+        return {
+          cosmosDB: false,
+          status: formattedResponse,
+        };
+      } else {
+        return {
+          cosmosDB: true,
+          status: formattedResponse,
+        };
+      }
+    })
+    .catch((err) => {
+      console.error("There was an issue fetching your data.");
+      return {
+        cosmosDB: false,
+        status: err,
+      };
     });
-    const respJson = await res.json();
-    let formattedResponse;
-    if (respJson.message) {
-      formattedResponse = CosmosDBStatus.Working;
-    } else if (res.status === 500) {
-      formattedResponse = CosmosDBStatus.NotWorking;
-    } else if (res.status === 401) {
-      formattedResponse = CosmosDBStatus.InvalidCredentials;
-    } else if (res.status === 422) {
-      formattedResponse = respJson.error;
-    } else {
-      formattedResponse = CosmosDBStatus.NotConfigured;
-    }
-    return {
-      cosmosDB: res.ok,
-      status: formattedResponse,
-    };
-  } catch (err) {
-    console.error("There was an issue fetching your data.");
-    return { cosmosDB: false, status: err instanceof Error ? err.message : String(err) };
-  }
+  return response;
 };
-
-// ---------------------------------------------------------------------------
-// Citations
-// ---------------------------------------------------------------------------
 
 export const fetchCitationContent = async (body: any) => {
   try {
-    return await httpClient.post("/api/fetch-azure-search-content", body);
+    const response = await fetch(`${baseURL}/api/fetch-azure-search-content`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`Error: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Failed to fetch azure search content:", error);
     throw error;

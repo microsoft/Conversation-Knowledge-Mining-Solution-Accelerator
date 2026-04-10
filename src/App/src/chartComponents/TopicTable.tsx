@@ -10,7 +10,7 @@ import {
   Caption1,
   Body1Strong,
 } from "@fluentui/react-components";
-import { colors } from "../utils/chartUtils";
+import { colors } from "../configs/Utils";
 
 interface TopicTableProps {
   columns: string[];

@@ -4,7 +4,7 @@ import {
   type ChartTypeRegistry,
   registerables,
 } from "chart.js";
-import { hideDataSetsLabelConfig } from "../../utils/chartUtils";
+import { hideDataSetsLabelConfig } from "../../configs/Utils";
 
 const chartTypes = {
   barChart: "bar",
