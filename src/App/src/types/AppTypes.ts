@@ -34,7 +34,7 @@ export type ChatMessage = {
   feedback?: Feedback;
   context?: string;
   contentType?: "text" | "image";
-  citations?: string
+  citations?: string | Citation[];
 };
 
 export type ConversationRequest = {
