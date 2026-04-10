@@ -11,51 +11,39 @@ import WordCloudChart from "../../chartComponents/WordCloudChart";
 import TopicTable from "../../chartComponents/TopicTable";
 import Card from "../../chartComponents/Card";
 import ChartFilter from "../ChartFilter/ChartFilter";
+
 import "./Chart.css";
 import {
   type ChartConfigItem,
   SelectedFilters,
   type FilterMetaData,
 } from "../../types/AppTypes";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  selectCharts,
-  selectFetchingCharts,
-  selectFetchingFilters,
-  selectFiltersMetaFetched,
-  selectInitialChartsDataFetched,
-  selectLayoutConfig,
-  selectLayoutCharts,
-} from "../../store/selectors";
-import {
-  setChartsData,
-  setFetchingCharts,
-  setFetchingFilters,
-  setFilters,
-  setFiltersMetaFetched,
-  setInitialChartsFetched,
-} from "../../store/slices/dashboardsSlice";
+import { useAppContext } from "../../state/useAppContext";
+import { actionConstants } from "../../state/ActionConstants";
 import {
   ACCEPT_FILTERS,
   defaultSelectedFilters,
   getGridStyles,
-} from "../../utils/chartUtils";
+} from "../../configs/Utils";
+// import { ChartsResponse } from "../../configs/StaticData";
 import { Subtitle2, Tag } from "@fluentui/react-components";
 import { Spinner, SpinnerSize } from "@fluentui/react";
+// import { ChartsResponse } from "../../configs/StaticData";
 
 type ChartProps = {
   layoutWidthUpdated: boolean;
 };
 
 const Chart = (props: ChartProps) => {
-  const dispatch = useAppDispatch();
-  const charts = useAppSelector(selectCharts);
-  const fetchingCharts = useAppSelector(selectFetchingCharts);
-  const fetchingFilters = useAppSelector(selectFetchingFilters);
-  const filtersMetaFetched = useAppSelector(selectFiltersMetaFetched);
-  const initialChartsDataFetched = useAppSelector(selectInitialChartsDataFetched);
-  const layoutConfig = useAppSelector(selectLayoutConfig);
-  const layoutCharts = useAppSelector(selectLayoutCharts);
+  const { state, dispatch } = useAppContext();
+  const {
+    charts,
+    fetchingCharts,
+    fetchingFilters,
+    filtersMetaFetched,
+    initialChartsDataFetched,
+  } = state.dashboards;
+  const { config: layoutConfig } = state;
   const { layoutWidthUpdated } = props;
 
   const [widths, setWidths] = useState<Record<string, number>>({});
@@ -94,7 +82,10 @@ const Chart = (props: ChartProps) => {
   }, []);
 
   const getChartData = async (reqBody: any) => {
-    dispatch(setFetchingCharts(true));
+    dispatch({
+      type: actionConstants.UPDATE_CHARTS_FETCHING_FLAG,
+      payload: true,
+    });
     if (String(reqBody?.Sentiment?.[0]).toLowerCase() === "all") {
       reqBody.Sentiment = [];
     }
@@ -140,10 +131,20 @@ const Chart = (props: ChartProps) => {
           return configObj;
         })
         .filter((chart): chart is ChartConfigItem => chart !== null);
-      dispatch(setChartsData(updatedCharts));
-      dispatch(setFetchingCharts(false));
-    } catch {
-      dispatch(setFetchingCharts(false));
+      dispatch({
+        type: actionConstants.UPDATE_CHARTS_DATA,
+        payload: updatedCharts,
+      });
+      dispatch({
+        type: actionConstants.UPDATE_CHARTS_FETCHING_FLAG,
+        payload: false,
+      });
+    } catch (e) {
+      dispatch({
+        type: actionConstants.UPDATE_CHARTS_FETCHING_FLAG,
+        payload: false,
+      });
+      console.log("Error while fetching charts data", e);
     }
   };
 
@@ -152,7 +153,10 @@ const Chart = (props: ChartProps) => {
     const loadData = async () => {
       try {
         if (!filtersMetaFetched) {
-          dispatch(setFetchingFilters(true));
+          dispatch({
+            type: actionConstants.UPDATE_FILTERS_FETCHING_FLAG,
+            payload: true,
+          });
           const filterResponse = await fetchFilterData();
           const acceptedFilters: FilterMetaData = {};
           filterResponse?.forEach((obj: any) => {
@@ -161,24 +165,39 @@ const Chart = (props: ChartProps) => {
               acceptedFilters[filter_name] = filter_values;
             }
           });
-          dispatch(setFilters(acceptedFilters));
-          dispatch(setFiltersMetaFetched(true));
-          dispatch(setFetchingFilters(false));
+          dispatch({
+            type: actionConstants.SET_FILTERS,
+            payload: acceptedFilters,
+          });
+          dispatch({
+            type: actionConstants.UPDATE_FILTERS_FETCHED_FLAG,
+            payload: true,
+          });
+          dispatch({
+            type: actionConstants.UPDATE_FILTERS_FETCHING_FLAG,
+            payload: false,
+          });
         }
         if (!initialChartsDataFetched) {
           await getChartData({ ...defaultSelectedFilters });
-          dispatch(setInitialChartsFetched(true));
+          dispatch({
+            type: actionConstants.UPDATE_INITIAL_CHARTS_FETCHED_FLAG,
+            payload: true,
+          });
         }
       } catch (error) {
         console.error("Error loading data:", error);
-        dispatch(setChartsData([]));
-        dispatch(setFetchingFilters(false));
+        dispatch({ type: actionConstants.UPDATE_CHARTS_DATA, payload: [] });
+        dispatch({
+          type: actionConstants.UPDATE_FILTERS_FETCHING_FLAG,
+          payload: false,
+        });
       }
     };
-    if (layoutConfig.charts.length > 0) {
+    if (state.config.charts.length > 0) {
       loadData();
     }
-  }, [layoutCharts]);
+  }, [state.config.charts]);
 
   const applyFilters = async (updatedFilters: SelectedFilters) => {
     setAppliedFetch(true);

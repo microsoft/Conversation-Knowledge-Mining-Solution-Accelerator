@@ -12,9 +12,8 @@ import {
 import styles from "./ChatHistoryListItemGroups.module.css";
 import { ChatHistoryListItemCell } from "../ChatHistoryListItemCell/ChatHistoryListItemCell";
 import { Conversation } from "../../types/AppTypes";
-import { useAppSelector } from "../../store/hooks";
-import { selectChatHistoryList, selectFetchingConversations } from "../../store/selectors";
-import { segregateItems } from "../../utils/messageUtils";
+import { useAppContext } from "../../state/useAppContext";
+import { segregateItems } from "../../configs/Utils";
 
 export interface GroupedChatHistory {
   title: string;
@@ -33,10 +32,10 @@ export const ChatHistoryListItemGroups: React.FC<
 }) => {
   const observerTarget = useRef(null);
   const initialCall = useRef(true);
-  const chatHistoryList = useAppSelector(selectChatHistoryList);
-  const fetchingConversations = useAppSelector(selectFetchingConversations);
+  const { state } = useAppContext();
+  const { chatHistory } = state;
 
-  const groupedChatHistory = segregateItems(chatHistoryList);
+  const groupedChatHistory = segregateItems(chatHistory.list);
 
   const handleSelectHistory = (item?: Conversation) => {
     if (typeof item === "object") {
@@ -66,7 +65,7 @@ export const ChatHistoryListItemGroups: React.FC<
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          if (!fetchingConversations) {
+          if (!chatHistory?.fetchingConversations) {
             handleFetchHistory();
           }
         }
@@ -79,7 +78,7 @@ export const ChatHistoryListItemGroups: React.FC<
     return () => {
       if (observerTarget.current) observer.unobserve(observerTarget.current);
     };
-  }, [observerTarget.current, fetchingConversations]);
+  }, [observerTarget.current, chatHistory?.fetchingConversations]);
 
   const allConversationsLength = groupedChatHistory.reduce(
     (previousValue, currentValue) =>
@@ -87,7 +86,7 @@ export const ChatHistoryListItemGroups: React.FC<
     0
   );
 
-  if (!fetchingConversations && allConversationsLength === 0) {
+  if (!chatHistory.fetchingConversations && allConversationsLength === 0) {
     return (
       <Stack
         horizontal
@@ -148,7 +147,7 @@ export const ChatHistoryListItemGroups: React.FC<
           },
         }}
       />
-      {Boolean(fetchingConversations) && (
+      {Boolean(chatHistory?.fetchingConversations) && (
         <div className={styles.spinnerContainer}>
           <Spinner
             size={SpinnerSize.small}

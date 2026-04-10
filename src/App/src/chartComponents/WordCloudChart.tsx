@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as d3 from "d3";
 import cloud from "d3-cloud";
-import { colors, normalize } from "../utils/chartUtils";
+import { colors, normalize } from "../configs/Utils";
 interface WordCloudData {
   words: {
     text: string;

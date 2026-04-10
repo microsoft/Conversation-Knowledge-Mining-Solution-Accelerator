@@ -1,26 +1,33 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Button,
   Textarea,
   Subtitle2,
+  Subtitle1,
   Body1,
+  Title3,
 } from "@fluentui/react-components";
-import { DefaultButton, Spinner, SpinnerSize } from "@fluentui/react";
-import { ChatAdd24Regular } from "@fluentui/react-icons";
+import "./Chat.css";
+import { SparkleRegular } from "@fluentui/react-icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import supersub from "remark-supersub";
-import "./Chat.css";
-
-import { getIsChartDisplayDefault } from "../../api/api";
+import { DefaultButton, Spinner, SpinnerSize } from "@fluentui/react";
+import { useAppContext } from "../../state/useAppContext";
+import { actionConstants } from "../../state/ActionConstants";
+import {
+  type ChartDataResponse,
+  type Conversation,
+  type ConversationRequest,
+  type ParsedChunk,
+  type ChatMessage,
+  type Citation,
+} from "../../types/AppTypes";
+import { callConversationApi, getIsChartDisplayDefault, historyUpdate } from "../../api/api";
+import { ChatAdd24Regular } from "@fluentui/react-icons";
+import { generateUUIDv4 } from "../../configs/Utils";
 import ChatChart from "../ChatChart/ChatChart";
 import Citations from "../Citations/Citations";
-import { useAutoScroll, useChatApi, useChatHistorySave, useTextareaAutoResize } from "../../hooks";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { newConversationStart } from "../../store/slices/appSlice";
-import { setUserMessage, clearMessages } from "../../store/slices/chatSlice";
-import { updateCitation } from "../../store/slices/citationSlice";
-import type { ChartDataResponse } from "../../types/AppTypes";
 
 type ChatProps = {
   onHandlePanelStates: (name: string) => void;
@@ -28,133 +35,619 @@ type ChatProps = {
   panelShowStates: Record<string, boolean>;
 };
 
+const [ASSISTANT, TOOL, ERROR, USER] = ["assistant", "tool", "error", "user"];
+const NO_CONTENT_ERROR = "No content in messages object.";
+
 const Chat: React.FC<ChatProps> = ({
   onHandlePanelStates,
   panelShowStates,
   panels,
 }) => {
-  const dispatch = useAppDispatch();
-  const userMessage = useAppSelector((s) => s.chat.userMessage);
-  const generatingResponse = useAppSelector((s) => s.chat.generatingResponse);
-  const messages = useAppSelector((s) => s.chat.messages);
-  const isStreamingInProgress = useAppSelector((s) => s.chat.isStreamingInProgress);
-  const selectedConversationId = useAppSelector((s) => s.app.selectedConversationId);
-  const generatedConversationId = useAppSelector((s) => s.app.generatedConversationId);
-  const isFetchingConvMessages = useAppSelector((s) => s.chatHistory.isFetchingConvMessages);
-  const isHistoryUpdateAPIPending = useAppSelector((s) => s.chatHistory.isHistoryUpdateAPIPending);
-
-  const activeConversationId = selectedConversationId || generatedConversationId;
+  const { state, dispatch } = useAppContext();
+  const { userMessage, generatingResponse } = state?.chat;
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
-  const previousConversationIdRef = useRef(activeConversationId);
-  const [isChartDisplayDefault, setIsChartDisplayDefault] = useState(false);
-
-  // ── Custom hooks ──────────────────────────────
-  const { scrollRef, scrollToBottom } = useAutoScroll([generatingResponse]);
-  const { saveToDB } = useChatHistorySave();
-  const {
-    makeApiRequestWithCosmosDB,
-    isChartLoading,
-    parseCitationFromMessage,
-    abortFuncs,
-  } = useChatApi({
-    scrollToBottom,
-    saveToDB,
-    questionInputRef,
-    isChartDisplayDefault,
-  });
-
-  useTextareaAutoResize(questionInputRef, userMessage);
-
-  // ── Derived / memoised values ─────────────────
-  const isInputDisabled = useMemo(
-    () => generatingResponse || isHistoryUpdateAPIPending,
-    [generatingResponse, isHistoryUpdateAPIPending]
-  );
-
-  const isSendDisabled = useMemo(
-    () => generatingResponse || !userMessage.trim() || isHistoryUpdateAPIPending,
-    [generatingResponse, userMessage, isHistoryUpdateAPIPending]
-  );
-
-  const showLoadingIndicator = useMemo(
-    () => (generatingResponse && !isStreamingInProgress) || isChartLoading,
-    [generatingResponse, isStreamingInProgress, isChartLoading]
-  );
-
-  // ── Side-effects ──────────────────────────────
+  const [isChartLoading, setIsChartLoading] = useState(false)
+  const abortFuncs = useRef([] as AbortController[]);
+  const chatMessageStreamEnd = useRef<HTMLDivElement | null>(null);
+  const [isCharthDisplayDefault , setIsCharthDisplayDefault] = useState(false);
+  
   useEffect(() => {
     try {
-      const fetchFlag = async () => {
-        const cfg = await getIsChartDisplayDefault();
-        setIsChartDisplayDefault(cfg.isChartDisplayDefault);
+      const fetchIsChartDisplayDefault = async () => {
+        const chartConfigFlag = await getIsChartDisplayDefault();
+        setIsCharthDisplayDefault(chartConfigFlag.isChartDisplayDefault);
       };
-      void fetchFlag();
+      fetchIsChartDisplayDefault();
     } catch (error) {
       console.error("Failed to fetch isChartDisplayDefault flag", error);
     }
   }, []);
 
-  useEffect(() => {
-    const previousConversationId = previousConversationIdRef.current;
+  // Helper function to parse chart response from accumulated content
+  const parseChartResponse = (content: string): any => {
+    let chartResponse: any;
+    try {
+      chartResponse = JSON.parse(content);
+    } catch {
+      return content; // Non-JSON string — returned as error message by handleChartResult
+    }
 
-    if (
-      previousConversationId &&
-      activeConversationId &&
-      previousConversationId !== activeConversationId &&
-      (generatingResponse || isStreamingInProgress)
-    ) {
+    // Handle explicit error responses like {"error": "Chart cannot be generated"}
+    if (chartResponse?.error) {
+      return chartResponse.error;
+    }
+
+    // Unwrap { "object": { "type": ..., "data": ... } } shape from chart service
+    if (chartResponse?.object) {
+      return chartResponse.object;
+    }
+
+    return chartResponse;
+  };
+
+  // Helper function to handle chart result dispatching
+  const handleChartResult = (
+    chartResponse: any,
+    streamMessage: ChatMessage,
+    newMessage: ChatMessage,
+    suppressErrors: boolean = false
+  ): ChatMessage[] => {
+    if (chartResponse?.type && chartResponse?.data) {
+      // Valid chart data
+      streamMessage.content = chartResponse as unknown as ChartDataResponse;
+      streamMessage.role = ASSISTANT;
+      const chartMessage = { ...streamMessage };
+      dispatch({
+        type: actionConstants.UPDATE_MESSAGE_BY_ID,
+        payload: chartMessage,
+      });
+      scrollChatToBottom();
+      return [newMessage, chartMessage];
+    }
+
+    // Everything else is an error — suppress for automatic chart generation
+    if (suppressErrors) {
+      console.log("Auto-chart generation failed (suppressed):", chartResponse);
+      return [];
+    }
+
+    const errorMsg = typeof chartResponse === "string"
+      ? chartResponse
+      : JSON.stringify(chartResponse);
+    streamMessage.content = errorMsg;
+    streamMessage.role = ERROR;
+    const errorMessage = { ...streamMessage };
+    dispatch({
+      type: actionConstants.UPDATE_MESSAGE_BY_ID,
+      payload: errorMessage,
+    });
+    scrollChatToBottom();
+    return [newMessage, errorMessage];
+  };
+
+  const saveToDB = async (newMessages: ChatMessage[], convId: string, reqType: string = 'Text') => {
+    if (!convId || !newMessages.length) {
+      return;
+    }
+    const isNewConversation = reqType !== 'graph' ? !state.selectedConversationId : false;
+    dispatch({
+      type: actionConstants.UPDATE_HISTORY_UPDATE_API_FLAG,
+      payload: true,
+    });
+
+    if (((reqType !== 'graph' && reqType !== 'error') &&  newMessages[newMessages.length - 1].role !== ERROR) && isCharthDisplayDefault ){
+      setIsChartLoading(true);
+      setTimeout(()=>{
+        makeApiRequestForChart('show in a graph by default', convId, true)
+      },5000)
+      
+    }
+    await historyUpdate(newMessages, convId)
+      .then(async (res) => {
+        if (!res.ok) {
+          if (!messages) {
+            let err: Error = {
+              ...new Error(),
+              message: "Failure fetching current chat state.",
+            };
+            throw err;
+          }
+        }     
+        let responseJson = await res.json();
+        if (isNewConversation && responseJson?.success) {
+          const newConversation: Conversation = {
+            id: responseJson?.data?.conversation_id,
+            title: responseJson?.data?.title,
+            messages: state.chat.messages,
+            date: responseJson?.data?.date,
+            updatedAt: responseJson?.data?.date,
+          };
+          dispatch({
+            type: actionConstants.ADD_NEW_CONVERSATION_TO_CHAT_HISTORY,
+            payload: newConversation,
+          });
+          dispatch({
+            type: actionConstants.UPDATE_SELECTED_CONV_ID,
+            payload: responseJson?.data?.conversation_id,
+          });
+        }
+        dispatch({
+          type: actionConstants.UPDATE_HISTORY_UPDATE_API_FLAG,
+          payload: false,
+        });
+        return res as Response;
+      })
+      .catch((err) => {
+        console.error("Error: while saving data", err);
+      })
+      .finally(() => {
+        dispatch({
+          type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+          payload: false,
+        });
+        dispatch({
+          type: actionConstants.UPDATE_HISTORY_UPDATE_API_FLAG,
+          payload: false,
+        });  
+      });
+  };
+
+
+  const parseCitationFromMessage = (message : any): Citation[] => {
+      if (!message) return [];
+      try {
+        let parsed;
+        if (typeof message === "string") {
+          // Handle legacy format: citations stored as '"citations": [...]' or '"citations": [...]}' fragment
+          if (message.trim().startsWith('"citations":')) {
+            const wrapped = `{${message.trim()}}`;
+            // Legacy format may include a trailing brace; collapse double }} to single }
+            parsed = JSON.parse(wrapped.replace(/\}\}$/, '}'));
+          } else {
+            parsed = JSON.parse(message);
+          }
+        } else {
+          parsed = message;
+        }
+        
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: any, idx: number) => ({
+            content: item.content || "",
+            id: String(idx + 1),
+            title: item.title || null,
+            filepath: item.filepath || null,
+            url: item.url || null,
+            metadata: item.metadata || null,
+            chunk_id: item.chunk_id || null,
+            reindex_id: String(idx + 1),
+          } as Citation));
+        }
+        if (parsed?.citations && Array.isArray(parsed.citations)) {
+          return parsed.citations;
+        }
+      } catch {
+        // Silently ignore parse errors for incomplete JSON chunks during streaming
+      }
+    return [];
+  };
+  const isChartQuery = (query: string) => {
+    const chartKeywords = ["chart", "graph", "visualize", "plot"];
+    return chartKeywords.some((keyword) =>
+      query.toLowerCase().includes(keyword)
+    );
+  };
+
+  useEffect(() => {
+    if (state.chat.generatingResponse || state.chat.isStreamingInProgress) {
       const chatAPISignal = abortFuncs.current.shift();
       if (chatAPISignal) {
+        console.log("chatAPISignal", chatAPISignal);
         chatAPISignal.abort(
-          "Chat aborted due to switch to other conversation while generating"
+          "Chat Aborted due to switch to other conversation while generating"
         );
       }
     }
+  }, [state.selectedConversationId]);
 
-    previousConversationIdRef.current = activeConversationId;
-  }, [activeConversationId, abortFuncs, generatingResponse, isStreamingInProgress]);
   useEffect(() => {
-    if (!isFetchingConvMessages) {
-      scrollToBottom("auto");
+    if (
+      !state.chatHistory.isFetchingConvMessages &&
+      chatMessageStreamEnd.current
+    ) {
+      setTimeout(() => {
+        chatMessageStreamEnd.current?.scrollIntoView({ behavior: "auto" });
+      }, 100);
     }
-  }, [isFetchingConvMessages, scrollToBottom]);
+  }, [state.chatHistory.isFetchingConvMessages]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        if (userMessage.trim()) {
-          void makeApiRequestWithCosmosDB(userMessage, activeConversationId);
+  const scrollChatToBottom = () => {
+    if (chatMessageStreamEnd.current) {
+      setTimeout(() => {
+        chatMessageStreamEnd.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  };
+
+  useEffect(() => {
+    scrollChatToBottom();
+  }, [state.chat.generatingResponse]);
+
+  const makeApiRequestForChart = async (
+    question: string,
+    conversationId: string,
+    isAutomatic: boolean = false
+  ) => {
+    if (generatingResponse || !question.trim()) {
+      return;
+    }
+
+    const newMessage: ChatMessage = {
+      id: generateUUIDv4(),
+      role: "user",
+      content: question,
+      date: new Date().toISOString()
+    };
+    
+    // Only dispatch UI updates if this is NOT an automatic request
+    if (!isAutomatic) {
+      dispatch({
+        type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+        payload: true,
+      });
+      scrollChatToBottom();
+      dispatch({
+        type: actionConstants.UPDATE_MESSAGES,
+        payload: [newMessage],
+      });
+      dispatch({
+        type: actionConstants.UPDATE_USER_MESSAGE,
+        payload:  questionInputRef?.current?.value || "",
+      });
+    }
+    const abortController = new AbortController();
+    abortFuncs.current.unshift(abortController);
+
+    const request: ConversationRequest = {
+      id: conversationId,
+      query: question
+    };
+
+    const streamMessage: ChatMessage = {
+      id: generateUUIDv4(),
+      date: new Date().toISOString(),
+      role: ASSISTANT,
+      content: "",
+    };
+    let updatedMessages: ChatMessage[] = [];
+    try {
+      const response = await callConversationApi(
+        request,
+        abortController.signal
+      );
+
+
+      if (response?.body) {
+        const reader = response.body.getReader();
+        let accumulatedContent = "";
+        let hasError = false;
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? "";
+
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if (textObj?.error) {
+                hasError = true;
+                accumulatedContent = line;
+                break;
+              }
+              const delta = textObj?.choices?.[0]?.delta;
+              if (delta?.role === "assistant" && delta?.content) {
+                accumulatedContent += delta.content;
+              }
+              // Skip tool citations for chart requests
+            } catch {
+              // Skip incomplete JSON chunks in stream
+            }
+          }
+
+          if (hasError) {
+            console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
+          }
         }
-        questionInputRef.current?.focus();
+        // END OF STREAMING
+        if (hasError) {
+          const errorMsg = accumulatedContent.startsWith("{")
+            ? JSON.parse(accumulatedContent).error
+            : accumulatedContent;
+          const errorMessage: ChatMessage = {
+            id: generateUUIDv4(),
+            role: ERROR,
+            content: errorMsg,
+            date: new Date().toISOString(),
+          };
+          updatedMessages = isAutomatic ? [] : [newMessage, errorMessage];
+          if (!isAutomatic) {
+            dispatch({
+              type: actionConstants.UPDATE_MESSAGES,
+              payload: [errorMessage],
+            });
+            scrollChatToBottom();
+          }
+        } else {
+          const chartResponse = parseChartResponse(accumulatedContent);
+          updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage, isAutomatic);
+        }
       }
-    },
-    [
-      activeConversationId,
-      userMessage,
-      makeApiRequestWithCosmosDB,
-    ]
-  );
+      // Only save to DB if not automatic or if a valid chart was produced
+      if (!isAutomatic || updatedMessages.length > 0) {
+        saveToDB(updatedMessages, conversationId, 'graph');
+      }
+    } catch (e) {
+      console.log("Caught with an error while chat and save", e);
+      if (abortController.signal.aborted) {
+        if (streamMessage.content) {
+          updatedMessages = [newMessage, streamMessage];
+        } else {
+          updatedMessages = [newMessage];
+        }
+        console.log(
+          "@@@ Abort Signal detected: Formed updated msgs",
+          updatedMessages
+        );
+        if (!isAutomatic) {
+          saveToDB(updatedMessages, conversationId, 'graph');
+        }
+      }
 
-  const onClickSend = useCallback(() => {
-    if (userMessage) {
-      makeApiRequestWithCosmosDB(userMessage, activeConversationId);
+      if (!abortController.signal.aborted && !isAutomatic) {
+        if (e instanceof Error) {
+          alert(e.message);
+        } else {
+          alert(
+            "An error occurred. Please try again. If the problem persists, please contact the site administrator."
+          );
+        }
+      }
+    } finally {
+      if (!isAutomatic) {
+        dispatch({
+          type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+          payload: false,
+        });
+      }
+      // Always reset streaming flag to prevent UI from getting stuck
+      dispatch({
+        type: actionConstants.UPDATE_STREAMING_FLAG,
+        payload: false,
+      });
+      setIsChartLoading(false);
     }
-    questionInputRef?.current?.focus();
-  }, [activeConversationId, userMessage, makeApiRequestWithCosmosDB]);
+    return abortController.abort();
+  };
 
-  const setUserMessageValue = useCallback(
-    (value: string) => {
-      dispatch(setUserMessage(value));
-    },
-    [dispatch]
-  );
+  const makeApiRequestWithCosmosDB = async (
+    question: string,
+    conversationId: string
+  ) => {
+    if (generatingResponse || !question.trim()) {
+      return;
+    }
+    const isChatReq = isChartQuery(userMessage) ? "graph" : "Text"
+    const newMessage: ChatMessage = {
+      id: generateUUIDv4(),
+      role: "user",
+      content: question,
+      date: new Date().toISOString(),
+    };
+    dispatch({
+      type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+      payload: true,
+    });
+    scrollChatToBottom();
+    dispatch({
+      type: actionConstants.UPDATE_MESSAGES,
+      payload: [newMessage],
+    });
+    dispatch({
+      type: actionConstants.UPDATE_USER_MESSAGE,
+      payload: "",
+    });
+    const abortController = new AbortController();
+    abortFuncs.current.unshift(abortController);
 
-  const onNewConversation = useCallback(() => {
-    dispatch(newConversationStart());
-    dispatch(clearMessages());
-    dispatch(updateCitation({ activeCitation: null, showCitation: false }));
-  }, [dispatch]);
+    const request: ConversationRequest = {
+      id: conversationId,
+      query: question
+    };
+
+    const streamMessage: ChatMessage = {
+      id: generateUUIDv4(),
+      date: new Date().toISOString(),
+      role: ASSISTANT,
+      content: "",
+      citations:"",
+    };
+    let updatedMessages: ChatMessage[] = [];
+    try {
+      const response = await callConversationApi(
+        request,
+        abortController.signal
+      );
+
+      if (response?.body) {
+        const reader = response.body.getReader();
+        const isChart = isChartQuery(userMessage);
+        let hasError = false;
+        let errorLine = "";
+        let accumulatedContent = "";
+        let lineBuffer = "";
+        const decoder = new TextDecoder("utf-8");
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          lineBuffer += decoder.decode(value, { stream: true });
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() ?? "";
+
+          for (const rawLine of lines) {
+            const line = rawLine.trim();
+            if (!line || line === "{}") continue;
+            try {
+              const textObj: ParsedChunk = JSON.parse(line);
+              if (textObj?.error) {
+                hasError = true;
+                errorLine = line;
+                break;
+              }
+              const delta = textObj?.choices?.[0]?.delta;
+              const deltaRole = delta?.role;
+              const deltaContent = delta?.content;
+
+              if (deltaRole === "tool" && deltaContent) {
+                streamMessage.citations = deltaContent;
+                if (!isChart) {
+                  dispatch({
+                    type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                    payload: streamMessage,
+                  });
+                }
+              } else if (deltaRole === "assistant" && deltaContent) {
+                accumulatedContent += deltaContent;
+                if (!isChart) {
+                  streamMessage.content = accumulatedContent;
+                  streamMessage.role = ASSISTANT;
+                  dispatch({
+                    type: actionConstants.UPDATE_MESSAGE_BY_ID,
+                    payload: streamMessage,
+                  });
+                  scrollChatToBottom();
+                }
+              }
+            } catch {
+              // Skip incomplete JSON chunks in stream
+            }
+          }
+
+          if (hasError) {
+            console.log("STOPPED DUE TO ERROR FROM API RESPONSE");
+            break;
+          }
+        }
+        // END OF STREAMING
+        if (hasError) {
+          let errorMsg: string;
+          try {
+            const parsed = JSON.parse(errorLine);
+            errorMsg = parsed.error === "Attempted to access streaming response content, without having called `read()`."
+              ? "An error occurred. Please try again later."
+              : parsed.error;
+          } catch {
+            errorMsg = errorLine;
+          }
+          const errorMessage: ChatMessage = {
+            id: generateUUIDv4(),
+            role: ERROR,
+            content: errorMsg,
+            date: new Date().toISOString(),
+          };
+          updatedMessages = [newMessage, errorMessage];
+          dispatch({
+            type: actionConstants.UPDATE_MESSAGES,
+            payload: [errorMessage],
+          });
+          scrollChatToBottom();
+        } else if (isChart) {
+          const chartResponse = parseChartResponse(accumulatedContent);
+          updatedMessages = handleChartResult(chartResponse, streamMessage, newMessage);
+        } else {
+          updatedMessages = [newMessage, streamMessage];
+        }
+      }
+      if (updatedMessages[updatedMessages.length-1]?.role !== "error") {
+        saveToDB(updatedMessages, conversationId, isChatReq);
+      }
+    } catch (e) {
+      console.log("Caught with an error while chat and save", e);
+      if (abortController.signal.aborted) {
+        if (streamMessage.content) {
+          updatedMessages = [newMessage, streamMessage];
+        } else {
+          updatedMessages = [newMessage];
+        }
+        console.log(
+          "@@@ Abort Signal detected: Formed updated msgs",
+          updatedMessages
+        );
+        saveToDB(updatedMessages, conversationId, 'error');
+      }
+
+      if (!abortController.signal.aborted) {
+        if (e instanceof Error) {
+          alert(e.message);
+        } else {
+          alert(
+            "An error occurred. Please try again. If the problem persists, please contact the site administrator."
+          );
+        }
+      }
+    } finally {
+      dispatch({
+        type: actionConstants.UPDATE_GENERATING_RESPONSE_FLAG,
+        payload: false,
+      });
+      dispatch({
+        type: actionConstants.UPDATE_STREAMING_FLAG,
+        payload: false,
+      });
+      
+    }
+    return abortController.abort();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const conversationId =
+        state?.selectedConversationId || state.generatedConversationId;
+      if (userMessage) {
+        makeApiRequestWithCosmosDB(userMessage, conversationId);
+      }
+      if (questionInputRef?.current) {
+        questionInputRef?.current.focus();
+      }
+    }
+  };
+
+  const onClickSend = () => {
+    const conversationId =
+      state?.selectedConversationId || state.generatedConversationId;
+    if (userMessage) {
+      makeApiRequestWithCosmosDB(userMessage, conversationId);
+    }
+    if (questionInputRef?.current) {
+      questionInputRef?.current.focus();
+    }
+  };
+
+  const setUserMessage = (value: string) => {
+    dispatch({ type: actionConstants.UPDATE_USER_MESSAGE, payload: value });
+  };
+
+  const onNewConversation = () => {
+    dispatch({ type: actionConstants.NEW_CONVERSATION_START });
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
+  };
+  const { messages, citations } = state.chat;
   return (
     <div className="chat-container">
       <div className="chat-header">
@@ -171,7 +664,7 @@ const Chat: React.FC<ChatProps> = ({
         </span>
       </div>
       <div className="chat-messages">
-        {Boolean(isFetchingConvMessages) && (
+        {Boolean(state.chatHistory?.isFetchingConvMessages) && (
           <div>
             <Spinner
               size={SpinnerSize.small}
@@ -179,7 +672,7 @@ const Chat: React.FC<ChatProps> = ({
             />
           </div>
         )}
-        {!Boolean(isFetchingConvMessages) &&
+        {!Boolean(state.chatHistory?.isFetchingConvMessages) &&
           messages.length === 0 && (
             <div className="initial-msg">
               {/* <SparkleRegular fontSize={32} /> */}
@@ -191,26 +684,26 @@ const Chat: React.FC<ChatProps> = ({
               </Body1>
             </div>
           )}
-        {!Boolean(isFetchingConvMessages) &&
-          messages.map((msg, index: number) => (
+        {!Boolean(state.chatHistory?.isFetchingConvMessages) &&
+          messages.map((msg, index) => (
             <div key={index} className={`chat-message ${msg.role}`}>
               {(() => {
                  const isLastAssistantMessage =
                  msg.role === "assistant" && index === messages.length - 1;
-                if (msg.role === "user" && typeof msg.content === "string") {
-                  if (msg.content === "show in a graph by default") return null;
-                  return (
-                    <div className="user-message">
-                      <span>{msg.content}</span>
-                    </div>
-                  );
+                if ((msg.role === "user") && typeof msg.content === "string") {
+                  if (msg.content == "show in a graph by default") return null;
+                    return (
+                      <div className="user-message">
+                        <span>{msg.content}</span>
+                      </div>
+                    );
 
                 }
-                const chartContent = msg.content as ChartDataResponse;
-                if (chartContent?.type && chartContent?.data) {
+                msg.content = msg.content as ChartDataResponse;
+                if (msg?.content?.type && msg?.content?.data) {
                   return (
                     <div className="assistant-message chart-message">
-                      <ChatChart chartContent={chartContent} />
+                      <ChatChart chartContent={msg.content} />
                       <div className="answerDisclaimerContainer">
                         <span className="answerDisclaimer">
                           AI-generated content may be incorrect
@@ -235,19 +728,15 @@ const Chat: React.FC<ChatProps> = ({
                         </div>
                       ) : (
                         <Citations
-                            answer={{
-                              answer: msg.content,
-                              citations:
-                                msg.role === "assistant" && msg.citations
-                                  ? typeof msg.citations === "string"
-                                    ? parseCitationFromMessage(msg.citations)
-                                    : Array.isArray(msg.citations)
-                                      ? msg.citations
-                                      : []
-                                  : [],
-                            }}
-                            index={index}
-                          />
+                          answer={{
+                            answer: msg.content,
+                            citations:
+                              msg.role === "assistant"
+                                ? parseCitationFromMessage(msg.citations)
+                                : [],
+                          }}
+                          index={index}
+                        />
                       )}
 
                       <div className="answerDisclaimerContainer">
@@ -261,7 +750,7 @@ const Chat: React.FC<ChatProps> = ({
               })()}
             </div>
           ))}
-        {showLoadingIndicator && (
+        {((generatingResponse && !state.chat.isStreamingInProgress) || isChartLoading)  && (
           <div className="assistant-message loading-indicator">
             <div className="typing-indicator">
               <span className="generating-text">{isChartLoading ? "Generating chart if possible with the provided data" : "Generating answer"} </span>
@@ -271,7 +760,7 @@ const Chat: React.FC<ChatProps> = ({
             </div>
           </div>
         )}
-        <div data-testid="streamendref-id" ref={scrollRef} />
+        <div data-testid="streamendref-id" ref={chatMessageStreamEnd} />
       </div>
       <div className="chat-footer">
         <Button
@@ -281,13 +770,15 @@ const Chat: React.FC<ChatProps> = ({
           icon={<ChatAdd24Regular />}
           onClick={onNewConversation}
           title="Create new Conversation"
-          disabled={isInputDisabled}
+          disabled={
+            generatingResponse || state.chatHistory.isHistoryUpdateAPIPending
+          }
         />
         <div className="text-area-container">
           <Textarea
             className="textarea-field"
             value={userMessage}
-            onChange={(e, data) => setUserMessageValue(data.value || "")}
+            onChange={(e, data) => setUserMessage(data.value || "")}
             placeholder="Ask a question..."
             onKeyDown={handleKeyDown}
             ref={questionInputRef}
@@ -299,9 +790,17 @@ const Chat: React.FC<ChatProps> = ({
             iconProps={{ iconName: "Send" }}
             role="button"
             onClick={onClickSend}
-            disabled={isSendDisabled}
+            disabled={
+              generatingResponse ||
+              !userMessage.trim() ||
+              state.chatHistory.isHistoryUpdateAPIPending
+            }
             className="send-button"
-            aria-disabled={isSendDisabled}
+            aria-disabled={
+              generatingResponse ||
+              !userMessage ||
+              state.chatHistory.isHistoryUpdateAPIPending
+            }
             title="Send Question"
           />
         </div>
@@ -309,7 +808,5 @@ const Chat: React.FC<ChatProps> = ({
     </div>
   );
 };
-
-Chat.displayName = "Chat";
 
 export default Chat;

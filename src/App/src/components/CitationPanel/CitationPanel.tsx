@@ -1,25 +1,22 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Stack } from '@fluentui/react';
 import { DismissRegular } from '@fluentui/react-icons';
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
-import { useAppDispatch } from '../../store/hooks';
-import { updateCitation } from '../../store/slices/citationSlice';
+import { useAppContext } from '../../state/useAppContext';
+import { actionConstants } from '../../state/ActionConstants';
 import "./CitationPanel.css";
 interface Props {
     activeCitation: any
 }
 
-const CitationPanel: React.FC<Props> = React.memo(({ activeCitation }) => {
-    const dispatch = useAppDispatch()
-
-    const onCloseCitation = useCallback(() => {
-        dispatch(updateCitation({ activeCitation: null, showCitation: false }))
-    }, [dispatch])
-
-    const remarkPluginsMemo = useMemo(() => [remarkGfm], []);
-    const rehypePluginsMemo = useMemo(() => [rehypeRaw], []);
+const CitationPanel = ({ activeCitation }: Props) => {
+    const { dispatch } = useAppContext()
+  
+    const onCloseCitation = () => {
+        dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
+    }
     return (
         <div className='citationPanel'>
 
@@ -61,13 +58,12 @@ const CitationPanel: React.FC<Props> = React.memo(({ activeCitation }) => {
               
                 <ReactMarkdown
                 children={activeCitation?.content}
-                remarkPlugins={remarkPluginsMemo}
-                rehypePlugins={rehypePluginsMemo}
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw]}
               />
             </Stack.Item>
         </div>)
-});
+};
 
-CitationPanel.displayName = "CitationPanel";
 
 export default CitationPanel;

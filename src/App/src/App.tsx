@@ -14,19 +14,21 @@ import { SparkleRegular } from "@fluentui/react-icons";
 import "./App.css";
 import { ChatHistoryPanel } from "./components/ChatHistoryPanel/ChatHistoryPanel";
 
-import { getUserInfo, getLayoutConfig } from "./api/api";
+import {
+  getUserInfo,
+  getLayoutConfig,
+  historyDelete,
+  historyDeleteAll,
+  historyList,
+  historyRead,
+} from "./api/api";
 
-import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { useAppContext } from "./state/useAppContext";
+import { actionConstants } from "./state/ActionConstants";
+import { ChatMessage, Conversation } from "./types/AppTypes";
 import { AppLogo } from "./components/Svg/Svg";
 import CustomSpinner from "./components/CustomSpinner/CustomSpinner";
 import CitationPanel from "./components/CitationPanel/CitationPanel";
-import { saveConfig } from "./store/slices/appSlice";
-import { updateCitation } from "./store/slices/citationSlice";
-import {
-  fetchChatHistory,
-  loadConversation,
-  clearAllChatHistory,
-} from "./store/thunks/chatHistoryThunks";
 const panels = {
   DASHBOARD: "DASHBOARD",
   CHAT: "CHAT",
@@ -51,12 +53,8 @@ const defaultPanelShowStates = {
 };
 
 const Dashboard: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const appConfig = useAppSelector((s) => s.app.config.appConfig);
-  const showAppSpinner = useAppSelector((s) => s.app.showAppSpinner);
-  const showCitation = useAppSelector((s) => s.citation.showCitation);
-  const activeCitation = useAppSelector((s) => s.citation.activeCitation);
-  const currentConversationIdForCitation = useAppSelector((s) => s.citation.currentConversationIdForCitation);
+  const { state, dispatch } = useAppContext();
+  const { appConfig } = state.config;
   const [panelShowStates, setPanelShowStates] = useState<
     Record<string, boolean>
   >({ ...defaultPanelShowStates });
@@ -79,7 +77,8 @@ const Dashboard: React.FC = () => {
     try {
       const fetchConfig = async () => {
         const configData = await getLayoutConfig();
-        dispatch(saveConfig(configData));
+        console.log("configData", configData);
+        dispatch({ type: actionConstants.SAVE_CONFIG, payload: configData });
       };
       fetchConfig();
     } catch (error) {
@@ -108,8 +107,8 @@ const Dashboard: React.FC = () => {
     getUserInfo().then((res) => {
       const name: string = res[0]?.user_claims?.find((claim: any) => claim.typ === 'name')?.val ?? ''
       setName(name)
-    }).catch(() => {
-      console.error('Error fetching user info')
+    }).catch((err) => {
+      console.error('Error fetching user info: ', err)
     })
   }, [])
 
@@ -145,21 +144,19 @@ const Dashboard: React.FC = () => {
         }
       }
     } else {
-      const threeColumn = {
-        ...(appConfig.THREE_COLUMN as Record<string, number>),
-      };
+      const threeColumn = appConfig.THREE_COLUMN as Record<string, number>;
       threeColumn.DASHBOARD =
         threeColumn.DASHBOARD > 55 ? threeColumn.DASHBOARD : 55;
-      setPanelWidths(threeColumn);
+      setPanelWidths({ ...threeColumn });
     }
   };
 
   useEffect(() => {
     updateLayoutWidths(panelShowStates);
-  }, [appConfig]);
+  }, [state.config.appConfig]);
 
   const onHandlePanelStates = (panelName: string) => {
-    dispatch(updateCitation({ activeCitation: null, showCitation: false }))
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
     setLayoutWidthUpdated((prevFlag) => !prevFlag);
     const newState = {
       ...panelShowStates,
@@ -176,32 +173,51 @@ const Dashboard: React.FC = () => {
   };
 
   const getHistoryListData = async () => {
-    if (!hasMoreRecords) return;
-    try {
-      const convs = await dispatch(fetchChatHistory(offset)).unwrap();
-      if (convs !== null) {
-        if (convs.length === OFFSET_INCREMENT) {
-          setOffset((o) => o + OFFSET_INCREMENT);
-        } else if (convs.length < OFFSET_INCREMENT) {
-          setHasMoreRecords(false);
-        }
-      }
-    } catch (error) {
-      // Swallow or log the error to avoid unhandled promise rejections.
-      // console.error("Failed to fetch chat history:", error);
+    if (!hasMoreRecords) {
+      return;
     }
+    dispatch({
+      type: actionConstants.UPDATE_CONVERSATIONS_FETCHING_FLAG,
+      payload: true,
+    });
+    const convs = await historyList(offset);
+    if (convs !== null) {
+      if (convs.length === OFFSET_INCREMENT) {
+        setOffset((offset) => (offset += OFFSET_INCREMENT));
+        // Stopping offset increment if there were no records
+      } else if (convs.length < OFFSET_INCREMENT) {
+        setHasMoreRecords(false);
+      }
+      dispatch({
+        type: actionConstants.ADD_CONVERSATIONS_TO_LIST,
+        payload: convs,
+      });
+    }
+    dispatch({
+      type: actionConstants.UPDATE_CONVERSATIONS_FETCHING_FLAG,
+      payload: false,
+    });
   };
 
   const onClearAllChatHistory = async () => {
-    dispatch(updateCitation({ activeCitation: null, showCitation: false }));
+    dispatch({
+      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
+      payload: true,
+    });
+    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
     setClearing(true);
-    try {
-      await dispatch(clearAllChatHistory()).unwrap();
-      setChowClearAllConfirmationDialog(false);
-    } catch {
+    const response = await historyDeleteAll();
+    if (!response.ok) {
       setClearingError(true);
+    } else {
+      setChowClearAllConfirmationDialog(false);
+      dispatch({ type: actionConstants.UPDATE_ON_CLEAR_ALL_CONVERSATIONS });
     }
     setClearing(false);
+    dispatch({
+      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
+      payload: false,
+    });
   };
 
   useEffect(() => {
@@ -223,10 +239,34 @@ const Dashboard: React.FC = () => {
       console.error("No conversation ID found");
       return;
     }
+    dispatch({
+      type: actionConstants.UPDATE_CHATHISTORY_CONVERSATION_FLAG,
+      payload: true,
+    });
+    dispatch({
+      type: actionConstants.UPDATE_SELECTED_CONV_ID,
+      payload: id,
+    });
     try {
-      await dispatch(loadConversation(id)).unwrap();
+      const responseMessages = await historyRead(id);
+
+      if (responseMessages) {
+        dispatch({
+          type: actionConstants.SHOW_CHATHISTORY_CONVERSATION,
+          payload: {
+            id,
+            messages: responseMessages,
+          },
+        });
+      }
+
     } catch (error) {
       console.error("Error fetching conversation messages:", error);
+    } finally {
+      dispatch({
+        type: actionConstants.UPDATE_CHATHISTORY_CONVERSATION_FLAG,
+        payload: false,
+      });
     }
   };
 
@@ -246,7 +286,7 @@ const Dashboard: React.FC = () => {
       theme={webLightTheme}
       style={{ height: "100%", backgroundColor: "#F5F5F5" }}
     >
-      <CustomSpinner loading={showAppSpinner} label="Please wait.....!" />
+      <CustomSpinner loading={state.showAppSpinner} label="Please wait.....!" />
       <div className="header">
         <div className="header-left-section">
           <AppLogo />
@@ -299,7 +339,7 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
-        {showCitation && currentConversationIdForCitation !== "" && (
+        {state.citation.showCitation && state.citation.currentConversationIdForCitation !== "" && (
           <div
             style={{
               // width: `${panelWidths[panels.DASHBOARD]}%`,
@@ -307,7 +347,7 @@ const Dashboard: React.FC = () => {
               // minWidth: '30%'
             }}
           >
-            <CitationPanel activeCitation={activeCitation}  />
+            <CitationPanel activeCitation={state.citation.activeCitation}  />
 
           </div>
         )}
@@ -329,6 +369,8 @@ const Dashboard: React.FC = () => {
                 onSelectConversation={onSelectConversation}
                 showClearAllConfirmationDialog={showClearAllConfirmationDialog}
               />
+              {/* {useAppContext?.state.isChatHistoryOpen &&
+            useAppContext?.state.isCosmosDBAvailable?.status !== CosmosDBStatus.NotConfigured && <ChatHistoryPanel />} */}
             </div>
           )}
       </div>
