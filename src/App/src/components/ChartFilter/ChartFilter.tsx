@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Stack,
   DefaultButton,
-  PrimaryButton,
   DirectionalHint,
   IContextualMenuListProps,
   IContextualMenuItem,
@@ -14,8 +13,8 @@ import {
 import "./ChartFilter.css";
 import { type SelectedFilters } from "../../types/AppTypes";
 import { defaultSelectedFilters, sentimentIcons } from "../../configs/Utils";
-import { useAppContext } from "../../state/useAppContext";
-import { actionConstants } from "../../state/ActionConstants";
+import { useAppDispatch, useAppSelector } from "../../state/hooks";
+import { setSelectedFilters as setSelectedDashboardFilters } from "../../state/slices/dashboardSlice";
 import {
   ArrowClockwise20Regular,
   CalendarLtr20Regular,
@@ -32,8 +31,10 @@ interface FilterComponentProps {
 }
 
 const ChartFilter: React.FC<FilterComponentProps> = (props) => {
-  const { state, dispatch } = useAppContext();
-  const { selectedFilters, filtersMeta } = state.dashboards;
+  const dispatch = useAppDispatch();
+  const { selectedFilters, filtersMeta } = useAppSelector(
+    (state) => state.dashboards
+  );
   const { applyFilters, fetchingCharts } = props;
   const initialDateRange = typeof Array.isArray(selectedFilters.DateRange)
     ? selectedFilters.DateRange
@@ -91,10 +92,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
     updatedFilters.Sentiment = selectedCsat;
     updatedFilters.DateRange = startDate;
     applyFilters(updatedFilters);
-    dispatch({
-      type: actionConstants.UPDATE_SELECTED_FILTERS,
-      payload: updatedFilters,
-    });
+    dispatch(setSelectedDashboardFilters(updatedFilters));
   };
 
   const handleResetFilters = () => {
@@ -116,7 +114,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
   };
 
   const onTopicsMenuOpen = () => {
-    setSearchQuery(""); // Clear the search query when the menu opens
+    setSearchQuery("");
     setTimeout(() => {
       const element = document.getElementById("SEARCH_TOPICS");
       if (element) {
@@ -124,48 +122,49 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
       }
     }, 100);
   };
-  const renderMenuList: IRenderFunction<IContextualMenuListProps> = (
-    menuListProps,
-    defaultRender
-  ) => (
-    <div>
-      <button
-        className="options resetTopicsButton"
-        onClick={handleDeselectAll}
-        disabled={selectedTopics.length === 0}
-      >
-        <div>
-          <i aria-hidden="true" className="deselectIcon"></i>
-          <span> Reset topics</span>
-        </div>
-      </button>
-      <div style={{ borderBottom: "1px solid #ccc" }}></div>
-      {defaultRender ? defaultRender(menuListProps) : null}
-      <div style={{ borderBottom: "1px solid #ccc" }}> </div>
-      <SearchBox
-        className="searchTopics"
-        ariaLabel="Filter topics"
-        placeholder="Search topics"
-        onClear={() => {
-          setSearchQuery("");
-        }} // Clear search query when the "X" is clicked
-        onKeyUp={(e) => {
-          onSearchChange(e, (e.target as HTMLInputElement).value);
-        }}
-        iconProps={{ iconName: "Search" }}
-        styles={{ root: { margin: "8px" } }}
-        id="SEARCH_TOPICS"
-        showIcon
-        autoComplete="off"
-        autoFocus
-      />
-    </div>
-  );
 
-  const handleDeselectAll = (ev: React.MouseEvent<HTMLElement>) => {
+  const handleDeselectAll = useCallback((ev: React.MouseEvent<HTMLElement>) => {
     ev.preventDefault();
-    setSelectedTopics([]); // Deselect all items
-  };
+    setSelectedTopics([]);
+  }, []);
+
+  const renderMenuList: IRenderFunction<IContextualMenuListProps> = useCallback(
+    (menuListProps, defaultRender) => (
+      <div>
+        <button
+          className="options resetTopicsButton"
+          onClick={handleDeselectAll}
+          disabled={selectedTopics.length === 0}
+        >
+          <div>
+            <i aria-hidden="true" className="deselectIcon"></i>
+            <span> Reset topics</span>
+          </div>
+        </button>
+        <div style={{ borderBottom: "1px solid #ccc" }}></div>
+        {defaultRender ? defaultRender(menuListProps) : null}
+        <div style={{ borderBottom: "1px solid #ccc" }}> </div>
+        <SearchBox
+          className="searchTopics"
+          ariaLabel="Filter topics"
+          placeholder="Search topics"
+          onClear={() => {
+            setSearchQuery("");
+          }}
+          onKeyUp={(e) => {
+            onSearchChange(e, (e.target as HTMLInputElement).value);
+          }}
+          iconProps={{ iconName: "Search" }}
+          styles={{ root: { margin: "8px" } }}
+          id="SEARCH_TOPICS"
+          showIcon
+          autoComplete="off"
+          autoFocus
+        />
+      </div>
+    ),
+    [handleDeselectAll, selectedTopics.length]
+  );
 
   const topicMenuProps = useMemo(
     () => ({
@@ -193,7 +192,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
       directionalHint: DirectionalHint.bottomLeftEdge,
       onMenuOpened: () => onTopicsMenuOpen(),
     }),
-    [filteredTopics, selectedTopics]
+    [filteredTopics, renderMenuList, selectedTopics]
   );
 
   return (

@@ -14,12 +14,19 @@ import {
 } from "@fluentui/react";
 import { useBoolean } from "@fluentui/react-hooks";
 
-import { historyRename, historyDelete } from "../../api/api";
-
 import styles from "./ChatHistoryListItemCell.module.css";
 import { Conversation } from "../../types/AppTypes";
-import { useAppContext } from "../../state/useAppContext";
-import { actionConstants } from "../../state/ActionConstants";
+import { useAppDispatch, useAppSelector } from "../../state/hooks";
+import {
+  deleteConversation,
+  renameConversation,
+} from "../../state/slices/chatHistorySlice";
+import {
+  setShowAppSpinner,
+  startNewConversation,
+} from "../../state/slices/appSlice";
+import { hideCitation } from "../../state/slices/citationSlice";
+import { resetChatState } from "../../state/slices/chatSlice";
 
 interface ChatHistoryListItemCellProps {
   item?: Conversation;
@@ -32,7 +39,16 @@ export const ChatHistoryListItemCell: React.FC<
   item,
   onSelect,
 }) => {
-  const { state, dispatch } = useAppContext();
+  const dispatch = useAppDispatch();
+  const selectedConversationId = useAppSelector(
+    (state) => state.app.selectedConversationId
+  );
+  const currentConversationIdForCitation = useAppSelector(
+    (state) => state.citation.currentConversationIdForCitation
+  );
+  const generatingResponse = useAppSelector(
+    (state) => state.chat.generatingResponse
+  );
   const [isHovered, setIsHovered] = React.useState(false);
   const [edit, setEdit] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -42,7 +58,7 @@ export const ChatHistoryListItemCell: React.FC<
   const [errorRename, setErrorRename] = useState<string | undefined>(undefined);
   const [textFieldFocused, setTextFieldFocused] = useState(false);
   const textFieldRef = useRef<ITextField | null>(null);
-  const isSelected = item?.id === state.selectedConversationId;
+  const isSelected = item?.id === selectedConversationId;
   const dialogContentProps = {
     type: DialogType.close,
     title: "Are you sure you want to delete this item?",
@@ -69,32 +85,24 @@ export const ChatHistoryListItemCell: React.FC<
   }
 
   const onDelete = async () => {
-    dispatch({
-      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
-      payload: true,
-    });
-    if(state.citation.currentConversationIdForCitation === item.id) {
-      dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false, currentConversationIdForCitation: "" } });
-    }else{
-      dispatch({  type: actionConstants.UPDATE_CITATION,payload: { showCitation: true } });
+    dispatch(setShowAppSpinner(true));
+    if (currentConversationIdForCitation === item.id) {
+      dispatch(hideCitation());
     }
-    const response = await historyDelete(item.id);
-    if (!response.ok) {
+
+    const result = await dispatch(deleteConversation(item.id));
+    if (deleteConversation.rejected.match(result)) {
       setErrorDelete(true);
       setTimeout(() => {
         setErrorDelete(false);
       }, 5000);
-    } else {
-      dispatch({
-        type: actionConstants.DELETE_CONVERSATION_FROM_LIST,
-        payload: item.id,
-      });
+    } else if (isSelected) {
+      dispatch(resetChatState());
+      dispatch(startNewConversation());
     }
+
     toggleDeleteDialog();
-    dispatch({
-      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
-      payload: false,
-    });
+    dispatch(setShowAppSpinner(false));
   };
 
   const onEdit = (e: any) => {
@@ -135,8 +143,11 @@ export const ChatHistoryListItemCell: React.FC<
       return;
     }
     setRenameLoading(true);
-    const response = await historyRename(item.id, editTitle);
-    if (!response.ok) {
+    const result = await dispatch(
+      renameConversation({ id: item.id, newTitle: editTitle })
+    );
+
+    if (renameConversation.rejected.match(result)) {
       setErrorRename("Error: could not rename item");
       setTimeout(() => {
         setTextFieldFocused(true);
@@ -150,10 +161,6 @@ export const ChatHistoryListItemCell: React.FC<
       setRenameLoading(false);
       setEdit(false);
       setEditTitle("");
-      dispatch({
-        type: actionConstants.UPDATE_CONVERSATION_TITLE,
-        payload: { id: item?.id, newTitle: editTitle },
-      });
     }
   };
 
@@ -169,7 +176,6 @@ export const ChatHistoryListItemCell: React.FC<
   };
 
   const handleKeyPressEdit = (e: any) => {
-    console.log("handleKeyPressEdit", e.key, e);
     if (e.key === "Enter") {
       return handleSaveEdit(e);
     }
@@ -193,7 +199,7 @@ export const ChatHistoryListItemCell: React.FC<
       handleSelectItem(e);
     }
   };
-  const isButtonDisabled = state.chat.generatingResponse && isSelected;
+  const isButtonDisabled = generatingResponse && isSelected;
   return (
     <Stack
       key={item.id}
