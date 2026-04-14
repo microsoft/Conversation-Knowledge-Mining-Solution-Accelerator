@@ -3,7 +3,6 @@ import ReactMarkdown from "react-markdown";
 import { Stack } from "@fluentui/react";
 import { DismissRegular } from "@fluentui/react-icons";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
 import { useAppDispatch } from "../../state/hooks";
 import { hideCitation } from "../../state/slices/citationSlice";
 import "./CitationPanel.css";
@@ -39,11 +38,12 @@ const CitationPanelComponent: React.FC<Props> = ({ activeCitation }) => {
           </div>
           <DismissRegular
             role="button"
-            onKeyDown={(event) =>
-              event.key === " " || event.key === "Enter"
-                ? handleCloseCitation()
-                : undefined
-            }
+            onKeyDown={(event) => {
+              if (event.key === " " || event.key === "Enter") {
+                event.preventDefault();
+                handleCloseCitation();
+              }
+            }}
             tabIndex={0}
             onClick={handleCloseCitation}
           />
@@ -53,7 +53,6 @@ const CitationPanelComponent: React.FC<Props> = ({ activeCitation }) => {
         <ReactMarkdown
           children={activeCitation?.content}
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw]}
         />
       </Stack.Item>
     </div>

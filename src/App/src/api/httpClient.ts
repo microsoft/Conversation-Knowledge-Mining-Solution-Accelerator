@@ -81,6 +81,9 @@ class HttpClient {
     );
 
     const abortHandler = () => controller.abort(resolvedConfig.signal?.reason);
+    if (resolvedConfig.signal?.aborted) {
+      controller.abort(resolvedConfig.signal.reason);
+    }
     resolvedConfig.signal?.addEventListener("abort", abortHandler, {
       once: true,
     });

@@ -86,23 +86,25 @@ export const ChatHistoryListItemCell: React.FC<
 
   const onDelete = async () => {
     dispatch(setShowAppSpinner(true));
-    if (currentConversationIdForCitation === item.id) {
-      dispatch(hideCitation());
-    }
+    try {
+      if (currentConversationIdForCitation === item.id) {
+        dispatch(hideCitation());
+      }
 
-    const result = await dispatch(deleteConversation(item.id));
-    if (deleteConversation.rejected.match(result)) {
-      setErrorDelete(true);
-      setTimeout(() => {
-        setErrorDelete(false);
-      }, 5000);
-    } else if (isSelected) {
-      dispatch(resetChatState());
-      dispatch(startNewConversation());
+      const result = await dispatch(deleteConversation(item.id));
+      if (deleteConversation.rejected.match(result)) {
+        setErrorDelete(true);
+        setTimeout(() => {
+          setErrorDelete(false);
+        }, 5000);
+      } else if (isSelected) {
+        dispatch(resetChatState());
+        dispatch(startNewConversation());
+      }
+    } finally {
+      toggleDeleteDialog();
+      dispatch(setShowAppSpinner(false));
     }
-
-    toggleDeleteDialog();
-    dispatch(setShowAppSpinner(false));
   };
 
   const onEdit = (e: any) => {

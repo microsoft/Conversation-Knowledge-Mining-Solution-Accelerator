@@ -133,6 +133,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
       <div>
         <button
           className="options resetTopicsButton"
+          type="button"
           onClick={handleDeselectAll}
           disabled={selectedTopics.length === 0}
         >

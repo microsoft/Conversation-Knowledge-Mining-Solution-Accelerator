@@ -59,6 +59,7 @@ const Chart = ({ layoutWidthUpdated }: ChartProps) => {
 
   const [appliedFetch, setAppliedFetch] = useState<boolean>(false);
   const [widgetsGapInPercentage] = useState<number>(1);
+  const fallbackChartWidthInPixels = 300;
   const [, setWindowSize] = useState({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -226,7 +227,10 @@ const Chart = ({ layoutWidthUpdated }: ChartProps) => {
               color: getSentimentColor(item.name.toLowerCase()),
             }))}
             containerHeight={heightInPixels}
-            widthInPixels={document.getElementById(chart.domId)?.clientWidth ?? 0}
+            widthInPixels={
+              document.getElementById(chart.domId)?.clientWidth ??
+              fallbackChartWidthInPixels
+            }
             containerID={chart.domId}
           />
         ) : (
@@ -293,7 +297,10 @@ const Chart = ({ layoutWidthUpdated }: ChartProps) => {
                 average_sentiment: item.average_sentiment,
               })),
             }}
-            widthInPixels={document.getElementById(chart.domId)?.clientWidth ?? 0}
+            widthInPixels={
+              document.getElementById(chart.domId)?.clientWidth ??
+              fallbackChartWidthInPixels
+            }
             containerHeight={heightInPixels}
           />
         ) : (

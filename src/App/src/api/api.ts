@@ -91,10 +91,19 @@ export type UserInfo = {
 };
 
 export async function getUserInfo(): Promise<UserInfo[]> {
-  const response = await httpClient.get(
-    new URL("/.auth/me", window.location.origin).toString(),
-    { timeout: 15000 }
-  );
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+  let response: Response;
+
+  try {
+    response = await fetch(`${window.location.origin}/.auth/me`, {
+      signal: controller.signal,
+    });
+  } catch {
+    return [];
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     return [];
