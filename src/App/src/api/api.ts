@@ -91,7 +91,11 @@ export type UserInfo = {
 };
 
 export async function getUserInfo(): Promise<UserInfo[]> {
-  const response = await httpClient.get("/.auth/me", { timeout: 15000 });
+  const response = await httpClient.get(
+    new URL("/.auth/me", window.location.origin).toString(),
+    { timeout: 15000 }
+  );
+
   if (!response.ok) {
     return [];
   }
@@ -286,6 +290,13 @@ export const historyDeleteAll = async (): Promise<Response> => {
 export const historyEnsure = async (): Promise<CosmosDBHealth> => {
   try {
     const response = await httpClient.get("/history/ensure");
+    if (response.status === 404) {
+      return {
+        cosmosDB: false,
+        status: CosmosDBStatus.NotConfigured,
+      };
+    }
+
     const responseJson = await parseResponseJson<{
       message?: string;
       error?: string;

@@ -15,7 +15,6 @@ import { ChatHistoryPanel } from "./components/ChatHistoryPanel/ChatHistoryPanel
 import { getUserInfo } from "./api/api";
 import { useAppDispatch, useAppSelector } from "./state/hooks";
 import {
-  ensureHistoryReady,
   fetchLayoutConfig,
   setSelectedConversationId,
   setShowAppSpinner,
@@ -86,7 +85,6 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     void dispatch(fetchLayoutConfig());
-    void dispatch(ensureHistoryReady());
   }, [dispatch]);
 
   useEffect(() => {

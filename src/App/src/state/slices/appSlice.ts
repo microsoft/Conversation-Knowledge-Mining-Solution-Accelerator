@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { generateUUIDv4 } from "../../configs/Utils";
-import { getLayoutConfig, historyEnsure } from "../../api/api";
+import { getLayoutConfig } from "../../api/api";
 import {
   type AppConfig,
   type ChartConfigItem,
@@ -34,11 +34,6 @@ export const fetchLayoutConfig = createAsyncThunk(
   async () => getLayoutConfig()
 );
 
-export const ensureHistoryReady = createAsyncThunk(
-  "app/ensureHistoryReady",
-  async () => historyEnsure()
-);
-
 const appSlice = createSlice({
   name: "app",
   initialState,
@@ -70,9 +65,6 @@ const appSlice = createSlice({
     builder
       .addCase(fetchLayoutConfig.fulfilled, (state, action) => {
         state.config = action.payload;
-      })
-      .addCase(ensureHistoryReady.fulfilled, (state, action) => {
-        state.cosmosInfo = action.payload;
       });
   },
 });
