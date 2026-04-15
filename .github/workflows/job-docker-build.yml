@@ -22,7 +22,7 @@ env:
 
 jobs:
   docker-build:
-    if: inputs.trigger_type == 'workflow_dispatch' && inputs.build_docker_image == true
+    if: (inputs.trigger_type == 'workflow_dispatch' && inputs.build_docker_image == true) || inputs.trigger_type == 'pull_request'
     runs-on: ubuntu-latest
     environment: production
     outputs:
