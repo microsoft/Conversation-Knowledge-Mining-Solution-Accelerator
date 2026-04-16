@@ -2,7 +2,6 @@ import React, { useMemo, useState } from "react";
 import {
   Stack,
   DefaultButton,
-  PrimaryButton,
   DirectionalHint,
   IContextualMenuListProps,
   IContextualMenuItem,
@@ -35,7 +34,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
   const { state, dispatch } = useAppContext();
   const { selectedFilters, filtersMeta } = state.dashboards;
   const { applyFilters, fetchingCharts } = props;
-  const initialDateRange = typeof Array.isArray(selectedFilters.DateRange)
+  const initialDateRange = Array.isArray(selectedFilters.DateRange)
     ? selectedFilters.DateRange
     : [""];
 

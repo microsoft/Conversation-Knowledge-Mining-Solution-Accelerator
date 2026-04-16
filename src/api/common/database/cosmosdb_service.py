@@ -115,7 +115,7 @@ class CosmosConversationClient:
                     item=message["id"], partition_key=user_id
                 )
                 response_list.append(resp)
-            return response_list
+        return response_list
 
     async def get_conversations(self, user_id, limit, sort_order="DESC", offset=0):
         parameters = [{"name": "@userId", "value": user_id}]

@@ -29,7 +29,6 @@ const WordCloudChart: React.FC<WordCloudChartProps> = ({
     height: containerHeight,
   });
 
-  const currentWidth = useRef<number>(widthInPixels);
   const [wordsUpdatedFlag, setWordsUpdatedFlag] = useState(true);
 
   // Observe container size changes dynamically

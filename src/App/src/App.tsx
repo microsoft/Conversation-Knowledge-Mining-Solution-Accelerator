@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import Chart from "./components/Chart/Chart";
 import Chat from "./components/Chat/Chat";
 import {
@@ -8,7 +8,6 @@ import {
   Body2,
   webLightTheme,
   Avatar,
-  Tag,
 } from "@fluentui/react-components";
 import { SparkleRegular } from "@fluentui/react-icons";
 import "./App.css";
@@ -17,7 +16,6 @@ import { ChatHistoryPanel } from "./components/ChatHistoryPanel/ChatHistoryPanel
 import {
   getUserInfo,
   getLayoutConfig,
-  historyDelete,
   historyDeleteAll,
   historyList,
   historyRead,
@@ -25,7 +23,6 @@ import {
 
 import { useAppContext } from "./state/useAppContext";
 import { actionConstants } from "./state/ActionConstants";
-import { ChatMessage, Conversation } from "./types/AppTypes";
 import { AppLogo } from "./components/Svg/Svg";
 import CustomSpinner from "./components/CustomSpinner/CustomSpinner";
 import CitationPanel from "./components/CitationPanel/CitationPanel";
@@ -67,7 +64,7 @@ const Dashboard: React.FC = () => {
   const [clearing, setClearing] = React.useState(false);
   const [clearingError, setClearingError] = React.useState(false);
   const [isInitialAPItriggered, setIsInitialAPItriggered] = useState(false);
-  const [showAuthMessage, setShowAuthMessage] = useState<boolean | undefined>();
+  const [, setShowAuthMessage] = useState<boolean | undefined>();
   const [offset, setOffset] = useState<number>(0);
   const OFFSET_INCREMENT = 25;
   const [hasMoreRecords, setHasMoreRecords] = useState<boolean>(true);
@@ -110,7 +107,7 @@ const Dashboard: React.FC = () => {
     }).catch((err) => {
       console.error('Error fetching user info: ', err)
     })
-  }, [])
+  }, []);
 
   const updateLayoutWidths = (newState: Record<string, boolean>) => {
     const noOfWidgetsOpen = Object.values(newState).filter((val) => val).length;
@@ -231,8 +228,6 @@ const Dashboard: React.FC = () => {
       })();
     }
   }, [isInitialAPItriggered]);
-
-  const [ASSISTANT, TOOL, ERROR, USER] = ["assistant", "tool", "error", "user"];
 
   const onSelectConversation = async (id: string) => {
     if (!id) {

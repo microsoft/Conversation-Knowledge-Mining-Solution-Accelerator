@@ -17,7 +17,6 @@ const Citations = ({ answer, index }: Props) => {
     
     const { state, dispatch } = useAppContext();
     const parsedAnswer = useMemo(() => parseAnswer(answer), [answer]);
-    const filePathTruncationLimit = 50;
     const createCitationFilepath = (
         citation: Citation,
         index: number,

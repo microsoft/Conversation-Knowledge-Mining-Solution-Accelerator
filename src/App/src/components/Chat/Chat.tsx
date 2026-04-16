@@ -3,12 +3,9 @@ import {
   Button,
   Textarea,
   Subtitle2,
-  Subtitle1,
   Body1,
-  Title3,
 } from "@fluentui/react-components";
 import "./Chat.css";
-import { SparkleRegular } from "@fluentui/react-icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import supersub from "remark-supersub";
@@ -35,8 +32,7 @@ type ChatProps = {
   panelShowStates: Record<string, boolean>;
 };
 
-const [ASSISTANT, TOOL, ERROR, USER] = ["assistant", "tool", "error", "user"];
-const NO_CONTENT_ERROR = "No content in messages object.";
+const [ASSISTANT, ERROR] = ["assistant", "error"];
 
 const Chat: React.FC<ChatProps> = ({
   onHandlePanelStates,
@@ -46,7 +42,7 @@ const Chat: React.FC<ChatProps> = ({
   const { state, dispatch } = useAppContext();
   const { userMessage, generatingResponse } = state?.chat;
   const questionInputRef = useRef<HTMLTextAreaElement>(null);
-  const [isChartLoading, setIsChartLoading] = useState(false)
+  const [isChartLoading, setIsChartLoading] = useState(false);
   const abortFuncs = useRef([] as AbortController[]);
   const chatMessageStreamEnd = useRef<HTMLDivElement | null>(null);
   const [isCharthDisplayDefault , setIsCharthDisplayDefault] = useState(false);
@@ -442,7 +438,7 @@ const Chat: React.FC<ChatProps> = ({
     if (generatingResponse || !question.trim()) {
       return;
     }
-    const isChatReq = isChartQuery(userMessage) ? "graph" : "Text"
+    const isChatReq = isChartQuery(userMessage) ? "graph" : "Text";
     const newMessage: ChatMessage = {
       id: generateUUIDv4(),
       role: "user",
@@ -647,7 +643,7 @@ const Chat: React.FC<ChatProps> = ({
     dispatch({ type: actionConstants.NEW_CONVERSATION_START });
     dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
   };
-  const { messages, citations } = state.chat;
+  const { messages } = state.chat;
   return (
     <div className="chat-container">
       <div className="chat-header">

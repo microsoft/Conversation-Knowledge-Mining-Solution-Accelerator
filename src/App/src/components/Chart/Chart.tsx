@@ -46,9 +46,9 @@ const Chart = (props: ChartProps) => {
   const { config: layoutConfig } = state;
   const { layoutWidthUpdated } = props;
 
-  const [widths, setWidths] = useState<Record<string, number>>({});
+  const [, setWidths] = useState<Record<string, number>>({});
   const [appliedFetch, setAppliedFetch] = useState<boolean>(false);
-  const [widgetsGapInPercentage, setWidgetsGapInPercentage] =
+  const [widgetsGapInPercentage] =
     useState<number>(1);
 
   const [windowSize, setWindowSize] = useState({

@@ -1,5 +1,3 @@
-import { ReactNode } from "react";
-
 export type FilterObject = {
   key: string;
   displayValue: string;

@@ -10,8 +10,6 @@ import {
   IContextualMenuItem,
   PrimaryButton,
   Stack,
-  StackItem,
-  Text,
 } from "@fluentui/react";
 
 import styles from "./ChatHistoryPanel.module.css";
@@ -57,7 +55,7 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
     showClearAllConfirmationDialog,
     onClickClearAllOption,
   } = props;
-  const { state, dispatch } = useAppContext();
+  const { state } = useAppContext();
   const { chatHistory } = state;
   const [showClearAllContextMenu, setShowClearAllContextMenu] =
     useState<boolean>(false);

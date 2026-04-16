@@ -1,8 +1,6 @@
-from azure.identity import ManagedIdentityCredential
 import base64
 import json
 import requests
-import pandas as pd
 import os
 from glob import iglob
 import zipfile
@@ -98,11 +96,11 @@ for file_name in file_names:
         # upload extracted folder
         file_names = [f for f in iglob(os.path.join(local_path, "**", "*"), recursive=True) if os.path.isfile(f)]
         # print('file_names ex', file_names)
-        for file_name in file_names:
-            upload_file_name = os.path.basename(file_name)
+        for extracted_file in file_names:
+            upload_file_name = os.path.basename(extracted_file)
             file_client = directory_client.get_file_client("cu_audio_files_all/" + upload_file_name)
-            # with open(file=os.path.join(extract_dir, file_name), mode="rb") as data:
-            with open(file=file_name, mode="rb") as data:
+            # with open(file=os.path.join(extract_dir, extracted_file), mode="rb") as data:
+            with open(file=extracted_file, mode="rb") as data:
                 # print('data', data)
                 file_client.upload_data(data, overwrite=True)
 
@@ -127,7 +125,7 @@ try:
   env_res = requests.get(fabric_env_url, headers=fabric_headers)
   env_res_id = env_res.json()['value'][0]['id']
   # print(env_res.json())
-except:
+except Exception:  # Environments may not be provisioned yet
   env_res_id = ''
 
 #create notebook items
@@ -150,14 +148,14 @@ for notebook_name in notebook_names:
         notebook_json['metadata']['dependencies']['lakehouse']['default_lakehouse'] = lakehouse_res.json()['id']
         notebook_json['metadata']['dependencies']['lakehouse']['default_lakehouse_name'] = lakehouse_res.json()['displayName']
         notebook_json['metadata']['dependencies']['lakehouse']['default_lakehouse_workspace_id'] = lakehouse_res.json()['workspaceId']
-    except:
+    except Exception:  # Lakehouse metadata may not be available
         pass
     
     if env_res_id != '':
         try:
             notebook_json['metadata']['dependencies']['environment']['environmentId'] = env_res_id
             notebook_json['metadata']['dependencies']['environment']['workspaceId'] = lakehouse_res.json()['workspaceId']
-        except:
+        except Exception:  # Environment metadata may not be available
             pass
 
 
@@ -178,8 +176,7 @@ for notebook_name in notebook_names:
         }
     }
     
-    fabric_response = requests.post(fabric_items_url, headers=fabric_headers, json=notebook_data)
-    #print(fabric_response.json())
+    requests.post(fabric_items_url, headers=fabric_headers, json=notebook_data)
 
 time.sleep(120)
 
