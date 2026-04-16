@@ -314,16 +314,16 @@ chmod +x start.sh
 ./start.sh
 ```
 
-#### What the Scripts Do
+### What the Scripts Do
 
 The startup scripts automatically handle:
-• Environment variable configuration
-• Azure authentication
-• Azure RBAC role assignments (Cosmos DB, SQL Server, AI Foundry, AI Search)
-• Python virtual environment setup
-• Backend dependency installation
-• Frontend dependency installation
-• Starting both backend and frontend servers
+- Environment variable configuration
+- Azure authentication
+- Azure RBAC role assignments (Cosmos DB, SQL Server, AI Foundry, AI Search)
+- Python virtual environment setup
+- Backend dependency installation
+- Frontend dependency installation
+- Starting both backend and frontend servers
 
 > **Note**: The script includes a 30-second wait for the backend to initialize before starting the frontend. If you see connection errors initially, wait a moment and reload the page.
 
