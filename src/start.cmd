@@ -107,7 +107,7 @@ if exist "%API_ENV_FILE%" (
     echo   2. Manually create %API_ENV_FILE% with required environment variables
     echo   3. Copy an existing .env file to %API_ENV_FILE%
     echo.
-    echo For more information, see: documents/LocalDebuggingSetup.md
+    echo For more information, see: documents/LocalDevelopmentSetup.md
     exit /b 1
 )
 
@@ -131,7 +131,7 @@ set APP_ENV_FILE=%ROOT_DIR%\src\App\.env
 (
     echo REACT_APP_API_BASE_URL=http://127.0.0.1:8000
 ) > "%APP_ENV_FILE%"
-echo Updated src/App/.env with APP_API_BASE_URL
+echo Updated src/App/.env with REACT_APP_API_BASE_URL
 
 REM Add or update APP_ENV="dev" in API .env file
 echo Checking for existing APP_ENV in src/api/.env...
@@ -284,6 +284,18 @@ if errorlevel 1 (
 )
 cd %ROOT_DIR%
 
+REM Close any processes using ports 8000 and 3000
+echo Checking for processes using ports 8000 and 3000...
+REM Kill any existing processes on ports 8000 and 3000 before starting
+for %%P in (8000 3000) do (
+    for /f "tokens=5" %%A in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":%%P "') do (
+        if "%%A" neq "0" (
+            echo Port %%P is already in use by PID %%A. Stopping it...
+            taskkill /F /PID %%A /T >nul 2>&1
+        )
+    )
+)
+
 REM Start backend and frontend
 echo Starting backend server...
 cd %ROOT_DIR%
@@ -297,10 +309,27 @@ timeout /t 30 /nobreak >nul
 
 echo Starting frontend server...
 cd %ROOT_DIR%\src\App
-call npm start
 
-echo Both servers have been started.
-echo Backend running at http://127.0.0.1:8000
-echo Frontend running at http://localhost:3000
+REM Show server information before starting
+echo.
+echo ========================================
+echo Both servers are now running:
+echo   Backend:  http://127.0.0.1:8000
+echo   Frontend: http://localhost:3000
+echo ========================================
+echo Press Ctrl+C to stop all servers
+echo.
+
+REM Start npm with PowerShell wrapper for automatic cleanup on Ctrl+C (single line for reliability)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { npm start } finally { Write-Host ''; Write-Host 'Stopping all processes...'; Start-Sleep -Milliseconds 500; @(8000, 3000) | ForEach-Object { $port = $_; Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $pid_ = $_.OwningProcess; if ($pid_ -and $pid_ -ne 0) { taskkill /F /PID $pid_ /T 2>$null } } }; Write-Host 'Cleanup complete.'; Write-Host ''; Write-Host 'All servers stopped.' -ForegroundColor Yellow }"
+
+REM Fallback cleanup in case PowerShell finally block was interrupted
+for %%P in (8000 3000) do (
+    for /f "tokens=5" %%A in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":%%P "') do (
+        if "%%A" neq "0" (
+            taskkill /F /PID %%A /T >nul 2>&1
+        )
+    )
+)
 
 endlocal
