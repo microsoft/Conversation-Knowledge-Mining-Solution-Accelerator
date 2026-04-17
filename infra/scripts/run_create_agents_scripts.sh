@@ -330,6 +330,8 @@ titleAgentName=""
 while IFS='=' read -r key value; do
   # Skip empty lines or lines without '='
   [ -z "$key" ] && continue
+  # Strip trailing carriage return if present (Windows line endings)
+  value="${value%$'\r'}"
   case "$key" in
     conversationAgentName)
       conversationAgentName="$value"
