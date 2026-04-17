@@ -45,7 +45,7 @@ check_local_env() {
         echo "  2. Manually create $API_ENV_FILE with required environment variables"
         echo "  3. Copy an existing .env file to $API_ENV_FILE"
         echo ""
-        echo "For more information, see: documents/LocalDebuggingSetup.md"
+        echo "For more information, see: documents/LocalDevelopmentSetup.md"
         exit 1
     fi
 }
@@ -97,7 +97,12 @@ setup_environment() {
     echo "Checking for existing APP_ENV in src/api/.env..."
     if grep -q "^APP_ENV=" "$API_ENV_FILE" 2>/dev/null; then
         echo "APP_ENV already exists, updating to \"dev\"..."
-        sed -i 's/^APP_ENV=.*/APP_ENV="dev"/' "$API_ENV_FILE"
+        # macOS/BSD sed requires -i with extension, use portable approach
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' 's/^APP_ENV=.*/APP_ENV="dev"/' "$API_ENV_FILE"
+        else
+            sed -i 's/^APP_ENV=.*/APP_ENV="dev"/' "$API_ENV_FILE"
+        fi
     else
         echo "APP_ENV not found, adding APP_ENV=\"dev\"..."
         echo 'APP_ENV="dev"' >> "$API_ENV_FILE"
@@ -286,6 +291,15 @@ setup_environment() {
     npm install --force || { echo "Failed to restore frontend npm packages"; exit 1; }
     cd "$ROOT_DIR"
 
+    # Kill any existing processes on ports 8000 and 3000 before starting
+    for port in 8000 3000; do
+        pid=$(lsof -ti :"$port" 2>/dev/null)
+        if [ -n "$pid" ]; then
+            echo "Port $port is already in use by PID $pid. Stopping it..."
+            kill -9 $pid
+        fi
+    done
+
     # Start backend and frontend
     echo "Starting backend server..."
     cd "$ROOT_DIR"
@@ -305,11 +319,43 @@ setup_environment() {
 
     echo "Starting frontend server..."
     cd "$ROOT_DIR/src/App"
+    
+    # Show server information before starting
+    echo ""
+    echo "========================================"
+    echo "Both servers are now running:"
+    echo "  Backend:  http://127.0.0.1:8000"
+    echo "  Frontend: http://localhost:3000"
+    echo "========================================"
+    echo "Press Ctrl+C to stop all servers"
+    echo ""
+    
+    # Setup cleanup function to kill both backend and frontend on Ctrl+C
+    cleanup() {
+        echo ""
+        echo "Cleaning up processes..."
+        sleep 0.5
+        
+        for port in 8000 3000; do
+            pid=$(lsof -ti :"$port" 2>/dev/null)
+            if [ -n "$pid" ]; then
+                echo "Stopping process on port $port (PID $pid)..."
+                kill -9 $pid 2>/dev/null
+            fi
+        done
+        
+        echo "All servers stopped."
+        exit 0
+    }
+    
+    # Trap Ctrl+C and other termination signals
+    trap cleanup INT TERM
+    
+    # Start npm (this will block until Ctrl+C)
     npm start
-
-    echo "Both servers have been started."
-    echo "Backend running at http://127.0.0.1:8000"
-    echo "Frontend running at http://localhost:3000"
+    
+    # Cleanup after npm exits normally
+    cleanup
 }
 
 # Check if .azure folder exists first
