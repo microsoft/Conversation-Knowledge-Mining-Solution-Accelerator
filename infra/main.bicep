@@ -780,6 +780,7 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
   params: {
     // Required parameters
     name: aiSearchName
+    location: location
     enableTelemetry: enableTelemetry
     diagnosticSettings: enableMonitoring ? [
       {

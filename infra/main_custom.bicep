@@ -781,6 +781,7 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
   params: {
     // Required parameters
     name: aiSearchName
+    location: location
     enableTelemetry: enableTelemetry
     diagnosticSettings: enableMonitoring ? [
       {
@@ -856,6 +857,9 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
       ]
     : []
   }
+  dependsOn: [
+    searchService
+  ]
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
