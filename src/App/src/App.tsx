@@ -8,6 +8,10 @@ import {
   FluentProvider,
   Subtitle2,
   webLightTheme,
+} from "@fluentui/react-components";
+import { SparkleRegular } from "@fluentui/react-icons";
+import "./App.css";
+import { ChatHistoryPanel } from "./components/ChatHistoryPanel/ChatHistoryPanel";
 import { getUserInfo } from "./api/api";
 import { useAppDispatch, useAppSelector } from "./state/hooks";
 import {
