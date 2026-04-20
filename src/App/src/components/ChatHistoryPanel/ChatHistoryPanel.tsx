@@ -13,9 +13,8 @@ import {
 } from "@fluentui/react";
 
 import styles from "./ChatHistoryPanel.module.css";
-import { type Conversation } from "../../types/AppTypes";
 import { ChatHistoryListItemGroups } from "../ChatHistoryListItemGroups/ChatHistoryListItemGroups";
-import { useAppContext } from "../../state/useAppContext";
+import { useAppSelector } from "../../state/hooks";
 
 const commandBarStyle: ICommandBarStyles = {
   root: {
@@ -44,23 +43,28 @@ const modalProps = {
   styles: { main: { maxWidth: 450 } },
 };
 
-export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
-  const {
-    clearingError,
-    clearing,
-    onHideClearAllDialog,
-    onClearAllChatHistory,
-    handleFetchHistory,
-    onSelectConversation,
-    showClearAllConfirmationDialog,
-    onClickClearAllOption,
-  } = props;
-  const { state } = useAppContext();
-  const { chatHistory } = state;
+export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = ({
+  clearingError,
+  clearing,
+  onHideClearAllDialog,
+  onClearAllChatHistory,
+  handleFetchHistory,
+  onSelectConversation,
+  showClearAllConfirmationDialog,
+  onClickClearAllOption,
+}) => {
+  const conversationCount = useAppSelector(
+    (state) => state.chatHistory.list.length
+  );
+  const isFetchingConversations = useAppSelector(
+    (state) => state.chatHistory.fetchingConversations
+  );
+  const generatingResponse = useAppSelector(
+    (state) => state.chat.generatingResponse
+  );
   const [showClearAllContextMenu, setShowClearAllContextMenu] =
     useState<boolean>(false);
 
-  const { generatingResponse } = state?.chat;
   const clearAllDialogContentProps = {
     type: DialogType.close,
     title: !clearingError
@@ -73,9 +77,8 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
   };
 
   const disableClearAllChatHistory =
-    !chatHistory.list.length ||
-    generatingResponse ||
-    state.chatHistory.fetchingConversations;
+    !conversationCount || generatingResponse || isFetchingConversations;
+
   const menuItems: IContextualMenuItem[] = [
     {
       key: "clearAll",
@@ -96,7 +99,7 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
     <section
       className={styles.historyContainer}
       data-is-scrollable
-      aria-label={"chat history panel"}
+      aria-label="chat history panel"
     >
       <Stack
         horizontal
@@ -119,9 +122,9 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
           <Stack horizontal>
             <CommandBarButton
               iconProps={{ iconName: "More" }}
-              title={"Clear all chat history"}
+              title="Clear all chat history"
               onClick={handleClearAllContextualMenu}
-              aria-label={"clear all chat history"}
+              aria-label="clear all chat history"
               styles={commandBarStyle}
               role="button"
               id="moreButton"
@@ -129,11 +132,10 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
             <ContextualMenu
               items={menuItems}
               hidden={!showClearAllContextMenu}
-              target={"#moreButton"} 
+              target="#moreButton"
               onDismiss={handleClearAllContextualMenu}
             />
           </Stack>
-
         </Stack>
       </Stack>
       <Stack
@@ -152,7 +154,7 @@ export const ChatHistoryPanel: React.FC<ChatHistoryPanelProps> = (props) => {
       </Stack>
       <Dialog
         hidden={!showClearAllConfirmationDialog}
-        onDismiss={clearing ? () => {} : onHideClearAllDialog}
+        onDismiss={clearing ? () => undefined : onHideClearAllDialog}
         dialogContentProps={clearAllDialogContentProps}
         modalProps={modalProps}
       >

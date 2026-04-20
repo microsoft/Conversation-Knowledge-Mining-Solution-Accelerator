@@ -1,69 +1,65 @@
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Stack } from '@fluentui/react';
-import { DismissRegular } from '@fluentui/react-icons';
+import React, { useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import { Stack } from "@fluentui/react";
+import { DismissRegular } from "@fluentui/react-icons";
 import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import { useAppContext } from '../../state/useAppContext';
-import { actionConstants } from '../../state/ActionConstants';
+import { useAppDispatch } from "../../state/hooks";
+import { hideCitation } from "../../state/slices/citationSlice";
 import "./CitationPanel.css";
+
 interface Props {
-    activeCitation: any
+  activeCitation: any;
 }
 
-const CitationPanel = ({ activeCitation }: Props) => {
-    const { dispatch } = useAppContext()
-  
-    const onCloseCitation = () => {
-        dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
-    }
-    return (
-        <div className='citationPanel'>
+const CitationPanelComponent: React.FC<Props> = ({ activeCitation }) => {
+  const dispatch = useAppDispatch();
 
-            <Stack.Item
-            
-            >
-                <Stack
-                    horizontal
-                    horizontalAlign="space-between"
-                    verticalAlign="center"
-                >
-                    <div
-                        role="heading"
-                        aria-level={2}
-                        style={{
-                            fontWeight: "600",
-                            fontSize: '16px'
-                        }}
-                        >
+  const handleCloseCitation = useCallback(() => {
+    dispatch(hideCitation());
+  }, [dispatch]);
 
-                    Citations
-                    </div>
-                    <DismissRegular
-                        role="button"
-                        onKeyDown={(e) =>
-                            e.key === " " || e.key === "Enter"
-                                ? onCloseCitation()
-                                : () => { }
-                        }
-                        tabIndex={0}
-                        onClick={onCloseCitation}
-                    />
-                </Stack>
-                <h5
-                  
-                >
-                    {activeCitation.title}
-                </h5>
-              
-                <ReactMarkdown
-                children={activeCitation?.content}
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw]}
-              />
-            </Stack.Item>
-        </div>)
+  return (
+    <div className="citationPanel">
+      <Stack.Item>
+        <Stack
+          horizontal
+          horizontalAlign="space-between"
+          verticalAlign="center"
+        >
+          <div
+            role="heading"
+            aria-level={2}
+            style={{
+              fontWeight: "600",
+              fontSize: "16px",
+            }}
+          >
+            Citations
+          </div>
+          <DismissRegular
+            role="button"
+            onKeyDown={(event) => {
+              if (event.key === " " || event.key === "Enter") {
+                event.preventDefault();
+                handleCloseCitation();
+              }
+            }}
+            tabIndex={0}
+            onClick={handleCloseCitation}
+          />
+        </Stack>
+        <h5>{activeCitation.title}</h5>
+
+        <ReactMarkdown
+          children={activeCitation?.content}
+          remarkPlugins={[remarkGfm]}
+        />
+      </Stack.Item>
+    </div>
+  );
 };
 
+const CitationPanel = React.memo(CitationPanelComponent);
+CitationPanel.displayName = "CitationPanel";
 
 export default CitationPanel;

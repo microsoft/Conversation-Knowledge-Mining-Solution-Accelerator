@@ -1,31 +1,32 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Chart from "./components/Chart/Chart";
 import Chat from "./components/Chat/Chat";
 import {
+  Avatar,
+  Body2,
   Button,
   FluentProvider,
   Subtitle2,
-  Body2,
   webLightTheme,
-  Avatar,
-} from "@fluentui/react-components";
-import { SparkleRegular } from "@fluentui/react-icons";
-import "./App.css";
-import { ChatHistoryPanel } from "./components/ChatHistoryPanel/ChatHistoryPanel";
-
+import { getUserInfo } from "./api/api";
+import { useAppDispatch, useAppSelector } from "./state/hooks";
 import {
-  getUserInfo,
-  getLayoutConfig,
-  historyDeleteAll,
-  historyList,
-  historyRead,
-} from "./api/api";
-
-import { useAppContext } from "./state/useAppContext";
-import { actionConstants } from "./state/ActionConstants";
+  fetchLayoutConfig,
+  setSelectedConversationId,
+  setShowAppSpinner,
+  startNewConversation,
+} from "./state/slices/appSlice";
+import {
+  clearAllConversations,
+  fetchConversationMessages,
+  fetchConversations,
+} from "./state/slices/chatHistorySlice";
+import { resetChatState, setMessages } from "./state/slices/chatSlice";
+import { hideCitation } from "./state/slices/citationSlice";
 import { AppLogo } from "./components/Svg/Svg";
 import CustomSpinner from "./components/CustomSpinner/CustomSpinner";
 import CitationPanel from "./components/CitationPanel/CitationPanel";
+
 const panels = {
   DASHBOARD: "DASHBOARD",
   CHAT: "CHAT",
@@ -50,8 +51,18 @@ const defaultPanelShowStates = {
 };
 
 const Dashboard: React.FC = () => {
-  const { state, dispatch } = useAppContext();
-  const { appConfig } = state.config;
+  const dispatch = useAppDispatch();
+  const appConfig = useAppSelector((state) => state.app.config.appConfig);
+  const showAppSpinner = useAppSelector((state) => state.app.showAppSpinner);
+  const activeCitation = useAppSelector((state) => state.citation.activeCitation);
+  const showCitation = useAppSelector((state) => state.citation.showCitation);
+  const currentConversationIdForCitation = useAppSelector(
+    (state) => state.citation.currentConversationIdForCitation
+  );
+  const isFetchingConversations = useAppSelector(
+    (state) => state.chatHistory.fetchingConversations
+  );
+
   const [panelShowStates, setPanelShowStates] = useState<
     Record<string, boolean>
   >({ ...defaultPanelShowStates });
@@ -61,227 +72,183 @@ const Dashboard: React.FC = () => {
   const [layoutWidthUpdated, setLayoutWidthUpdated] = useState<boolean>(false);
   const [showClearAllConfirmationDialog, setChowClearAllConfirmationDialog] =
     useState(false);
-  const [clearing, setClearing] = React.useState(false);
-  const [clearingError, setClearingError] = React.useState(false);
-  const [isInitialAPItriggered, setIsInitialAPItriggered] = useState(false);
-  const [, setShowAuthMessage] = useState<boolean | undefined>();
+  const [clearing, setClearing] = useState(false);
+  const [clearingError, setClearingError] = useState(false);
   const [offset, setOffset] = useState<number>(0);
-  const OFFSET_INCREMENT = 25;
   const [hasMoreRecords, setHasMoreRecords] = useState<boolean>(true);
   const [name, setName] = useState<string>("");
+  const OFFSET_INCREMENT = 25;
 
   useEffect(() => {
-    try {
-      const fetchConfig = async () => {
-        const configData = await getLayoutConfig();
-        console.log("configData", configData);
-        dispatch({ type: actionConstants.SAVE_CONFIG, payload: configData });
-      };
-      fetchConfig();
-    } catch (error) {
-      console.error("Failed to fetch chart configuration:", error);
-    }
-  }, []);
-
-  const getUserInfoList = async () => {
-    const userInfoList = await getUserInfo();
-    if (
-      userInfoList.length === 0 &&
-      window.location.hostname !== "localhost" &&
-      window.location.hostname !== "127.0.0.1"
-    ) {
-      setShowAuthMessage(true);
-    } else {
-      setShowAuthMessage(false);
-    }
-  };
+    void dispatch(fetchLayoutConfig());
+  }, [dispatch]);
 
   useEffect(() => {
-    getUserInfoList();
+    const hydrateUser = async () => {
+      const userInfo = await getUserInfo();
+      const displayName: string =
+        userInfo[0]?.user_claims?.find((claim: any) => claim.typ === "name")
+          ?.val ?? "";
+      setName(displayName);
+    };
+
+    void hydrateUser();
   }, []);
 
-  useEffect(() => {
-    getUserInfo().then((res) => {
-      const name: string = res[0]?.user_claims?.find((claim: any) => claim.typ === 'name')?.val ?? ''
-      setName(name)
-    }).catch((err) => {
-      console.error('Error fetching user info: ', err)
-    })
-  }, []);
+  const updateLayoutWidths = useCallback(
+    (newState: Record<string, boolean>) => {
+      const noOfWidgetsOpen = Object.values(newState).filter(Boolean).length;
+      if (appConfig === null) {
+        return;
+      }
 
-  const updateLayoutWidths = (newState: Record<string, boolean>) => {
-    const noOfWidgetsOpen = Object.values(newState).filter((val) => val).length;
-    if (appConfig === null) {
-      return;
-    }
+      if (
+        noOfWidgetsOpen === 1 ||
+        (noOfWidgetsOpen === 2 && !newState[panels.CHAT])
+      ) {
+        setPanelWidths(defaultSingleColumnConfig);
+        return;
+      }
 
-    if (
-      noOfWidgetsOpen === 1 ||
-      (noOfWidgetsOpen === 2 && !newState[panels.CHAT])
-    ) {
-      setPanelWidths(defaultSingleColumnConfig);
-    } else if (noOfWidgetsOpen === 2 && newState[panels.CHAT]) {
-      const panelsInOpenState = Object.keys(newState).filter(
-        (key) => newState[key]
-      );
-      const twoColLayouts = Object.keys(appConfig.TWO_COLUMN) as string[];
-      for (let i = 0; i < twoColLayouts.length; i++) {
-        const key = twoColLayouts[i] as string;
-        const panelNames = key.split("_");
-        const isMatched = panelsInOpenState.every((val) =>
-          panelNames.includes(val)
+      if (noOfWidgetsOpen === 2 && newState[panels.CHAT]) {
+        const panelsInOpenState = Object.keys(newState).filter(
+          (key) => newState[key]
         );
-        const TWO_COLUMN = appConfig.TWO_COLUMN as Record<
-          string,
-          Record<string, number>
-        >;
-        if (isMatched) {
-          setPanelWidths({ ...TWO_COLUMN[key] });
-          break;
+        const twoColumnLayouts = Object.keys(appConfig.TWO_COLUMN) as string[];
+
+        for (const layoutKey of twoColumnLayouts) {
+          const panelNames = layoutKey.split("_");
+          const isMatched = panelsInOpenState.every((value) =>
+            panelNames.includes(value)
+          );
+          const twoColumnConfig = appConfig.TWO_COLUMN as Record<
+            string,
+            Record<string, number>
+          >;
+
+          if (isMatched) {
+            setPanelWidths({ ...twoColumnConfig[layoutKey] });
+            return;
+          }
         }
       }
-    } else {
-      const threeColumn = appConfig.THREE_COLUMN as Record<string, number>;
+
+      const threeColumn = {
+        ...(appConfig.THREE_COLUMN as Record<string, number>),
+      };
       threeColumn.DASHBOARD =
         threeColumn.DASHBOARD > 55 ? threeColumn.DASHBOARD : 55;
-      setPanelWidths({ ...threeColumn });
-    }
-  };
+      setPanelWidths(threeColumn);
+    },
+    [appConfig]
+  );
 
   useEffect(() => {
     updateLayoutWidths(panelShowStates);
-  }, [state.config.appConfig]);
+  }, [panelShowStates, updateLayoutWidths]);
 
-  const onHandlePanelStates = (panelName: string) => {
-    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
-    setLayoutWidthUpdated((prevFlag) => !prevFlag);
-    const newState = {
-      ...panelShowStates,
-      [panelName]: !panelShowStates[panelName],
-    };
-    const isHiddenBoth = !newState[panels.DASHBOARD] && !newState[panels.CHAT];
-    if (isHiddenBoth && panelName === panels.CHAT) {
-      newState[panels.DASHBOARD] = true;
-    } else if (isHiddenBoth && panelName === panels.DASHBOARD) {
-      newState[panels.CHAT] = true;
-    }
-    updateLayoutWidths(newState);
-    setPanelShowStates(newState);
-  };
+  const onHandlePanelStates = useCallback(
+    (panelName: string) => {
+      dispatch(hideCitation());
+      setLayoutWidthUpdated((previousFlag) => !previousFlag);
+      const nextState = {
+        ...panelShowStates,
+        [panelName]: !panelShowStates[panelName],
+      };
+      const isHiddenBoth = !nextState[panels.DASHBOARD] && !nextState[panels.CHAT];
 
-  const getHistoryListData = async () => {
-    if (!hasMoreRecords) {
+      if (isHiddenBoth && panelName === panels.CHAT) {
+        nextState[panels.DASHBOARD] = true;
+      } else if (isHiddenBoth && panelName === panels.DASHBOARD) {
+        nextState[panels.CHAT] = true;
+      }
+
+      updateLayoutWidths(nextState);
+      setPanelShowStates(nextState);
+    },
+    [dispatch, panelShowStates, updateLayoutWidths]
+  );
+
+  const getHistoryListData = useCallback(async () => {
+    if (!hasMoreRecords || isFetchingConversations) {
       return;
     }
-    dispatch({
-      type: actionConstants.UPDATE_CONVERSATIONS_FETCHING_FLAG,
-      payload: true,
-    });
-    const convs = await historyList(offset);
-    if (convs !== null) {
-      if (convs.length === OFFSET_INCREMENT) {
-        setOffset((offset) => (offset += OFFSET_INCREMENT));
-        // Stopping offset increment if there were no records
-      } else if (convs.length < OFFSET_INCREMENT) {
+
+    const result = await dispatch(fetchConversations(offset));
+    if (fetchConversations.fulfilled.match(result)) {
+      const conversations = result.payload;
+      if (conversations.length === OFFSET_INCREMENT) {
+        setOffset((currentOffset) => currentOffset + OFFSET_INCREMENT);
+      } else if (conversations.length < OFFSET_INCREMENT) {
         setHasMoreRecords(false);
       }
-      dispatch({
-        type: actionConstants.ADD_CONVERSATIONS_TO_LIST,
-        payload: convs,
-      });
     }
-    dispatch({
-      type: actionConstants.UPDATE_CONVERSATIONS_FETCHING_FLAG,
-      payload: false,
-    });
-  };
+  }, [
+    dispatch,
+    hasMoreRecords,
+    isFetchingConversations,
+    offset,
+    OFFSET_INCREMENT,
+  ]);
 
-  const onClearAllChatHistory = async () => {
-    dispatch({
-      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
-      payload: true,
-    });
-    dispatch({  type: actionConstants.UPDATE_CITATION,payload: { activeCitation: null, showCitation: false }})
+  useEffect(() => {
+    void getHistoryListData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onClearAllChatHistory = useCallback(async () => {
+    dispatch(setShowAppSpinner(true));
+    dispatch(hideCitation());
     setClearing(true);
-    const response = await historyDeleteAll();
-    if (!response.ok) {
+    setClearingError(false);
+
+    const result = await dispatch(clearAllConversations());
+    if (clearAllConversations.rejected.match(result)) {
       setClearingError(true);
     } else {
       setChowClearAllConfirmationDialog(false);
-      dispatch({ type: actionConstants.UPDATE_ON_CLEAR_ALL_CONVERSATIONS });
+      dispatch(resetChatState());
+      dispatch(startNewConversation());
     }
+
     setClearing(false);
-    dispatch({
-      type: actionConstants.UPDATE_APP_SPINNER_STATUS,
-      payload: false,
-    });
-  };
+    dispatch(setShowAppSpinner(false));
+  }, [dispatch]);
 
-  useEffect(() => {
-    setIsInitialAPItriggered(true);
-  }, []);
-
-  useEffect(() => {
-    if (isInitialAPItriggered) {
-      (async () => {
-        getHistoryListData();
-      })();
-    }
-  }, [isInitialAPItriggered]);
-
-  const onSelectConversation = async (id: string) => {
-    if (!id) {
-      console.error("No conversation ID found");
-      return;
-    }
-    dispatch({
-      type: actionConstants.UPDATE_CHATHISTORY_CONVERSATION_FLAG,
-      payload: true,
-    });
-    dispatch({
-      type: actionConstants.UPDATE_SELECTED_CONV_ID,
-      payload: id,
-    });
-    try {
-      const responseMessages = await historyRead(id);
-
-      if (responseMessages) {
-        dispatch({
-          type: actionConstants.SHOW_CHATHISTORY_CONVERSATION,
-          payload: {
-            id,
-            messages: responseMessages,
-          },
-        });
+  const onSelectConversation = useCallback(
+    async (id: string) => {
+      if (!id) {
+        return;
       }
 
-    } catch (error) {
-      console.error("Error fetching conversation messages:", error);
-    } finally {
-      dispatch({
-        type: actionConstants.UPDATE_CHATHISTORY_CONVERSATION_FLAG,
-        payload: false,
-      });
-    }
-  };
+      dispatch(hideCitation());
+      dispatch(setSelectedConversationId(id));
+      const result = await dispatch(fetchConversationMessages(id));
 
-  const onClickClearAllOption = () => {
-    setChowClearAllConfirmationDialog((prevFlag) => !prevFlag);
-  };
+      if (fetchConversationMessages.fulfilled.match(result)) {
+        dispatch(setMessages(result.payload.messages));
+      }
+    },
+    [dispatch]
+  );
 
-  const onHideClearAllDialog = () => {
-    setChowClearAllConfirmationDialog((prevFlag) => !prevFlag);
+  const onClickClearAllOption = useCallback(() => {
+    setChowClearAllConfirmationDialog((previousFlag) => !previousFlag);
+  }, []);
+
+  const onHideClearAllDialog = useCallback(() => {
+    setChowClearAllConfirmationDialog((previousFlag) => !previousFlag);
     setTimeout(() => {
       setClearingError(false);
     }, 1000);
-  };
+  }, []);
 
   return (
     <FluentProvider
       theme={webLightTheme}
       style={{ height: "100%", backgroundColor: "#F5F5F5" }}
     >
-      <CustomSpinner loading={state.showAppSpinner} label="Please wait.....!" />
+      <CustomSpinner loading={showAppSpinner} label="Please wait.....!" />
       <div className="header">
         <div className="header-left-section">
           <AppLogo />
@@ -295,7 +262,7 @@ const Dashboard: React.FC = () => {
             onClick={() => onHandlePanelStates(panels.DASHBOARD)}
           >
             {`${
-              panelShowStates?.[panels.DASHBOARD] ? "Hide" : "Show"
+              panelShowStates[panels.DASHBOARD] ? "Hide" : "Show"
             } Dashboard`}
           </Button>
           <Button
@@ -303,7 +270,7 @@ const Dashboard: React.FC = () => {
             appearance="subtle"
             onClick={() => onHandlePanelStates(panels.CHAT)}
           >
-            {`${panelShowStates?.[panels.CHAT] ? "Hide" : "Show"} Chat`}
+            {`${panelShowStates[panels.CHAT] ? "Hide" : "Show"} Chat`}
           </Button>
           <div>
             <Avatar name={name} title={name} />
@@ -311,8 +278,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
       <div className="main-container">
-        {/* LEFT PANEL: DASHBOARD */}
-        {panelShowStates?.[panels.DASHBOARD] && (
+        {panelShowStates[panels.DASHBOARD] && (
           <div
             className="left-section"
             style={{ width: `${panelWidths[panels.DASHBOARD]}%` }}
@@ -320,8 +286,7 @@ const Dashboard: React.FC = () => {
             <Chart layoutWidthUpdated={layoutWidthUpdated} />
           </div>
         )}
-        {/* MIDDLE PANEL: CHAT */}
-        {panelShowStates?.[panels.CHAT] && (
+        {panelShowStates[panels.CHAT] && (
           <div
             style={{
               width: `${panelWidths[panels.CHAT]}%`,
@@ -334,21 +299,17 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
-        {state.citation.showCitation && state.citation.currentConversationIdForCitation !== "" && (
+        {showCitation && currentConversationIdForCitation !== "" && (
           <div
             style={{
-              // width: `${panelWidths[panels.DASHBOARD]}%`,
               width: `${panelWidths[panels.CHATHISTORY] || 17}%`,
-              // minWidth: '30%'
             }}
           >
-            <CitationPanel activeCitation={state.citation.activeCitation}  />
-
+            <CitationPanel activeCitation={activeCitation} />
           </div>
         )}
-        {/* RIGHT PANEL: CHAT HISTORY */}
-        {panelShowStates?.[panels.CHAT] &&
-          panelShowStates?.[panels.CHATHISTORY] && (
+        {panelShowStates[panels.CHAT] &&
+          panelShowStates[panels.CHATHISTORY] && (
             <div
               style={{
                 width: `${panelWidths[panels.CHATHISTORY]}%`,
@@ -357,15 +318,13 @@ const Dashboard: React.FC = () => {
               <ChatHistoryPanel
                 clearing={clearing}
                 clearingError={clearingError}
-                handleFetchHistory={() => getHistoryListData()}
+                handleFetchHistory={getHistoryListData}
                 onClearAllChatHistory={onClearAllChatHistory}
                 onClickClearAllOption={onClickClearAllOption}
                 onHideClearAllDialog={onHideClearAllDialog}
                 onSelectConversation={onSelectConversation}
                 showClearAllConfirmationDialog={showClearAllConfirmationDialog}
               />
-              {/* {useAppContext?.state.isChatHistoryOpen &&
-            useAppContext?.state.isCosmosDBAvailable?.status !== CosmosDBStatus.NotConfigured && <ChatHistoryPanel />} */}
             </div>
           )}
       </div>

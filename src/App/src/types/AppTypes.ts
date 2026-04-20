@@ -5,8 +5,6 @@ export type FilterObject = {
 export type FilterMetaData = Record<string, FilterObject[]>;
 export type SelectedFilters = Record<string, string | string[]>;
 
-type Roles = "assistant" | "user" | "error";
-
 export enum Feedback {
   Neutral = "neutral",
   Positive = "positive",

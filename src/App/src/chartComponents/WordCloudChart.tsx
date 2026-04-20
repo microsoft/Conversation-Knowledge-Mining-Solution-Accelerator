@@ -29,9 +29,14 @@ const WordCloudChart: React.FC<WordCloudChartProps> = ({
     height: containerHeight,
   });
 
-  const [wordsUpdatedFlag, setWordsUpdatedFlag] = useState(true);
+  const wordsSignature = useMemo(
+    () =>
+      data.words
+        .map((word) => `${word.text}-${word.size}-${word.average_sentiment}`)
+        .join(","),
+    [data.words]
+  );
 
-  // Observe container size changes dynamically
   useEffect(() => {
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -40,20 +45,17 @@ const WordCloudChart: React.FC<WordCloudChartProps> = ({
       }
     });
 
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
+    const containerElement = containerRef.current;
+    if (containerElement) {
+      resizeObserver.observe(containerElement);
     }
 
     return () => {
-      if (containerRef.current) {
-        resizeObserver.unobserve(containerRef.current);
+      if (containerElement) {
+        resizeObserver.unobserve(containerElement);
       }
     };
   }, []);
-
-  useMemo(() => {
-    setWordsUpdatedFlag((prev) => !prev);
-  }, [data.words.map((o) => o.text).join(",")]);
 
   useEffect(() => {
     const HEIGHT_OFFSET = 30;
@@ -135,7 +137,7 @@ const WordCloudChart: React.FC<WordCloudChartProps> = ({
         )
         .text((d) => d.text);
     }
-  }, [wordsUpdatedFlag, dimensions]);
+  }, [data.words, dimensions, wordsSignature]);
 
   return (
     <div style={WordCloudStyles.mainContainer} ref={containerRef}>
