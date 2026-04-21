@@ -262,7 +262,7 @@ class ChatService:
                 if db_conn is not None:
                     try:
                         db_conn.close()
-                    except Exception:
+                    except Exception:  # Best-effort connection cleanup
                         pass
 
                 # Only emit fallback and tool citations if no error occurred

@@ -36,7 +36,7 @@ const ChartFilter: React.FC<FilterComponentProps> = (props) => {
     (state) => state.dashboards
   );
   const { applyFilters, fetchingCharts } = props;
-  const initialDateRange = typeof Array.isArray(selectedFilters.DateRange)
+  const initialDateRange = Array.isArray(selectedFilters.DateRange)
     ? selectedFilters.DateRange
     : [""];
 
