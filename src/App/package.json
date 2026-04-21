@@ -28,6 +28,7 @@
     "react-d3-cloud": "^1.0.6",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
+    "react-redux": "^9.1.2",
     "react-scripts": "^5.0.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",

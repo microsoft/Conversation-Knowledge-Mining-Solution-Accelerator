@@ -73,7 +73,7 @@ def test_after_filter_functioning(login_logout, request):
     km_page.click_apply_button()
 
     logger.info("Step 4: Validate filter data is reflecting in charts/graphs")
-    billing_data = km_page.validate_trending_topics_entry("Billing Issues")
+    km_page.validate_trending_topics_entry("Billing Issues")
     logger.info("Billing issues data validation completed")
     
     km_page.validate_dashboard_charts()
@@ -299,7 +299,6 @@ def test_clear_citations_on_chat_delete(login_logout, request):
     request.node._nodeid = "17631 - Bug 17326 - KM Generic - Telecom - Citation should get cleared after deleting complete chat history"
 
     page = login_logout
-    km_page = KMGenericPage(page)
     home_page = HomePage(page)
 
     logger.info("Step 2: Send a query to trigger a citation")

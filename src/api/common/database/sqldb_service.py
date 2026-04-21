@@ -64,6 +64,7 @@ async def get_db_connection():
 
         if conn is None:
             raise RuntimeError("Unable to connect using ODBC Driver 18 or 17 with Azure Credential")
+        return conn
     except Exception as e:
         logging.error("Failed with Azure Credential: %s", str(e))
         raise RuntimeError("Unable to connect to SQL database using Microsoft Entra authentication.") from e
@@ -179,7 +180,7 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         req_body = ''
         try:
             req_body = chart_filters.model_dump()
-        except BaseException:
+        except Exception:  # model_dump may fail if filters are empty or invalid
             pass
         if req_body != '':
             where_clause = ''

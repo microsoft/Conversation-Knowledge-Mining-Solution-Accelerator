@@ -23,6 +23,7 @@ class HomePage(BasePage):
 
 
     def __init__(self, page):
+        super().__init__(page)
         self.page = page
 
     def home_page_load(self):
