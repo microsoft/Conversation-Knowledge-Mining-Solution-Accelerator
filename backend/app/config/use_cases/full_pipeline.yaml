@@ -1,0 +1,28 @@
+name: full_knowledge_mining
+description: >
+  Full pipeline: ingest, index, summarize, extract entities.
+tags: ["general"]
+priority: 5
+defaults:
+  retry: 1
+on_error:
+  strategy: continue
+
+steps:
+  - name: ingest_data
+    kind: system
+    type: ingest
+
+  - name: index_documents
+    kind: system
+    type: index
+
+  - name: summarize_content
+    kind: capability
+    capability: summarize
+    params:
+      style: concise
+
+  - name: extract_key_entities
+    kind: capability
+    capability: extract_entities

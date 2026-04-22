@@ -1,2 +1,0 @@
-url = 'web app url'
-api_url = "api app url"

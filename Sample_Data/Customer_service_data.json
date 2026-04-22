@@ -1,0 +1,952 @@
+[
+  {
+    "id": "chat_001",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_002",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_003",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "faq_001",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "faq_002",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "ticket_001",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "ticket_002",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "audio_001",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "audio_002",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_050",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_051",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_052",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_053",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_054",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_055",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_056",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_057",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_058",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_059",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_060",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_061",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_062",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "Printer-X",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_063",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_064",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_065",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_066",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_067",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_068",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_069",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_070",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "Printer-X",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_071",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "Router-Y",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_072",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_073",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_074",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_075",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_076",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_077",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_078",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_079",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "Router-Y",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_080",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_081",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_082",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_083",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_084",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_085",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_086",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_087",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_088",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_089",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_090",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_091",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_092",
+    "type": "chat_transcript",
+    "text": "User: My billing shows extra charges.\nAgent: Let\u2019s check your invoice history.\nUser: I see 2 extra charges.\nAgent: One is late payment, the other is tax adjustment.\nUser: Got it, thanks!\nAgent: Happy to help.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_093",
+    "type": "faq_document",
+    "text": "Q: How to reset my modem?\nA: Press and hold the reset button for 10 seconds until the lights blink.\n\nQ: How to update firmware?\nA: Login to 192.168.1.1 \u2192 Firmware Update \u2192 Check for Updates.\n\nQ: How to enable guest Wi-Fi?\nA: Admin panel \u2192 Wi-Fi Settings \u2192 Guest Network \u2192 Enable.",
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_094",
+    "type": "faq_document",
+    "text": "Q: What speeds does ZX-3000 support?\nA: Up to 1 Gbps, dual-band Wi-Fi supported.\n\nQ: Can I use it internationally?\nA: Certified for US and Canada only.",
+    "metadata": {
+      "product": "Printer-X",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_095",
+    "type": "support_ticket",
+    "text": "Ticket #1001: Customer reported slow Wi-Fi. Troubleshooting revealed interference on 5 GHz band. Guided customer to switch channels. Issue resolved.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_096",
+    "type": "support_ticket",
+    "text": "Ticket #1002: Customer unable to print documents. Identified driver issue. Guided to reinstall drivers. Issue resolved.",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "setup",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_097",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:05",
+        "text": "Hi, my internet drops randomly."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:06",
+        "end_time": "00:00:12",
+        "text": "Let's check your modem model."
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:13",
+        "end_time": "00:00:15",
+        "text": "ZX-3000"
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:24",
+        "text": "Your firmware is outdated. Please update it."
+      }
+    ],
+    "metadata": {
+      "product": "ZX-Fiber",
+      "category": "billing",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_098",
+    "type": "audio_transcript",
+    "text": [
+      {
+        "speaker": "User",
+        "start_time": "00:00:01",
+        "end_time": "00:00:04",
+        "text": "Hello, I can't connect my phone to Wi-Fi."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:05",
+        "end_time": "00:00:10",
+        "text": "Is your phone detecting the network?"
+      },
+      {
+        "speaker": "User",
+        "start_time": "00:00:11",
+        "end_time": "00:00:15",
+        "text": "Yes, but it fails to authenticate."
+      },
+      {
+        "speaker": "Agent",
+        "start_time": "00:00:16",
+        "end_time": "00:00:22",
+        "text": "Let's reset your Wi-Fi password and try again."
+      }
+    ],
+    "metadata": {
+      "product": "Printer-X",
+      "category": "specs",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_099",
+    "type": "chat_transcript",
+    "text": "User: Hi, my internet keeps disconnecting.\nAgent: Sorry to hear that! Can you tell me your modem model?\nUser: ZX-3000\nAgent: Thanks. Have you tried restarting the modem?\nUser: Yes, still drops.\nAgent: Let's check your firmware version.\nUser: How do I check that?\nAgent: Open 192.168.1.1 and go to Firmware Update.\nUser: Okay, it says update available.\nAgent: Install it and restart your modem.\nUser: Done, connection is stable now.\nAgent: Great! Glad to help.",
+    "metadata": {
+      "product": "Router-Y",
+      "category": "firmware",
+      "timestamp": "2026-04-09"
+    }
+  },
+  {
+    "id": "chat_100",
+    "type": "chat_transcript",
+    "text": "User: Can I use this modem with fiber internet?\nAgent: ZX-3000 only supports cable internet. Recommend ZX-Fiber.\nUser: Okay, thanks for the info!\nAgent: You're welcome!",
+    "metadata": {
+      "product": "ZX-3000",
+      "category": "connectivity",
+      "timestamp": "2026-04-09"
+    }
+  }
+]

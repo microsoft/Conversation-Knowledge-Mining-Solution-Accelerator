@@ -1,0 +1,21 @@
+name: customer_support
+description: >
+  Processes support tickets, chat transcripts, and audio to enable Q&A.
+input_types: ["chat_transcript", "support_ticket", "audio_transcript"]
+tags: ["support", "customer"]
+priority: 10
+defaults:
+  retry: 1
+  cache: true
+on_error:
+  strategy: continue
+  log_errors: true
+
+steps:
+  - name: ingest_data
+    kind: system
+    type: ingest
+
+  - name: index_documents
+    kind: system
+    type: index

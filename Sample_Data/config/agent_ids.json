@@ -1,0 +1,7 @@
+{
+  "chat_agent_name": "KnowledgeMiningAgent",
+  "title_agent_name": "TitleAgent",
+  "search_index": "knowledge-mining-index",
+  "search_connection": "km-search-connection",
+  "model": "gpt-4o"
+}

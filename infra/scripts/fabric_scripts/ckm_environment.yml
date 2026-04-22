@@ -1,3 +1,0 @@
-dependencies:
-  - pip:
-      - azure-cognitiveservices-speech==1.37.0

@@ -1,16 +1,46 @@
-﻿################################################################################
-# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
-################################################################################
-*.venv
-*.myenv
-*.vscode
-*.vs
-/LUISSchemaSerializationTool/.vs
-/LUISSchemaSerializationTool/LUISSchemaSerializationTool/bin
-/LUISSchemaSerializationTool/LUISSchemaSerializationTool/obj
-.fake
-.azure
-.idea
-/myenv
-scriptenv/
+# Python virtual environments
+.venv/
+venv/
+
+# Python bytecode
 __pycache__/
+*.py[cod]
+*.pyo
+
+# Environment variables
+.env
+.env.*
+
+# Node
+node_modules/
+
+# Frontend build output
+frontend/build/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Distribution / packaging
+dist/
+*.egg-info/
+*.egg
+
+# Testing / coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# Misc
+*.bak
+*.tmp

@@ -1,42 +1,50 @@
-# # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
-# metadata:
-#     template: azd-init@1.11.1
-environment:
-  name: conversation-knowledge-mining
-  location: eastus
-name: conversation-knowledge-mining
-
-requiredVersions:
-  azd: ">= 1.18.0 != 1.23.9"
-  bicep: ">= 0.33.0"
-
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: knowledge-mining-platform
 metadata:
-  template: conversation-knowledge-mining@1.0
+  template: knowledge-mining-platform
+
+services:
+  backend:
+    project: ./backend
+    host: containerapp
+    language: python
+    docker:
+      path: ../backend/Dockerfile
+      context: ..
+
+  frontend:
+    project: ./frontend
+    host: containerapp
+    language: js
+    docker:
+      path: Dockerfile
+      context: .
 
 hooks:
+  preprovision:
+    shell: pwsh
+    run: |
+      Write-Host "Provisioning Azure resources for Knowledge Mining Platform..."
+
   postprovision:
-    windows:
-      run: |
-        Write-Host "Web app URL: "
-        Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
+    shell: pwsh
+    run: |
+      # Set environment variables for the backend container app
+      Write-Host "Configuring backend environment..."
+      azd env set AZURE_OPENAI_ENDPOINT $env:AZURE_OPENAI_ENDPOINT
+      azd env set AZURE_SEARCH_ENDPOINT $env:AZURE_SEARCH_ENDPOINT
+      azd env set AZURE_CONTENT_UNDERSTANDING_ENDPOINT $env:AZURE_CONTENT_UNDERSTANDING_ENDPOINT
+      azd env set AZURE_STORAGE_ACCOUNT $env:AZURE_STORAGE_ACCOUNT
+      azd env set AZURE_SQL_SERVER $env:AZURE_SQL_SERVER
+      azd env set AZURE_SQL_DATABASE $env:AZURE_SQL_DATABASE
+      azd env set AZURE_COSMOS_ENDPOINT $env:AZURE_COSMOS_ENDPOINT
+      Write-Host "Done."
 
-        Write-Host "`nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
-        Write-Host "bash ./infra/scripts/run_create_agents_scripts.sh" -ForegroundColor Cyan
-        Write-Host "`nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
-        Write-Host "bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Cyan
-      shell: pwsh
-      continueOnError: false
-      interactive: true
-    posix:
-      run: |
-        echo "Web app URL: "
-        echo $WEB_APP_URL
-
-        echo "\nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
-        echo "bash ./infra/scripts/run_create_agents_scripts.sh"
-        echo ""
-        echo "\nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
-        echo "bash ./infra/scripts/process_sample_data.sh"
-      shell: sh
-      continueOnError: false
-      interactive: true
+  postdeploy:
+    shell: pwsh
+    run: |
+      Write-Host ""
+      Write-Host "Deployment complete!"
+      Write-Host "Frontend: $env:SERVICE_FRONTEND_URI"
+      Write-Host "Backend:  $env:SERVICE_BACKEND_URI"
+      Write-Host ""
