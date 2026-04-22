@@ -80,15 +80,14 @@ export const useChatApi = ({
   const abortControllersRef = useRef<AbortController[]>([]);
 
   useEffect(() => {
-    if (!generatingResponse && !isStreamingInProgress) {
-      return;
+    if (generatingResponse || isStreamingInProgress) {
+      const chatAPISignal = abortControllersRef.current.shift();
+      chatAPISignal?.abort(
+        "Chat Aborted due to switch to other conversation while generating"
+      );
     }
-
-    const currentRequest = abortControllersRef.current.shift();
-    currentRequest?.abort(
-      "Chat aborted due to switching to another conversation."
-    );
-  }, [generatingResponse, isStreamingInProgress, selectedConversationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]);
 
   const readStreamingResponse = useCallback(
     async (
@@ -404,6 +403,7 @@ export const useChatApi = ({
             onToolDelta: (content) => {
               streamMessage.citations = content;
               if (!isChart) {
+                dispatch(setStreamingInProgress(true));
                 dispatch(updateMessageById({ ...streamMessage }));
               }
             },
@@ -411,6 +411,7 @@ export const useChatApi = ({
               if (!isChart) {
                 streamMessage.content = content;
                 streamMessage.role = ASSISTANT;
+                dispatch(setStreamingInProgress(true));
                 dispatch(updateMessageById({ ...streamMessage }));
                 scrollChatToBottom();
               }
