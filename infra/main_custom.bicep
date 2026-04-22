@@ -446,6 +446,7 @@ var privateDnsZones = [
   'privatelink.documents.azure.com'
   'privatelink${environment().suffixes.sqlServerHostname}'
   'privatelink.search.windows.net'
+  'privatelink.azurewebsites.net'
 ]
 
 // DNS Zone Index Constants
@@ -460,6 +461,7 @@ var dnsZoneIndex = {
   cosmosDB: 7
   sqlServer: 8
   search: 9
+  webApp: 10
 }
 
 // ===================================================
@@ -1363,7 +1365,22 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-${backendWebSiteResourceName}'
+            customNetworkInterfaceName: 'nic-${backendWebSiteResourceName}'
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.webApp]!.outputs.resourceId }
+              ]
+            }
+            service: 'sites'
+            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+          }
+        ]
+      : []
   }
 }
 
@@ -1391,9 +1408,10 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
         properties: {
           SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
           ENABLE_ORYX_BUILD: 'true'
-          REACT_APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          REACT_APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
           WEBSITE_NODE_DEFAULT_VERSION: '~20'
-          APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
+          BACKEND_API_HOST: enablePrivateNetworking ? 'api-${solutionSuffix}.azurewebsites.net' : ''
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
       }

@@ -1,6 +1,6 @@
 import pytest
 import json
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, MagicMock
 
 import helpers.utils as utils
 

@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 
 # ---- Import service under test ----
 from services.history_service import HistoryService
-from azure.ai.agents.models import MessageRole
 
 
 @pytest.fixture
