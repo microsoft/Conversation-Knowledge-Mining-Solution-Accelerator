@@ -199,7 +199,11 @@ class RAGService:
         context = "\n\n---\n\n".join(context_parts)
         system_prompt = (
             "You are a helpful knowledge mining assistant. You have access to documents from an external knowledge base. "
-            "Answer the user's question based on the provided documents. "
+            "Answer the user's question based ONLY on the provided documents. "
+            "Do NOT use any prior knowledge, training data, or external information. "
+            "If the provided documents do not contain enough information to answer the question, "
+            "clearly state that the answer is not available in the uploaded documents. "
+            "Never make up or infer information that is not explicitly stated in the documents. "
             "Cite documents by their ID when referencing information.\n\n"
             f"Documents:\n{context}"
         )
@@ -274,14 +278,17 @@ class RAGService:
         system_prompt = (
             "You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base. "
             "Answer the user's question based ONLY on the provided documents. "
-            "If the documents don't contain enough information, say so. "
+            "Do NOT use any prior knowledge, training data, or external information. "
+            "If the provided documents do not contain enough information to answer the question, "
+            "clearly state that the answer is not available in the uploaded documents. "
+            "Never make up or infer information that is not explicitly stated in the documents. "
             "Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.\n\n"
             "CHART GENERATION: When the user asks for a chart, graph, visualization, or data comparison, "
             "include a JSON chart block in your response using this format:\n"
             "```chart\n"
             '{"type": "bar|donut|line", "title": "Chart Title", "data": [{"label": "X", "value": 10}, ...]}\n'
             "```\n"
-            "Supported chart types: bar, donut, line. Extract real data from the documents.\n"
+            "Supported chart types: bar, donut, line. Extract real data from the documents only.\n"
             "You can include both text explanation AND a chart in the same response.\n\n"
             f"Documents:\n{context}"
         )
@@ -351,7 +358,11 @@ class RAGService:
         context = "\n\n---\n\n".join(context_parts)
         system_prompt = (
             "You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base. "
-            "Use the provided documents to answer questions. "
+            "Answer the user's question based ONLY on the provided documents. "
+            "Do NOT use any prior knowledge, training data, or external information. "
+            "If the provided documents do not contain enough information to answer the question, "
+            "clearly state that the answer is not available in the uploaded documents. "
+            "Never make up or infer information that is not explicitly stated in the documents. "
             "Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.\n\n"
             f"Documents:\n{context}"
         )

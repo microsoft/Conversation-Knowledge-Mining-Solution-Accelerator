@@ -279,7 +279,7 @@ Output strictly valid JSON."""
         response = client.chat.completions.create(
             model=settings.azure_openai_chat_deployment,
             messages=[
-                {"role": "system", "content": "You are a senior intelligence analyst. You find the story in data and tell it clearly. Every insight must be actionable. Never just restate statistics — always interpret and recommend."},
+                {"role": "system", "content": "You are a senior intelligence analyst. You find the story in data and tell it clearly. Every insight must be actionable. Never just restate statistics — always interpret and recommend. Base ALL analysis ONLY on the provided data. Do NOT use prior knowledge, external information, or make assumptions beyond what is explicitly present in the data. If the data is insufficient for a section, state that clearly."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
@@ -338,7 +338,7 @@ CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
         response = client.chat.completions.create(
             model=settings.azure_openai_chat_deployment,
             messages=[
-                {"role": "system", "content": "You are a senior intelligence analyst. Every insight must be actionable."},
+                {"role": "system", "content": "You are a senior intelligence analyst. Every insight must be actionable. Base ALL analysis ONLY on the provided documents. Do NOT use prior knowledge, external information, or make assumptions beyond what is explicitly present in the documents. If the data is insufficient for a section, state that clearly."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
