@@ -246,15 +246,6 @@ To ensure best practices:
 - Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/)
 - Use Virtual Networks for production deployments
 
-### Key Design Decisions
-
-- **Filters are fully dynamic** — GPT-4o infers dimensions from content, stored in SQL
-- **Enrichment is cached** — SHA-256 hash of content → SQL lookup before calling GPT-4o
-- **Azure AI Search is the primary RAG backend** — survives restarts, no re-indexing needed
-- **Azure SQL is the source of truth** — documents, files, schemas persisted and lazy-loaded on startup
-- **Content Understanding for binary files only** — text/CSV read directly to save cost
-- **All filters scope chat** — selecting a filter narrows what documents the RAG system searches
-- **Insights are cached in context** — navigating away and back doesn't re-trigger GPT-4o
 
 ---
 
