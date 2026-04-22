@@ -351,5 +351,63 @@ CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
         except json.JSONDecodeError:
             return {"headline": "Analysis Failed", "narrative": "Could not parse insights."}
 
+    def generate_insights_from_data_source(self, data_source_id: str) -> dict:
+        """Generate insights by sampling documents from a connected data source."""
+        import json
+
+        from backend.modules.data_sources.registry import data_source_registry
+        config = data_source_registry.get(data_source_id)
+        if not config:
+            return {"headline": "Source Not Found", "narrative": "Could not find the specified data source."}
+
+        samples = data_source_registry.sample(data_source_id, count=25)
+        if not samples:
+            return {"headline": "No Data Found", "narrative": "The connected source appears to be empty."}
+
+        settings = get_settings()
+        doc_snippets = []
+        for s in samples:
+            text = str(s.get("text", ""))[:300]
+            title = s.get("title", s.get("id", ""))
+            doc_snippets.append({"id": s.get("id", ""), "title": title, "text": text})
+
+        prompt = f"""You are a senior data intelligence analyst. Analyze these {len(doc_snippets)} records from an external data source.
+
+SOURCE: {config.name} ({config.source_type.value}, {config.doc_count} total rows, showing {len(doc_snippets)} samples)
+
+Documents:
+{json.dumps(doc_snippets, indent=2)}
+
+Generate the same JSON intelligence report format:
+1. "headline": Bold headline (6-10 words)
+2. "narrative": ONE sentence summary
+3. "confidence": "High|Medium|Low"
+4. "signals": Array of 3 metrics (category: pattern|risk|opportunity, label, metric, interpretation)
+5. "deep_findings": Array of 4-6 findings (finding, why_it_matters, recommendation)
+6. "causal_chains": Array of 2-3 root cause chains (chain, explanation)
+7. "entity_map": Array of top entities (name, relevance 0-100, role, connections[])
+8. "risks": Array of risks (risk, severity high|medium|low, evidence, mitigation)
+9. "opportunities": Array of opportunities (opportunity, potential_impact, next_step)
+10. "questions_to_investigate": Array of 3-4 follow-up questions
+
+CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
+
+        client = self._get_client()
+        response = client.chat.completions.create(
+            model=settings.azure_openai_chat_deployment,
+            messages=[
+                {"role": "system", "content": "You are a senior intelligence analyst. Every insight must be actionable. Base ALL analysis ONLY on the provided documents. Do NOT use prior knowledge, external information, or make assumptions beyond what is explicitly present in the documents. If the data is insufficient for a section, state that clearly."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=4000,
+            response_format={"type": "json_object"},
+        )
+
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {"headline": "Analysis Failed", "narrative": "Could not parse insights."}
+
 
 processing_service = ProcessingService()

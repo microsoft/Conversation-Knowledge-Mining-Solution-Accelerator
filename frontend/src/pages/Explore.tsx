@@ -21,8 +21,12 @@ import {
   ChevronRight20Regular,
   Filter20Regular,
   Sparkle20Regular,
+  Database20Regular,
+  PlugConnected20Regular,
+  Add20Regular,
+  Chat20Regular,
 } from "@fluentui/react-icons";
-import { askQuestion, getUploadedFiles, getExtractionInfo, deleteFile } from "../api/client";
+import { askQuestion, getUploadedFiles, getExtractionInfo, deleteFile, listDataSources, saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import { useSearchParams } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
@@ -367,6 +371,7 @@ const Explore: React.FC = () => {
 
   // Data
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [dataSources, setDataSources] = useState<Array<{ id: string; name: string; source_type: string; status: string; doc_count: number; query_mode: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [schema, setSchema] = useState<{ domain: string; dimensions: FilterDimension[] } | null>(null);
@@ -383,10 +388,24 @@ const Explore: React.FC = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Chat sessions
+  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
+  const [sessions, setSessions] = useState<Array<{ id: string; title: string; message_count: number; updated_at: string }>>([]);
+  const [showSessions, setShowSessions] = useState(false);
+  const [rightTab, setRightTab] = useState<"docs" | "chats">("docs");
+
   useEffect(() => {
     loadFiles();
-    getExtractionInfo().then((r) => setSchema(r.data)).catch(() => {});
+    loadSessions();
+    const timer = setTimeout(() => {
+      getExtractionInfo().then((r) => setSchema(r.data)).catch(() => {});
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
+
+  const loadSessions = () => {
+    listChatSessions().then((r) => setSessions(r.data?.sessions || r.data || [])).catch(() => {});
+  };
 
   // Handle query param from home page
   useEffect(() => {
@@ -402,8 +421,23 @@ const Explore: React.FC = () => {
 
   const loadFiles = async () => {
     setLoading(true);
-    try { setFiles((await getUploadedFiles()).data); } catch { setFiles([]); }
-    finally { setLoading(false); }
+    try {
+      const [filesRes, dsRes] = await Promise.allSettled([
+        getUploadedFiles(),
+        listDataSources(),
+      ]);
+      setFiles(filesRes.status === "fulfilled" ? filesRes.value.data : []);
+      setDataSources(
+        dsRes.status === "fulfilled"
+          ? dsRes.value.data.filter((s: any) => s.status === "connected")
+          : []
+      );
+    } catch {
+      setFiles([]);
+      setDataSources([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -418,7 +452,8 @@ const Explore: React.FC = () => {
   const handleChat = async (text?: string) => {
     const q = text || chatInput;
     if (!q.trim() || chatLoading) return;
-    setMessages((prev) => [...prev, { role: "user", content: q }]);
+    const userMsg = { role: "user" as const, content: q };
+    setMessages((prev) => [...prev, userMsg]);
     setChatInput("");
     setChatLoading(true);
     try {
@@ -435,10 +470,15 @@ const Explore: React.FC = () => {
       const filters = Object.keys(filterDict).length > 0 ? filterDict : undefined;
 
       const res = await askQuestion(q, 5, filters, scope as "all" | "documents", docIds);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: res.data.answer, sources: res.data.sources },
-      ]);
+      const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
+      setMessages((prev) => [...prev, asstMsg]);
+
+      // Save to backend (non-blocking)
+      const allMsgs = [...messages, userMsg, asstMsg];
+      const title = messages.length === 0 ? q.slice(0, 60) : undefined;
+      saveChatHistory(sessionId, allMsgs, "default", title)
+        .then(() => loadSessions())
+        .catch(() => {});
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error";
       setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${msg}` }]);
@@ -658,12 +698,27 @@ const Explore: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Right: File List ── */}
+      {/* ── Right Panel: Documents / Chats ── */}
       <div className={styles.right}>
-        <div className={styles.rightHeader}>
-          <span>Documents</span>
-          <span className={styles.rightCount}>{filtered.length} files</span>
+        {/* Tab switcher */}
+        <div style={{ display: "flex", borderBottom: "1px solid #e5e7eb" }}>
+          <button onClick={() => setRightTab("docs")} style={{
+            flex: 1, padding: "12px 0", border: "none", cursor: "pointer", fontFamily: "inherit",
+            fontSize: 13, fontWeight: 600, background: "none",
+            color: rightTab === "docs" ? "#2563eb" : "#94a3b8",
+            borderBottom: rightTab === "docs" ? "2px solid #2563eb" : "2px solid transparent",
+          }}>Documents</button>
+          <button onClick={() => setRightTab("chats")} style={{
+            flex: 1, padding: "12px 0", border: "none", cursor: "pointer", fontFamily: "inherit",
+            fontSize: 13, fontWeight: 600, background: "none",
+            color: rightTab === "chats" ? "#2563eb" : "#94a3b8",
+            borderBottom: rightTab === "chats" ? "2px solid #2563eb" : "2px solid transparent",
+          }}>Chats{sessions.filter((s) => s.message_count > 0).length > 0 ? ` (${sessions.filter((s) => s.message_count > 0).length})` : ""}</button>
         </div>
+
+        {/* Documents tab */}
+        {rightTab === "docs" && (
+          <>
         <div className={styles.searchWrap}>
           <Input
             contentBefore={<Search24Regular />}
@@ -734,14 +789,22 @@ const Explore: React.FC = () => {
                     e.stopPropagation();
                     if (!window.confirm(`Delete "${f.filename}"?`)) return;
                     try {
-                      await deleteFile(f.id);
+                      const res = await deleteFile(f.id);
                       setFiles((prev) => prev.filter((x) => x.id !== f.id));
                       setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
-                    } catch { /* ignore */ }
+                      // Update filters from the delete response directly
+                      if (res.data?.updated_schema) {
+                        setSchema(res.data.updated_schema);
+                      } else {
+                        setSchema(null);
+                      }
+                    } catch (err: any) {
+                      alert(err?.response?.data?.detail || "Delete failed");
+                    }
                   }}
                   style={{
                     border: "none", background: "none", cursor: "pointer",
-                    color: "#d1d5db", padding: 4, flexShrink: 0,
+                    color: "#ef4444", padding: 4, flexShrink: 0,
                     transition: "color 0.15s",
                   }}
                   title="Delete file"
@@ -752,12 +815,205 @@ const Explore: React.FC = () => {
             ))
           )}
         </div>
+
+        {/* Connected data sources */}
+        {dataSources.length > 0 && (
+          <>
+            <div className={styles.leftHeader} style={{ borderTop: "1px solid var(--km-border)" }}>
+              <Database20Regular /> Live Sources
+            </div>
+            <div style={{ padding: "4px 0" }}>
+              {dataSources.map((ds) => (
+                <div key={ds.id} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 16px", fontSize: 12,
+                }}>
+                  <PlugConnected20Regular style={{ color: "#059669", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Text weight="semibold" size={200} style={{ display: "block" }}>{ds.name}</Text>
+                    <span style={{ color: "#94a3b8", fontSize: 11 }}>
+                      {ds.doc_count.toLocaleString()} rows · {ds.query_mode}
+                    </span>
+                  </div>
+                  <Badge appearance="filled" color="success" size="small">live</Badge>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+          </>
+        )}
+
+        {/* Chats tab */}
+        {rightTab === "chats" && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
+              <Button size="small" appearance="primary" icon={<Add20Regular />} style={{ width: "100%" }}
+                onClick={() => {
+                  setSessionId(crypto.randomUUID());
+                  setMessages([]);
+                  setRightTab("docs");
+                }}>
+                New Conversation
+              </Button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {sessions.filter((s) => s.message_count > 0).length === 0 ? (
+                <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8" }}>
+                  <Chat20Regular style={{ fontSize: 32, marginBottom: 8 }} />
+                  <Text block size={200}>No conversations yet</Text>
+                  <Text block size={200} style={{ marginTop: 4 }}>Start chatting to save your conversations</Text>
+                </div>
+              ) : (
+                sessions.filter((s) => s.message_count > 0).map((sess) => (
+                  <div key={sess.id}
+                    onClick={async () => {
+                      try {
+                        const res = await loadChatHistory(sess.id);
+                        setSessionId(sess.id);
+                        setMessages(res.data.messages || []);
+                        setRightTab("docs");
+                      } catch { /* ignore */ }
+                    }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 16px", cursor: "pointer",
+                      borderBottom: "1px solid #f1f5f9",
+                      backgroundColor: sess.id === sessionId ? "#eff6ff" : "transparent",
+                      transition: "background 0.12s",
+                    }}
+                  >
+                    <Chat20Regular style={{ color: sess.id === sessionId ? "#2563eb" : "#94a3b8", flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {sess.title || "Untitled"}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await deleteChatSession(sess.id);
+                          setSessions((prev) => prev.filter((s) => s.id !== sess.id));
+                          if (sess.id === sessionId) {
+                            setSessionId(crypto.randomUUID());
+                            setMessages([]);
+                          }
+                        } catch { /* ignore */ }
+                      }}
+                      style={{ border: "none", background: "none", cursor: "pointer", color: "#ef4444", padding: 2, flexShrink: 0, opacity: 0.6, transition: "opacity 0.12s" }}
+                      title="Delete conversation"
+                    >
+                      <Delete20Regular />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 /* ── Chat Content with Chart Rendering ── */
+/** Simple markdown to JSX — handles bold, italic, lists, headers, line breaks */
+function renderMarkdown(text: string): React.ReactNode {
+  // Normalize line endings
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let isNumbered = false;
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      if (isNumbered) {
+        elements.push(
+          <ol key={`ol-${elements.length}`} style={{ margin: "6px 0", paddingLeft: 22 }}>
+            {listItems.map((item, j) => <li key={j} style={{ marginBottom: 4 }}>{inlineFormat(item)}</li>)}
+          </ol>
+        );
+      } else {
+        elements.push(
+          <ul key={`ul-${elements.length}`} style={{ margin: "6px 0", paddingLeft: 22 }}>
+            {listItems.map((item, j) => <li key={j} style={{ marginBottom: 4 }}>{inlineFormat(item)}</li>)}
+          </ul>
+        );
+      }
+      listItems = [];
+    }
+  };
+
+  const inlineFormat = (s: string): React.ReactNode => {
+    // Process inline formatting: **bold**, *italic*, `code`, [citation]
+    const parts = s.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\])/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return <em key={i}>{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={i} style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3, fontSize: "0.9em" }}>{part.slice(1, -1)}</code>;
+      }
+      if (part.startsWith("[") && part.endsWith("]")) {
+        return <span key={i} style={{ color: "#2563eb", fontSize: "0.85em" }}>{part.slice(1, -1)}</span>;
+      }
+      return part;
+    });
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Bullet list (-, *, •, with optional indentation)
+    if (/^\s*[-•*]\s+/.test(line)) {
+      if (listItems.length === 0) isNumbered = false;
+      listItems.push(trimmed.replace(/^[-•*]\s+/, ""));
+      continue;
+    }
+    // Numbered list
+    if (/^\s*\d+[.):]\s+/.test(line)) {
+      if (listItems.length === 0) isNumbered = true;
+      listItems.push(trimmed.replace(/^\d+[.):]\s+/, ""));
+      continue;
+    }
+
+    flushList();
+
+    // Empty line
+    if (!trimmed) {
+      if (elements.length > 0) elements.push(<div key={`sp-${i}`} style={{ height: 8 }} />);
+      continue;
+    }
+    // Headers
+    if (trimmed.startsWith("### ")) {
+      elements.push(<div key={i} style={{ fontSize: 14, fontWeight: 600, margin: "10px 0 4px", color: "#0f172a" }}>{inlineFormat(trimmed.slice(4))}</div>);
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      elements.push(<div key={i} style={{ fontSize: 15, fontWeight: 700, margin: "12px 0 4px", color: "#0f172a" }}>{inlineFormat(trimmed.slice(3))}</div>);
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      elements.push(<div key={i} style={{ fontSize: 16, fontWeight: 700, margin: "14px 0 4px", color: "#0f172a" }}>{inlineFormat(trimmed.slice(2))}</div>);
+      continue;
+    }
+    // Horizontal rule
+    if (/^---+$/.test(trimmed)) {
+      elements.push(<hr key={i} style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "8px 0" }} />);
+      continue;
+    }
+    // Normal paragraph
+    elements.push(<div key={i} style={{ marginBottom: 2 }}>{inlineFormat(trimmed)}</div>);
+  }
+  flushList();
+  return <>{elements}</>;
+}
+
 const ChatContent: React.FC<{ content: string }> = ({ content }) => {
   // Check for ```chart ... ``` blocks
   const chartRegex = /```chart\s*\n([\s\S]*?)\n```/g;
@@ -776,16 +1032,16 @@ const ChatContent: React.FC<{ content: string }> = ({ content }) => {
     parts.push({ type: "text", value: content.slice(lastIndex) });
   }
 
-  // If no chart blocks, render as plain text
+  // If no chart blocks, render as formatted text
   if (parts.length === 0 || (parts.length === 1 && parts[0].type === "text")) {
-    return <>{content}</>;
+    return <>{renderMarkdown(content)}</>;
   }
 
   return (
     <>
       {parts.map((part, i) => {
         if (part.type === "text") {
-          return <span key={i}>{part.value}</span>;
+          return <span key={i}>{renderMarkdown(part.value)}</span>;
         }
         // Parse chart JSON
         try {

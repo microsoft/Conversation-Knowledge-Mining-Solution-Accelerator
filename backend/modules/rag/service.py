@@ -170,6 +170,32 @@ class RAGService:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
+    def _search_external_data_sources(self, query: str, top_k: int = 5) -> list[dict]:
+        """Search all live-query data sources and merge results."""
+        try:
+            from backend.modules.data_sources.registry import data_source_registry
+            live_sources = data_source_registry.list_live_sources()
+            if not live_sources:
+                return []
+
+            all_docs = []
+            for source in live_sources:
+                docs = data_source_registry.search(source.id, query, top_k)
+                for doc in docs:
+                    doc["source_file"] = doc.get("title", source.name)
+                    doc["data_source_name"] = source.name
+                    doc["data_source_id"] = source.id
+                    if "type" not in doc:
+                        doc["type"] = "external"
+                all_docs.extend(docs)
+
+            # Sort by score descending, take top_k
+            all_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
+            return all_docs[:top_k]
+        except Exception as e:
+            logger.warning(f"External data source search failed: {e}")
+            return []
+
     def _answer_from_external(self, question: str, top_k: int,
                                external_index_id: str, include_sources: bool) -> QAResponse:
         """Answer a question using an external Azure AI Search index."""
@@ -248,8 +274,16 @@ class RAGService:
             if matching_ids is not None:
                 document_ids = matching_ids
 
-        # 2. Search: try Azure AI Search first, fall back to in-memory
+        # 2. Search: try Azure AI Search first, then external data sources, then in-memory
         search_docs = self._search_azure_ai_search(question, top_k, document_ids)
+
+        # Also search external live-query data sources
+        external_docs = self._search_external_data_sources(question, top_k)
+        if external_docs:
+            search_docs.extend(external_docs)
+            search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
+            search_docs = search_docs[:top_k]
+
         if not search_docs:
             logger.info("AI Search returned no results, falling back to in-memory search")
             search_docs = self._search_in_memory(question, top_k, document_ids)
@@ -339,8 +373,15 @@ class RAGService:
             if matching_ids is not None:
                 document_ids = matching_ids
 
-        # Search: AI Search first, fallback to in-memory
+        # Search: AI Search first, then external sources, fallback to in-memory
         search_docs = self._search_azure_ai_search(last_user_message, top_k, document_ids)
+
+        external_docs = self._search_external_data_sources(last_user_message, top_k)
+        if external_docs:
+            search_docs.extend(external_docs)
+            search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
+            search_docs = search_docs[:top_k]
+
         if not search_docs:
             search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
 

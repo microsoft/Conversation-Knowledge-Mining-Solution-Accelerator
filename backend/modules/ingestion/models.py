@@ -45,6 +45,7 @@ class UploadedFile(BaseModel):
     summary: str = ""
     keywords: list[str] = []
     filter_values: dict[str, list[str]] = {}  # dimension_id -> [values]
+    doc_ids: list[str] = []  # IDs of documents belonging to this file
     uploaded_at: str = ""
 
 

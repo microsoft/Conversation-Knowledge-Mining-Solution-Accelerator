@@ -40,19 +40,7 @@ export const deleteFile = (fileId: string) =>
   apiClient.delete(`/ingestion/files/${encodeURIComponent(fileId)}`);
 export const getExtractionInfo = () => apiClient.get("/ingestion/extraction");
 
-// --- External Index (BYOI) ---
-export const connectExternalIndex = (data: {
-  name: string;
-  endpoint: string;
-  index_name: string;
-  text_field?: string;
-  title_field?: string;
-  metadata_fields?: string[];
-}) => apiClient.post("/ingestion/external/connect", data);
-export const listExternalIndexes = () => apiClient.get("/ingestion/external/indexes");
-export const disconnectExternalIndex = (id: string) =>
-  apiClient.delete(`/ingestion/external/${encodeURIComponent(id)}`);
-
+// --- File Upload ---
 export const uploadJsonFile = (file: File) => {
   const formData = new FormData();
   formData.append("file", file);
@@ -137,11 +125,13 @@ export const extractEntities = (text: string, entityTypes?: string[]) =>
   apiClient.post("/processing/extract-entities", { text, entity_types: entityTypes });
 export const batchProcess = (docIds?: string[], operations = ["summarize"]) =>
   apiClient.post("/processing/batch", { doc_ids: docIds, operations });
-export const getInsights = (fileIds?: string[], externalIndexId?: string) =>
+export const getInsights = (fileIds?: string[], externalIndexId?: string, dataSourceId?: string, refresh = false) =>
   apiClient.get("/processing/insights", {
     params: {
       ...(fileIds ? { file_ids: fileIds.join(",") } : {}),
       ...(externalIndexId ? { external_index_id: externalIndexId } : {}),
+      ...(dataSourceId ? { data_source_id: dataSourceId } : {}),
+      ...(refresh ? { refresh: true } : {}),
     },
   });
 export const getCachedInsights = () => apiClient.get("/processing/insights/cached");
@@ -164,5 +154,65 @@ export const getAutoConfig = () => apiClient.get("/pipelines/automation/config")
 export const setAutoConfig = (enabled: boolean, defaultPipeline: string, autoSelect = true) =>
   apiClient.put("/pipelines/automation/config", { enabled, default_pipeline: defaultPipeline, auto_select: autoSelect });
 export const getProcessingStatus = () => apiClient.get("/pipelines/status");
+
+// --- External Data Sources ---
+export const getDataSourceTypes = () => apiClient.get("/data-sources/types");
+export const listDataSources = () => apiClient.get("/data-sources/");
+export const createDataSource = (data: {
+  name: string;
+  source_type: string;
+  connection_string?: string;
+  endpoint?: string;
+  database?: string;
+  table_or_query?: string;
+  auth_method?: string;
+  field_mapping?: {
+    id_field?: string;
+    text_field?: string;
+    title_field?: string;
+    type_field?: string;
+    timestamp_field?: string;
+    metadata_fields?: Record<string, string>;
+  };
+  query_mode?: string;
+}) => apiClient.post("/data-sources/", data);
+export const updateDataSource = (id: string, data: Record<string, unknown>) =>
+  apiClient.put(`/data-sources/${encodeURIComponent(id)}`, data);
+export const deleteDataSource = (id: string) =>
+  apiClient.delete(`/data-sources/${encodeURIComponent(id)}`);
+export const testDataSourceConnection = (data: {
+  source_type: string;
+  connection_string?: string;
+  endpoint?: string;
+  database?: string;
+  table_or_query?: string;
+  auth_method?: string;
+}) => apiClient.post("/data-sources/test", data);
+export const testExistingDataSource = (id: string) =>
+  apiClient.post(`/data-sources/${encodeURIComponent(id)}/test`);
+export const getDataSourceSchema = (id: string) =>
+  apiClient.get(`/data-sources/${encodeURIComponent(id)}/schema`);
+export const getDataSourceSample = (id: string, count = 10) =>
+  apiClient.get(`/data-sources/${encodeURIComponent(id)}/sample`, { params: { count } });
+export const ingestDataSource = (id: string) =>
+  apiClient.post(`/data-sources/${encodeURIComponent(id)}/ingest`);
+export const quickConnectDataSource = (data: {
+  name: string;
+  source_type: string;
+  connection_string?: string;
+  endpoint?: string;
+  database?: string;
+  table_or_query: string;
+  auth_method?: string;
+  field_mapping?: {
+    id_field?: string;
+    text_field?: string;
+    title_field?: string;
+    type_field?: string;
+    timestamp_field?: string;
+    metadata_fields?: Record<string, string>;
+  };
+  query_mode?: string;
+}) => apiClient.post("/data-sources/quick-connect", data);
 
 export default apiClient;

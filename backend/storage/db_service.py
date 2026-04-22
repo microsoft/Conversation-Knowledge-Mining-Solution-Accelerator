@@ -33,9 +33,9 @@ class DbService:
 
     # ── Chat Sessions ──
 
-    def create_session(self, user_id: str, title: str = "New Chat") -> Optional[dict]:
+    def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         self._ensure_init()
-        return self._chat.create_session(user_id, title)
+        return self._chat.create_session(user_id, title, session_id)
 
     def list_sessions(self, user_id: str, limit: int = 50) -> list[dict]:
         self._ensure_init()

@@ -49,6 +49,7 @@ async def upload_json(
     if not isinstance(data, list):
         raise HTTPException(status_code=400, detail="JSON must be an array of documents")
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
+    background_tasks.add_task(ingestion_service.finalize_ingestion, data, file.filename or "uploaded.json")
     background_tasks.add_task(_trigger_auto_pipeline)
     return result
 
@@ -60,17 +61,14 @@ async def upload_document(
     user: User = Depends(require_role("contributor")),
 ):
     """Upload one or more PDF, DOCX, image, or text files.
-    Pipeline: Content Understanding → AI Enrichment → Search Index + Storage."""
+    Text extraction happens synchronously; enrichment runs in background."""
     import io
     from backend.modules.document_intelligence.service import content_understanding_service
 
     all_data: list[dict] = []
-    first_filename = ""
 
     for file in files:
         filename = file.filename or "document"
-        if not first_filename:
-            first_filename = filename
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         if ext not in DOCUMENT_EXTENSIONS:
             raise HTTPException(
@@ -80,96 +78,49 @@ async def upload_document(
 
         content = await file.read()
 
-        # Step 1: Content Understanding — extract text, layout, fields
+        # Extract text (synchronous — required to create the document)
         try:
             extracted = content_understanding_service.analyze(
                 file=io.BytesIO(content), filename=filename, analyzer="prebuilt-document"
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Content Understanding failed for {filename}: {e}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"Content extraction failed for {filename}: {e}")
 
         if not extracted.markdown.strip():
             raise HTTPException(status_code=400, detail=f"No text could be extracted from {filename}")
 
-        # Step 2: AI Enrichment — generate summary, entities, key phrases, topics
-        try:
-            extracted = content_understanding_service.enrich(extracted)
-        except Exception:
-            pass  # Non-blocking
-
-        # Step 3: Create enriched document record
         doc_id = filename.rsplit(".", 1)[0].replace(" ", "_")
         all_data.append({
             "id": doc_id,
             "type": ext,
             "text": extracted.markdown,
-            "summary": extracted.summary,
-            "entities": extracted.entities,
-            "key_phrases": extracted.key_phrases,
-            "topics": extracted.topics,
             "metadata": {
                 "source_file": filename,
                 "source_type": ext,
                 "page_count": str(extracted.page_count),
-                **extracted.metadata_extracted,
             },
         })
 
-    # Step 4: Ingest all documents together
-    combined_filename = first_filename if len(files) == 1 else f"{len(files)}_documents"
-    result = ingestion_service.load_json_data(all_data, filename=combined_filename)
+    # Ingest each document individually (fast — just in-memory + SQL persist)
+    total_loaded = 0
+    for doc_data in all_data:
+        doc_filename = doc_data.get("metadata", {}).get("source_file", "document")
+        result = ingestion_service.load_json_data([doc_data], filename=doc_filename)
+        total_loaded += result.total_loaded
+
+    # Heavy work in background: AI enrichment, search indexing, pipeline
+    for doc_data in all_data:
+        doc_filename = doc_data.get("metadata", {}).get("source_file", "document")
+        background_tasks.add_task(ingestion_service.finalize_ingestion, [doc_data], doc_filename)
     background_tasks.add_task(_trigger_auto_pipeline)
 
-    # Build quick insights from enriched data
-    summaries = [d.get("summary", "") for d in all_data if d.get("summary")]
-    all_kp = []
-    for d in all_data:
-        all_kp.extend(d.get("key_phrases", []))
-    all_topics = []
-    for d in all_data:
-        all_topics.extend(d.get("topics", []))
-    all_entities = []
-    for d in all_data:
-        for e in d.get("entities", []):
-            if isinstance(e, dict):
-                all_entities.append(e.get("name", ""))
-            elif isinstance(e, str):
-                all_entities.append(e)
-
-    # Detect content types from the extracted text
-    detected = set()
-    for d in all_data:
-        text = d.get("text", "")
-        if "|" in text and "---" in text:
-            detected.add("Tables")
-        if any(c.isdigit() for c in text[:500]):
-            detected.add("Metrics")
-        if d.get("entities"):
-            detected.add("Key Entities")
-        if d.get("key_phrases"):
-            detected.add("Key Phrases")
-        ext = d.get("type", "")
-        if ext in ("pdf", "docx"):
-            detected.add("Documents")
-        if ext in ("png", "jpg", "jpeg", "tiff", "bmp"):
-            detected.add("Images")
-
-    # Build highlight bullets from summary
-    highlights = []
-    if summaries:
-        for s in summaries[:3]:
-            sentences = [sent.strip() for sent in s.replace(". ", ".\n").split("\n") if sent.strip()]
-            highlights.extend(sentences[:2])
-    highlights = highlights[:4]
-
-    result.quick_insights = QuickInsights(
-        summary=summaries[0] if summaries else "",
-        highlights=highlights,
-        detected=sorted(detected),
-        keywords=sorted(set(all_kp))[:8],
+    return IngestionResult(
+        total_loaded=total_loaded,
+        by_type={d.get("type", "unknown"): 1 for d in all_data},
+        sample_ids=[d["id"] for d in all_data[:5]],
     )
-
-    return result
 
 
 @router.post("/upload/csv", response_model=IngestionResult)
@@ -238,9 +189,9 @@ async def get_filter_schema(user: User = Depends(get_current_user)):
 
 
 @router.delete("/clear")
-async def clear_documents(user: User = Depends(require_role("admin"))):
+async def clear_documents(user: User = Depends(get_current_user)):
     ingestion_service.clear()
-    return {"message": "All documents cleared"}
+    return {"message": "All documents, files, and filters cleared"}
 
 
 @router.delete("/files/{file_id}")
@@ -249,7 +200,12 @@ async def delete_file(file_id: str, user: User = Depends(require_role("contribut
     success = ingestion_service.delete_file(file_id)
     if not success:
         raise HTTPException(status_code=404, detail=f"File '{file_id}' not found")
-    return {"deleted": True, "file_id": file_id}
+    # Return updated schema so frontend can refresh filters without a separate call
+    return {
+        "deleted": True,
+        "file_id": file_id,
+        "updated_schema": ingestion_service.filter_schema.dict(),
+    }
 
 
 # ══════════════════════════════════════════════

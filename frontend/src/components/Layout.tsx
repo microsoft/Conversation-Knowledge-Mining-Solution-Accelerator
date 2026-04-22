@@ -190,6 +190,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { path: "/", label: "Home", icon: <Home24Regular />, activeIcon: <Home24Filled /> },
     { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
+    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
   ];
 
   const navItems = allNavItems;

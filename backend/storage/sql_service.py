@@ -150,6 +150,27 @@ class AzureSqlService:
                 generated_at DATETIME2 DEFAULT GETUTCDATE()
             )
         """)
+        cursor.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'external_data_sources')
+            CREATE TABLE external_data_sources (
+                id NVARCHAR(255) PRIMARY KEY,
+                name NVARCHAR(500),
+                source_type NVARCHAR(50),
+                connection_string NVARCHAR(MAX),
+                endpoint NVARCHAR(500),
+                database_name NVARCHAR(500),
+                table_or_query NVARCHAR(MAX),
+                auth_method NVARCHAR(50),
+                field_mapping NVARCHAR(MAX),
+                query_mode NVARCHAR(50),
+                status NVARCHAR(50),
+                doc_count INT DEFAULT 0,
+                last_sync NVARCHAR(100),
+                error_message NVARCHAR(MAX),
+                created_at DATETIME2 DEFAULT GETUTCDATE(),
+                updated_at DATETIME2 DEFAULT GETUTCDATE()
+            )
+        """)
         conn.commit()
         conn.close()
 
@@ -472,6 +493,105 @@ class AzureSqlService:
             return None
         except Exception:
             return None
+
+    # ══════════════════════════════════════════════
+    # External Data Sources
+    # ══════════════════════════════════════════════
+
+    def save_data_source(self, data: dict) -> bool:
+        if not self.available:
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                MERGE external_data_sources AS target
+                USING (SELECT ? AS id) AS source ON target.id = source.id
+                WHEN MATCHED THEN UPDATE SET
+                    name=?, source_type=?, connection_string=?, endpoint=?,
+                    database_name=?, table_or_query=?, auth_method=?,
+                    field_mapping=?, query_mode=?, status=?, doc_count=?,
+                    last_sync=?, error_message=?, updated_at=GETUTCDATE()
+                WHEN NOT MATCHED THEN INSERT
+                    (id, name, source_type, connection_string, endpoint,
+                     database_name, table_or_query, auth_method,
+                     field_mapping, query_mode, status, doc_count,
+                     last_sync, error_message)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """,
+                data["id"],
+                data.get("name", ""), data.get("source_type", ""),
+                data.get("connection_string", ""), data.get("endpoint", ""),
+                data.get("database", ""), data.get("table_or_query", ""),
+                data.get("auth_method", ""), json.dumps(data.get("field_mapping", {})),
+                data.get("query_mode", "both"), data.get("status", "disconnected"),
+                data.get("doc_count", 0), data.get("last_sync", ""),
+                data.get("error_message", ""),
+                # INSERT values
+                data["id"],
+                data.get("name", ""), data.get("source_type", ""),
+                data.get("connection_string", ""), data.get("endpoint", ""),
+                data.get("database", ""), data.get("table_or_query", ""),
+                data.get("auth_method", ""), json.dumps(data.get("field_mapping", {})),
+                data.get("query_mode", "both"), data.get("status", "disconnected"),
+                data.get("doc_count", 0), data.get("last_sync", ""),
+                data.get("error_message", ""),
+            )
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to save data source: {e}")
+            self._refresh_token()
+            return False
+
+    def load_data_sources(self) -> list[dict]:
+        if not self.available:
+            return []
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, name, source_type, connection_string, endpoint,
+                       database_name, table_or_query, auth_method,
+                       field_mapping, query_mode, status, doc_count,
+                       last_sync, error_message
+                FROM external_data_sources
+            """)
+            rows = cursor.fetchall()
+            conn.close()
+            results = []
+            for r in rows:
+                fm = json.loads(r[8]) if r[8] else {}
+                results.append({
+                    "id": r[0], "name": r[1], "source_type": r[2],
+                    "connection_string": r[3], "endpoint": r[4],
+                    "database": r[5], "table_or_query": r[6],
+                    "auth_method": r[7], "field_mapping": fm,
+                    "query_mode": r[9], "status": r[10],
+                    "doc_count": r[11] or 0, "last_sync": r[12] or "",
+                    "error_message": r[13] or "",
+                })
+            return results
+        except Exception as e:
+            logger.warning(f"Failed to load data sources: {e}")
+            self._refresh_token()
+            return []
+
+    def delete_data_source(self, source_id: str) -> bool:
+        if not self.available:
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM external_data_sources WHERE id = ?", source_id)
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete data source: {e}")
+            self._refresh_token()
+            return False
 
 
 sql_service = AzureSqlService()

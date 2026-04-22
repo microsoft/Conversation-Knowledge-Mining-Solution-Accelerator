@@ -48,17 +48,32 @@ async def batch_process(request: BatchProcessRequest, user: User = Depends(requi
 async def generate_insights(
     file_ids: Optional[str] = Query(None, description="Comma-separated file IDs to scope insights"),
     external_index_id: Optional[str] = Query(None, description="External index ID for BYOI insights"),
+    data_source_id: Optional[str] = Query(None, description="Data source ID for external DB insights"),
+    refresh: bool = Query(False, description="Force regeneration instead of using cache"),
     user: User = Depends(get_current_user),
 ):
-    """Generate insights — from uploaded files or an external index."""
+    """Generate insights — returns cached if available, regenerates if refresh=true."""
+    cache_key = data_source_id or external_index_id or file_ids or "all"
+
+    # Return cached insights unless refresh is requested
+    if not refresh:
+        try:
+            from backend.storage.db_service import db_service
+            cached = db_service.load_insights(cache_key)
+            if cached:
+                return cached
+        except Exception:
+            pass
+
     try:
-        if external_index_id:
+        if data_source_id:
+            result = processing_service.generate_insights_from_data_source(data_source_id)
+        elif external_index_id:
             result = processing_service.generate_insights_from_external(external_index_id)
         else:
             ids = file_ids.split(",") if file_ids else None
             result = processing_service.generate_insights(file_ids=ids)
         # Cache
-        cache_key = external_index_id or file_ids or "all"
         try:
             from backend.storage.db_service import db_service
             db_service.save_insights(cache_key, result)

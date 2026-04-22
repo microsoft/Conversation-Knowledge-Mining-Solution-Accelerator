@@ -10,7 +10,7 @@ import {
 } from "@fluentui/react-icons";
 import { DonutChart, BarChart } from "../components/Charts";
 import { useNavigate } from "react-router-dom";
-import { getInsights, getUploadedFiles } from "../api/client";
+import { getInsights, getUploadedFiles, listDataSources } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import s from "./Insights.module.css";
 
@@ -30,6 +30,7 @@ const Insights: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState("Analyzing your documents...");
   const [files, setFiles] = useState<Array<{ id: string; filename: string }>>([]);
+  const [dataSources, setDataSources] = useState<Array<{ id: string; name: string; source_type: string; status: string }>>([]);
   const [scope, setScope] = useState("all");
   const [open, setOpen] = useState<Set<string>>(new Set(["insights", "trends", "entities", "risks"]));
   const loadedRef = useRef(false);
@@ -37,16 +38,29 @@ const Insights: React.FC = () => {
   const go = (q: string) => nav(`/explore?q=${encodeURIComponent(q)}`);
   const toggle = (id: string) => setOpen((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const load = async (fileIds?: string[], docName?: string) => {
+  const load = async (fileIds?: string[], docName?: string, dataSourceId?: string, refresh = false) => {
     setLoading(true);
     setLoadingMsg(docName ? `Analyzing "${docName}"...` : "Analyzing all documents...");
-    setData(null); // Clear stale data so user sees fresh results
-    try { const r = (await getInsights(fileIds)).data; setData(r); cache(r); } catch {}
+    if (refresh) setData(null); // Only clear for explicit refresh
+    try { const r = (await getInsights(fileIds, undefined, dataSourceId, refresh)).data; setData(r); cache(r); } catch {}
     finally { setLoading(false); }
   };
 
   useEffect(() => {
-    getUploadedFiles().then((r) => setFiles(r.data)).catch(() => {});
+    // Load file lists in parallel, non-blocking
+    Promise.allSettled([
+      getUploadedFiles(),
+      listDataSources(),
+    ]).then(([filesRes, dsRes]) => {
+      setFiles(filesRes.status === "fulfilled" ? filesRes.value.data : []);
+      setDataSources(
+        dsRes.status === "fulfilled"
+          ? dsRes.value.data.filter((s: any) => s.status === "connected")
+          : []
+      );
+    });
+
+    // Only auto-generate insights if nothing is cached
     if (!cached && !loadedRef.current) {
       loadedRef.current = true;
       load();
@@ -58,6 +72,10 @@ const Insights: React.FC = () => {
     setScope(v);
     if (v === "all") {
       load(undefined, undefined);
+    } else if (v.startsWith("ds:")) {
+      const dsId = v.slice(3);
+      const ds = dataSources.find((d) => d.id === dsId);
+      load(undefined, ds?.name || dsId, dsId);
     } else {
       const fileName = files.find((f) => f.id === v)?.filename || v;
       load([v], fileName);
@@ -97,18 +115,26 @@ const Insights: React.FC = () => {
         <div className={s.topTitle}>Insights Report</div>
         <div className={s.topRight}>
           <Dropdown
-            value={scope === "all" ? "All Documents" : files.find((f) => f.id === scope)?.filename || scope}
+            value={scope === "all" ? "All Documents" : scope.startsWith("ds:") ? (dataSources.find((d) => d.id === scope.slice(3))?.name || scope) : (files.find((f) => f.id === scope)?.filename || scope)}
             onOptionSelect={handleScope}
             size="small"
             style={{ minWidth: 180 }}
           >
             <Option value="all">All Documents</Option>
             {files.map((f) => <Option key={f.id} value={f.id}>{f.filename}</Option>)}
+            {dataSources.length > 0 && dataSources.map((ds) => (
+              <Option key={`ds:${ds.id}`} value={`ds:${ds.id}`} text={`⚡ ${ds.name}`}>⚡ {ds.name}</Option>
+            ))}
           </Dropdown>
           <Button appearance="primary" size="small" icon={<ArrowSync24Regular />}
             onClick={() => {
-              if (scope === "all") load(undefined, undefined);
-              else load([scope], files.find((f) => f.id === scope)?.filename || scope);
+              if (scope === "all") load(undefined, undefined, undefined, true);
+              else if (scope.startsWith("ds:")) {
+                const dsId = scope.slice(3);
+                const ds = dataSources.find((d) => d.id === dsId);
+                load(undefined, ds?.name || dsId, dsId, true);
+              }
+              else load([scope], files.find((f) => f.id === scope)?.filename || scope, undefined, true);
             }} disabled={loading}>
             {loading ? "Analyzing..." : "Refresh"}
           </Button>
@@ -242,6 +268,11 @@ const Insights: React.FC = () => {
             icon={<ShieldError24Regular />} iconBg="#fee2e2" iconColor="#dc2626"
             actions={[{ label: "Ask about this", fn: () => go("What are the risks and opportunities?") }, { label: "Refine", fn: () => {
               if (scope === "all") load(undefined, undefined);
+              else if (scope.startsWith("ds:")) {
+                const dsId = scope.slice(3);
+                const ds = dataSources.find((d) => d.id === dsId);
+                load(undefined, ds?.name || dsId, dsId);
+              }
               else load([scope], files.find((f) => f.id === scope)?.filename || scope);
             } }]}>
             <div className={s.riskOppGrid}>

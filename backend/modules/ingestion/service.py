@@ -67,23 +67,38 @@ class IngestionService:
                         summary=item.get("summary", ""),
                         keywords=item.get("keywords", []),
                         filter_values=item.get("filter_values", {}),
+                        doc_ids=item.get("doc_ids", []),
                         uploaded_at=item.get("uploaded_at", ""),
                     )
+                    # If doc_ids not stored in SQL, rebuild from loaded documents
+                    if not uf.doc_ids:
+                        uf.doc_ids = [
+                            did for did, doc in self._documents.items()
+                            if (doc.metadata.source_file or "") == uf.filename
+                        ]
                     self._uploaded_files[uf.id] = uf
                 except Exception:
                     pass
 
-            # Load filter schema
-            schema_data = sql_service.load_filter_schema()
-            if schema_data and schema_data.get("dimensions"):
-                dims = []
-                for d in schema_data["dimensions"]:
-                    vals = [FilterValue(**v) for v in d.get("values", [])]
-                    dims.append(FilterDimension(
-                        id=d["id"], label=d["label"],
-                        type=d.get("type", "multi_select"), values=vals,
-                    ))
-                self._filter_schema = FilterSchema(domain=schema_data.get("domain", ""), dimensions=dims)
+            # Load filter schema — only if we have files to match it against
+            if self._uploaded_files:
+                schema_data = sql_service.load_filter_schema()
+                if schema_data and schema_data.get("dimensions"):
+                    dims = []
+                    for d in schema_data["dimensions"]:
+                        vals = [FilterValue(**v) for v in d.get("values", [])]
+                        dims.append(FilterDimension(
+                            id=d["id"], label=d["label"],
+                            type=d.get("type", "multi_select"), values=vals,
+                        ))
+                    self._filter_schema = FilterSchema(domain=schema_data.get("domain", ""), dimensions=dims)
+            else:
+                # No files = no filters. Clear stale schema from DB.
+                self._filter_schema = FilterSchema()
+                try:
+                    sql_service.save_filter_schema({"domain": "", "dimensions": []})
+                except Exception:
+                    pass
 
             if self._documents:
                 logger.info(f"Loaded from Azure SQL: {len(self._documents)} docs, {len(self._uploaded_files)} files")
@@ -128,6 +143,65 @@ class IngestionService:
             sql_service.save_filter_schema(schema_dict)
         except Exception:
             pass
+
+    def _remove_file_filters(self, uploaded_file: UploadedFile):
+        """Remove filter values contributed by a deleted file.
+        If the file has tracked filter_values, subtract them.
+        Otherwise, rebuild the entire schema from remaining files."""
+        if uploaded_file.filter_values:
+            # Subtract this file's values from the schema
+            for dim in self._filter_schema.dimensions:
+                file_vals = uploaded_file.filter_values.get(dim.id, [])
+                if not file_vals:
+                    continue
+                file_val_set = set(file_vals)
+                dim.values = [
+                    FilterValue(value=v.value, label=v.label, count=max(0, v.count - 1))
+                    for v in dim.values
+                    if v.value not in file_val_set or v.count > 1
+                ]
+            self._filter_schema.dimensions = [
+                d for d in self._filter_schema.dimensions if d.values
+            ]
+        else:
+            # File has no tracked filter values — rebuild schema from all remaining files
+            self._rebuild_filter_schema()
+
+        self._persist_schema_to_cosmos()
+
+    def _rebuild_filter_schema(self):
+        """Rebuild the global filter schema from all remaining uploaded files."""
+        merged_dims: dict[str, FilterDimension] = {}
+        for f in self._uploaded_files.values():
+            for dim_id, values in f.filter_values.items():
+                if dim_id not in merged_dims:
+                    merged_dims[dim_id] = FilterDimension(
+                        id=dim_id, label=dim_id.replace("_", " ").title(), values=[]
+                    )
+                existing_vals = {v.value for v in merged_dims[dim_id].values}
+                for val in values:
+                    if val in existing_vals:
+                        for v in merged_dims[dim_id].values:
+                            if v.value == val:
+                                v.count += 1
+                    else:
+                        merged_dims[dim_id].values.append(
+                            FilterValue(value=val, label=val, count=1)
+                        )
+                        existing_vals.add(val)
+        self._filter_schema = FilterSchema(
+            domain="",
+            dimensions=list(merged_dims.values()),
+        )
+
+        # If no dimensions left, also clear the SQL table
+        if not merged_dims:
+            try:
+                from backend.storage.sql_service import sql_service
+                if sql_service.available:
+                    sql_service.save_filter_schema({"domain": "", "dimensions": []})
+            except Exception:
+                pass
 
     def _persist_to_azure(self, raw_items: list[dict]):
         """Persist documents to Azure Blob Storage + Search Index in background."""
@@ -248,6 +322,7 @@ class IngestionService:
             summary=summary,
             keywords=keywords,
             filter_values=filter_values,
+            doc_ids=self._uploaded_files[file_id].doc_ids if file_id in self._uploaded_files else [d.get("id", "") for d in data],
             uploaded_at=datetime.utcnow().isoformat() + "Z",
         )
         self._uploaded_files[file_id] = uploaded_file
@@ -271,11 +346,17 @@ class IngestionService:
 
         by_type: dict[str, int] = {}
         for item in raw_data:
+            # Tag document with source file for delete tracking
+            meta = item.get("metadata", {})
+            if "source_file" not in meta:
+                meta["source_file"] = os.path.basename(file_path)
+                item["metadata"] = meta
             doc = Document(
                 id=item["id"],
                 type=item["type"],
                 text=item["text"],
-                metadata=DocumentMetadata(**item.get("metadata", {})),
+                metadata=DocumentMetadata(**{k: v for k, v in meta.items()
+                                             if k in DocumentMetadata.__fields__}),
             )
             self._documents[doc.id] = doc
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
@@ -283,6 +364,22 @@ class IngestionService:
             self._persist_doc_to_cosmos(item)
 
         filename = os.path.basename(file_path)
+
+        # Track doc_ids for reliable delete
+        ingested_ids = [item["id"] for item in raw_data]
+        from datetime import datetime
+        file_id = filename.rsplit(".", 1)[0]
+        self._uploaded_files[file_id] = UploadedFile(
+            id=file_id,
+            filename=filename,
+            doc_count=len(raw_data),
+            summary=f"{len(raw_data)} documents",
+            keywords=[],
+            filter_values={},
+            doc_ids=ingested_ids,
+            uploaded_at=datetime.utcnow().isoformat() + "Z",
+        )
+
         self._track_file(filename, raw_data)
         self._persist_to_azure(raw_data)
 
@@ -298,9 +395,10 @@ class IngestionService:
         for item in data:
             doc = Document(
                 id=item["id"],
-                type=item["type"],
-                text=item["text"],
-                metadata=DocumentMetadata(**item.get("metadata", {})),
+                type=item.get("type", "unknown"),
+                text=item.get("text", ""),
+                metadata=DocumentMetadata(**{k: v for k, v in item.get("metadata", {}).items()
+                                             if k in DocumentMetadata.__fields__}),
             )
             self._documents[doc.id] = doc
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
@@ -308,14 +406,39 @@ class IngestionService:
             # Persist document to Cosmos DB
             self._persist_doc_to_cosmos(item)
 
-        self._track_file(filename, data)
-        self._persist_to_azure(data)
+        # Track file immediately (in-memory) so it appears in the file list right away
+        from datetime import datetime
+        file_id = filename.rsplit(".", 1)[0]
+        ingested_ids = [item["id"] for item in data]
+        uploaded_file = UploadedFile(
+            id=file_id,
+            filename=filename,
+            doc_count=len(data),
+            summary=f"{len(data)} documents",
+            keywords=[],
+            filter_values={},
+            doc_ids=ingested_ids,
+            uploaded_at=datetime.utcnow().isoformat() + "Z",
+        )
+        self._uploaded_files[file_id] = uploaded_file
 
         return IngestionResult(
             total_loaded=len(data),
             by_type=by_type,
             sample_ids=list(self._documents.keys())[:5],
         )
+
+    def finalize_ingestion(self, data: list[dict], filename: str):
+        """Background task: AI enrichment, file tracking, and Azure persistence.
+        Called after the HTTP response is already sent."""
+        try:
+            self._track_file(filename, data)
+        except Exception as e:
+            logger.warning(f"Background file tracking failed: {e}")
+        try:
+            self._persist_to_azure(data)
+        except Exception as e:
+            logger.warning(f"Background Azure persist failed: {e}")
 
     def load_csv_file(self, file_path: str) -> IngestionResult:
         by_type: dict[str, int] = {}
@@ -424,9 +547,26 @@ class IngestionService:
         return result
 
     def clear(self):
+        """Clear all data from memory and SQL."""
         self._documents.clear()
         self._uploaded_files.clear()
         self._filter_schema = FilterSchema()
+
+        # Also clear SQL tables
+        try:
+            from backend.storage.sql_service import sql_service
+            if sql_service.available:
+                conn = sql_service._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM documents")
+                cursor.execute("DELETE FROM uploaded_files")
+                cursor.execute("DELETE FROM filter_schemas")
+                cursor.execute("DELETE FROM enrichment_cache")
+                conn.commit()
+                conn.close()
+                logger.info("Cleared all data from SQL")
+        except Exception as e:
+            logger.warning(f"Failed to clear SQL tables: {e}")
 
     def delete_file(self, file_id: str) -> bool:
         """Delete an uploaded file and all its documents."""
@@ -436,27 +576,50 @@ class IngestionService:
 
         uploaded_file = self._uploaded_files[file_id]
 
-        # Remove documents belonging to this file
-        doc_ids_to_remove = []
-        for doc_id, doc in self._documents.items():
-            source = doc.metadata.source_file or ""
-            stem = source.rsplit(".", 1)[0].replace(" ", "_") if source else doc_id
-            if stem == file_id or doc_id == file_id:
-                doc_ids_to_remove.append(doc_id)
+        # Use tracked doc_ids first (reliable), fall back to matching
+        if uploaded_file.doc_ids:
+            doc_ids_to_remove = [did for did in uploaded_file.doc_ids if did in self._documents]
+        else:
+            # Fallback: match by source_file metadata or doc_id
+            doc_ids_to_remove = []
+            file_filename = uploaded_file.filename
+            file_stem = file_filename.rsplit(".", 1)[0].replace(" ", "_") if file_filename else file_id
+            for doc_id, doc in self._documents.items():
+                source = doc.metadata.source_file or ""
+                if source == file_filename:
+                    doc_ids_to_remove.append(doc_id)
+                    continue
+                stem = source.rsplit(".", 1)[0].replace(" ", "_") if source else ""
+                if stem == file_id or stem == file_stem:
+                    doc_ids_to_remove.append(doc_id)
+                    continue
+                if doc_id == file_id:
+                    doc_ids_to_remove.append(doc_id)
 
         for doc_id in doc_ids_to_remove:
-            del self._documents[doc_id]
-            # Remove from SQL
-            try:
-                from backend.storage.sql_service import sql_service
-                if sql_service.available:
-                    conn = sql_service._get_connection()
-                    cursor = conn.cursor()
+            if doc_id in self._documents:
+                del self._documents[doc_id]
+
+        # Remove uploaded file record from memory
+        del self._uploaded_files[file_id]
+
+        # Rebuild filter schema from remaining files
+        self._rebuild_filter_schema()
+        self._persist_schema_to_cosmos()
+
+        # Persist deletions to SQL (single connection, all at once)
+        try:
+            from backend.storage.sql_service import sql_service
+            if sql_service.available:
+                conn = sql_service._get_connection()
+                cursor = conn.cursor()
+                for doc_id in doc_ids_to_remove:
                     cursor.execute("DELETE FROM documents WHERE id = ?", doc_id)
-                    conn.commit()
-                    conn.close()
-            except Exception:
-                pass
+                cursor.execute("DELETE FROM uploaded_files WHERE id = ?", file_id)
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"SQL cleanup failed for {file_id}: {e}")
 
         # Remove from AI Search
         try:
@@ -464,26 +627,13 @@ class IngestionService:
             from azure.identity import DefaultAzureCredential
             from azure.search.documents import SearchClient
             settings = get_settings()
-            if settings.azure_search_endpoint:
+            if settings.azure_search_endpoint and doc_ids_to_remove:
                 client = SearchClient(
                     endpoint=settings.azure_search_endpoint,
                     index_name=settings.azure_search_index_name,
                     credential=DefaultAzureCredential(),
                 )
                 client.delete_documents(documents=[{"id": did} for did in doc_ids_to_remove])
-        except Exception:
-            pass
-
-        # Remove uploaded file record
-        del self._uploaded_files[file_id]
-        try:
-            from backend.storage.sql_service import sql_service
-            if sql_service.available:
-                conn = sql_service._get_connection()
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM uploaded_files WHERE id = ?", file_id)
-                conn.commit()
-                conn.close()
         except Exception:
             pass
 

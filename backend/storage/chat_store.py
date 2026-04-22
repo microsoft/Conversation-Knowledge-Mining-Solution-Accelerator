@@ -14,7 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 class ChatStore:
-    """Manages chat sessions and message history in Azure SQL."""
+    """Manages chat sessions and message history. Uses Azure SQL when available, in-memory fallback otherwise."""
+
+    def __init__(self):
+        self._mem_sessions: dict[str, dict] = {}  # session_id -> session dict
+        self._mem_messages: dict[str, list[dict]] = {}  # session_id -> [messages]
 
     def _get_sql(self):
         from backend.storage.sql_service import sql_service
@@ -22,28 +26,28 @@ class ChatStore:
 
     @property
     def available(self) -> bool:
-        return self._get_sql().available
+        return True  # Always available — in-memory fallback
 
     # ══════════════════════════════════════════════
     # Sessions
     # ══════════════════════════════════════════════
 
-    def create_session(self, user_id: str, title: str = "New Chat") -> Optional[dict]:
+    def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         sql = self._get_sql()
         if not sql.available:
             return None
         try:
-            session_id = str(uuid.uuid4())
+            sid = session_id or str(uuid.uuid4())
             now = datetime.utcnow().isoformat() + "Z"
             conn = sql._get_connection()
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO chat_sessions (id, user_id, title, message_count, created_at, updated_at) VALUES (?,?,?,0,GETUTCDATE(),GETUTCDATE())",
-                session_id, user_id, title,
+                sid, user_id, title,
             )
             conn.commit()
             conn.close()
-            return {"id": session_id, "user_id": user_id, "title": title, "message_count": 0, "created_at": now, "updated_at": now}
+            return {"id": sid, "user_id": user_id, "title": title, "message_count": 0, "created_at": now, "updated_at": now}
         except Exception as e:
             logger.warning(f"Failed to create session: {e}")
             sql._refresh_token()

@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     data_dir: str = os.path.join(os.path.dirname(__file__), "..", "Sample_Data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
+    # External Data Sources
+    enable_external_data_sources: bool = True
+    external_data_source_default_batch_size: int = 1000
+    external_data_source_timeout: int = 60
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

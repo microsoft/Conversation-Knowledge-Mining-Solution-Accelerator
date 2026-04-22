@@ -26,6 +26,7 @@ async def save_chat(request: SaveChatRequest, user: User = Depends(get_current_u
         session_exists = any(s["id"] == request.session_id for s in sessions)
         if not session_exists:
             db_service.create_session(
+                session_id=request.session_id,
                 user_id=request.user_id,
                 title=request.title or "Chat session",
             )
