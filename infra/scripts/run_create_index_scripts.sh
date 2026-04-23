@@ -25,6 +25,36 @@ solution_name="${18}"
 
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
+# Function to refresh Azure CLI authentication using OIDC token in GitHub Actions.
+# When running with azure/login@v2 using OIDC, the federated assertion is short-lived.
+# Long-running scripts may need to re-authenticate to get data-plane tokens.
+refresh_az_login_oidc() {
+    if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
+        echo "Refreshing Azure CLI authentication with OIDC token..."
+        local oidc_token
+        oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
+        if [ -n "$oidc_token" ] && [ "$oidc_token" != "None" ]; then
+            az login --service-principal \
+                --username "$AZURE_CLIENT_ID" \
+                --tenant "$AZURE_TENANT_ID" \
+                --federate-token "$oidc_token" \
+                --output none
+            if [ $? -eq 0 ]; then
+                # Restore subscription context after re-login
+                if [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+                    az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none
+                fi
+                echo "✓ Azure CLI re-authenticated successfully"
+            else
+                echo "⚠ Azure CLI re-authentication failed, continuing with existing session"
+            fi
+        else
+            echo "⚠ Could not obtain OIDC token, continuing with existing session"
+        fi
+    fi
+}
+
 # Authenticate with Azure
 if ! az account show &> /dev/null; then
     echo "Authenticating with Azure CLI..."
@@ -160,6 +190,10 @@ if [ "$usecase" == "telecom" ]; then
 fi
 
 echo "✓ Processing data with CU"
+# Refresh OIDC token before the long-running data processing script.
+# Earlier scripts (01, 02) may have consumed time causing the original
+# OIDC assertion to expire, preventing new data-plane token acquisition.
+refresh_az_login_oidc
 sql_server_fqdn="$sqlServerName.database.windows.net"
 python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase" --solution_name="$solution_name"
 if [ $? -ne 0 ]; then
