@@ -23,8 +23,8 @@ import pyodbc
 from azure.ai.inference.aio import EmbeddingsClient
 from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
-from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
-from azure.identity import AzureCliCredential, get_bearer_token_provider
+from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
@@ -60,6 +60,8 @@ CU_API_VERSION = args.cu_api_version
 USE_CASE = args.usecase
 SOLUTION_NAME = args.solution_name
 
+os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
+
 # Construct agent names from solution name (matching 01_create_agents.py pattern)
 TOPIC_MINING_AGENT_NAME = f"KM-TopicMiningAgent-{SOLUTION_NAME}"
 TOPIC_MAPPING_AGENT_NAME = f"KM-TopicMappingAgent-{SOLUTION_NAME}"
@@ -77,16 +79,34 @@ else:
     SAMPLE_PROCESSED_DATA_FILE = 'infra/data/IT_helpdesk/sample_processed_data.json'
     SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/data/IT_helpdesk/sample_processed_data_key_phrases.json'
 
+
+def create_sync_credential():
+    return DefaultAzureCredential(
+        exclude_cli_credential=True,
+        exclude_shared_token_cache_credential=True,
+        exclude_visual_studio_code_credential=True,
+        exclude_interactive_browser_credential=True,
+    )
+
+
+def create_async_credential():
+    return AsyncDefaultAzureCredential(
+        exclude_cli_credential=True,
+        exclude_shared_token_cache_credential=True,
+        exclude_visual_studio_code_credential=True,
+        exclude_interactive_browser_credential=True,
+    )
+
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
-credential = AzureCliCredential(process_timeout=30)
+credential = create_sync_credential()
 service_client = DataLakeServiceClient(account_url, credential=credential, api_version='2023-01-03')
 file_system_client = service_client.get_file_system_client(FILE_SYSTEM_CLIENT_NAME)
 directory_name = DIRECTORY
 paths = list(file_system_client.get_paths(path=directory_name))
 
 # Azure Search setup
-search_credential = AzureCliCredential(process_timeout=30)
+search_credential = create_sync_credential()
 search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, search_credential)
 index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=search_credential)
 
@@ -194,7 +214,7 @@ def generate_sql_insert_script(df, table_name, columns, sql_file_name):
 
 
 # Content Understanding client
-cu_credential = AzureCliCredential(process_timeout=30)
+cu_credential = create_sync_credential()
 cu_token_provider = get_bearer_token_provider(cu_credential, "https://cognitiveservices.azure.com/.default")
 cu_client = AzureContentUnderstandingClient(
     endpoint=CU_ENDPOINT,
@@ -325,7 +345,7 @@ async def process_files():
 
     # Create embeddings client for entire processing session
     async with (
-        AsyncAzureCliCredential(process_timeout=30) as async_cred,
+        create_async_credential() as async_cred,
         EmbeddingsClient(
             endpoint=inference_endpoint,
             credential=async_cred,
@@ -476,7 +496,7 @@ If no topic is a perfect match, choose the closest one from the list ONLY
 async def create_agents():
     """Create topic mining and mapping agents asynchronously."""
     async with (
-        AsyncAzureCliCredential(process_timeout=30) as async_cred,
+        create_async_credential() as async_cred,
         AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
     ):
         topic_mining_agent = await project_client.agents.create_version(
@@ -505,7 +525,7 @@ try:
     async def call_topic_mining_agent(topics_str1):
         """Use Topic Mining Agent with Agent Framework to analyze and categorize topics."""
         async with (
-            AsyncAzureCliCredential(process_timeout=30) as async_cred,
+            create_async_credential() as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
             # Create provider for agent management
@@ -552,7 +572,7 @@ try:
         """Map all topics to categories using agent."""
         # Create credential, project client, provider, and agent once for reuse
         async with (
-            AsyncAzureCliCredential(process_timeout=30) as async_cred,
+            create_async_credential() as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
             # Create provider for agent management
@@ -642,7 +662,7 @@ finally:
         async def delete_agents():
             """Delete topic mining and mapping agents asynchronously."""
             async with (
-                AsyncAzureCliCredential(process_timeout=30) as async_cred,
+                create_async_credential() as async_cred,
                 AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
             ):
                 await project_client.agents.delete_version(topic_mining_agent.name, topic_mining_agent.version)

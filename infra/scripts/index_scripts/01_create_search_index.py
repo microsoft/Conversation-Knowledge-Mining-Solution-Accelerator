@@ -1,6 +1,7 @@
 import argparse
+import os
 
-from azure.identity import AzureCliCredential
+from azure.identity import DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
     AzureOpenAIVectorizer,
@@ -31,6 +32,16 @@ EMBEDDING_MODEL = args.embedding_model
 INDEX_NAME = "call_transcripts_index"
 
 
+def create_credential():
+    os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
+    return DefaultAzureCredential(
+        exclude_cli_credential=True,
+        exclude_shared_token_cache_credential=True,
+        exclude_visual_studio_code_credential=True,
+        exclude_interactive_browser_credential=True,
+    )
+
+
 def create_search_index():
     """
     Creates or updates an Azure Cognitive Search index configured for:
@@ -39,7 +50,7 @@ def create_search_index():
     - Semantic search using prioritized fields
     """
     # Shared credential
-    credential = AzureCliCredential(process_timeout=30)
+    credential = create_credential()
 
     index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
 

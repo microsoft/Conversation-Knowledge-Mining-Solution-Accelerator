@@ -1,8 +1,9 @@
 import argparse
+import os
 import sys
 from pathlib import Path
 
-from azure.identity import AzureCliCredential, get_bearer_token_provider
+from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from content_understanding_client import AzureContentUnderstandingClient
 
@@ -22,7 +23,13 @@ ANALYZER_TEMPLATE_FILE = 'infra/data/ckm-analyzer_config_audio.json'
 # Add parent directory to path for imports
 sys.path.append(str(Path.cwd().parent))
 
-credential = AzureCliCredential(process_timeout=30)
+os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
+credential = DefaultAzureCredential(
+    exclude_cli_credential=True,
+    exclude_shared_token_cache_credential=True,
+    exclude_visual_studio_code_credential=True,
+    exclude_interactive_browser_credential=True,
+)
 # Initialize Content Understanding Client
 token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
 client = AzureContentUnderstandingClient(
