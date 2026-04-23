@@ -23,8 +23,10 @@ import pyodbc
 from azure.ai.inference.aio import EmbeddingsClient
 from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
+from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
+from azure.identity.aio import ChainedTokenCredential as AsyncChainedTokenCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import AzureCliCredential, ChainedTokenCredential, DefaultAzureCredential, get_bearer_token_provider
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
@@ -79,18 +81,26 @@ else:
 
 
 def create_sync_credential():
-    return DefaultAzureCredential(
-        exclude_shared_token_cache_credential=True,
-        exclude_visual_studio_code_credential=True,
-        exclude_interactive_browser_credential=True,
+    return ChainedTokenCredential(
+        AzureCliCredential(process_timeout=120),
+        DefaultAzureCredential(
+            exclude_cli_credential=True,
+            exclude_shared_token_cache_credential=True,
+            exclude_visual_studio_code_credential=True,
+            exclude_interactive_browser_credential=True,
+        ),
     )
 
 
 def create_async_credential():
-    return AsyncDefaultAzureCredential(
-        exclude_shared_token_cache_credential=True,
-        exclude_visual_studio_code_credential=True,
-        exclude_interactive_browser_credential=True,
+    return AsyncChainedTokenCredential(
+        AsyncAzureCliCredential(process_timeout=120),
+        AsyncDefaultAzureCredential(
+            exclude_cli_credential=True,
+            exclude_shared_token_cache_credential=True,
+            exclude_visual_studio_code_credential=True,
+            exclude_interactive_browser_credential=True,
+        ),
     )
 
 # Azure DataLake setup

@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential, ChainedTokenCredential, DefaultAzureCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
     AzureOpenAIVectorizer,
@@ -33,10 +33,14 @@ INDEX_NAME = "call_transcripts_index"
 
 
 def create_credential():
-    return DefaultAzureCredential(
-        exclude_shared_token_cache_credential=True,
-        exclude_visual_studio_code_credential=True,
-        exclude_interactive_browser_credential=True,
+    return ChainedTokenCredential(
+        AzureCliCredential(process_timeout=120),
+        DefaultAzureCredential(
+            exclude_cli_credential=True,
+            exclude_shared_token_cache_credential=True,
+            exclude_visual_studio_code_credential=True,
+            exclude_interactive_browser_credential=True,
+        ),
     )
 
 
