@@ -60,8 +60,6 @@ CU_API_VERSION = args.cu_api_version
 USE_CASE = args.usecase
 SOLUTION_NAME = args.solution_name
 
-os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
-
 # Construct agent names from solution name (matching 01_create_agents.py pattern)
 TOPIC_MINING_AGENT_NAME = f"KM-TopicMiningAgent-{SOLUTION_NAME}"
 TOPIC_MAPPING_AGENT_NAME = f"KM-TopicMappingAgent-{SOLUTION_NAME}"
@@ -82,7 +80,6 @@ else:
 
 def create_sync_credential():
     return DefaultAzureCredential(
-        exclude_cli_credential=True,
         exclude_shared_token_cache_credential=True,
         exclude_visual_studio_code_credential=True,
         exclude_interactive_browser_credential=True,
@@ -91,7 +88,6 @@ def create_sync_credential():
 
 def create_async_credential():
     return AsyncDefaultAzureCredential(
-        exclude_cli_credential=True,
         exclude_shared_token_cache_credential=True,
         exclude_visual_studio_code_credential=True,
         exclude_interactive_browser_credential=True,

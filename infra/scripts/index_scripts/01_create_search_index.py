@@ -33,9 +33,7 @@ INDEX_NAME = "call_transcripts_index"
 
 
 def create_credential():
-    os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
     return DefaultAzureCredential(
-        exclude_cli_credential=True,
         exclude_shared_token_cache_credential=True,
         exclude_visual_studio_code_credential=True,
         exclude_interactive_browser_credential=True,

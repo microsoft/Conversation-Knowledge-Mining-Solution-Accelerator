@@ -23,9 +23,7 @@ ANALYZER_TEMPLATE_FILE = 'infra/data/ckm-analyzer_config_audio.json'
 # Add parent directory to path for imports
 sys.path.append(str(Path.cwd().parent))
 
-os.environ.setdefault("AZURE_TOKEN_CREDENTIALS", "prod")
 credential = DefaultAzureCredential(
-    exclude_cli_credential=True,
     exclude_shared_token_cache_credential=True,
     exclude_visual_studio_code_credential=True,
     exclude_interactive_browser_credential=True,

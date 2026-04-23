@@ -381,7 +381,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
-          AZURE_TOKEN_CREDENTIALS: prod
         run: |
           echo "Running process_sample_data.sh..."
           bash ./infra/scripts/process_sample_data.sh
@@ -403,7 +402,6 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE_AUTHORITY_HOST: https://login.microsoftonline.com/
-          AZURE_TOKEN_CREDENTIALS: prod
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
