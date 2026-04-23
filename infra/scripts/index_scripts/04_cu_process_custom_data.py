@@ -190,7 +190,7 @@ try:
     connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
     conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
     cursor = conn.cursor()
-except: 
+except Exception:  # Fall back to ODBC Driver 17
     driver = "{ODBC Driver 17 for SQL Server}"
     token_bytes = credential.get_token("https://database.windows.net/.default").token.encode("utf-16-LE")
     token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
@@ -435,10 +435,10 @@ async def process_files():
 
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
-            except Exception:
+            except Exception:  # Skip files that fail processing
                 pass
             if docs != [] and counter % 10 == 0:
-                result = search_client.upload_documents(documents=docs)
+                search_client.upload_documents(documents=docs)
                 docs = []
         if docs:
             search_client.upload_documents(documents=docs)
@@ -469,7 +469,6 @@ async def process_files():
                 conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
                 conversationIds.append(conversation_id)
 
-                duration = int(result['result']['contents'][0]['fields']['Duration']['valueString'])
                 fields = result['result']['contents'][0]['fields']
                 duration_str = get_field_value(fields, 'Duration', '0')
                 try:
@@ -507,9 +506,9 @@ async def process_files():
                 docs.extend(await prepare_search_doc(content, document_id, path.name, embeddings_client))
                 counter += 1
             except Exception:
-                pass
+                pass  # Skip files that fail to process
             if docs != [] and counter % 10 == 0:
-                result = search_client.upload_documents(documents=docs)
+                search_client.upload_documents(documents=docs)
                 docs = []
 
         # upload the last batch
@@ -620,8 +619,6 @@ try:
             res = res.replace("```json", '').replace("```", '').strip()
             return json.loads(res)
 
-    MAX_TOKENS = 3096
-
     res = asyncio.run(call_topic_mining_agent(topics_str))
     for object1 in res['topics']:
         cursor.execute("INSERT INTO km_mined_topics (label, description) VALUES (?,?)", (object1['label'], object1['description']))
@@ -632,7 +629,6 @@ try:
     column_names = [i[0] for i in cursor.description]
     df_topics = pd.DataFrame(rows, columns=column_names)
     mined_topics_list = df_topics['label'].tolist()
-    mined_topics = ", ".join(mined_topics_list)
     print(f"✓ Mined {len(mined_topics_list)} topics")
 
     async def call_topic_mapping_agent(agent, input_text, list_of_topics):

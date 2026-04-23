@@ -381,10 +381,10 @@ async def process_files():
 
                 docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
                 counter += 1
-            except Exception:
+            except Exception:  # Skip files that fail processing
                 pass
             if docs != [] and counter % 10 == 0:
-                result = search_client.upload_documents(documents=docs)
+                search_client.upload_documents(documents=docs)
                 docs = []
         if docs:
             search_client.upload_documents(documents=docs)
@@ -533,7 +533,6 @@ try:
     column_names = [i[0] for i in cursor.description]
     df_topics = pd.DataFrame(rows, columns=column_names)
     mined_topics_list = df_topics['label'].tolist()
-    mined_topics = ", ".join(mined_topics_list)
     print(f"✓ Mined {len(mined_topics_list)} topics")
 
     async def call_topic_mapping_agent(agent, input_text, list_of_topics):

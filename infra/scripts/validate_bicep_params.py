@@ -107,7 +107,7 @@ def parse_parameters_env_vars(json_path: Path) -> dict[str, list[str]]:
     try:
         data = json.loads(sanitized)
         params = data.get("parameters", {})
-    except json.JSONDecodeError:
+    except json.JSONDecodeError:  # Parameters file may have azd variable placeholders
         pass
 
     # Walk each top-level parameter and scan its entire serialized value
