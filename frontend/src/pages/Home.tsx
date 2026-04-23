@@ -15,7 +15,6 @@ import {
   LightbulbFilament20Regular,
   ChatBubblesQuestion20Regular,
   TextBulletListSquare20Regular,
-  Database20Regular,
 } from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
 import {
@@ -558,17 +557,6 @@ const Home: React.FC = () => {
                 <Text weight="semibold" size={300} style={{ color: "#0f172a" }}>Try demo dataset</Text>
                 <Text block size={200} style={{ color: "#94a3b8", marginTop: 2 }}>
                   60 customer service documents — chats, tickets, FAQs
-                </Text>
-              </div>
-            </div>
-            <div className={s.quickCard} onClick={() => navigate("/data-sources")}>
-              <div className={s.quickIcon} style={{ backgroundColor: "#dbeafe" }}>
-                <Database20Regular style={{ color: "#2563eb" }} />
-              </div>
-              <div>
-                <Text weight="semibold" size={300} style={{ color: "#0f172a" }}>Connect data source</Text>
-                <Text block size={200} style={{ color: "#94a3b8", marginTop: 2 }}>
-                  Fabric, SQL databases, Synapse, or Azure AI Search
                 </Text>
               </div>
             </div>

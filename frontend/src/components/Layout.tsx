@@ -5,17 +5,12 @@ import {
   Button,
   Text,
   Tooltip,
-  Popover,
-  PopoverTrigger,
-  PopoverSurface,
 } from "@fluentui/react-components";
 import {
   Home24Regular,
   Home24Filled,
   Database24Regular,
   Database24Filled,
-  Pipeline24Regular,
-  Pipeline24Filled,
   Search24Regular,
   Search24Filled,
   ChartMultiple24Regular,
@@ -23,13 +18,10 @@ import {
   Chat24Regular,
   Chat24Filled,
   PersonAccounts24Regular,
-  ArrowUpload24Regular,
-  Settings24Regular,
 } from "@fluentui/react-icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMsal, useIsAuthenticated } from "@azure/msal-react";
 import { loginRequest } from "../auth/msalConfig";
-import { useUserMode } from "../context/UserModeContext";
 import ChatInterface from "./ChatInterface";
 
 const useStyles = makeStyles({
@@ -173,11 +165,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { instance, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
-  const { mode, setMode, isAtLeast } = useUserMode();
   const [showChat, setShowChat] = useState(false);
 
-  // AI chat only on pages where AI interaction makes sense
-  // Home = upload only, Explore = has built-in chat
   const showChatAvailable = location.pathname === "/insights";
 
   const handleLogin = () => instance.loginPopup(loginRequest);
@@ -203,7 +192,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       {/* Top bar — full width */}
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
-          <span className={styles.breadcrumb}>Knowledge Mining</span>
+          <span className={styles.breadcrumb}>
+            Knowledge Mining{pageTitle ? ` — ${pageTitle}` : ""}
+          </span>
         </div>
         <div className={styles.topBarRight}>
           {showChatAvailable && (

@@ -110,15 +110,15 @@ class IngestionService:
         self._ensure_loaded()
         return self._documents
 
-    def _persist_doc_to_cosmos(self, item: dict):
-        """Persist a single document to Azure SQL (non-blocking)."""
+    def _persist_doc(self, item: dict):
+        """Persist a single document to Azure SQL."""
         try:
             from backend.storage.sql_service import sql_service
             sql_service.save_document(item["id"], item)
         except Exception:
             pass
 
-    def _persist_file_to_cosmos(self, uploaded_file: UploadedFile):
+    def _persist_file(self, uploaded_file: UploadedFile):
         """Persist uploaded file metadata to Azure SQL."""
         try:
             from backend.storage.sql_service import sql_service
@@ -126,7 +126,7 @@ class IngestionService:
         except Exception:
             pass
 
-    def _persist_schema_to_cosmos(self):
+    def _persist_schema(self):
         """Persist the current filter schema to Azure SQL."""
         try:
             from backend.storage.sql_service import sql_service
@@ -167,7 +167,7 @@ class IngestionService:
             # File has no tracked filter values — rebuild schema from all remaining files
             self._rebuild_filter_schema()
 
-        self._persist_schema_to_cosmos()
+        self._persist_schema()
 
     def _rebuild_filter_schema(self):
         """Rebuild the global filter schema from all remaining uploaded files."""
@@ -283,7 +283,7 @@ class IngestionService:
                         type=dim.get("type", "multi_select"), values=values,
                     )
             self._filter_schema = FilterSchema(domain="", dimensions=list(existing_dims.values()))
-            self._persist_schema_to_cosmos()
+            self._persist_schema()
 
             # If no CU single-doc enrichment, use batch extraction for summary/keywords
             if not has_enrichment:
@@ -326,7 +326,7 @@ class IngestionService:
             uploaded_at=datetime.utcnow().isoformat() + "Z",
         )
         self._uploaded_files[file_id] = uploaded_file
-        self._persist_file_to_cosmos(uploaded_file)
+        self._persist_file(uploaded_file)
         return uploaded_file
 
     @property
@@ -361,7 +361,7 @@ class IngestionService:
             self._documents[doc.id] = doc
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
 
-            self._persist_doc_to_cosmos(item)
+            self._persist_doc(item)
 
         filename = os.path.basename(file_path)
 
@@ -404,7 +404,7 @@ class IngestionService:
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
 
             # Persist document to Cosmos DB
-            self._persist_doc_to_cosmos(item)
+            self._persist_doc(item)
 
         # Track file immediately (in-memory) so it appears in the file list right away
         from datetime import datetime
@@ -605,7 +605,7 @@ class IngestionService:
 
         # Rebuild filter schema from remaining files
         self._rebuild_filter_schema()
-        self._persist_schema_to_cosmos()
+        self._persist_schema()
 
         # Persist deletions to SQL (single connection, all at once)
         try:

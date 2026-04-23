@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     azure_storage_account: str = ""
     azure_storage_container: str = "documents"
 
-    # Azure Cosmos DB (optional — legacy support)
+    # Azure Cosmos DB (optional )
     azure_cosmos_endpoint: str = ""
     azure_cosmos_database: str = "km-db"
 
@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     enable_external_data_sources: bool = True
     external_data_source_default_batch_size: int = 1000
     external_data_source_timeout: int = 60
+
+    # Pre-configured data sources (JSON array in .env)
+    # Example: DATA_SOURCES='[{"name":"My Fabric","source_type":"fabric","endpoint":"server.database.fabric.microsoft.com","database":"mydb","table_or_query":"my_table"}]'
+    data_sources: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

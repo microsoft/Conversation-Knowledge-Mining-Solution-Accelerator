@@ -8,9 +8,7 @@ import {
   Spinner,
   Badge,
   Checkbox,
-  Body1,
   Caption1,
-  Divider,
 } from "@fluentui/react-components";
 import {
   Search24Regular,

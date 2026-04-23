@@ -31,6 +31,42 @@ async def lifespan(app: FastAPI):
             logger.info("No existing data — users can upload or load demo from the Home page")
     except Exception as e:
         logger.warning(f"Startup data load failed: {e}")
+
+    # Auto-connect data sources from .env
+    try:
+        from backend.config import get_settings
+        import json
+        settings = get_settings()
+        if settings.data_sources:
+            from backend.modules.data_sources.registry import data_source_registry
+            from backend.modules.data_sources.base import DataSourceConfig, DataSourceType, AuthMethod, QueryMode, FieldMapping
+
+            sources_config = json.loads(settings.data_sources)
+            existing = {s.name for s in data_source_registry.list_all()}
+            for src in sources_config:
+                if src.get("name") in existing:
+                    logger.info(f"Data source '{src['name']}' already connected, skipping")
+                    continue
+                try:
+                    config = DataSourceConfig(
+                        name=src["name"],
+                        source_type=DataSourceType(src.get("source_type", "sql")),
+                        connection_string=src.get("connection_string", ""),
+                        endpoint=src.get("endpoint", ""),
+                        database=src.get("database", ""),
+                        table_or_query=src.get("table_or_query", ""),
+                        auth_method=AuthMethod(src.get("auth_method", "managed_identity")),
+                        field_mapping=FieldMapping(**src["field_mapping"]) if "field_mapping" in src else FieldMapping(),
+                        query_mode=QueryMode(src.get("query_mode", "both")),
+                    )
+                    result = data_source_registry.create(config)
+                    logger.info(f"Auto-connected data source '{result.name}' ({result.status}, {result.doc_count} rows)")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-connect data source '{src.get('name', '?')}': {e}")
+    except Exception as e:
+        if "data_sources" not in str(e):
+            logger.warning(f"Data source auto-connect failed: {e}")
+
     yield
 
 
