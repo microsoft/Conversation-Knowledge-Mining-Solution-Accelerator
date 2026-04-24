@@ -383,42 +383,46 @@ jobs:
         run: |
           echo "Running process_sample_data.sh..."
 
-          refresh_oidc_login() {
-            while true; do
+          cat > "$RUNNER_TEMP/oidc_refresh_hook.sh" <<'EOF'
+          refresh_az_login_oidc() {
+            if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
+              echo "Refreshing Azure CLI authentication with OIDC token..."
+              local oidc_token
               oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value', ''))")
 
-              if [ -n "$oidc_token" ]; then
+              if [ -n "$oidc_token" ] && [ "$oidc_token" != "None" ]; then
                 az login --service-principal \
                   --username "$AZURE_CLIENT_ID" \
                   --tenant "$AZURE_TENANT_ID" \
                   --federate-token "$oidc_token" \
-                  --output none || echo "⚠ Background OIDC refresh failed; will retry"
+                  --output none
 
-                az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none || true
+                if [ $? -eq 0 ]; then
+                  if [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+                    az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none
+                  fi
+                  echo "✓ Azure CLI re-authenticated successfully"
+                else
+                  echo "⚠ Azure CLI re-authentication failed, continuing with existing session"
+                fi
               else
-                echo "⚠ Could not fetch OIDC token in refresh loop; will retry"
+                echo "⚠ Could not obtain OIDC token, continuing with existing session"
               fi
-
-              sleep 240
-            done
+            fi
           }
 
-          refresh_oidc_login &
-          OIDC_REFRESH_PID=$!
+          python() {
+            if [ "$#" -gt 0 ] && [[ "$1" == *"03_cu_process_data_text.py" ]]; then
+              refresh_az_login_oidc
+            fi
+            command python "$@"
+          }
+          EOF
 
+          export BASH_ENV="$RUNNER_TEMP/oidc_refresh_hook.sh"
           bash ./infra/scripts/process_sample_data.sh
-          SCRIPT_EXIT_CODE=$?
-
-          if kill -0 "$OIDC_REFRESH_PID" 2>/dev/null; then
-            kill "$OIDC_REFRESH_PID" || true
-          fi
-
-          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
-            echo "✅ Sample data processing completed successfully."
-          fi
-
-          exit $SCRIPT_EXIT_CODE
+          echo "✅ Sample data processing completed successfully."
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.process_sample_data.outcome == 'failure'
@@ -439,42 +443,46 @@ jobs:
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
 
-          refresh_oidc_login() {
-            while true; do
+          cat > "$RUNNER_TEMP/oidc_refresh_hook.sh" <<'EOF'
+          refresh_az_login_oidc() {
+            if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
+              echo "Refreshing Azure CLI authentication with OIDC token..."
+              local oidc_token
               oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value', ''))")
 
-              if [ -n "$oidc_token" ]; then
+              if [ -n "$oidc_token" ] && [ "$oidc_token" != "None" ]; then
                 az login --service-principal \
                   --username "$AZURE_CLIENT_ID" \
                   --tenant "$AZURE_TENANT_ID" \
                   --federate-token "$oidc_token" \
-                  --output none || echo "⚠ Background OIDC refresh failed; will retry"
+                  --output none
 
-                az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none || true
+                if [ $? -eq 0 ]; then
+                  if [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
+                    az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none
+                  fi
+                  echo "✓ Azure CLI re-authenticated successfully"
+                else
+                  echo "⚠ Azure CLI re-authentication failed, continuing with existing session"
+                fi
               else
-                echo "⚠ Could not fetch OIDC token in refresh loop; will retry"
+                echo "⚠ Could not obtain OIDC token, continuing with existing session"
               fi
-
-              sleep 240
-            done
+            fi
           }
 
-          refresh_oidc_login &
-          OIDC_REFRESH_PID=$!
+          python() {
+            if [ "$#" -gt 0 ] && [[ "$1" == *"03_cu_process_data_text.py" ]]; then
+              refresh_az_login_oidc
+            fi
+            command python "$@"
+          }
+          EOF
 
+          export BASH_ENV="$RUNNER_TEMP/oidc_refresh_hook.sh"
           bash ./infra/scripts/process_sample_data.sh
-          SCRIPT_EXIT_CODE=$?
-
-          if kill -0 "$OIDC_REFRESH_PID" 2>/dev/null; then
-            kill "$OIDC_REFRESH_PID" || true
-          fi
-
-          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
-            echo "✅ Sample data processing completed successfully on retry."
-          fi
-
-          exit $SCRIPT_EXIT_CODE
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
