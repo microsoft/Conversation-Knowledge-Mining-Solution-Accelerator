@@ -376,10 +376,49 @@ jobs:
         id: process_sample_data
         continue-on-error: true
         shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           echo "Running process_sample_data.sh..."
+
+          refresh_oidc_login() {
+            while true; do
+              oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+
+              if [ -n "$oidc_token" ]; then
+                az login --service-principal \
+                  --username "$AZURE_CLIENT_ID" \
+                  --tenant "$AZURE_TENANT_ID" \
+                  --federate-token "$oidc_token" \
+                  --output none || echo "⚠ Background OIDC refresh failed; will retry"
+
+                az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none || true
+              else
+                echo "⚠ Could not fetch OIDC token in refresh loop; will retry"
+              fi
+
+              sleep 240
+            done
+          }
+
+          refresh_oidc_login &
+          OIDC_REFRESH_PID=$!
+
           bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully."
+          SCRIPT_EXIT_CODE=$?
+
+          if kill -0 "$OIDC_REFRESH_PID" 2>/dev/null; then
+            kill "$OIDC_REFRESH_PID" || true
+          fi
+
+          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
+            echo "✅ Sample data processing completed successfully."
+          fi
+
+          exit $SCRIPT_EXIT_CODE
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.process_sample_data.outcome == 'failure'
@@ -392,11 +431,50 @@ jobs:
       - name: Retry Process Sample Data
         if: steps.process_sample_data.outcome == 'failure'
         shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
+
+          refresh_oidc_login() {
+            while true; do
+              oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',''))")
+
+              if [ -n "$oidc_token" ]; then
+                az login --service-principal \
+                  --username "$AZURE_CLIENT_ID" \
+                  --tenant "$AZURE_TENANT_ID" \
+                  --federate-token "$oidc_token" \
+                  --output none || echo "⚠ Background OIDC refresh failed; will retry"
+
+                az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none || true
+              else
+                echo "⚠ Could not fetch OIDC token in refresh loop; will retry"
+              fi
+
+              sleep 240
+            done
+          }
+
+          refresh_oidc_login &
+          OIDC_REFRESH_PID=$!
+
           bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully on retry."
+          SCRIPT_EXIT_CODE=$?
+
+          if kill -0 "$OIDC_REFRESH_PID" 2>/dev/null; then
+            kill "$OIDC_REFRESH_PID" || true
+          fi
+
+          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
+            echo "✅ Sample data processing completed successfully on retry."
+          fi
+
+          exit $SCRIPT_EXIT_CODE
 
       - name: Generate Deployment Summary
         if: always()
