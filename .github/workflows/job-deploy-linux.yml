@@ -372,30 +372,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Pre-warm Azure access tokens before processing sample data
-        shell: bash
-        run: |
-          set -euo pipefail
-          az account get-access-token --scope https://management.azure.com/.default --output none
-          az account get-access-token --scope https://storage.azure.com/.default --output none
-          az account get-access-token --scope https://search.azure.com/.default --output none
-          az account get-access-token --scope https://cognitiveservices.azure.com/.default --output none
-          az account get-access-token --scope https://database.windows.net/.default --output none
-          az account get-access-token --scope https://ai.azure.com/.default --output none
-
       - name: Process Sample Data
         id: process_sample_data
         continue-on-error: true
         shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          set -euo pipefail
+          # Start background token refresh to keep Azure CLI credentials alive
+          # during the long-running data processing scripts
+          (while true; do az account get-access-token --output none 2>/dev/null; sleep 240; done) &
+          TOKEN_REFRESH_PID=$!
+          trap "kill $TOKEN_REFRESH_PID 2>/dev/null" EXIT
+
           echo "Running process_sample_data.sh..."
-          az account show --output none
           bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.process_sample_data.outcome == 'failure'
@@ -405,31 +395,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Pre-warm Azure access tokens before retrying sample data
-        if: steps.process_sample_data.outcome == 'failure'
-        shell: bash
-        run: |
-          set -euo pipefail
-          az account get-access-token --scope https://management.azure.com/.default --output none
-          az account get-access-token --scope https://storage.azure.com/.default --output none
-          az account get-access-token --scope https://search.azure.com/.default --output none
-          az account get-access-token --scope https://cognitiveservices.azure.com/.default --output none
-          az account get-access-token --scope https://database.windows.net/.default --output none
-          az account get-access-token --scope https://ai.azure.com/.default --output none
-
       - name: Retry Process Sample Data
         if: steps.process_sample_data.outcome == 'failure'
         shell: bash
-        env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
-          set -euo pipefail
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
-          az account show --output none
+
+          # Start background token refresh to keep Azure CLI credentials alive
+          (while true; do az account get-access-token --output none 2>/dev/null; sleep 240; done) &
+          TOKEN_REFRESH_PID=$!
+          trap "kill $TOKEN_REFRESH_PID 2>/dev/null" EXIT
+
           bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
