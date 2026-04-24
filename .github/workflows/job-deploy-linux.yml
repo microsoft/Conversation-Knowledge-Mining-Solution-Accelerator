@@ -372,6 +372,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Pre-warm Azure access tokens before processing sample data
+        shell: bash
+        run: |
+          set -euo pipefail
+          az account get-access-token --scope https://management.azure.com/.default --output none
+          az account get-access-token --scope https://storage.azure.com/.default --output none
+          az account get-access-token --scope https://search.azure.com/.default --output none
+          az account get-access-token --scope https://cognitiveservices.azure.com/.default --output none
+          az account get-access-token --scope https://database.windows.net/.default --output none
+          az account get-access-token --scope https://ai.azure.com/.default --output none
+
       - name: Process Sample Data
         id: process_sample_data
         continue-on-error: true
@@ -381,48 +392,10 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
+          set -euo pipefail
           echo "Running process_sample_data.sh..."
-
-          cat > "$RUNNER_TEMP/oidc_refresh_hook.sh" <<'EOF'
-          refresh_az_login_oidc() {
-            if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
-              echo "Refreshing Azure CLI authentication with OIDC token..."
-              local oidc_token
-              oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value', ''))")
-
-              if [ -n "$oidc_token" ] && [ "$oidc_token" != "None" ]; then
-                az login --service-principal \
-                  --username "$AZURE_CLIENT_ID" \
-                  --tenant "$AZURE_TENANT_ID" \
-                  --federate-token "$oidc_token" \
-                  --output none
-
-                if [ $? -eq 0 ]; then
-                  if [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
-                    az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none
-                  fi
-                  echo "✓ Azure CLI re-authenticated successfully"
-                else
-                  echo "⚠ Azure CLI re-authentication failed, continuing with existing session"
-                fi
-              else
-                echo "⚠ Could not obtain OIDC token, continuing with existing session"
-              fi
-            fi
-          }
-
-          python() {
-            if [ "$#" -gt 0 ] && [[ "$1" == *"03_cu_process_data_text.py" ]]; then
-              refresh_az_login_oidc
-            fi
-            command python "$@"
-          }
-          EOF
-
-          export BASH_ENV="$RUNNER_TEMP/oidc_refresh_hook.sh"
+          az account show --output none
           bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully."
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.process_sample_data.outcome == 'failure'
@@ -432,6 +405,18 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Pre-warm Azure access tokens before retrying sample data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          az account get-access-token --scope https://management.azure.com/.default --output none
+          az account get-access-token --scope https://storage.azure.com/.default --output none
+          az account get-access-token --scope https://search.azure.com/.default --output none
+          az account get-access-token --scope https://cognitiveservices.azure.com/.default --output none
+          az account get-access-token --scope https://database.windows.net/.default --output none
+          az account get-access-token --scope https://ai.azure.com/.default --output none
+
       - name: Retry Process Sample Data
         if: steps.process_sample_data.outcome == 'failure'
         shell: bash
@@ -440,49 +425,11 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
+          set -euo pipefail
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
-
-          cat > "$RUNNER_TEMP/oidc_refresh_hook.sh" <<'EOF'
-          refresh_az_login_oidc() {
-            if [ -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" ] && [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_TENANT_ID" ]; then
-              echo "Refreshing Azure CLI authentication with OIDC token..."
-              local oidc_token
-              oidc_token=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api://AzureADTokenExchange" | python3 -c "import sys,json; print(json.load(sys.stdin).get('value', ''))")
-
-              if [ -n "$oidc_token" ] && [ "$oidc_token" != "None" ]; then
-                az login --service-principal \
-                  --username "$AZURE_CLIENT_ID" \
-                  --tenant "$AZURE_TENANT_ID" \
-                  --federate-token "$oidc_token" \
-                  --output none
-
-                if [ $? -eq 0 ]; then
-                  if [ -n "$AZURE_SUBSCRIPTION_ID" ]; then
-                    az account set --subscription "$AZURE_SUBSCRIPTION_ID" --output none
-                  fi
-                  echo "✓ Azure CLI re-authenticated successfully"
-                else
-                  echo "⚠ Azure CLI re-authentication failed, continuing with existing session"
-                fi
-              else
-                echo "⚠ Could not obtain OIDC token, continuing with existing session"
-              fi
-            fi
-          }
-
-          python() {
-            if [ "$#" -gt 0 ] && [[ "$1" == *"03_cu_process_data_text.py" ]]; then
-              refresh_az_login_oidc
-            fi
-            command python "$@"
-          }
-          EOF
-
-          export BASH_ENV="$RUNNER_TEMP/oidc_refresh_hook.sh"
+          az account show --output none
           bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
