@@ -1,6 +1,8 @@
 from typing import Optional
 import logging
+import os
 
+import yaml
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 
@@ -9,6 +11,21 @@ from backend.modules.embeddings.service import embeddings_service
 from backend.modules.rag.models import QAResponse, Source
 
 logger = logging.getLogger(__name__)
+
+# Load prompts from config file (editable without code changes)
+_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "app", "config", "prompts.yaml")
+_PROMPTS: dict = {}
+try:
+    with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
+        _PROMPTS = yaml.safe_load(f) or {}
+except Exception:
+    logger.warning("Could not load prompts.yaml — using built-in defaults")
+
+
+def _get_prompt(key: str, fallback: str, **kwargs) -> str:
+    """Load a prompt from config, falling back to the built-in default."""
+    template = _PROMPTS.get(key, fallback)
+    return template.format(**kwargs) if kwargs else template
 
 
 class RAGService:
@@ -223,15 +240,10 @@ class RAGService:
             ))
 
         context = "\n\n---\n\n".join(context_parts)
-        system_prompt = (
-            "You are a helpful knowledge mining assistant. You have access to documents from an external knowledge base. "
-            "Answer the user's question based ONLY on the provided documents. "
-            "Do NOT use any prior knowledge, training data, or external information. "
-            "If the provided documents do not contain enough information to answer the question, "
-            "clearly state that the answer is not available in the uploaded documents. "
-            "Never make up or infer information that is not explicitly stated in the documents. "
-            "Cite documents by their ID when referencing information.\n\n"
-            f"Documents:\n{context}"
+        system_prompt = _get_prompt(
+            "rag_external_prompt",
+            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
+            context=context,
         )
 
         client = self._get_client()
@@ -309,22 +321,10 @@ class RAGService:
         context = "\n\n---\n\n".join(context_parts)
 
         # 3. Generate answer
-        system_prompt = (
-            "You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base. "
-            "Answer the user's question based ONLY on the provided documents. "
-            "Do NOT use any prior knowledge, training data, or external information. "
-            "If the provided documents do not contain enough information to answer the question, "
-            "clearly state that the answer is not available in the uploaded documents. "
-            "Never make up or infer information that is not explicitly stated in the documents. "
-            "Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.\n\n"
-            "CHART GENERATION: When the user asks for a chart, graph, visualization, or data comparison, "
-            "include a JSON chart block in your response using this format:\n"
-            "```chart\n"
-            '{"type": "bar|donut|line", "title": "Chart Title", "data": [{"label": "X", "value": 10}, ...]}\n'
-            "```\n"
-            "Supported chart types: bar, donut, line. Extract real data from the documents only.\n"
-            "You can include both text explanation AND a chart in the same response.\n\n"
-            f"Documents:\n{context}"
+        system_prompt = _get_prompt(
+            "rag_system_prompt",
+            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
+            context=context,
         )
 
         client = self._get_client()
@@ -397,15 +397,10 @@ class RAGService:
             ))
 
         context = "\n\n---\n\n".join(context_parts)
-        system_prompt = (
-            "You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base. "
-            "Answer the user's question based ONLY on the provided documents. "
-            "Do NOT use any prior knowledge, training data, or external information. "
-            "If the provided documents do not contain enough information to answer the question, "
-            "clearly state that the answer is not available in the uploaded documents. "
-            "Never make up or infer information that is not explicitly stated in the documents. "
-            "Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.\n\n"
-            f"Documents:\n{context}"
+        system_prompt = _get_prompt(
+            "rag_conversation_prompt",
+            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
+            context=context,
         )
 
         all_messages = [{"role": "system", "content": system_prompt}] + messages

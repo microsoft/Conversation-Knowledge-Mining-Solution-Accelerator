@@ -54,8 +54,15 @@ class Settings(BaseSettings):
     external_data_source_default_batch_size: int = 1000
     external_data_source_timeout: int = 60
 
-    # Pre-configured data sources (JSON array in .env)
-    # Example: DATA_SOURCES='[{"name":"My Fabric","source_type":"fabric","endpoint":"server.database.fabric.microsoft.com","database":"mydb","table_or_query":"my_table"}]'
+    # Simple data source config (individual env vars)
+    data_source_type: str = ""
+    data_source_name: str = ""
+    data_source_endpoint: str = ""
+    data_source_database: str = ""
+    data_source_table: str = ""
+    data_source_connection_string: str = ""
+
+    # Advanced: multiple sources as JSON array
     data_sources: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
   Button,
@@ -21,6 +21,7 @@ import {
   loadDefaultDataset,
   uploadJsonFile,
   uploadDocument,
+  getUploadedFiles,
 } from "../api/client";
 
 /* ── Styles ── */
@@ -379,6 +380,13 @@ const Home: React.FC = () => {
   const [uploadDone, setUploadDone] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [existingDocCount, setExistingDocCount] = useState(0);
+
+  useEffect(() => {
+    getUploadedFiles()
+      .then((r) => setExistingDocCount(r.data?.length || 0))
+      .catch(() => {});
+  }, []);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -455,6 +463,9 @@ const Home: React.FC = () => {
           style={{
             ...(dragOver ? { borderColor: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.1)" } : {}),
             ...(uploadDone ? { cursor: "default", borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
+            ...(!uploading && !uploadDone && !uploadError && existingDocCount > 0
+              ? { borderStyle: "solid", borderColor: "#bbf7d0", cursor: "pointer" }
+              : {}),
           }}
         >
           {/* Uploading state */}
@@ -497,18 +508,36 @@ const Home: React.FC = () => {
 
           {/* Default state */}
           {!uploading && !uploadDone && !uploadError && (
-            <>
-              <div className={s.uploadIcon}>
-                <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
-              </div>
-              <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
-                Upload your data to get started
-              </Text>
-              <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
-              <div className={s.fileTypes}>
-                {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
-              </div>
-            </>
+            existingDocCount > 0 ? (
+              <>
+                <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
+                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
+                  {existingDocCount} {existingDocCount === 1 ? "file" : "files"} ready
+                </Text>
+                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                  <Button appearance="primary" size="medium" icon={<Search24Regular />}
+                    onClick={(e) => { e.stopPropagation(); navigate("/explore"); }}>Explore data</Button>
+                  <Button appearance="outline" size="medium" icon={<ChartMultiple24Regular />}
+                    onClick={(e) => { e.stopPropagation(); navigate("/insights"); }}>View insights</Button>
+                </div>
+                <Text size={200} style={{ color: "#94a3b8" }}>
+                  or drop more files here to add data
+                </Text>
+              </>
+            ) : (
+              <>
+                <div className={s.uploadIcon}>
+                  <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
+                </div>
+                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
+                  Upload your data to get started
+                </Text>
+                <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
+                <div className={s.fileTypes}>
+                  {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
+                </div>
+              </>
+            )
           )}
 
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}

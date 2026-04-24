@@ -1,13 +1,8 @@
 {
-  "appTitle": "Knowledge Mining Platform",
+  "appTitle": "Knowledge Mining",
   "modules": {
-    "chat": { "enabled": true, "label": "Chat Q&A" },
-    "search": { "enabled": true, "label": "Vector Search" },
-    "dashboard": { "enabled": true, "label": "Dashboard" },
-    "ingestion": { "enabled": true, "label": "Data Ingestion" },
-    "pipelines": { "enabled": true, "label": "Pipelines" },
-    "faq": { "enabled": true, "label": "FAQ Browser" }
-  },
-  "defaultUseCase": "customer_support",
-  "products": ["ZX-3000", "ZX-Fiber", "Printer-X", "Router-Y"]
+    "chat": { "enabled": true, "label": "Explore" },
+    "insights": { "enabled": true, "label": "Insights" },
+    "sources": { "enabled": true, "label": "Sources" }
+  }
 }

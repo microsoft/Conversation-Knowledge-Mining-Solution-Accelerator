@@ -1,55 +1,112 @@
-.dataSources {
-  padding: 32px;
-  max-width: 1200px;
+.sourcesPage {
+  padding: 32px 40px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
+.sourcesHeader {
+  margin-bottom: 24px;
 }
 
-.headerLeft h1 {
-  font-size: 24px;
+.sourcesHeader h1 {
+  font-size: 22px;
   font-weight: 700;
   color: #0f172a;
   margin: 0 0 4px 0;
 }
 
-.headerLeft p {
+.sourcesHeader p {
   font-size: 14px;
-  color: #64748b;
+  color: #94a3b8;
   margin: 0;
 }
 
-.filesList {
-  border-radius: 12px;
+/* Stats bar */
+.statsBar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 20px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
-  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.statItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Source list */
+.sourcesList {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.fileRow {
+.sourceRow {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 10px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
 }
 
-.fileRow:last-child {
+.sourceRow:last-child {
   border-bottom: none;
 }
 
-.fileRow:hover {
+.sourceRow:hover {
   background: #f8fafc;
 }
 
-.fileRowName {
+.sourceRow:hover .sourceActions {
+  opacity: 1;
+}
+
+.sourceIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.fileIcon {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.dbIcon {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.sourceInfo {
   flex: 1;
   min-width: 0;
+}
+
+.sourceName {
   font-size: 13px;
   font-weight: 600;
   color: #0f172a;
@@ -58,52 +115,66 @@
   white-space: nowrap;
 }
 
-.fileRowMeta {
+.sourceMeta {
   font-size: 12px;
   color: #94a3b8;
-  white-space: nowrap;
-  flex-shrink: 0;
+  margin-top: 1px;
 }
 
-.fileRowActions {
+.sourceActions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
-}
-
-.fileDeleteBtn {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: #ef4444;
-  padding: 4px;
-  display: flex;
-  align-items: center;
+  opacity: 0;
   transition: opacity 0.15s;
 }
 
-.fileDeleteBtn:hover {
-  opacity: 0.7;
+.actionBtn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: all 0.12s;
 }
 
+.actionBtn:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.deleteBtn {
+  color: #fca5a5;
+}
+
+.deleteBtn:hover {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+/* Empty state */
 .emptyState {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 20px;
   background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 12px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 16px;
 }
 
 .emptyState h3 {
   font-size: 18px;
   font-weight: 600;
   color: #334155;
-  margin: 16px 0 8px;
+  margin: 20px 0 8px;
 }
 
 .emptyState p {
   font-size: 14px;
-  color: #64748b;
-  margin: 0;
+  color: #94a3b8;
+  margin: 0 0 20px;
+  line-height: 1.6;
 }

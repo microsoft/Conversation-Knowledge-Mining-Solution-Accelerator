@@ -177,9 +177,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const allNavItems = [
     { path: "/", label: "Home", icon: <Home24Regular />, activeIcon: <Home24Filled /> },
+    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
     { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
-    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
   ];
 
   const navItems = allNavItems;
@@ -193,7 +193,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
           <span className={styles.breadcrumb}>
-            Knowledge Mining{pageTitle ? ` — ${pageTitle}` : ""}
+            {process.env.REACT_APP_BRANDING_NAME || "Knowledge Mining"}{pageTitle ? ` — ${pageTitle}` : ""}
           </span>
         </div>
         <div className={styles.topBarRight}>

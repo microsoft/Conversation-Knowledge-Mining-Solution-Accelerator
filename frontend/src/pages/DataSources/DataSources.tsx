@@ -2,9 +2,11 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Button, Badge, Spinner, Text } from "@fluentui/react-components";
 import {
   Database24Regular,
-  Delete24Regular,
-  ArrowSync24Regular,
+  Delete20Regular,
+  ArrowSync20Regular,
   DocumentText20Regular,
+  Search20Regular,
+  DataBarVertical20Regular,
 } from "@fluentui/react-icons";
 import {
   listDataSources,
@@ -22,12 +24,6 @@ const TYPE_LABELS: Record<string, string> = {
   synapse: "Azure Synapse",
   odbc: "ODBC / JDBC",
   azure_search: "Azure AI Search",
-};
-
-const STATUS_COLORS: Record<string, "success" | "danger" | "warning" | "informative"> = {
-  connected: "success",
-  disconnected: "warning",
-  error: "danger",
 };
 
 const DataSources: React.FC = () => {
@@ -66,66 +62,111 @@ const DataSources: React.FC = () => {
     finally { setIngesting(null); }
   };
 
+  const totalFiles = uploadedFiles.length;
+  const totalSources = sources.length;
+  const totalRecords = uploadedFiles.reduce((sum, f) => sum + (f.doc_count || 0), 0)
+    + sources.reduce((sum, s) => sum + (s.doc_count || 0), 0);
+
   if (loading) {
     return (
-      <div className="dataSources" style={{ display: "flex", justifyContent: "center", paddingTop: 100 }}>
+      <div className="sourcesPage" style={{ display: "flex", justifyContent: "center", paddingTop: 100 }}>
         <Spinner label="Loading..." />
       </div>
     );
   }
 
   return (
-    <div className="dataSources">
-      <div className="header">
-        <div className="headerLeft">
-          <h1>Sources</h1>
-          <p>Your uploaded files and connected databases</p>
-        </div>
+    <div className="sourcesPage">
+      {/* Header */}
+      <div className="sourcesHeader">
+        <h1>Sources</h1>
+        <p>Your uploaded files and connected databases</p>
       </div>
 
-      {(uploadedFiles.length > 0 || sources.length > 0) && (
-        <div className="filesList">
+      {/* Stats bar */}
+      {(totalFiles > 0 || totalSources > 0) && (
+        <div className="statsBar">
+          <div className="statItem">
+            <span className="statValue">{totalFiles}</span>
+            <span className="statLabel">{totalFiles === 1 ? "File" : "Files"}</span>
+          </div>
+          {totalSources > 0 && (
+            <div className="statItem">
+              <span className="statValue">{totalSources}</span>
+              <span className="statLabel">{totalSources === 1 ? "Database" : "Databases"}</span>
+            </div>
+          )}
+          <div className="statItem">
+            <span className="statValue">{totalRecords.toLocaleString()}</span>
+            <span className="statLabel">Total Records</span>
+          </div>
+          <div style={{ flex: 1 }} />
+          <Button appearance="primary" size="small" icon={<Search20Regular />}
+            onClick={() => navigate("/explore")}>Explore All</Button>
+          <Button appearance="outline" size="small" icon={<DataBarVertical20Regular />}
+            onClick={() => navigate("/insights")}>View Insights</Button>
+        </div>
+      )}
+
+      {/* File list */}
+      {(totalFiles > 0 || totalSources > 0) && (
+        <div className="sourcesList">
           {uploadedFiles.map((f) => (
-            <div key={`file-${f.id}`} className="fileRow">
-              <DocumentText20Regular style={{ color: "#64748b", flexShrink: 0 }} />
-              <div className="fileRowName">{f.filename}</div>
-              <div className="fileRowMeta">{f.doc_count} records</div>
-              <div className="fileRowActions">
-                <Button appearance="subtle" size="small" onClick={() => navigate("/explore")}>Explore</Button>
-                <Button appearance="subtle" size="small" onClick={() => navigate("/insights")}>Insights</Button>
-                <button className="fileDeleteBtn" title="Delete"
+            <div key={`file-${f.id}`} className="sourceRow">
+              <div className="sourceIcon fileIcon">
+                <DocumentText20Regular />
+              </div>
+              <div className="sourceInfo">
+                <div className="sourceName">{f.filename}</div>
+                <div className="sourceMeta">{f.doc_count} {f.doc_count === 1 ? "record" : "records"}</div>
+              </div>
+              <div className="sourceActions">
+                <button className="actionBtn" title="Explore" onClick={() => navigate("/explore")}>
+                  <Search20Regular />
+                </button>
+                <button className="actionBtn" title="Insights" onClick={() => navigate("/insights")}>
+                  <DataBarVertical20Regular />
+                </button>
+                <button className="actionBtn deleteBtn" title="Delete"
                   onClick={() => handleDeleteFile(f.id, f.filename)}>
-                  <Delete24Regular />
+                  <Delete20Regular />
                 </button>
               </div>
             </div>
           ))}
           {sources.map((src) => (
-            <div key={`ds-${src.id}`} className="fileRow">
-              <Database24Regular style={{ color: "#2563eb", flexShrink: 0, fontSize: 20 }} />
-              <div className="fileRowName">
-                {src.name}
-                <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 8 }}>
-                  {TYPE_LABELS[src.source_type] || src.source_type}
-                </span>
+            <div key={`ds-${src.id}`} className="sourceRow">
+              <div className="sourceIcon dbIcon">
+                <Database24Regular style={{ fontSize: 18 }} />
               </div>
-              <Badge appearance="filled" color={STATUS_COLORS[src.status] || "informative"} size="small" style={{ flexShrink: 0 }}>
-                {src.status}
-              </Badge>
-              <div className="fileRowMeta">{src.doc_count.toLocaleString()} rows</div>
-              <div className="fileRowActions">
-                <Button appearance="subtle" size="small" onClick={() => navigate("/explore")}>Explore</Button>
-                <Button appearance="subtle" size="small" onClick={() => navigate("/insights")}>Insights</Button>
+              <div className="sourceInfo">
+                <div className="sourceName">
+                  {src.name}
+                  <Badge appearance="tint" size="small" color={src.status === "connected" ? "success" : src.status === "error" ? "danger" : "warning"}
+                    style={{ marginLeft: 8, verticalAlign: "middle" }}>
+                    {src.status}
+                  </Badge>
+                </div>
+                <div className="sourceMeta">
+                  {TYPE_LABELS[src.source_type] || src.source_type} · {src.doc_count.toLocaleString()} rows
+                </div>
+              </div>
+              <div className="sourceActions">
                 {(src.query_mode === "ingest" || src.query_mode === "both") && (
-                  <Button size="small" appearance="subtle"
-                    icon={ingesting === src.id ? <Spinner size="tiny" /> : <ArrowSync24Regular />}
+                  <button className="actionBtn" title="Sync"
                     onClick={() => handleIngest(src.id)} disabled={ingesting === src.id}>
-                    {ingesting === src.id ? "Syncing..." : "Sync"}
-                  </Button>
+                    {ingesting === src.id ? <Spinner size="tiny" /> : <ArrowSync20Regular />}
+                  </button>
                 )}
-                <button className="fileDeleteBtn" title="Delete"
+                <button className="actionBtn" title="Explore" onClick={() => navigate("/explore")}>
+                  <Search20Regular />
+                </button>
+                <button className="actionBtn" title="Insights" onClick={() => navigate("/insights")}>
+                  <DataBarVertical20Regular />
+                </button>
+                <button className="actionBtn deleteBtn" title="Delete"
                   onClick={() => handleDeleteSource(src.id)}>
-                  <Delete24Regular />
+                  <Delete20Regular />
                 </button>
               </div>
             </div>
@@ -133,11 +174,13 @@ const DataSources: React.FC = () => {
         </div>
       )}
 
-      {sources.length === 0 && uploadedFiles.length === 0 && (
+      {/* Empty state */}
+      {totalFiles === 0 && totalSources === 0 && (
         <div className="emptyState">
-          <Database24Regular style={{ fontSize: 40, color: "#94a3b8" }} />
+          <Database24Regular style={{ fontSize: 48, color: "#cbd5e1" }} />
           <h3>No data yet</h3>
-          <p>Upload files on the Home page to get started. Databases can be connected via environment configuration.</p>
+          <p>Upload files on the Home page to get started.<br />Databases can be connected via environment configuration.</p>
+          <Button appearance="primary" onClick={() => navigate("/")}>Go to Home</Button>
         </div>
       )}
     </div>

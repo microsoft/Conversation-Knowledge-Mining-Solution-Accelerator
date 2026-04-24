@@ -15,6 +15,9 @@ param chatDeploymentName string = 'gpt-4o'
 @description('Name of the Azure OpenAI embedding deployment')
 param embeddingDeploymentName string = 'text-embedding-ada-002'
 
+@description('GPT model version')
+param gptModelVersion string = '2024-11-20'
+
 @description('Azure AD tenant ID for authentication')
 param azureAdTenantId string = ''
 
@@ -48,16 +51,45 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
   tags: tags
 }
 
-// Azure OpenAI (skip if using existing AI Foundry project)
-module openai 'modules/openai.bicep' = if (!useExistingAiProject) {
-  name: 'openai'
+// ── AI Foundry
+module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
+  name: 'ai-services'
   scope: rg
   params: {
     name: '${abbrs.cognitiveServicesAccount}${resourceToken}'
     location: location
-    tags: tags
-    chatDeploymentName: chatDeploymentName
-    embeddingDeploymentName: embeddingDeploymentName
+    kind: 'AIServices'
+    sku: 'S0'
+    customSubDomainName: '${abbrs.cognitiveServicesAccount}${resourceToken}'
+    projectName: 'km-project-${resourceToken}'
+    projectDescription: 'Knowledge Mining AI Foundry Project'
+    publicNetworkAccess: 'Enabled'
+    deployments: [
+      {
+        name: chatDeploymentName
+        model: {
+          format: 'OpenAI'
+          name: chatDeploymentName
+          version: gptModelVersion
+        }
+        sku: {
+          name: 'GlobalStandard'
+          capacity: 30
+        }
+      }
+      {
+        name: embeddingDeploymentName
+        model: {
+          format: 'OpenAI'
+          name: embeddingDeploymentName
+          version: '2'
+        }
+        sku: {
+          name: 'Standard'
+          capacity: 120
+        }
+      }
+    ]
   }
 }
 
@@ -72,22 +104,9 @@ module search 'modules/search.bicep' = {
   }
 }
 
-// Azure Content Understanding (skip if using existing AI Foundry project)
-module contentUnderstanding 'modules/content-understanding.bicep' = if (!useExistingAiProject) {
-  name: 'content-understanding'
-  scope: rg
-  params: {
-    name: '${abbrs.cognitiveServicesAccount}cu-${resourceToken}'
-    location: location
-    tags: tags
-  }
-}
-
-// Resolved endpoints — use existing or newly created
-var openaiEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : openai!.outputs.endpoint
-var openaiName = useExistingAiProject ? existingAiFoundryServiceName : openai!.outputs.name
-var cuEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : contentUnderstanding!.outputs.endpoint
-var cuName = useExistingAiProject ? existingAiFoundryServiceName : contentUnderstanding!.outputs.name
+// use existing or newly created 
+var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
+var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
 
 // Azure Storage Account
 module storage 'modules/storage.bicep' = {
@@ -149,12 +168,12 @@ module backend 'modules/container-app.bicep' = {
     containerAppsEnvironmentId: containerApps.outputs.environmentId
     targetPort: 8000
     env: [
-      { name: 'AZURE_OPENAI_ENDPOINT', value: openaiEndpoint }
+      { name: 'AZURE_OPENAI_ENDPOINT', value: aiServicesEndpoint }
       { name: 'AZURE_OPENAI_CHAT_DEPLOYMENT', value: chatDeploymentName }
       { name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: embeddingDeploymentName }
       { name: 'AZURE_SEARCH_ENDPOINT', value: search.outputs.endpoint }
       { name: 'AZURE_SEARCH_INDEX_NAME', value: 'knowledge-mining-index' }
-      { name: 'AZURE_CONTENT_UNDERSTANDING_ENDPOINT', value: cuEndpoint }
+      { name: 'AZURE_CONTENT_UNDERSTANDING_ENDPOINT', value: aiServicesEndpoint }
       { name: 'AZURE_STORAGE_ACCOUNT', value: storage.outputs.accountName }
       { name: 'AZURE_SQL_SERVER', value: sql.outputs.serverFqdn }
       { name: 'AZURE_SQL_DATABASE', value: 'km-db' }
@@ -162,7 +181,7 @@ module backend 'modules/container-app.bicep' = {
       { name: 'AZURE_COSMOS_DATABASE', value: deployCosmos ? 'km-db' : '' }
       { name: 'AZURE_AD_TENANT_ID', value: azureAdTenantId }
       { name: 'AZURE_AD_CLIENT_ID', value: azureAdClientId }
-      { name: 'AZURE_AI_AGENT_ENDPOINT', value: useExistingAiProject ? existingAiFoundryEndpoint : '' }
+      { name: 'AZURE_AI_AGENT_ENDPOINT', value: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint }
       { name: 'AZURE_AI_SEARCH_CONNECTION_NAME', value: useExistingAiProject ? existingAiSearchConnectionName : '' }
     ]
   }
@@ -189,23 +208,23 @@ module roles 'modules/roles.bicep' = {
   name: 'roles'
   scope: rg
   params: {
-    openaiName: openaiName
+    openaiName: aiServicesName
     searchName: search.outputs.name
     storageName: storage.outputs.accountName
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
-    cuName: cuName
+    cuName: aiServicesName
     backendPrincipalId: backend.outputs.principalId
   }
 }
 
 // Outputs for azd
-output AZURE_OPENAI_ENDPOINT string = openaiEndpoint
+output AZURE_OPENAI_ENDPOINT string = aiServicesEndpoint
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
-output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = cuEndpoint
+output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = aiServicesEndpoint
 output AZURE_STORAGE_ACCOUNT string = storage.outputs.accountName
 output AZURE_SQL_SERVER string = sql.outputs.serverFqdn
 output AZURE_SQL_DATABASE string = 'km-db'
 output AZURE_COSMOS_ENDPOINT string = deployCosmos ? cosmos!.outputs.endpoint : ''
-output AZURE_AI_AGENT_ENDPOINT string = useExistingAiProject ? '${existingAiFoundryEndpoint}/projects/${existingAiFoundryProjectName}' : ''
+output AZURE_AI_AGENT_ENDPOINT string = useExistingAiProject ? '${existingAiFoundryEndpoint}/projects/${existingAiFoundryProjectName}' : aiServices!.outputs.aiProjectInfo.apiEndpoint
 output SERVICE_BACKEND_URI string = backend.outputs.uri
 output SERVICE_FRONTEND_URI string = frontend.outputs.uri

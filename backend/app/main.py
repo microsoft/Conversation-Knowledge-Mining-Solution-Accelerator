@@ -37,11 +37,29 @@ async def lifespan(app: FastAPI):
         from backend.config import get_settings
         import json
         settings = get_settings()
+
+        # Build sources list from env vars
+        sources_config = []
+
+        # Simple format: individual DATA_SOURCE_* vars
+        if settings.data_source_type and settings.data_source_table:
+            sources_config.append({
+                "name": settings.data_source_name or settings.data_source_table,
+                "source_type": settings.data_source_type,
+                "endpoint": settings.data_source_endpoint,
+                "database": settings.data_source_database,
+                "table_or_query": settings.data_source_table,
+                "connection_string": settings.data_source_connection_string,
+            })
+
+        # Advanced format: JSON array
         if settings.data_sources:
+            sources_config.extend(json.loads(settings.data_sources))
+
+        if sources_config:
             from backend.modules.data_sources.registry import data_source_registry
             from backend.modules.data_sources.base import DataSourceConfig, DataSourceType, AuthMethod, QueryMode, FieldMapping
 
-            sources_config = json.loads(settings.data_sources)
             existing = {s.name for s in data_source_registry.list_all()}
             for src in sources_config:
                 if src.get("name") in existing:
@@ -54,7 +72,7 @@ async def lifespan(app: FastAPI):
                         connection_string=src.get("connection_string", ""),
                         endpoint=src.get("endpoint", ""),
                         database=src.get("database", ""),
-                        table_or_query=src.get("table_or_query", ""),
+                        table_or_query=src.get("table_or_query", src.get("table", "")),
                         auth_method=AuthMethod(src.get("auth_method", "managed_identity")),
                         field_mapping=FieldMapping(**src["field_mapping"]) if "field_mapping" in src else FieldMapping(),
                         query_mode=QueryMode(src.get("query_mode", "both")),
@@ -64,7 +82,7 @@ async def lifespan(app: FastAPI):
                 except Exception as e:
                     logger.warning(f"Failed to auto-connect data source '{src.get('name', '?')}': {e}")
     except Exception as e:
-        if "data_sources" not in str(e):
+        if "data_source" not in str(e).lower():
             logger.warning(f"Data source auto-connect failed: {e}")
 
     yield
