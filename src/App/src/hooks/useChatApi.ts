@@ -113,6 +113,34 @@ export const useChatApi = ({
       let lineBuffer = "";
       const decoder = new TextDecoder("utf-8");
 
+      const processLine = (rawLine: string) => {
+        const line = rawLine.trim();
+        if (!line || line === "{}") {
+          return;
+        }
+
+        try {
+          const parsedChunk: ParsedChunk = JSON.parse(line);
+          if (parsedChunk?.error) {
+            hasError = true;
+            errorLine = line;
+            return;
+          }
+
+          const delta = parsedChunk?.choices?.[0]?.delta;
+          if (delta?.role === "tool" && delta.content) {
+            handlers.onToolDelta?.(delta.content);
+          }
+
+          if (delta?.role === "assistant" && delta.content) {
+            accumulatedContent += delta.content;
+            handlers.onAssistantDelta?.(accumulatedContent);
+          }
+        } catch {
+          return;
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
@@ -124,36 +152,21 @@ export const useChatApi = ({
         lineBuffer = lines.pop() ?? "";
 
         for (const rawLine of lines) {
-          const line = rawLine.trim();
-          if (!line || line === "{}") {
-            continue;
-          }
-
-          try {
-            const parsedChunk: ParsedChunk = JSON.parse(line);
-            if (parsedChunk?.error) {
-              hasError = true;
-              errorLine = line;
-              break;
-            }
-
-            const delta = parsedChunk?.choices?.[0]?.delta;
-            if (delta?.role === "tool" && delta.content) {
-              handlers.onToolDelta?.(delta.content);
-            }
-
-            if (delta?.role === "assistant" && delta.content) {
-              accumulatedContent += delta.content;
-              handlers.onAssistantDelta?.(accumulatedContent);
-            }
-          } catch {
-            continue;
+          processLine(rawLine);
+          if (hasError) {
+            break;
           }
         }
 
         if (hasError) {
           break;
         }
+      }
+
+      // Flush any remaining decoded bytes and process a final non-newline-terminated NDJSON line.
+      lineBuffer += decoder.decode();
+      if (!hasError && lineBuffer.trim()) {
+        processLine(lineBuffer);
       }
 
       return {
@@ -339,6 +352,10 @@ export const useChatApi = ({
           );
         }
       } finally {
+        abortControllersRef.current = abortControllersRef.current.filter(
+          (controller) => controller !== abortController
+        );
+
         if (!isAutomatic) {
           dispatch(setGeneratingResponse(false));
         }
@@ -482,6 +499,10 @@ export const useChatApi = ({
           );
         }
       } finally {
+        abortControllersRef.current = abortControllersRef.current.filter(
+          (controller) => controller !== abortController
+        );
+
         dispatch(setGeneratingResponse(false));
         dispatch(setStreamingInProgress(false));
       }
