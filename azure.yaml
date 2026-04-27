@@ -3,10 +3,13 @@ name: knowledge-mining-platform
 metadata:
   template: knowledge-mining-platform
 
+requiredVersions:
+  azd: ">= 1.18.0"
+
 services:
   backend:
     project: ./backend
-    host: containerapp
+    host: appservice
     language: python
     docker:
       path: ../backend/Dockerfile
@@ -14,37 +17,48 @@ services:
 
   frontend:
     project: ./frontend
-    host: containerapp
+    host: appservice
     language: js
     docker:
       path: Dockerfile
       context: .
 
 hooks:
-  preprovision:
-    shell: pwsh
-    run: |
-      Write-Host "Provisioning Azure resources for Knowledge Mining Platform..."
-
   postprovision:
-    shell: pwsh
-    run: |
-      # Set environment variables for the backend container app
-      Write-Host "Configuring backend environment..."
-      azd env set AZURE_OPENAI_ENDPOINT $env:AZURE_OPENAI_ENDPOINT
-      azd env set AZURE_SEARCH_ENDPOINT $env:AZURE_SEARCH_ENDPOINT
-      azd env set AZURE_CONTENT_UNDERSTANDING_ENDPOINT $env:AZURE_CONTENT_UNDERSTANDING_ENDPOINT
-      azd env set AZURE_STORAGE_ACCOUNT $env:AZURE_STORAGE_ACCOUNT
-      azd env set AZURE_SQL_SERVER $env:AZURE_SQL_SERVER
-      azd env set AZURE_SQL_DATABASE $env:AZURE_SQL_DATABASE
-      azd env set AZURE_COSMOS_ENDPOINT $env:AZURE_COSMOS_ENDPOINT
-      Write-Host "Done."
+    windows:
+      shell: pwsh
+      run: |
+        Write-Host ""
+        Write-Host "Provisioning complete!" -ForegroundColor Green
+        Write-Host "Frontend: $env:SERVICE_FRONTEND_URI" -ForegroundColor Cyan
+        Write-Host "Backend:  $env:SERVICE_BACKEND_URI" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Next steps:" -ForegroundColor Yellow
+        Write-Host "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)"
+        Write-Host "  2. Run: ./scripts/seed-data.ps1      (load sample data)"
+        Write-Host ""
+      continueOnError: false
+      interactive: true
+    posix:
+      shell: sh
+      run: |
+        echo ""
+        echo "Provisioning complete!"
+        echo "Frontend: $SERVICE_FRONTEND_URI"
+        echo "Backend:  $SERVICE_BACKEND_URI"
+        echo ""
+        echo "Next steps:"
+        echo "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)"
+        echo "  2. Run: ./scripts/seed-data.ps1      (load sample data)"
+        echo ""
+      continueOnError: false
+      interactive: true
 
   postdeploy:
     shell: pwsh
     run: |
       Write-Host ""
-      Write-Host "Deployment complete!"
-      Write-Host "Frontend: $env:SERVICE_FRONTEND_URI"
-      Write-Host "Backend:  $env:SERVICE_BACKEND_URI"
+      Write-Host "Deployment complete!" -ForegroundColor Green
+      Write-Host "Frontend: $env:SERVICE_FRONTEND_URI" -ForegroundColor Cyan
+      Write-Host "Backend:  $env:SERVICE_BACKEND_URI" -ForegroundColor Cyan
       Write-Host ""

@@ -1,11 +1,25 @@
 {
-  "resourceGroup": "rg-",
-  "cognitiveServicesAccount": "cog-",
-  "searchService": "srch-",
-  "storageAccount": "st",
-  "sqlServer": "sql-",
-  "cosmosDBAccount": "cosmos-",
-  "containerAppsEnvironment": "cae-",
-  "containerApp": "ca-",
-  "logAnalyticsWorkspace": "log-"
+  "ai": {
+    "aiSearch": "srch-",
+    "aiServices": "aisa-",
+    "aiFoundry": "aif-",
+    "aiFoundryProject": "aifp-"
+  },
+  "compute": {
+    "appServicePlan": "asp-",
+    "webApp": "app-"
+  },
+  "databases": {
+    "cosmosDBDatabase": "cosmos-",
+    "sqlDatabaseServer": "sql-",
+    "sqlDatabase": "sqldb-"
+  },
+  "managementGovernance": {
+    "applicationInsights": "appi-",
+    "logAnalyticsWorkspace": "log-",
+    "resourceGroup": "rg-"
+  },
+  "storage": {
+    "storageAccount": "st"
+  }
 }

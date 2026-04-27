@@ -40,28 +40,31 @@ param existingAiFoundryEndpoint string = ''
 @description('Name of the AI Search connection in the existing AI Foundry project')
 param existingAiSearchConnectionName string = ''
 
+@description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
+param deployCosmos bool = false
+
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
 
-// Resource Group
+// ========== Resource Group ========== //
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: '${abbrs.resourceGroup}${environmentName}'
+  name: '${abbrs.managementGovernance.resourceGroup}${environmentName}'
   location: location
   tags: tags
 }
 
-// ── AI Foundry
+// ========== AI Foundry: AI Services ========== //
 module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
   name: 'ai-services'
   scope: rg
   params: {
-    name: '${abbrs.cognitiveServicesAccount}${resourceToken}'
+    name: '${abbrs.ai.aiFoundry}${resourceToken}'
     location: location
     kind: 'AIServices'
     sku: 'S0'
-    customSubDomainName: '${abbrs.cognitiveServicesAccount}${resourceToken}'
-    projectName: 'km-project-${resourceToken}'
+    customSubDomainName: '${abbrs.ai.aiFoundry}${resourceToken}'
+    projectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
     projectDescription: 'Knowledge Mining AI Foundry Project'
     publicNetworkAccess: 'Enabled'
     deployments: [
@@ -93,117 +96,147 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
   }
 }
 
-// Azure AI Search
+// use existing or newly created
+var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
+var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
+
+// ========== AI Search ========== //
 module search 'modules/search.bicep' = {
   name: 'search'
   scope: rg
   params: {
-    name: '${abbrs.searchService}${resourceToken}'
+    name: '${abbrs.ai.aiSearch}${resourceToken}'
     location: location
     tags: tags
   }
 }
 
-// use existing or newly created 
-var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
-var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
-
-// Azure Storage Account
+// ========== Storage Account ========== //
 module storage 'modules/storage.bicep' = {
   name: 'storage'
   scope: rg
   params: {
-    name: '${abbrs.storageAccount}${resourceToken}'
+    name: '${abbrs.storage.storageAccount}${resourceToken}'
     location: location
     tags: tags
   }
 }
 
-// Azure SQL Database
+// ========== SQL Database ========== //
 module sql 'modules/sql.bicep' = {
   name: 'sql'
   scope: rg
   params: {
-    serverName: '${abbrs.sqlServer}${resourceToken}'
-    databaseName: 'km-db'
+    serverName: '${abbrs.databases.sqlDatabaseServer}${resourceToken}'
+    databaseName: '${abbrs.databases.sqlDatabase}${resourceToken}'
     location: location
     tags: tags
   }
 }
 
-// Azure Cosmos DB (optional — only if deployCosmos is true)
-@description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
-param deployCosmos bool = false
-
+// ========== Cosmos DB (optional) ========== //
 module cosmos 'modules/cosmos.bicep' = if (deployCosmos) {
   name: 'cosmos'
   scope: rg
   params: {
-    name: '${abbrs.cosmosDBAccount}${resourceToken}'
+    name: '${abbrs.databases.cosmosDBDatabase}${resourceToken}'
     location: location
     tags: tags
     databaseName: 'km-db'
   }
 }
 
-// Container Apps Environment
-module containerApps 'modules/container-apps.bicep' = {
-  name: 'container-apps'
+// ========== App Service Plan ========== //
+var webServerFarmResourceName = '${abbrs.compute.appServicePlan}${resourceToken}'
+module webServerFarm 'modules/app-service-plan.bicep' = {
+  name: 'deploy_app_service_plan_serverfarm'
   scope: rg
   params: {
-    name: '${abbrs.containerAppsEnvironment}${resourceToken}'
+    name: webServerFarmResourceName
     location: location
     tags: tags
   }
 }
 
-// Backend Container App
-module backend 'modules/container-app.bicep' = {
-  name: 'backend'
+// ========== Backend Web App ========== //
+var backendWebSiteResourceName = 'api-${resourceToken}'
+module webSiteBackend 'modules/web-sites.bicep' = {
+  name: take('module.web-sites.${backendWebSiteResourceName}', 64)
   scope: rg
   params: {
-    name: '${abbrs.containerApp}backend-${resourceToken}'
-    location: location
+    name: backendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'backend' })
-    containerAppsEnvironmentId: containerApps.outputs.environmentId
-    targetPort: 8000
-    env: [
-      { name: 'AZURE_OPENAI_ENDPOINT', value: aiServicesEndpoint }
-      { name: 'AZURE_OPENAI_CHAT_DEPLOYMENT', value: chatDeploymentName }
-      { name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT', value: embeddingDeploymentName }
-      { name: 'AZURE_SEARCH_ENDPOINT', value: search.outputs.endpoint }
-      { name: 'AZURE_SEARCH_INDEX_NAME', value: 'knowledge-mining-index' }
-      { name: 'AZURE_CONTENT_UNDERSTANDING_ENDPOINT', value: aiServicesEndpoint }
-      { name: 'AZURE_STORAGE_ACCOUNT', value: storage.outputs.accountName }
-      { name: 'AZURE_SQL_SERVER', value: sql.outputs.serverFqdn }
-      { name: 'AZURE_SQL_DATABASE', value: 'km-db' }
-      { name: 'AZURE_COSMOS_ENDPOINT', value: deployCosmos ? cosmos!.outputs.endpoint : '' }
-      { name: 'AZURE_COSMOS_DATABASE', value: deployCosmos ? 'km-db' : '' }
-      { name: 'AZURE_AD_TENANT_ID', value: azureAdTenantId }
-      { name: 'AZURE_AD_CLIENT_ID', value: azureAdClientId }
-      { name: 'AZURE_AI_AGENT_ENDPOINT', value: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint }
-      { name: 'AZURE_AI_SEARCH_CONNECTION_NAME', value: useExistingAiProject ? existingAiSearchConnectionName : '' }
+    location: location
+    kind: 'app,linux,container'
+    serverFarmResourceId: webServerFarm.outputs.id
+    managedIdentities: {
+      systemAssigned: true
+    }
+    siteConfig: {
+      minTlsVersion: '1.2'
+      appSettings: [
+        { name: 'WEBSITES_PORT', value: '8000' }
+        { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
+      ]
+    }
+    configs: [
+      {
+        name: 'appsettings'
+        properties: {
+          AZURE_OPENAI_ENDPOINT: aiServicesEndpoint
+          AZURE_OPENAI_CHAT_DEPLOYMENT: chatDeploymentName
+          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: embeddingDeploymentName
+          AZURE_SEARCH_ENDPOINT: search.outputs.endpoint
+          AZURE_SEARCH_INDEX_NAME: 'knowledge-mining-index'
+          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: aiServicesEndpoint
+          AZURE_STORAGE_ACCOUNT: storage.outputs.accountName
+          AZURE_SQL_SERVER: sql.outputs.serverFqdn
+          AZURE_SQL_DATABASE: '${abbrs.databases.sqlDatabase}${resourceToken}'
+          AZURE_COSMOS_ENDPOINT: deployCosmos ? cosmos!.outputs.endpoint : ''
+          AZURE_COSMOS_DATABASE: deployCosmos ? 'km-db' : ''
+          AZURE_AD_TENANT_ID: azureAdTenantId
+          AZURE_AD_CLIENT_ID: azureAdClientId
+          AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
+          AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : ''
+        }
+      }
     ]
   }
 }
 
-// Frontend Container App
-module frontend 'modules/container-app.bicep' = {
-  name: 'frontend'
+// ========== Frontend Web App ========== //
+var frontendWebSiteResourceName = 'app-${resourceToken}'
+module webSiteFrontend 'modules/web-sites.bicep' = {
+  name: take('module.web-sites.${frontendWebSiteResourceName}', 64)
   scope: rg
   params: {
-    name: '${abbrs.containerApp}frontend-${resourceToken}'
-    location: location
+    name: frontendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'frontend' })
-    containerAppsEnvironmentId: containerApps.outputs.environmentId
-    targetPort: 3000
-    env: [
-      { name: 'REACT_APP_API_BASE', value: 'https://${backend.outputs.fqdn}/api' }
+    location: location
+    kind: 'app,linux,container'
+    serverFarmResourceId: webServerFarm.outputs.id
+    managedIdentities: {
+      systemAssigned: true
+    }
+    siteConfig: {
+      minTlsVersion: '1.2'
+      appSettings: [
+        { name: 'WEBSITES_PORT', value: '3000' }
+        { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
+      ]
+    }
+    configs: [
+      {
+        name: 'appsettings'
+        properties: {
+          APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
+        }
+      }
     ]
   }
 }
 
-// Role Assignments
+// ========== Role Assignments ========== //
 module roles 'modules/roles.bicep' = {
   name: 'roles'
   scope: rg
@@ -213,18 +246,43 @@ module roles 'modules/roles.bicep' = {
     storageName: storage.outputs.accountName
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
     cuName: aiServicesName
-    backendPrincipalId: backend.outputs.principalId
+    backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
   }
 }
 
-// Outputs for azd
+// ========== Outputs ========== //
+@description('Azure OpenAI endpoint URL.')
 output AZURE_OPENAI_ENDPOINT string = aiServicesEndpoint
+
+@description('Azure AI Search endpoint URL.')
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
+
+@description('Azure Content Understanding endpoint URL.')
 output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = aiServicesEndpoint
+
+@description('Azure Storage account name.')
 output AZURE_STORAGE_ACCOUNT string = storage.outputs.accountName
+
+@description('Azure SQL Server FQDN.')
 output AZURE_SQL_SERVER string = sql.outputs.serverFqdn
-output AZURE_SQL_DATABASE string = 'km-db'
+
+@description('Azure SQL Database name.')
+output AZURE_SQL_DATABASE string = '${abbrs.databases.sqlDatabase}${resourceToken}'
+
+@description('Azure Cosmos DB endpoint (empty if not deployed).')
 output AZURE_COSMOS_ENDPOINT string = deployCosmos ? cosmos!.outputs.endpoint : ''
+
+@description('Azure AI Agent endpoint URL.')
 output AZURE_AI_AGENT_ENDPOINT string = useExistingAiProject ? '${existingAiFoundryEndpoint}/projects/${existingAiFoundryProjectName}' : aiServices!.outputs.aiProjectInfo.apiEndpoint
-output SERVICE_BACKEND_URI string = backend.outputs.uri
-output SERVICE_FRONTEND_URI string = frontend.outputs.uri
+
+@description('Backend API application URL.')
+output API_APP_URL string = 'https://${webSiteBackend.outputs.defaultHostname}'
+
+@description('Frontend web application URL.')
+output WEB_APP_URL string = 'https://${webSiteFrontend.outputs.defaultHostname}'
+
+@description('Backend service URI (used by azd).')
+output SERVICE_BACKEND_URI string = 'https://${webSiteBackend.outputs.defaultHostname}'
+
+@description('Frontend service URI (used by azd).')
+output SERVICE_FRONTEND_URI string = 'https://${webSiteFrontend.outputs.defaultHostname}'
