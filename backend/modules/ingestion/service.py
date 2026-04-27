@@ -141,8 +141,8 @@ class IngestionService:
                 ],
             }
             sql_service.save_filter_schema(schema_dict)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to persist filter schema: {e}")
 
     def _remove_file_filters(self, uploaded_file: UploadedFile):
         """Remove filter values contributed by a deleted file.
@@ -256,33 +256,36 @@ class IngestionService:
         try:
             from backend.modules.document_intelligence.service import ContentUnderstandingService
             cu_service = ContentUnderstandingService()
-            extraction = cu_service.enrich_batch(data)
 
-            # Store filter schema — merge with existing dimensions
-            domain = extraction.get("domain", "")
+            # Gather ALL document text across all uploaded files for a complete schema
+            all_docs_for_schema = list(data)  # start with current file's docs
+            for other_file in self._uploaded_files.values():
+                if other_file.id != file_id:
+                    # Include other files' docs for complete schema generation
+                    for doc_id, doc in self._documents.items():
+                        source = doc.metadata.source_file or ""
+                        if source == other_file.filename:
+                            all_docs_for_schema.append({
+                                "id": doc_id, "type": doc.type,
+                                "text": self.normalize_text(doc)[:500],
+                                "metadata": {"source_file": source},
+                            })
+
+            extraction = cu_service.enrich_batch(all_docs_for_schema)
+
+            # Replace schema entirely (not merge) to prevent stale dimensions
             dimensions_raw = extraction.get("dimensions", [])
-            existing_dims = {d.id: d for d in self._filter_schema.dimensions}
+            new_dims = []
             for dim in dimensions_raw:
                 values = [
                     FilterValue(value=v["value"], label=v["label"], count=v.get("count", 0))
                     for v in dim.get("values", [])
                 ]
-                if dim["id"] in existing_dims:
-                    # Merge values into existing dimension
-                    existing_vals = {v.value for v in existing_dims[dim["id"]].values}
-                    for v in values:
-                        if v.value not in existing_vals:
-                            existing_dims[dim["id"]].values.append(v)
-                        else:
-                            for ev in existing_dims[dim["id"]].values:
-                                if ev.value == v.value:
-                                    ev.count += v.count
-                else:
-                    existing_dims[dim["id"]] = FilterDimension(
-                        id=dim["id"], label=dim["label"],
-                        type=dim.get("type", "multi_select"), values=values,
-                    )
-            self._filter_schema = FilterSchema(domain="", dimensions=list(existing_dims.values()))
+                new_dims.append(FilterDimension(
+                    id=dim["id"], label=dim["label"],
+                    type=dim.get("type", "multi_select"), values=values,
+                ))
+            self._filter_schema = FilterSchema(domain="", dimensions=new_dims)
             self._persist_schema()
 
             # If no CU single-doc enrichment, use batch extraction for summary/keywords
@@ -603,8 +606,8 @@ class IngestionService:
         # Remove uploaded file record from memory
         del self._uploaded_files[file_id]
 
-        # Rebuild filter schema from remaining files
-        self._rebuild_filter_schema()
+        # Clear filter schema entirely — remaining files will rebuild it during enrichment
+        self._filter_schema = FilterSchema()
         self._persist_schema()
 
         # Persist deletions to SQL (single connection, all at once)

@@ -526,6 +526,19 @@ const Explore: React.FC = () => {
   const kwCounts: Record<string, number> = {};
   for (const f of files) for (const kw of f.keywords) kwCounts[kw] = (kwCounts[kw] || 0) + 1;
 
+  // Deterministic: file type counts
+  const fileTypeCounts: Record<string, number> = {};
+  for (const f of files) {
+    const ext = f.filename.split(".").pop()?.toLowerCase() || "other";
+    fileTypeCounts[ext] = (fileTypeCounts[ext] || 0) + f.doc_count;
+  }
+
+  // Deterministic: source file counts
+  const sourceFileCounts: Record<string, { id: string; count: number }> = {};
+  for (const f of files) {
+    sourceFileCounts[f.filename] = { id: f.id, count: f.doc_count };
+  }
+
   return (
     <div className={styles.page}>
       {/* ── Left: Data Layer ── */}
@@ -533,6 +546,58 @@ const Explore: React.FC = () => {
         <div className={styles.leftHeader}>
           <Filter20Regular /> Filters
         </div>
+
+        {/* ── Deterministic Filters (always accurate) ── */}
+
+        {/* File Type */}
+        {Object.keys(fileTypeCounts).length > 0 && (() => {
+          const expanded = expandedDims.has("_doc_type");
+          const active = activeFilters["_doc_type"];
+          return (
+            <div className={styles.filterGroup}>
+              <button className={styles.filterGroupBtn} onClick={() => toggleDim("_doc_type")}>
+                <ChevronRight20Regular style={{ fontSize: 16, flexShrink: 0, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                File Type
+              </button>
+              {expanded && Object.entries(fileTypeCounts).sort((a, b) => b[1] - a[1]).map(([ext, count]) => (
+                <button key={ext} className={active?.has(ext) ? styles.filterItemActive : styles.filterItem}
+                  onClick={() => toggleFilter("_doc_type", ext)}>
+                  <span style={{ flex: 1 }}>.{ext}</span>
+                  <Caption1>{count}</Caption1>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Source */}
+        {Object.keys(sourceFileCounts).length > 1 && (() => {
+          const expanded = expandedDims.has("_document");
+          const active = activeFilters["_document"];
+          return (
+            <div className={styles.filterGroup}>
+              <button className={styles.filterGroupBtn} onClick={() => toggleDim("_document")}>
+                <ChevronRight20Regular style={{ fontSize: 16, flexShrink: 0, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+                Source
+              </button>
+              {expanded && Object.entries(sourceFileCounts).map(([name, info]) => (
+                <button key={info.id} className={active?.has(info.id) ? styles.filterItemActive : styles.filterItem}
+                  onClick={() => toggleFilter("_document", info.id)}>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  <Caption1>{info.count}</Caption1>
+                </button>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* ── AI-Generated Filters (with badge) ── */}
+        {schema?.dimensions && schema.dimensions.length > 0 && (
+          <div style={{ padding: "8px 16px 4px", fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.8px", display: "flex", alignItems: "center", gap: 6 }}>
+            AI-detected
+            <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "#f0f9ff", color: "#2563eb", fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>auto</span>
+          </div>
+        )}
 
         {/* AI Filters */}
         {schema?.dimensions.map((dim) => {
