@@ -229,10 +229,10 @@ class TestCosmosDbService:
 
     @pytest.mark.asyncio
     async def test_delete_messages_no_messages(self, cosmos_client):
-        """Test delete_messages returns None when there are no messages."""
+        """Test delete_messages returns empty list when there are no messages."""
         cosmos_client.get_messages = AsyncMock(return_value=[])
         result = await cosmos_client.delete_messages("c1", "user1")
-        assert result is None
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_delete_conversation_found(self, cosmos_client, mock_cosmos_clients):

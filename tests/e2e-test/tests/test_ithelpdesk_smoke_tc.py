@@ -299,7 +299,6 @@ def test_clear_citations_on_chat_delete(login_logout, request):
     request.node._nodeid = "18631 - Bug 17326 - KM Generic - ITHelpdesk - Citation should get cleared after deleting complete chat history"
 
     page = login_logout
-    km_page = KMGenericPage(page)
     home_page = HomePage(page)
 
     logger.info("Step 2: Send a query to trigger a citation")
