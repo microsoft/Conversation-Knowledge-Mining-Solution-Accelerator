@@ -408,12 +408,13 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: |
-          # Start background token refresh to keep Azure CLI credentials alive
-          # during the long-running data processing scripts
-          (while true; do az account get-access-token --output none 2>/dev/null; sleep 240; done) &
-          TOKEN_REFRESH_PID=$!
-          trap "kill $TOKEN_REFRESH_PID 2>/dev/null" EXIT
-
+          # Pre-warm Azure CLI token cache for all scopes used by Python scripts
+          echo "Pre-warming Azure CLI token cache..."
+          rm -f ~/.azure/msal_token_cache.json.lockfile 2>/dev/null || true
+          az account get-access-token --resource https://management.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://cognitiveservices.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://storage.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://database.windows.net/.default --output none 2>/dev/null || true
           echo "Running process_sample_data.sh..."
           bash ./infra/scripts/process_sample_data.sh
           echo "✅ Sample data processing completed successfully."
@@ -434,12 +435,12 @@ jobs:
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
-
-          # Start background token refresh to keep Azure CLI credentials alive
-          (while true; do az account get-access-token --output none 2>/dev/null; sleep 240; done) &
-          TOKEN_REFRESH_PID=$!
-          trap "kill $TOKEN_REFRESH_PID 2>/dev/null" EXIT
-
+          # Clean up stale MSAL lock files and pre-warm token cache
+          rm -f ~/.azure/msal_token_cache.json.lockfile 2>/dev/null || true
+          az account get-access-token --resource https://management.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://cognitiveservices.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://storage.azure.com/.default --output none 2>/dev/null || true
+          az account get-access-token --resource https://database.windows.net/.default --output none 2>/dev/null || true
           bash ./infra/scripts/process_sample_data.sh
           echo "✅ Sample data processing completed successfully on retry."
 
