@@ -19,7 +19,7 @@ param tags object = {}
   'P2v3'
   'P3v3'
 ])
-param skuName string = 'B3'
+param skuName string = 'S1'
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: name

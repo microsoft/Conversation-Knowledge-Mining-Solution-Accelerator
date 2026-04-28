@@ -167,17 +167,15 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     name: backendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'backend' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
+      linuxFxVersion: 'PYTHON|3.13'
       minTlsVersion: '1.2'
-      appSettings: [
-        { name: 'WEBSITES_PORT', value: '8000' }
-        { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
-      ]
+      appCommandLine: 'gunicorn -w 4 -k uvicorn.workers.UvicornWorker backend.app.main:app --bind 0.0.0.0:8000'
     }
     configs: [
       {
@@ -213,17 +211,15 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     name: frontendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'frontend' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
+      linuxFxVersion: 'NODE|22-lts'
       minTlsVersion: '1.2'
-      appSettings: [
-        { name: 'WEBSITES_PORT', value: '3000' }
-        { name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE', value: 'false' }
-      ]
+      appCommandLine: 'npx serve -s build -l 8080'
     }
     configs: [
       {

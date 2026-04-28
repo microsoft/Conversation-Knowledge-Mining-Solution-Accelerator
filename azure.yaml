@@ -11,17 +11,11 @@ services:
     project: ./backend
     host: appservice
     language: python
-    docker:
-      path: ../backend/Dockerfile
-      context: ..
 
   frontend:
     project: ./frontend
     host: appservice
     language: js
-    docker:
-      path: Dockerfile
-      context: .
 
 hooks:
   postprovision:
