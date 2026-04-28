@@ -59,7 +59,7 @@ from azure.ai.projects.models import (
     PromptAgentDefinition,
     AzureAISearchTool,
     AzureAISearchToolResource,
-    AzureAISearchIndex,
+    AISearchIndexResource,
 )
 
 # ============================================================================
@@ -184,11 +184,10 @@ def build_search_tool():
     tool = AzureAISearchTool(
         azure_ai_search=AzureAISearchToolResource(
             indexes=[
-                AzureAISearchIndex(
-                    connection_name=SEARCH_CONNECTION_NAME,
+                AISearchIndexResource(
+                    project_connection_id=SEARCH_CONNECTION_NAME,
                     index_name=INDEX_NAME,
-                    name=INDEX_NAME,
-                    version="1",
+                    query_type="simple",
                 )
             ]
         )
