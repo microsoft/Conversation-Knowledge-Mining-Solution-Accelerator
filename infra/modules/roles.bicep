@@ -5,6 +5,11 @@ param cosmosName string
 param cuName string
 param backendPrincipalId string
 
+@description('Principal ID of the deploying user (for local script access)')
+param deployerPrincipalId string = ''
+
+// ========== Backend App (ServicePrincipal) Roles ========== //
+
 // Cognitive Services OpenAI User — allows chat completions + embeddings
 resource openaiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(openaiName, backendPrincipalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
@@ -57,6 +62,64 @@ resource cuRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
+  }
+}
+
+// ========== Deploying User Roles ========== //
+// These allow the deploying user to run post-deploy scripts (agent creation, data seeding)
+
+// Azure AI Developer — allows creating agents in AI Foundry
+resource deployerAiDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(openaiName, deployerPrincipalId, '64702f94-c441-49e6-a78b-ef80e0188fee')
+  scope: openai
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '64702f94-c441-49e6-a78b-ef80e0188fee')
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+// Cognitive Services OpenAI User — allows deployer to use OpenAI endpoints
+resource deployerOpenaiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(openaiName, deployerPrincipalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  scope: openai
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+// Search Index Data Contributor — allows deployer to upload data to search
+resource deployerSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(searchName, deployerPrincipalId, '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  scope: search
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+// Search Service Contributor — allows deployer to manage search indexes
+resource deployerSearchContribRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(searchName, deployerPrincipalId, '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  scope: search
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+// Storage Blob Data Contributor — allows deployer to upload documents
+resource deployerStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(storageName, deployerPrincipalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  scope: storage
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+    principalId: deployerPrincipalId
+    principalType: 'User'
   }
 }
 

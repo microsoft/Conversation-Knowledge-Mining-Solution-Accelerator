@@ -5,7 +5,24 @@ requiredVersions:
   azd: ">= 1.18.0"
 
 metadata:
-  template: knowledge-mining@1.0
+  template: knowledge-mining-platform@1.0
+
+services:
+  backend:
+    project: ./backend
+    host: appservice
+    language: python
+    docker:
+      path: ../backend/Dockerfile
+      context: ..
+
+  frontend:
+    project: ./frontend
+    host: appservice
+    language: js
+    docker:
+      path: Dockerfile
+      context: .
 
 hooks:
   postprovision:

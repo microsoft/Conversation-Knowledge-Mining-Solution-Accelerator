@@ -285,6 +285,7 @@ module roles 'modules/roles.bicep' = {
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
     cuName: aiServicesName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
+    deployerPrincipalId: deployer().objectId
   }
 }
 
