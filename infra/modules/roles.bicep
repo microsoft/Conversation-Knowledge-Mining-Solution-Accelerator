@@ -8,122 +8,122 @@ param backendPrincipalId string
 @description('Principal ID of the deploying user (for local script access)')
 param deployerPrincipalId string = ''
 
+// ========== Role Definition IDs ========== //
+var roles = {
+  cognitiveServicesOpenAIUser: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  cognitiveServicesUser: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  azureAIDeveloper: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '64702f94-c441-49e6-a78b-ef80e0188fee')
+  searchIndexDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  searchServiceContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  storageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  cosmosDBDataContributor: '00000000-0000-0000-0000-000000000002'
+}
+
 // ========== Backend App (ServicePrincipal) Roles ========== //
 
-// Cognitive Services OpenAI User — allows chat completions + embeddings
 resource openaiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(openaiName, backendPrincipalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  name: guid(openai.id, backendPrincipalId, roles.cognitiveServicesOpenAIUser)
   scope: openai
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    roleDefinitionId: roles.cognitiveServicesOpenAIUser
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// Search Index Data Contributor — read/write search index
 resource searchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(searchName, backendPrincipalId, '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  name: guid(search.id, backendPrincipalId, roles.searchIndexDataContributor)
   scope: search
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+    roleDefinitionId: roles.searchIndexDataContributor
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// Storage Blob Data Contributor — upload/read blobs
 resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageName, backendPrincipalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  name: guid(storage.id, backendPrincipalId, roles.storageBlobDataContributor)
   scope: storage
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+    roleDefinitionId: roles.storageBlobDataContributor
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// Cosmos DB Built-in Data Contributor (only if Cosmos is deployed)
 resource cosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = if (cosmosName != '') {
   parent: cosmos
-  name: guid(cosmosName, backendPrincipalId, '00000000-0000-0000-0000-000000000002')
+  name: guid(cosmos.id, backendPrincipalId, roles.cosmosDBDataContributor)
   properties: {
-    roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+    roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/${roles.cosmosDBDataContributor}'
     principalId: backendPrincipalId
     scope: cosmos.id
   }
 }
 
-// Cognitive Services User — for Content Understanding
 resource cuRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(cuName, backendPrincipalId, 'a97b65f3-24c7-4388-baec-2e87135dc908')
+  name: guid(cu.id, backendPrincipalId, roles.cognitiveServicesUser)
   scope: cu
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908')
+    roleDefinitionId: roles.cognitiveServicesUser
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
 }
 
 // ========== Deploying User Roles ========== //
-// These allow the deploying user to run post-deploy scripts (agent creation, data seeding)
 
-// Azure AI Developer — allows creating agents in AI Foundry
 resource deployerAiDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(openaiName, deployerPrincipalId, '64702f94-c441-49e6-a78b-ef80e0188fee')
+  name: guid(openai.id, deployerPrincipalId, roles.azureAIDeveloper)
   scope: openai
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '64702f94-c441-49e6-a78b-ef80e0188fee')
+    roleDefinitionId: roles.azureAIDeveloper
     principalId: deployerPrincipalId
     principalType: 'User'
   }
 }
 
-// Cognitive Services OpenAI User — allows deployer to use OpenAI endpoints
 resource deployerOpenaiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(openaiName, deployerPrincipalId, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  name: guid(openai.id, deployerPrincipalId, roles.cognitiveServicesOpenAIUser)
   scope: openai
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    roleDefinitionId: roles.cognitiveServicesOpenAIUser
     principalId: deployerPrincipalId
     principalType: 'User'
   }
 }
 
-// Search Index Data Contributor — allows deployer to upload data to search
 resource deployerSearchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(searchName, deployerPrincipalId, '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+  name: guid(search.id, deployerPrincipalId, roles.searchIndexDataContributor)
   scope: search
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
+    roleDefinitionId: roles.searchIndexDataContributor
     principalId: deployerPrincipalId
     principalType: 'User'
   }
 }
 
-// Search Service Contributor — allows deployer to manage search indexes
 resource deployerSearchContribRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(searchName, deployerPrincipalId, '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+  name: guid(search.id, deployerPrincipalId, roles.searchServiceContributor)
   scope: search
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
+    roleDefinitionId: roles.searchServiceContributor
     principalId: deployerPrincipalId
     principalType: 'User'
   }
 }
 
-// Storage Blob Data Contributor — allows deployer to upload documents
 resource deployerStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(storageName, deployerPrincipalId, 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  name: guid(storage.id, deployerPrincipalId, roles.storageBlobDataContributor)
   scope: storage
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+    roleDefinitionId: roles.storageBlobDataContributor
     principalId: deployerPrincipalId
     principalType: 'User'
   }
 }
 
-// Existing resource references
+// ========== Existing resource references ========== //
 resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: openaiName
 }
