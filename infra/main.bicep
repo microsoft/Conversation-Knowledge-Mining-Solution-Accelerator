@@ -101,14 +101,34 @@ var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiSe
 var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
 
 // ========== AI Search ========== //
+var aiSearchName = '${abbrs.ai.aiSearch}${resourceToken}'
+var aiSearchConnectionName = 'search-connection-${resourceToken}'
+
 module search 'modules/search.bicep' = {
   name: 'search'
   scope: rg
   params: {
-    name: '${abbrs.ai.aiSearch}${resourceToken}'
+    name: aiSearchName
     location: location
     tags: tags
   }
+}
+
+// ========== AI Search → AI Foundry Connection ========== //
+module searchConnection 'modules/deploy_aifp_aisearch_connection.bicep' = if (!useExistingAiProject) {
+  name: 'ai-search-connection'
+  scope: rg
+  params: {
+    existingAIProjectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
+    existingAIFoundryName: '${abbrs.ai.aiFoundry}${resourceToken}'
+    aiSearchName: aiSearchName
+    aiSearchResourceId: search.outputs.id
+    aiSearchLocation: location
+    aiSearchConnectionName: aiSearchConnectionName
+  }
+  dependsOn: [
+    aiServices
+  ]
 }
 
 // ========== Storage Account ========== //
@@ -195,7 +215,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_AD_TENANT_ID: azureAdTenantId
           AZURE_AD_CLIENT_ID: azureAdClientId
           AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
-          AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : ''
+          AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
         }
       }
     ]
@@ -282,3 +302,6 @@ output SERVICE_BACKEND_URI string = 'https://${webSiteBackend.outputs.defaultHos
 
 @description('Frontend service URI (used by azd).')
 output SERVICE_FRONTEND_URI string = 'https://${webSiteFrontend.outputs.defaultHostname}'
+
+@description('AI Search connection name in AI Foundry.')
+output AZURE_AI_SEARCH_CONNECTION_NAME string = useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName

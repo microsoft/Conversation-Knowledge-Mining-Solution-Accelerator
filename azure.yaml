@@ -22,6 +22,12 @@ hooks:
     windows:
       shell: pwsh
       run: |
+        # Write azd env values to .env so scripts can read them
+        Write-Host "Writing .env file..." -ForegroundColor Yellow
+        azd env get-values 2>$null | ForEach-Object {
+          $_ -replace '^(\w+)="(.*)"$', '$1=$2'
+        } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
+
         Write-Host ""
         Write-Host "Provisioning complete!" -ForegroundColor Green
         Write-Host "Frontend: $env:SERVICE_FRONTEND_URI" -ForegroundColor Cyan
@@ -36,6 +42,10 @@ hooks:
     posix:
       shell: sh
       run: |
+        # Write azd env values to .env so scripts can read them
+        echo "Writing .env file..."
+        azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
+
         echo ""
         echo "Provisioning complete!"
         echo "Frontend: $SERVICE_FRONTEND_URI"
