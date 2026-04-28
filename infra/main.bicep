@@ -43,6 +43,25 @@ param existingAiSearchConnectionName string = ''
 @description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
 param deployCosmos bool = false
 
+// ── Container Image Configuration ──
+@description('Container registry hostname for backend image')
+param backendContainerRegistryHostname string = ''
+
+@description('Backend container image name')
+param backendContainerImageName string = 'km-api'
+
+@description('Backend container image tag')
+param backendContainerImageTag string = 'latest'
+
+@description('Container registry hostname for frontend image')
+param frontendContainerRegistryHostname string = ''
+
+@description('Frontend container image name')
+param frontendContainerImageName string = 'km-app'
+
+@description('Frontend container image tag')
+param frontendContainerImageTag string = 'latest'
+
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
 var tags = { 'azd-env-name': environmentName }
@@ -187,20 +206,21 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     name: backendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'backend' })
     location: location
-    kind: 'app,linux'
+    kind: 'app,linux,container'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: 'PYTHON|3.13'
+      linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : ''
       minTlsVersion: '1.2'
-      appCommandLine: 'gunicorn -w 4 -k uvicorn.workers.UvicornWorker backend.app.main:app --bind 0.0.0.0:8000'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          DOCKER_REGISTRY_SERVER_URL: !empty(backendContainerRegistryHostname) ? 'https://${backendContainerRegistryHostname}' : ''
+          WEBSITES_PORT: '8000'
           AZURE_OPENAI_ENDPOINT: aiServicesEndpoint
           AZURE_OPENAI_CHAT_DEPLOYMENT: chatDeploymentName
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: embeddingDeploymentName
@@ -216,6 +236,8 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_AD_CLIENT_ID: azureAdClientId
           AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
+          API_APP_NAME: backendWebSiteResourceName
+          APP_ENV: 'Prod'
         }
       }
     ]
@@ -231,20 +253,20 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     name: frontendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'frontend' })
     location: location
-    kind: 'app,linux'
+    kind: 'app,linux,container'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: 'NODE|22-lts'
+      linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : ''
       minTlsVersion: '1.2'
-      appCommandLine: 'npx serve -s build -l 8080'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
+          DOCKER_REGISTRY_SERVER_URL: !empty(frontendContainerRegistryHostname) ? 'https://${frontendContainerRegistryHostname}' : ''
           APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
         }
       }

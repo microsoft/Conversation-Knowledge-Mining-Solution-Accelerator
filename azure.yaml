@@ -1,21 +1,11 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 name: knowledge-mining-platform
-metadata:
-  template: knowledge-mining-platform
 
 requiredVersions:
   azd: ">= 1.18.0"
 
-services:
-  backend:
-    project: ./backend
-    host: appservice
-    language: python
-
-  frontend:
-    project: ./frontend
-    host: appservice
-    language: js
+metadata:
+  template: knowledge-mining@1.0
 
 hooks:
   postprovision:
@@ -28,15 +18,12 @@ hooks:
           $_ -replace '^(\w+)="(.*)"$', '$1=$2'
         } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
 
-        Write-Host ""
-        Write-Host "Provisioning complete!" -ForegroundColor Green
-        Write-Host "Frontend: $env:SERVICE_FRONTEND_URI" -ForegroundColor Cyan
-        Write-Host "Backend:  $env:SERVICE_BACKEND_URI" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Next steps:" -ForegroundColor Yellow
-        Write-Host "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)"
-        Write-Host "  2. Run: ./scripts/seed-data.ps1      (load sample data)"
-        Write-Host ""
+        Write-Host "Web app URL: "
+        Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
+
+        Write-Host "`nNext steps:"
+        Write-Host "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)" -ForegroundColor Cyan
+        Write-Host "  2. Run: ./scripts/seed-data.ps1      (load sample data)" -ForegroundColor Cyan
       continueOnError: false
       interactive: true
     posix:
@@ -46,23 +33,11 @@ hooks:
         echo "Writing .env file..."
         azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
 
-        echo ""
-        echo "Provisioning complete!"
-        echo "Frontend: $SERVICE_FRONTEND_URI"
-        echo "Backend:  $SERVICE_BACKEND_URI"
-        echo ""
-        echo "Next steps:"
+        echo "Web app URL: "
+        echo $WEB_APP_URL
+
+        echo "\nNext steps:"
         echo "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)"
         echo "  2. Run: ./scripts/seed-data.ps1      (load sample data)"
-        echo ""
       continueOnError: false
       interactive: true
-
-  postdeploy:
-    shell: pwsh
-    run: |
-      Write-Host ""
-      Write-Host "Deployment complete!" -ForegroundColor Green
-      Write-Host "Frontend: $env:SERVICE_FRONTEND_URI" -ForegroundColor Cyan
-      Write-Host "Backend:  $env:SERVICE_BACKEND_URI" -ForegroundColor Cyan
-      Write-Host ""

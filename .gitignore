@@ -44,3 +44,9 @@ htmlcov/
 # Misc
 *.bak
 *.tmp
+
+# Downloaded Azure logs
+*-logs/
+*-logs[0-9]*/
+*.zip
+
