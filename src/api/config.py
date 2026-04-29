@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     pipeline_default_timeout: int = 30
 
     # App
-    data_dir: str = os.path.join(os.path.dirname(__file__), "..", "Sample_Data")
+    data_dir: str = os.path.join(os.path.dirname(__file__), "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
     # External Data Sources

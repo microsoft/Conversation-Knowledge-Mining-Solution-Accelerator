@@ -231,13 +231,14 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     name: backendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'backend' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : ''
+      linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : 'PYTHON|3.13'
+      appCommandLine: !empty(backendContainerRegistryHostname) ? '' : 'pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000'
       minTlsVersion: '1.2'
     }
     configs: [
@@ -278,13 +279,14 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     name: frontendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'frontend' })
     location: location
-    kind: 'app,linux,container'
+    kind: 'app,linux'
     serverFarmResourceId: webServerFarm.outputs.id
     managedIdentities: {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : ''
+      linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : 'NODE|22-lts'
+      appCommandLine: !empty(frontendContainerRegistryHostname) ? '' : 'pm2 serve /home/site/wwwroot --no-daemon --spa --port 8080'
       minTlsVersion: '1.2'
     }
     configs: [
@@ -293,6 +295,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
         properties: {
           DOCKER_REGISTRY_SERVER_URL: !empty(frontendContainerRegistryHostname) ? 'https://${frontendContainerRegistryHostname}' : ''
           APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
+          WEBSITES_PORT: !empty(frontendContainerRegistryHostname) ? '' : '8080'
         }
       }
     ]

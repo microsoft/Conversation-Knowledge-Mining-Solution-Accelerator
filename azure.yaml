@@ -9,20 +9,19 @@ metadata:
 
 services:
   backend:
-    project: ./src/api
+    project: .
     host: appservice
     language: python
-    docker:
-      path: ../src/api/Dockerfile
-      context: ..
 
   frontend:
     project: ./src/app
     host: appservice
     language: js
-    docker:
-      path: Dockerfile
-      context: .
+    hooks:
+      prepackage:
+        shell: sh
+        run: npm install && npm run build
+    dist: build
 
 hooks:
   postprovision:

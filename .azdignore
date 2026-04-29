@@ -1,0 +1,9 @@
+venv/
+.venv/
+node_modules/
+.git/
+__pycache__/
+*.pyc
+.azure/
+src/app/node_modules/
+src/app/build/

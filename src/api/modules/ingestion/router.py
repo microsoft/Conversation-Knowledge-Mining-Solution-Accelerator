@@ -26,7 +26,7 @@ async def load_default_dataset(
     background_tasks: BackgroundTasks,
     user: User = Depends(require_role("contributor")),
 ):
-    """Load the default synthetic dataset from Sample_Data/."""
+    """Load the default synthetic dataset from data/."""
     try:
         result = ingestion_service.load_default_dataset()
         background_tasks.add_task(_trigger_auto_pipeline)

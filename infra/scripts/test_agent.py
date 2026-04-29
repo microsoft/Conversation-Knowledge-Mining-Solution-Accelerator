@@ -61,7 +61,7 @@ if not ENDPOINT:
     sys.exit(1)
 
 # Load agent config
-data_dir = os.path.join(project_root, "Sample_Data")
+data_dir = os.path.join(project_root, "data")
 config_dir = os.path.join(data_dir, "config")
 if not os.path.exists(config_dir):
     config_dir = data_dir

@@ -271,7 +271,7 @@ except Exception as e:
 # Save Agent Configuration
 # ============================================================================
 
-config_dir = os.path.join(project_root, "Sample_Data", "config")
+config_dir = os.path.join(project_root, "data", "config")
 os.makedirs(config_dir, exist_ok=True)
 
 agent_ids_path = os.path.join(config_dir, "agent_ids.json")

@@ -1,7 +1,0 @@
-{
-  "chat_agent_name": "ChatAgent",
-  "title_agent_name": "SummaryAgent",
-  "search_index": "knowledge-mining-index",
-  "search_connection": "search-connection-s2epkfonthp4u",
-  "model": "gpt-4o"
-}

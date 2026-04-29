@@ -46,7 +46,7 @@ if not SEARCH_ENDPOINT:
 STORAGE_URL = f"https://{STORAGE_ACCOUNT}.blob.core.windows.net"
 
 # Load dataset
-data_path = os.path.join(project_root, "Sample_Data", "Customer_service_data.json")
+data_path = os.path.join(project_root, "data", "Customer_service_data.json")
 if not os.path.exists(data_path):
     print(f"ERROR: Dataset not found at {data_path}")
     sys.exit(1)
