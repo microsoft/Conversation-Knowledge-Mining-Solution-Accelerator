@@ -7,8 +7,42 @@ from azure.identity import DefaultAzureCredential
 from src.api.config import get_settings
 from src.api.modules.document_intelligence.models import ExtractedDocument
 
-API_VERSION = "2025-11-01"
+API_VERSION = "2024-12-01-preview"
 SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
+
+# Default CU analyzer template for generic document analysis
+DEFAULT_ANALYZER_ID = "km-document"
+DEFAULT_ANALYZER_TEMPLATE = {
+    "scenario": "document",
+    "description": "Generic document content extraction",
+    "config": {"returnDetails": True},
+    "fieldSchema": {
+        "name": "DocumentAnalysis",
+        "descriptions": "Extract content and metadata from documents",
+        "fields": {
+            "content": {
+                "type": "string",
+                "method": "generate",
+                "description": "Full text content of the document in markdown format"
+            },
+            "summary": {
+                "type": "string",
+                "method": "generate",
+                "description": "Summarize the document in 2-3 sentences"
+            },
+            "topic": {
+                "type": "string",
+                "method": "generate",
+                "description": "Identify the single primary topic in 6 words or less"
+            },
+            "keyPhrases": {
+                "type": "string",
+                "method": "generate",
+                "description": "Identify the top 10 key phrases as comma separated string"
+            },
+        }
+    }
+}
 
 _credential = DefaultAzureCredential()
 
@@ -16,18 +50,52 @@ _credential = DefaultAzureCredential()
 class ContentUnderstandingService:
     """Extract content from files using Azure Content Understanding."""
 
+    def __init__(self):
+        self._analyzer_ensured = False
+
     def _get_token(self) -> str:
         token = _credential.get_token("https://cognitiveservices.azure.com/.default")
         return token.token
 
-    def _headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self._get_token()}",
-            "Content-Type": "application/json",
-        }
+    def _auth_headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._get_token()}"}
+
+    def _endpoint(self) -> str:
+        settings = get_settings()
+        return settings.azure_content_understanding_endpoint.rstrip("/")
+
+    def _ensure_analyzer(self, analyzer_id: str = DEFAULT_ANALYZER_ID):
+        """Create the CU analyzer if it doesn't exist yet."""
+        if self._analyzer_ensured:
+            return
+
+        endpoint = self._endpoint()
+        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}"
+        headers = {**self._auth_headers(), "Content-Type": "application/json"}
+
+        with httpx.Client(timeout=30) as client:
+            # Check if analyzer exists
+            resp = client.get(url, headers=self._auth_headers())
+            if resp.status_code == 200:
+                self._analyzer_ensured = True
+                return
+
+            # Create the analyzer
+            resp = client.put(url, headers=headers, json=DEFAULT_ANALYZER_TEMPLATE)
+            if resp.status_code >= 400:
+                print(f"CU Analyzer create error {resp.status_code}: {resp.text}")
+            resp.raise_for_status()
+
+            # Poll until ready
+            operation_url = resp.headers.get("Operation-Location")
+            if operation_url:
+                self._poll_result(client, operation_url)
+
+        self._analyzer_ensured = True
+        print(f"CU Analyzer '{analyzer_id}' ready")
 
     def analyze(
-        self, file: BinaryIO, filename: str, analyzer: str = "prebuilt-document"
+        self, file: BinaryIO, filename: str, analyzer: str = DEFAULT_ANALYZER_ID
     ) -> ExtractedDocument:
         ext = filename.rsplit(".", 1)[-1].lower()
         if ext not in SUPPORTED_EXTENSIONS:
@@ -46,17 +114,22 @@ class ContentUnderstandingService:
                 analyzer="direct-text",
             )
 
-        # For binary files: upload to Blob → get SAS URL → CU analyze
-        blob_url = self._upload_temp_blob(filename, content)
+        # Ensure the analyzer exists
+        self._ensure_analyzer(analyzer)
 
-        settings = get_settings()
-        endpoint = settings.azure_content_understanding_endpoint.rstrip("/")
+        endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={API_VERSION}"
 
-        body = {"inputs": [{"url": blob_url}]}
+        # Send raw bytes directly to CU
+        headers = {
+            **self._auth_headers(),
+            "Content-Type": "application/octet-stream",
+        }
 
-        with httpx.Client(timeout=60) as client:
-            resp = client.post(url, headers=self._headers(), json=body)
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(url, headers=headers, content=content)
+            if resp.status_code >= 400:
+                print(f"CU Error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:
@@ -65,63 +138,22 @@ class ContentUnderstandingService:
             result = self._poll_result(client, operation_url)
 
         return self._parse_result(result, filename, analyzer)
-
-    def _upload_temp_blob(self, filename: str, content: bytes) -> str:
-        """Upload file to Azure Blob Storage and return a SAS URL for CU to access."""
-        from datetime import datetime, timedelta, timezone
-        from azure.storage.blob import BlobServiceClient, ContentSettings, generate_blob_sas, BlobSasPermissions
-
-        settings = get_settings()
-        account = settings.azure_storage_account
-        container_name = "cu-temp"
-        blob_name = f"{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}_{filename}"
-
-        blob_url = f"https://{account}.blob.core.windows.net"
-        blob_service = BlobServiceClient(account_url=blob_url, credential=_credential)
-
-        # Ensure container exists
-        container = blob_service.get_container_client(container_name)
-        try:
-            container.create_container()
-        except Exception:
-            pass  # Already exists
-
-        # Upload
-        blob = container.get_blob_client(blob_name)
-        ext = filename.rsplit(".", 1)[-1].lower()
-        blob.upload_blob(
-            content, overwrite=True,
-            content_settings=ContentSettings(content_type=self._mime_type(ext)),
-        )
-
-        # Generate SAS URL (valid for 10 minutes)
-        from azure.storage.blob import UserDelegationKey
-        delegation_key = blob_service.get_user_delegation_key(
-            key_start_time=datetime.now(timezone.utc),
-            key_expiry_time=datetime.now(timezone.utc) + timedelta(minutes=10),
-        )
-        sas = generate_blob_sas(
-            account_name=account,
-            container_name=container_name,
-            blob_name=blob_name,
-            user_delegation_key=delegation_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.now(timezone.utc) + timedelta(minutes=10),
-        )
-
-        return f"https://{account}.blob.core.windows.net/{container_name}/{blob_name}?{sas}"
 
     def analyze_url(
-        self, file_url: str, filename: str, analyzer: str = "prebuilt-document"
+        self, file_url: str, filename: str, analyzer: str = DEFAULT_ANALYZER_ID
     ) -> ExtractedDocument:
-        settings = get_settings()
-        endpoint = settings.azure_content_understanding_endpoint.rstrip("/")
+        self._ensure_analyzer(analyzer)
+
+        endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={API_VERSION}"
 
-        body = {"inputs": [{"url": file_url}]}
+        headers = {**self._auth_headers(), "Content-Type": "application/json"}
+        body = {"url": file_url}
 
-        with httpx.Client(timeout=30) as client:
-            resp = client.post(url, headers=self._headers(), json=body)
+        with httpx.Client(timeout=60) as client:
+            resp = client.post(url, headers=headers, json=body)
+            if resp.status_code >= 400:
+                print(f"CU Error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:
@@ -131,18 +163,18 @@ class ContentUnderstandingService:
 
         return self._parse_result(result, filename, analyzer)
 
-    def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 120) -> dict:
-        headers = self._headers()
+    def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 300) -> dict:
+        headers = self._auth_headers()
         elapsed = 0
-        interval = 2
+        interval = 3
         while elapsed < max_wait:
             resp = client.get(operation_url, headers=headers)
             resp.raise_for_status()
             data = resp.json()
-            status = data.get("status", "")
-            if status == "Succeeded":
+            status = data.get("status", "").lower()
+            if status == "succeeded":
                 return data
-            if status == "Failed":
+            if status == "failed":
                 raise RuntimeError(f"Analysis failed: {data}")
             time.sleep(interval)
             elapsed += interval
@@ -152,11 +184,20 @@ class ContentUnderstandingService:
         result = data.get("result", {})
         contents = result.get("contents", [{}])
         first = contents[0] if contents else {}
+        fields = first.get("fields", {})
+
+        # Extract markdown: prefer 'content' field from CU, fallback to 'markdown'
+        markdown = ""
+        if fields.get("content", {}).get("valueString"):
+            markdown = fields["content"]["valueString"]
+        elif first.get("markdown"):
+            markdown = first["markdown"]
+
         return ExtractedDocument(
             filename=filename,
             content_type=first.get("mimeType", "application/octet-stream"),
-            markdown=first.get("markdown", ""),
-            fields=first.get("fields"),
+            markdown=markdown,
+            fields=fields,
             page_count=first.get("endPageNumber", 1),
             analyzer=analyzer,
         )

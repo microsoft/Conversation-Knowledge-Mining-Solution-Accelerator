@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post("/extract", response_model=ExtractedDocument)
 async def extract_content(
     file: UploadFile = File(...),
-    analyzer: str = "prebuilt-document",
+    analyzer: str = "km-document",
     user: User = Depends(require_role("contributor")),
 ):
     """Extract content from an uploaded file using Azure Content Understanding."""

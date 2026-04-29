@@ -1,8 +1,8 @@
-name: Validate Deployment - CKM V2
+name: Validate Deployment - KM V1
 on:
   push:
     branches:
-      - ckm-v2
+      - km-v1
     paths:
       - 'infra/**/*.bicep'
       - 'infra/**/*.json'
@@ -35,10 +35,10 @@ jobs:
           GPT_MIN_CAPACITY: "30"
           AZURE_REGIONS: ${{ vars.AZURE_REGIONS }}
         run: |
-          chmod +x infra/scripts/checkquota_ckmv2.sh
-          if ! infra/scripts/checkquota_ckmv2.sh; then
+          chmod +x infra/scripts/checkquota_kmv1.sh
+          if ! infra/scripts/checkquota_kmv1.sh; then
             # If quota check fails due to insufficient quota, set the flag
-            if grep -q "No region with sufficient quota found" infra/scripts/checkquota_ckmv2.sh; then
+            if grep -q "No region with sufficient quota found" infra/scripts/checkquota_kmv1.sh; then
               echo "QUOTA_FAILED=true" >> $GITHUB_ENV
             fi
             exit 1  # Fail the pipeline if any other failure occurs
@@ -76,7 +76,7 @@ jobs:
         run: |
           echo "Generating a unique resource group name..."
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          COMMON_PART="ci-ckmv2"
+          COMMON_PART="ci-kmv1"
           UNIQUE_RG_NAME="${COMMON_PART}${TIMESTAMP}"
           echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
           echo "Generated Resource_GROUP_PREFIX: ${UNIQUE_RG_NAME}"
@@ -89,7 +89,7 @@ jobs:
         id: generate_solution_prefix
         run: |
           set -e
-          COMMON_PART="ckm2"
+          COMMON_PART="kmv1"
           TIMESTAMP=$(date +%s)  
           UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 3) 
           UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
@@ -130,7 +130,7 @@ jobs:
           # Construct the email body
           EMAIL_BODY=$(cat <<EOF
           {
-            "body": "<p>Dear Team,</p><p>We would like to inform you that the CKMv2 Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> ${RUN_URL}<br> ${OUTPUT}</p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>"
+            "body": "<p>Dear Team,</p><p>We would like to inform you that the KM V1 Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> ${RUN_URL}<br> ${OUTPUT}</p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>"
           }
           EOF
           )

@@ -8,7 +8,7 @@ class ExtractedDocument(BaseModel):
     markdown: str
     fields: Optional[dict[str, Any]] = None
     page_count: int = 1
-    analyzer: str = "prebuilt-document"
+    analyzer: str = "km-document"
 
     # AI-enriched fields (populated after GPT-4o analysis of CU output)
     summary: str = ""

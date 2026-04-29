@@ -81,7 +81,7 @@ async def upload_document(
         # Extract text (synchronous — required to create the document)
         try:
             extracted = content_understanding_service.analyze(
-                file=io.BytesIO(content), filename=filename, analyzer="prebuilt-document"
+                file=io.BytesIO(content), filename=filename
             )
         except Exception as e:
             import traceback

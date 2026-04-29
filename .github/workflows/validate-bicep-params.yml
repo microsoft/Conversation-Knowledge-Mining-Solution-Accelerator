@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
 
 env:
-  accelerator_name: "CKM"
+  accelerator_name: "KM"
 
 jobs:
   validate:
