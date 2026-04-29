@@ -90,12 +90,12 @@ This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Sear
 
 4. Create the AI agent:
    ```bash
-   ./scripts/setup-agent.ps1
+   ./infra/scripts/setup-agent.ps1
    ```
 
 5. (Optional) Load sample data:
    ```bash
-   ./scripts/seed-data.ps1
+   ./infra/scripts/seed-data.ps1
    ```
 
 6. (Optional) Configure authentication:
@@ -109,13 +109,13 @@ This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Sear
 ```bash
 python -m venv venv
 venv\Scripts\activate
-pip install -r backend/app/requirements.txt
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+pip install -r src/api/requirements.txt
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **Frontend:**
 ```bash
-cd frontend
+cd src/app
 npm install
 npm start
 ```
@@ -163,10 +163,15 @@ This solution addresses those challenges by enabling:
 infra/                              # Azure Bicep infrastructure
 ├── main.bicep                      # Main deployment template
 ├── main.parameters.json            # Parameter defaults
-└── modules/                        # Reusable Bicep modules
+├── modules/                        # Reusable Bicep modules
+└── scripts/                        # Deployment & setup scripts
+    ├── setup-agent.ps1             # Create AI Foundry agents
+    ├── seed-data.ps1               # Load sample data
+    ├── deploy.ps1                  # Deployment helper
+    └── teardown.ps1                # Resource cleanup
 
-backend/
-├── app/main.py                     # FastAPI application
+src/api/
+├── main.py                         # FastAPI application
 ├── config.py                       # Settings from .env
 ├── modules/
 │   ├── ingestion/                  # Document upload and indexing
@@ -177,17 +182,11 @@ backend/
 │   └── security/                   # Entra ID authentication
 └── storage/                        # SQL, Cosmos DB, blob persistence
 
-frontend/
+src/app/
 ├── src/
 │   ├── pages/                      # Home, Explore, Insights pages
 │   ├── components/                 # Reusable UI components
 │   └── api/                        # Backend API client
-
-scripts/
-├── setup-agent.ps1                 # Create AI Foundry agents
-├── seed-data.ps1                   # Load sample data
-├── deploy.ps1                      # Deployment helper
-└── teardown.ps1                    # Resource cleanup
 ```
 
 ### Security Guidelines

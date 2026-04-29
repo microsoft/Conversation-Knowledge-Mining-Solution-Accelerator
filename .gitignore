@@ -15,7 +15,7 @@ __pycache__/
 node_modules/
 
 # Frontend build output
-frontend/build/
+src/app/build/
 
 # IDE / Editor
 .vscode/

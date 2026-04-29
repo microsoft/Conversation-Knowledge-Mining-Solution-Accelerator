@@ -8,7 +8,7 @@ Users with data in Microsoft Fabric, generic SQL databases, Azure Synapse, or an
 ## Phase 1: Backend — Data Source Abstraction Layer
 
 ### Step 1: Define `BaseExternalDataSource` interface
-- Create `backend/modules/data_sources/base.py`
+- Create `src/api/modules/data_sources/base.py`
 - ABC with methods: `connect(config)`, `disconnect()`, `test_connection()`, `search(query, top_k, filters) -> list[dict]`, `sample(count) -> list[dict]`, `fetch_all(batch_size) -> Iterator[list[dict]]`, `get_schema() -> dict` (returns column names/types for mapping UI)
 - Define `DataSourceConfig` pydantic model: `id`, `name`, `source_type` (enum: fabric, sql, synapse, odbc, azure_search), `connection_string`, `endpoint`, `database`, `table_or_query`, `auth_method` (enum: connection_string, managed_identity, entra_id), `field_mapping` (dict mapping accelerator fields → source columns)
 - Define `FieldMapping` model: `text_field`, `id_field`, `title_field`, `type_field`, `metadata_fields: dict[str, str]`, `timestamp_field`
@@ -16,41 +16,41 @@ Users with data in Microsoft Fabric, generic SQL databases, Azure Synapse, or an
 ### Step 2: Implement concrete data source adapters
 Each adapter implements `BaseExternalDataSource`:
 
-- **`FabricDataSource`** (`backend/modules/data_sources/fabric.py`)
+- **`FabricDataSource`** (`src/api/modules/data_sources/fabric.py`)
   - Uses `pyodbc` with Fabric SQL endpoint or Microsoft Fabric REST API
   - Auth via Entra ID token (DefaultAzureCredential)
   - `search()` translates to SQL `WHERE ... LIKE` or full-text search
   - `fetch_all()` paginates with `OFFSET/FETCH`
 
-- **`SqlDataSource`** (`backend/modules/data_sources/sql.py`)
+- **`SqlDataSource`** (`src/api/modules/data_sources/sql.py`)
   - Uses `pyodbc` for generic SQL (PostgreSQL, MySQL, SQL Server)
   - Connection string-based auth
   - Supports custom SQL query or table name
 
-- **`SynapseDataSource`** (`backend/modules/data_sources/synapse.py`)
+- **`SynapseDataSource`** (`src/api/modules/data_sources/synapse.py`)
   - Uses `pyodbc` with Synapse SQL endpoint
   - Auth via Entra ID token
   - Supports serverless and dedicated SQL pools
 
-- **`OdbcDataSource`** (`backend/modules/data_sources/odbc.py`)
+- **`OdbcDataSource`** (`src/api/modules/data_sources/odbc.py`)
   - Generic ODBC/JDBC wrapper
   - User provides full connection string + driver name
 
 - **Refactor existing `ExternalIndexService`** → `AzureSearchDataSource` adapter
-  - Move logic from `backend/modules/ingestion/external_index.py` into `backend/modules/data_sources/azure_search.py`
+  - Move logic from `src/api/modules/ingestion/external_index.py` into `src/api/modules/data_sources/azure_search.py`
   - Implement same `BaseExternalDataSource` interface
   - Keep backward compatibility via thin wrapper in `external_index.py`
 
 ### Step 3: Data Source Registry & Persistence
-- Create `backend/modules/data_sources/registry.py`
+- Create `src/api/modules/data_sources/registry.py`
   - `DataSourceRegistry` class: manages registered adapters by `source_type`
   - CRUD for data source connections (stored in Azure SQL, not in-memory like current `ExternalIndexService`)
   - `get_adapter(source_id) -> BaseExternalDataSource` — factory method
-- Create `backend/modules/data_sources/models.py` — Pydantic request/response models
+- Create `src/api/modules/data_sources/models.py` — Pydantic request/response models
 - Persist configs to Azure SQL via new table `external_data_sources` (id, name, source_type, config_json, field_mapping_json, status, created_at, updated_at)
 
 ### Step 4: Data Source Router (API endpoints)
-- Create `backend/modules/data_sources/router.py`
+- Create `src/api/modules/data_sources/router.py`
 - Mount at `/api/data-sources` in `main.py`
 
 | Endpoint | Method | Purpose |
@@ -71,7 +71,7 @@ Each adapter implements `BaseExternalDataSource`:
 ## Phase 2: Backend — Integration Patterns
 
 ### Step 5: Pull & Ingest pattern (*depends on Steps 1-4*)
-- Add `DataSourceIngestionService` in `backend/modules/data_sources/ingestion.py`
+- Add `DataSourceIngestionService` in `src/api/modules/data_sources/ingestion.py`
 - `ingest(source_id, batch_size=1000)`:
   1. Call adapter's `fetch_all()` to iterate batches
   2. Apply `field_mapping` to transform rows → `Document` objects
@@ -81,7 +81,7 @@ Each adapter implements `BaseExternalDataSource`:
 - Support incremental sync: store `last_sync_timestamp` per source, filter by timestamp field on subsequent runs
 
 ### Step 6: Live Query pattern (*depends on Steps 1-4*)
-- Modify `backend/modules/rag/service.py`:
+- Modify `src/api/modules/rag/service.py`:
   - Add `_search_external_data_source(source_id, query, top_k)` method
   - In `answer()`, check if active data sources are configured for live query
   - Route to appropriate adapter's `search()` method
@@ -89,24 +89,24 @@ Each adapter implements `BaseExternalDataSource`:
 - Add `query_mode` field to `DataSourceConfig`: `"ingest"` | `"live"` | `"both"`
 
 ### Step 7: Processing & Insights for external sources (*depends on Steps 5-6*)
-- Modify `backend/modules/processing/service.py`:
+- Modify `src/api/modules/processing/service.py`:
   - `generate_insights()` accepts `data_source_id` param (in addition to existing `external_index_id`)
   - Fetches sample documents via adapter, generates insights via LLM
-- Update `backend/modules/processing/router.py` — add `data_source_id` query param
+- Update `src/api/modules/processing/router.py` — add `data_source_id` query param
 
 ---
 
 ## Phase 3: Backend — Config & Settings
 
 ### Step 8: Config settings (*parallel with Phase 2*)
-- Add to `backend/config.py`:
+- Add to `src/api/config.py`:
   - `enable_external_data_sources: bool = True`
   - `external_data_source_default_batch_size: int = 1000`
   - `external_data_source_timeout: int = 60`
 - Add to `.env` template: corresponding env vars
 
 ### Step 9: SQL schema for data sources (*depends on Step 3*)
-- Add to `backend/storage/sql_service.py`:
+- Add to `src/api/storage/sql_service.py`:
   - `_ensure_data_sources_table()` — creates `external_data_sources` table
   - `save_data_source(config)`, `get_data_source(id)`, `list_data_sources()`, `delete_data_source(id)`, `update_data_source(id, config)`
 - Call `_ensure_data_sources_table()` in `_ensure_tables()` startup
@@ -116,12 +116,12 @@ Each adapter implements `BaseExternalDataSource`:
 ## Phase 4: Frontend — Data Sources Settings Page
 
 ### Step 10: API client extensions (*parallel with Phase 2*)
-- Add to `frontend/src/api/client.ts`:
+- Add to `src/app/src/api/client.ts`:
   - `dataSources.list()`, `dataSources.create(config)`, `dataSources.update(id, config)`, `dataSources.delete(id)`, `dataSources.test(id)`, `dataSources.getSchema(id)`, `dataSources.sample(id)`, `dataSources.ingest(id)`, `dataSources.getTypes()`
 
 ### Step 11: Data Sources Settings page
-- Create `frontend/src/pages/DataSources/DataSources.tsx` — main settings page
-- Create `frontend/src/pages/DataSources/DataSources.css` — styles (per user preference: separate CSS)
+- Create `src/app/src/pages/DataSources/DataSources.tsx` — main settings page
+- Create `src/app/src/pages/DataSources/DataSources.css` — styles (per user preference: separate CSS)
 - Sections:
   1. **Connected Sources** — list/table of configured data sources with status, last sync, actions (edit, test, delete, sync)
   2. **Add New Source** — wizard/dialog flow:
@@ -158,40 +158,40 @@ Each adapter implements `BaseExternalDataSource`:
 ## Relevant Files
 
 **New files to create:**
-- `backend/modules/data_sources/__init__.py` — module init
-- `backend/modules/data_sources/base.py` — `BaseExternalDataSource` ABC, `DataSourceConfig`, `FieldMapping`
-- `backend/modules/data_sources/registry.py` — `DataSourceRegistry` class
-- `backend/modules/data_sources/models.py` — API request/response models
-- `backend/modules/data_sources/router.py` — FastAPI router at `/api/data-sources`
-- `backend/modules/data_sources/ingestion.py` — Pull & Ingest service
-- `backend/modules/data_sources/fabric.py` — `FabricDataSource` adapter
-- `backend/modules/data_sources/sql.py` — `SqlDataSource` adapter
-- `backend/modules/data_sources/synapse.py` — `SynapseDataSource` adapter
-- `backend/modules/data_sources/odbc.py` — `OdbcDataSource` adapter
-- `backend/modules/data_sources/azure_search.py` — refactored from `ExternalIndexService`
-- `frontend/src/pages/DataSources/DataSources.tsx` — settings page
-- `frontend/src/pages/DataSources/DataSources.css` — styles
+- `src/api/modules/data_sources/__init__.py` — module init
+- `src/api/modules/data_sources/base.py` — `BaseExternalDataSource` ABC, `DataSourceConfig`, `FieldMapping`
+- `src/api/modules/data_sources/registry.py` — `DataSourceRegistry` class
+- `src/api/modules/data_sources/models.py` — API request/response models
+- `src/api/modules/data_sources/router.py` — FastAPI router at `/api/data-sources`
+- `src/api/modules/data_sources/ingestion.py` — Pull & Ingest service
+- `src/api/modules/data_sources/fabric.py` — `FabricDataSource` adapter
+- `src/api/modules/data_sources/sql.py` — `SqlDataSource` adapter
+- `src/api/modules/data_sources/synapse.py` — `SynapseDataSource` adapter
+- `src/api/modules/data_sources/odbc.py` — `OdbcDataSource` adapter
+- `src/api/modules/data_sources/azure_search.py` — refactored from `ExternalIndexService`
+- `src/app/src/pages/DataSources/DataSources.tsx` — settings page
+- `src/app/src/pages/DataSources/DataSources.css` — styles
 
 **Existing files to modify:**
-- `backend/app/main.py` — register new `/api/data-sources` router
-- `backend/config.py` — add external data source settings
-- `backend/modules/rag/service.py` — add `_search_external_data_source()`, modify `answer()` dispatch
-- `backend/modules/processing/service.py` — support `data_source_id` in insights
-- `backend/modules/processing/router.py` — add `data_source_id` param
-- `backend/storage/sql_service.py` — add `external_data_sources` table + CRUD
-- `backend/modules/ingestion/external_index.py` — deprecate, delegate to new system
-- `frontend/src/api/client.ts` — add data source API methods
-- `frontend/src/App.tsx` — add `/settings/data-sources` route
-- `frontend/src/components/Layout.tsx` — add nav item
-- `frontend/src/pages/Explore/` — show external sources in source selector
-- `backend/app/requirements.txt` — add `pyodbc` (if not present)
+- `src/api/main.py` — register new `/api/data-sources` router
+- `src/api/config.py` — add external data source settings
+- `src/api/modules/rag/service.py` — add `_search_external_data_source()`, modify `answer()` dispatch
+- `src/api/modules/processing/service.py` — support `data_source_id` in insights
+- `src/api/modules/processing/router.py` — add `data_source_id` param
+- `src/api/storage/sql_service.py` — add `external_data_sources` table + CRUD
+- `src/api/modules/ingestion/external_index.py` — deprecate, delegate to new system
+- `src/app/src/api/client.ts` — add data source API methods
+- `src/app/src/App.tsx` — add `/settings/data-sources` route
+- `src/app/src/components/Layout.tsx` — add nav item
+- `src/app/src/pages/Explore/` — show external sources in source selector
+- `src/api/requirements.txt` — add `pyodbc` (if not present)
 
 **Reference files (patterns to reuse):**
-- `backend/modules/ingestion/external_index.py` — existing `ExternalIndexService` pattern for `AzureSearchDataSource`
-- `backend/storage/base.py` — ABC pattern for `BaseExternalDataSource`
-- `backend/modules/ingestion/service.py` — `load_json_data()` for Pull & Ingest integration
-- `backend/modules/rag/service.py` — `_answer_from_external()` for Live Query pattern
-- `backend/storage/sql_service.py` — `_ensure_tables()` pattern for new SQL table
+- `src/api/modules/ingestion/external_index.py` — existing `ExternalIndexService` pattern for `AzureSearchDataSource`
+- `src/api/storage/base.py` — ABC pattern for `BaseExternalDataSource`
+- `src/api/modules/ingestion/service.py` — `load_json_data()` for Pull & Ingest integration
+- `src/api/modules/rag/service.py` — `_answer_from_external()` for Live Query pattern
+- `src/api/storage/sql_service.py` — `_ensure_tables()` pattern for new SQL table
 
 ---
 
@@ -222,3 +222,4 @@ Each adapter implements `BaseExternalDataSource`:
 1. **Scheduled sync for Pull & Ingest**: Should we support automatic periodic re-sync (e.g., every N hours)? Recommend deferring to a follow-up — manual "Sync Now" button is sufficient for v1.
 2. **Fabric OneLake direct access**: Beyond SQL endpoint, Fabric data can be accessed via OneLake file API (Parquet/Delta). This would require a separate `OneLakeDataSource` adapter. Recommend starting with SQL endpoint only.
 3. **Connection string security**: For production, connection strings should be stored in Azure Key Vault rather than SQL. Recommend Key Vault integration as a fast-follow.
+

@@ -9,15 +9,15 @@ metadata:
 
 services:
   backend:
-    project: ./backend
+    project: ./src/api
     host: appservice
     language: python
     docker:
-      path: ../backend/Dockerfile
+      path: ../src/api/Dockerfile
       context: ..
 
   frontend:
-    project: ./frontend
+    project: ./src/app
     host: appservice
     language: js
     docker:
@@ -39,8 +39,8 @@ hooks:
         Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
 
         Write-Host "`nNext steps:"
-        Write-Host "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)" -ForegroundColor Cyan
-        Write-Host "  2. Run: ./scripts/seed-data.ps1      (load sample data)" -ForegroundColor Cyan
+        Write-Host "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)" -ForegroundColor Cyan
+        Write-Host "  2. Run: ./infra/scripts/seed-data.ps1      (load sample data)" -ForegroundColor Cyan
       continueOnError: false
       interactive: true
     posix:
@@ -54,7 +54,7 @@ hooks:
         echo $WEB_APP_URL
 
         echo "\nNext steps:"
-        echo "  1. Run: ./scripts/setup-agent.ps1    (create AI agent)"
-        echo "  2. Run: ./scripts/seed-data.ps1      (load sample data)"
+        echo "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)"
+        echo "  2. Run: ./infra/scripts/seed-data.ps1      (load sample data)"
       continueOnError: false
       interactive: true
