@@ -7,22 +7,6 @@ requiredVersions:
 metadata:
   template: knowledge-mining@1.0
 
-services:
-  backend:
-    project: .
-    host: appservice
-    language: python
-
-  frontend:
-    project: ./src/app
-    host: appservice
-    language: js
-    hooks:
-      prepackage:
-        shell: sh
-        run: npm install && npm run build
-    dist: build
-
 hooks:
   postprovision:
     windows:

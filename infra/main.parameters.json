@@ -31,6 +31,18 @@
     },
     "contentUnderstandingLocation": {
       "value": "${AZURE_CU_LOCATION=swedencentral}"
+    },
+    "backendContainerRegistryHostname": {
+      "value": "${BACKEND_CONTAINER_REGISTRY=}"
+    },
+    "backendContainerImageTag": {
+      "value": "${BACKEND_IMAGE_TAG=latest}"
+    },
+    "frontendContainerRegistryHostname": {
+      "value": "${FRONTEND_CONTAINER_REGISTRY=}"
+    },
+    "frontendContainerImageTag": {
+      "value": "${FRONTEND_IMAGE_TAG=latest}"
     }
   }
 }

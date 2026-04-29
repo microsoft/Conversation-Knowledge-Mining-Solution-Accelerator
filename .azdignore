@@ -8,10 +8,4 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
-src/app/
-scripts/
-infra/
-plan.md
-README.md
-docker-compose.yaml
-*.md
+
