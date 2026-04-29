@@ -27,17 +27,15 @@ import sys
 import json
 import argparse
 
-# Parse arguments
 parser = argparse.ArgumentParser(description="Create AI Foundry Agent for Knowledge Mining")
-parser.add_argument("--agent-name", type=str, default="KnowledgeMiningAgent",
-                    help="Name for the chat agent (default: KnowledgeMiningAgent)")
+parser.add_argument("--agent-name", type=str, default="ChatAgent",
+                    help="Name for the chat agent (default: ChatAgent)")
 parser.add_argument("--index-name", type=str,
                     help="Azure AI Search index name (overrides env)")
 parser.add_argument("--connection-name", type=str,
                     help="Azure AI Search connection name (overrides env)")
 args = parser.parse_args()
 
-# Load .env
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 env_path = os.path.join(project_root, ".env")
@@ -75,7 +73,7 @@ INDEX_NAME = args.index_name or os.getenv("AZURE_SEARCH_INDEX_NAME", "knowledge-
 
 # Agent names
 CHAT_AGENT_NAME = args.agent_name
-TITLE_AGENT_NAME = "TitleAgent"
+TITLE_AGENT_NAME = "SummaryAgent"
 
 # Validation
 if not ENDPOINT:
@@ -89,66 +87,28 @@ if not SEARCH_CONNECTION_NAME:
     sys.exit(1)
 
 # ============================================================================
-# Load document metadata for agent instructions
-# ============================================================================
-
-data_dir = os.path.join(project_root, "Sample_Data")
-dataset_path = os.path.join(data_dir, "Customer_service_data.json")
-
-doc_types = set()
-products = set()
-categories = set()
-
-if os.path.exists(dataset_path):
-    with open(dataset_path) as f:
-        data = json.load(f)
-    for item in data:
-        doc_types.add(item.get("type", "unknown"))
-        meta = item.get("metadata", {})
-        if meta.get("product"):
-            products.add(meta["product"])
-        if meta.get("category"):
-            categories.add(meta["category"])
-    print(f"Loaded metadata from {len(data)} documents")
-else:
-    print(f"WARN: Dataset not found at {dataset_path}")
-    print("      Agent will use generic instructions")
-
-# ============================================================================
 # Build Agent Instructions
 # ============================================================================
 
 def build_agent_instructions():
-    """Build agent instructions based on the knowledge mining dataset."""
+    """Build generic agent instructions for knowledge mining."""
 
-    doc_type_list = ", ".join(sorted(doc_types)) if doc_types else "various document types"
-    product_list = ", ".join(sorted(products)) if products else "various products"
-    category_list = ", ".join(sorted(categories)) if categories else "various categories"
-
-    return f"""You are a knowledge mining assistant that helps users explore and understand a document knowledge base.
-
-## Your Knowledge Base
-- Document types: {doc_type_list}
-- Products covered: {product_list}
-- Categories: {category_list}
-- The documents include customer support chats, FAQ documents, support tickets, and audio transcripts.
+    return """You are a knowledge mining assistant that helps users explore and understand a document knowledge base.
 
 ## Tools
 
 **Azure AI Search** - Search the document knowledge base
-- Contains customer support transcripts, FAQs, support tickets, and audio transcripts
 - Use this tool to find relevant documents when answering user questions
-- The search index contains full document text with metadata (type, product, category)
+- The search index contains document text with metadata
 
 ## When to Use the Search Tool
-- **Factual questions** about products, issues, or support topics → Search first
+- **Factual questions** → Search first, then answer from results
 - **Summarization requests** → Search for relevant documents, then summarize
 - **Theme/pattern analysis** → Search broadly, then identify patterns
-- **Specific document lookups** → Search by product, category, or keywords
+- **Specific lookups** → Search by keywords, topics, or categories
 
 ## Response Guidelines
 - Always ground your answers in the retrieved documents
-- Cite document IDs when referencing specific information (e.g., [chat_001], [faq_002])
 - If the search returns no relevant results, say so honestly
 - Use structured formatting (bullet points, tables) when presenting multiple items
 - For theme/pattern questions, identify and group recurring topics across documents
@@ -210,12 +170,6 @@ print(f"Model: {MODEL}")
 print(f"Agent Name: {CHAT_AGENT_NAME}")
 print(f"Search Index: {INDEX_NAME}")
 print(f"Search Connection: {SEARCH_CONNECTION_NAME}")
-if doc_types:
-    print(f"Document Types: {', '.join(sorted(doc_types))}")
-if products:
-    print(f"Products: {', '.join(sorted(products))}")
-if categories:
-    print(f"Categories: {', '.join(sorted(categories))}")
 
 # ============================================================================
 # Create the Agent
@@ -317,7 +271,7 @@ except Exception as e:
 # Save Agent Configuration
 # ============================================================================
 
-config_dir = os.path.join(data_dir, "config")
+config_dir = os.path.join(project_root, "Sample_Data", "config")
 os.makedirs(config_dir, exist_ok=True)
 
 agent_ids_path = os.path.join(config_dir, "agent_ids.json")

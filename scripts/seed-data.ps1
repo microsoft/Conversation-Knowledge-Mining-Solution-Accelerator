@@ -31,7 +31,6 @@ if ($BackendUrl -eq "http://localhost:8000") {
     }
 }
 
-# Get token
 Write-Host "Getting access token..." -ForegroundColor Yellow
 $token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
 if (-not $token) {
@@ -39,7 +38,6 @@ if (-not $token) {
     Write-Host "Using test token (local dev)" -ForegroundColor Yellow
 }
 
-# Load default dataset
 Write-Host "Loading sample dataset..." -ForegroundColor Yellow
 $response = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `
     -Method POST `

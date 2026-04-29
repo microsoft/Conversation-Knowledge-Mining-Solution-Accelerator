@@ -15,7 +15,6 @@ Write-Host "  Knowledge Mining - Agent Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if .env exists
 $envFile = Join-Path $PSScriptRoot ".." ".env"
 if (-not (Test-Path $envFile)) {
     Write-Host "WARNING: .env file not found. Trying azd env values..." -ForegroundColor Yellow
@@ -35,8 +34,7 @@ if (Test-Path $venvPath) {
     & $venvPath
 }
 
-# Create the agent
-Write-Host "Creating KnowledgeMiningAgent..." -ForegroundColor Yellow
+Write-Host "Creating agents..." -ForegroundColor Yellow
 python (Join-Path $PSScriptRoot "create_agent.py")
 
 if ($LASTEXITCODE -eq 0) {

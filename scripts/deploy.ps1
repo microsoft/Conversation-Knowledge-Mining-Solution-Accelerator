@@ -22,7 +22,6 @@ Write-Host "  Knowledge Mining Platform - Deploy" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Check prerequisites
 $azdVersion = az version --query '"azure-dev"' -o tsv 2>$null
 if (-not $azdVersion) {
     Write-Host "ERROR: Azure Developer CLI (azd) is required." -ForegroundColor Red
@@ -31,14 +30,12 @@ if (-not $azdVersion) {
 }
 Write-Host "azd version: $azdVersion" -ForegroundColor Green
 
-# Login if needed
 $account = azd auth login --check-status 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Logging in to Azure..." -ForegroundColor Yellow
     azd auth login
 }
 
-# Initialize environment
 if ($EnvironmentName) {
     azd env new $EnvironmentName
 }
@@ -51,7 +48,6 @@ if ($Subscription) {
     azd env set AZURE_SUBSCRIPTION_ID $Subscription
 }
 
-# Provision and deploy
 Write-Host ""
 Write-Host "Provisioning Azure resources..." -ForegroundColor Yellow
 azd up
