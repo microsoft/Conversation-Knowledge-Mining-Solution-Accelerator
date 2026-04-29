@@ -33,11 +33,11 @@ param name string
 ])
 param kind string
 
-@description('Required. The name of the AI Foundry project to create.')
-param projectName string
+@description('Optional. The name of the AI Foundry project to create.')
+param projectName string = ''
 
-@description('Required. The description of the AI Foundry project to create.')
-param projectDescription string
+@description('Optional. The description of the AI Foundry project to create.')
+param projectDescription string = ''
 
 @description('Optional. SKU of the Cognitive Services account. Use \'Get-AzCognitiveServicesAccountSku\' to determine a valid combinations of \'kind\' and \'SKU\' for your Azure region.')
 @allowed([
@@ -241,7 +241,7 @@ resource cognitiveServiceExisting 'Microsoft.CognitiveServices/accounts@2025-09-
   scope: resourceGroup(existingCognitiveServiceDetails[2], existingCognitiveServiceDetails[4])
 }
 
-module cognitive_service_dependencies './dependencies.bicep' = if(!useExistingService) {
+module cognitive_service_dependencies './dependencies.bicep' = if(!useExistingService && !empty(projectName)) {
   params: {
     projectName: projectName
     projectDescription: projectDescription
@@ -302,10 +302,10 @@ output systemAssignedMIPrincipalId string? = useExistingService ? cognitiveServi
 output location string = useExistingService ? cognitiveServiceExisting!.location : cognitiveService.location
 
 @description('The private endpoints of the congitive services account.')
-output privateEndpoints privateEndpointOutputType[] = useExistingService ? existing_cognitive_service_dependencies!.outputs.privateEndpoints : cognitive_service_dependencies!.outputs.privateEndpoints
+output privateEndpoints privateEndpointOutputType[] = !empty(projectName) ? (useExistingService ? existing_cognitive_service_dependencies!.outputs.privateEndpoints : cognitive_service_dependencies!.outputs.privateEndpoints) : []
 
 import { aiProjectOutputType } from './project.bicep'
-output aiProjectInfo aiProjectOutputType = useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo
+output aiProjectInfo aiProjectOutputType = !empty(projectName) ? (useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo) : { name: '', apiEndpoint: '' }
 
 // ================ //
 // Definitions      //

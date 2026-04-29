@@ -43,6 +43,13 @@ param existingAiSearchConnectionName string = ''
 @description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
 param deployCosmos bool = false
 
+@description('Location for Content Understanding service (must support CU preview API)')
+@allowed([
+  'swedencentral'
+  'australiaeast'
+])
+param contentUnderstandingLocation string = 'swedencentral'
+
 // ── Container Image Configuration ──
 @description('Container registry hostname for backend image')
 param backendContainerRegistryHostname string = ''
@@ -118,6 +125,24 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
 // use existing or newly created
 var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
 var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
+
+// ========== Content Understanding (separate region) ========== //
+var cuResourceName = '${abbrs.ai.aiFoundry}${resourceToken}-cu'
+module cuServices 'modules/ai-services.bicep' = {
+  name: 'cu-services'
+  scope: rg
+  params: {
+    name: cuResourceName
+    location: contentUnderstandingLocation
+    kind: 'AIServices'
+    sku: 'S0'
+    customSubDomainName: cuResourceName
+    publicNetworkAccess: 'Enabled'
+    deployments: []
+  }
+}
+
+var cuEndpoint = 'https://${cuResourceName}.services.ai.azure.com/'
 
 // ========== AI Search ========== //
 var aiSearchName = '${abbrs.ai.aiSearch}${resourceToken}'
@@ -226,7 +251,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: embeddingDeploymentName
           AZURE_SEARCH_ENDPOINT: search.outputs.endpoint
           AZURE_SEARCH_INDEX_NAME: 'knowledge-mining-index'
-          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: aiServicesEndpoint
+          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: cuEndpoint
           AZURE_STORAGE_ACCOUNT: storage.outputs.accountName
           AZURE_SQL_SERVER: sql.outputs.serverFqdn
           AZURE_SQL_DATABASE: '${abbrs.databases.sqlDatabase}${resourceToken}'
@@ -283,7 +308,7 @@ module roles 'modules/roles.bicep' = {
     searchName: search.outputs.name
     storageName: storage.outputs.accountName
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
-    cuName: aiServicesName
+    cuName: cuResourceName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
     deployerPrincipalId: deployer().objectId
   }
@@ -297,7 +322,7 @@ output AZURE_OPENAI_ENDPOINT string = aiServicesEndpoint
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
 
 @description('Azure Content Understanding endpoint URL.')
-output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = aiServicesEndpoint
+output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = cuEndpoint
 
 @description('Azure Storage account name.')
 output AZURE_STORAGE_ACCOUNT string = storage.outputs.accountName

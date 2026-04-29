@@ -28,6 +28,9 @@
     },
     "existingAiSearchConnectionName": {
       "value": "${EXISTING_AI_SEARCH_CONNECTION_NAME=}"
+    },
+    "contentUnderstandingLocation": {
+      "value": "${AZURE_CU_LOCATION=swedencentral}"
     }
   }
 }

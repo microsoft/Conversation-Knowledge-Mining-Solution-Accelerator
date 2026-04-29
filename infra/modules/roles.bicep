@@ -123,6 +123,16 @@ resource deployerStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01
   }
 }
 
+resource deployerCuRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(cu.id, deployerPrincipalId, roles.cognitiveServicesUser)
+  scope: cu
+  properties: {
+    roleDefinitionId: roles.cognitiveServicesUser
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
 // ========== Existing resource references ========== //
 resource openai 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: openaiName
