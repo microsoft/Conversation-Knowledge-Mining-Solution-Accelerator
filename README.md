@@ -1,78 +1,66 @@
 # Knowledge Mining Solution Accelerator
 
-Ingest, extract, and classify content from a high volume of documents to gain deeper insights and generate relevant suggestions for quick and easy reasoning. This enables the ability to conduct chat-based insight discovery, analysis, and receive structured outputs from your data.
+Ingest, extract, and analyze content from large volumes of data to gain deeper insights. Using Azure OpenAI Service, Azure AI Search, and Azure AI Foundry, this solution processes unstructured data and enables interactive exploration through natural language chat.
 
-[SOLUTION OVERVIEW](#solution-overview) | [QUICK DEPLOY](#quick-deploy) | [BUSINESS USE CASE](#business-use-case) | [SUPPORTING DOCUMENTATION](#supporting-documentation)
+<div align="center">
+
+[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**BUSINESS USE CASE**](#business-use-case)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+
+</div>
+
+> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards.
 
 ---
 
 ## Solution Overview
 
-This solution leverages Azure OpenAI, Azure Content Understanding, and Azure AI Search in a hybrid approach by combining OCR, multi-modal LLM extraction, and retrieval-augmented generation (RAG) to extract information from documents and provide insights — including text documents, handwritten text, charts, graphs, tables, and form fields.
+This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Search, and Azure AI Foundry to extract information from documents and provide insights through a chat-based interface — supporting text documents, PDFs, images, handwritten text, charts, graphs, tables, and form fields.
 
 ### Solution Architecture
 
 ```
-                                                    ┌──────────────────┐
-                                                    │  Azure AI Search │
-                                                    │  Save Chunks /   │
-                                                    │  Vectors /       │
-                                                    │  Keywords        │
-                                                    └────────▲─────────┘
-                                                             │
-┌──────────┐    HTTP     ┌──────────────────┐    ┌───────────┴───────────┐    ┌─────────────────────┐
-│          │   Invoke    │                  │    │                       │    │  Content             │
-│  Client  │────────────▶│   Web App        │    │   Document            │───▶│  Understanding       │
-│ (Browser)│◀────────────│   React 18       │    │   Processor           │    │  Extract Contents /  │
-│          │             │   Fluent UI      │    │   (FastAPI)           │    │  Content from Files  │
-└──────────┘             │                  │    │                       │    └─────────────────────┘
-                         │  • Doc Search    │    │  • Upload & parse     │
-                         │  • Process       │────▶  • CU extraction     │    ┌─────────────────────┐
-                         │  • Chat          │HTTP│  • Enrich & index     │───▶│  Azure OpenAI       │
-                         │  • Insights      │    │  • Filter generation  │    │  GPT-4o             │
-                         │                  │    │                       │    │  Extract Knowledge / │
-                         └──────────────────┘    └───────────┬───────────┘    │  Keywords /         │
-                                                             │               │  Summarization      │
-                                          ┌──────────────────┼──────────────────┐─────────────────────┘
-                                          │                  │                  │
-                                          ▼                  ▼                  ▼
-                                 ┌─────────────┐   ┌─────────────┐   ┌─────────────────┐
-                                 │ Blob Storage │   │  Azure SQL  │   │   Cosmos DB     │
-                                 │ Save Result  │   │ Save Docs,  │   │ Save Processing │
-                                 │ Documents    │   │  Enrichment │   │ Results / Chat  │
-                                 │              │   │  Cache      │   │ History         │
-                                 └─────────────┘   └─────────────┘   └─────────────────┘
+┌──────────┐         ┌──────────────────┐         ┌───────────────────┐
+│  Client  │  HTTP   │  Frontend        │  HTTP   │  Backend          │
+│ (Browser)│────────▶│  React / Node    │────────▶│  FastAPI / Python │
+└──────────┘         └──────────────────┘         └─────────┬─────────┘
+                                                            │
+                     ┌──────────────────────────────────────┼──────────────────┐
+                     │                                      │                  │
+                     ▼                                      ▼                  ▼
+            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
+            │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
+            │  GPT-4o         │                    │  Search     │   │  Understanding   │
+            └─────────────────┘                    └─────────────┘   └─────────────────┘
+                     │                                      │                  │
+                     ▼                                      ▼                  ▼
+            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
+            │  AI Foundry     │                    │  Azure SQL  │   │  Blob Storage   │
+            │  Agent Service  │                    │  Database   │   │                 │
+            └─────────────────┘                    └─────────────┘   └─────────────────┘
 ```
-
-### How to Customize
-
-If you'd like to customize the solution accelerator, here are some common areas to start:
-
-- **Filters**: AI-generated filter dimensions are inferred from content — modify the GPT-4o prompt in `document_intelligence/service.py` to change extraction behavior
-- **Insights report**: Customize the intelligence report structure in `processing/service.py`
-- **BYOI (Bring Your Own Index)**: Connect any existing Azure AI Search index without uploading files
-- **Chat behavior**: Modify RAG prompts and retrieval in `rag/service.py`
 
 ### Key Features
 
-<details>
+<details open>
 <summary>Click to learn more about the key features this solution enables</summary>
 
-- **Ingest and extract real-world entities** — Process and extract information unique to your ingested data such as people, products, events, places, or behaviors. Used to populate dynamic filters.
+- **Chat-based insights discovery**
+  Interactive chat powered by Azure AI Search and GPT-4o enables natural language exploration of your data.
 
-- **Chat-based insights discovery** — Choose to chat with all indexed assets, a single asset, or a filtered set of assets. Active filters automatically scope the chat search context.
+- **Multi-modal information processing**
+  Ingest and extract knowledge from multiple content types: PDF, DOCX, images, JSON, CSV, TXT.
 
-- **Text and document data analysis** — Analyze, compare, and synthesize materials into deep insights, making content accessible through natural language prompting.
+- **Document analysis and extraction**
+  Azure Content Understanding extracts text, tables, and structure from complex documents.
 
-- **Structured intelligence reports** — Auto-generate structured reports with metrics, key insights, trends, entities, risks, and opportunities. Scoped per document or across all data.
+- **Dynamic filter generation**
+  AI-inferred filter dimensions from content — not hardcoded. Filters scope chat queries automatically.
 
-- **Multi-modal information processing** — Ingest and extract knowledge from multiple content types: PDF, DOCX, images, JSON, CSV, TXT. Supports scanned images, handwritten forms, and text-based tables via Azure Content Understanding.
+- **Bring Your Own Index**
+  Connect an existing Azure AI Search index and immediately chat with it — no upload needed.
 
-- **Dynamic filter generation** — GPT-4o infers filter dimensions from content (not hardcoded). Filters persist in Azure SQL and scope chat queries.
-
-- **Enrichment caching** — SHA-256 content hashing prevents repeated GPT-4o calls on re-upload of the same document.
-
-- **Bring Your Own Index** — Connect an existing Azure AI Search index and immediately chat with it and generate insights — no upload needed.
+- **AI Agent integration**
+  Azure AI Foundry agents with Azure AI Search tools for grounded question-answering.
 
 </details>
 
@@ -80,124 +68,90 @@ If you'd like to customize the solution accelerator, here are some common areas 
 
 ## Quick Deploy
 
-### How to Install or Deploy
+### Prerequisites
 
-#### Prerequisites
+- Azure subscription with permissions to create resource groups, resources, and assign roles
+- [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) >= 1.18.0
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for container-based deployment)
 
-- Python 3.13+
-- Node.js 18+
-- Azure subscription with the services listed below
-- ODBC Driver 18 for SQL Server (for Azure SQL)
+### How to Deploy
 
-#### Environment Variables
+1. Clone the repository and navigate to the project root
 
-Create a `.env` file in the project root:
+2. Login to Azure:
+   ```bash
+   azd auth login
+   ```
 
-```env
-# Azure OpenAI
-AZURE_OPENAI_ENDPOINT=https://your-openai.openai.azure.com/
-AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4o
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-ada-002
+3. Deploy all resources:
+   ```bash
+   azd up
+   ```
 
-# Azure AI Search
-AZURE_SEARCH_ENDPOINT=https://your-search.search.windows.net
-AZURE_SEARCH_INDEX_NAME=knowledge-mining-index
+4. Create the AI agent:
+   ```bash
+   ./scripts/setup-agent.ps1
+   ```
 
-# Azure Content Understanding
-AZURE_CONTENT_UNDERSTANDING_ENDPOINT=https://your-cu.cognitiveservices.azure.com/
+5. (Optional) Load sample data:
+   ```bash
+   ./scripts/seed-data.ps1
+   ```
 
-# Azure Storage
-AZURE_STORAGE_ACCOUNT=yourstorageaccount
+6. (Optional) Configure authentication:
+   - Go to Azure Portal → App Service → **Authentication** → **Add identity provider** → **Microsoft**
 
-# Azure SQL
-AZURE_SQL_SERVER=your-server.database.windows.net
-AZURE_SQL_DATABASE=km-db
+> ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
 
-# Azure Cosmos DB (optional — for chat persistence)
-AZURE_COSMOS_ENDPOINT=https://your-cosmos.documents.azure.com:443/
-AZURE_COSMOS_DATABASE=km-db
+### Local Development
 
-# Microsoft Entra ID
-AZURE_AD_TENANT_ID=your-tenant-id
-AZURE_AD_CLIENT_ID=your-client-id
-
-# AI Foundry (optional — for agent scripts)
-AZURE_AI_AGENT_ENDPOINT=https://your-foundry.services.ai.azure.com/api/projects/your-project
-AZURE_AI_AGENT_MODEL=gpt-4o
-AZURE_AI_SEARCH_CONNECTION_NAME=your-search-connection
-```
-
-#### Backend
-
+**Backend:**
 ```bash
 python -m venv venv
-venv\Scripts\activate            # Windows
+venv\Scripts\activate
 pip install -r backend/app/requirements.txt
-pip install pyodbc azure-cosmos azure-ai-projects
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-#### Frontend
-
+**Frontend:**
 ```bash
 cd frontend
 npm install
 npm start
 ```
 
-App runs at `http://localhost:3000`, API at `http://localhost:8000`.
-
-#### Docker
-
+**Docker:**
 ```bash
 docker-compose up --build
 ```
 
 ### Prerequisites and Costs
 
-To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create resource groups and resources.
+Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a region where the following services are available.
 
 | Service | Purpose | Pricing |
 |---------|---------|---------|
-| **Azure OpenAI Service** | Chat experience/RAG, data processing for extraction and summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/) |
-| **Azure AI Search** | Processed document information stored in a vectorized search index | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
-| **Azure Content Understanding** | OCR and document extraction from PDF, DOCX, images | [Pricing](https://azure.microsoft.com/pricing/details/ai-document-intelligence/) |
-| **Azure Blob Storage** | Storage of document files being processed | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
-| **Azure SQL Database** | Documents, files, filter schemas, enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/) |
-| **Azure Cosmos DB** | Chat history and insights cache storage | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/) |
-
-> **Important**: To avoid unnecessary costs, remember to take down your resources if they're no longer in use.
-
-### Azure RBAC
-
-Assign these roles to your identity (or managed identity):
-
-| Resource | Role |
-|----------|------|
-| Azure OpenAI | Cognitive Services OpenAI User |
-| Azure AI Search | Search Index Data Contributor |
-| Azure Blob Storage | Storage Blob Data Contributor |
-| Azure SQL | db_datareader + db_datawriter |
-| Azure Cosmos DB | Cosmos DB Built-in Data Contributor |
-| Content Understanding | Cognitive Services User |
+| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat, summarization, entity extraction using GPT models | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
+| [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Vector-based semantic search for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
+| [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
+| [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Stores uploaded documents and processing assets | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
+| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Structured data, metadata, and enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
+| [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Chat history storage (optional) | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
 
 ---
 
 ## Business Use Case
 
-In large, enterprise organizations it's difficult and time-consuming to analyze large volumes of data. This solution accelerator addresses challenges like:
+In large organizations, it's difficult and time-consuming to analyze large volumes of unstructured data. Traditional tools limit interaction with data, making it hard to surface patterns or ask follow-up questions without extensive manual exploration.
 
-- Analyzing large volumes of documents in a timely manner, limiting quick decision-making
-- Inability to compare and synthesize documents, limiting contextual relevance of insights
-- Inability to extract information from charts, tables, and handwritten content, leading to incomplete analysis
+This solution addresses those challenges by enabling:
 
-**The goal of this solution accelerator is to:**
+- **Natural language interaction** — Ask questions about your documents using conversational chat
+- **Automated extraction** — AI extracts entities, relationships, and key information from unstructured content
+- **Interactive exploration** — Dynamic filters and structured insights help users navigate large datasets
+- **Faster decision-making** — Summarized, contextualized data reduces manual analysis effort
 
-- Automate document ingestion and extraction to avoid missing critical information
-- Leverage AI-extracted data to make better-informed decisions
-- Accelerate analysis while reducing manual effort
-
-> **Note**: The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+> ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
 
 ---
 
@@ -206,59 +160,67 @@ In large, enterprise organizations it's difficult and time-consuming to analyze 
 ### Project Structure
 
 ```
+infra/                              # Azure Bicep infrastructure
+├── main.bicep                      # Main deployment template
+├── main.parameters.json            # Parameter defaults
+└── modules/                        # Reusable Bicep modules
+
 backend/
-├── app/main.py                        # FastAPI app, router registration
-├── config.py                          # Settings from .env
+├── app/main.py                     # FastAPI application
+├── config.py                       # Settings from .env
 ├── modules/
-│   ├── ingestion/                     # Upload, delete, BYOI, filter endpoints
-│   ├── document_intelligence/         # CU extraction + GPT-4o enrichment (with SQL cache)
-│   ├── rag/                           # Chat: AI Search → GPT-4o (+ external index)
-│   ├── processing/                    # Insights report generation
-│   ├── embeddings/                    # Embedding generation
-│   └── security/                      # Entra ID JWT validation, RBAC
-├── storage/
-│   ├── sql_service.py                 # Azure SQL persistence (primary)
-│   ├── cosmos_service.py              # Cosmos DB persistence (chat + cache)
-│   └── document_store.py              # In-memory document store
-└── scripts/
-    ├── create_agent.py                # Create AI Foundry agent
-    └── test_agent.py                  # Interactive agent chat CLI
+│   ├── ingestion/                  # Document upload and indexing
+│   ├── document_intelligence/      # Content Understanding extraction
+│   ├── rag/                        # Chat: AI Search → GPT-4o
+│   ├── processing/                 # Insights report generation
+│   ├── embeddings/                 # Embedding generation
+│   └── security/                   # Entra ID authentication
+└── storage/                        # SQL, Cosmos DB, blob persistence
 
 frontend/
 ├── src/
-│   ├── api/client.ts                  # Axios client with Entra ID token
-│   ├── pages/
-│   │   ├── Home.tsx                   # Upload / Connect / Demo launchpad
-│   │   ├── Explore.tsx                # Filters + Chat + Documents (3-column)
-│   │   └── Insights.tsx               # AI intelligence report
-│   ├── components/
-│   │   ├── Layout.tsx                 # App shell (header + sidebar)
-│   │   └── ChatInterface.tsx          # Reusable chat component
-│   └── context/                       # App state + user role management
+│   ├── pages/                      # Home, Explore, Insights pages
+│   ├── components/                 # Reusable UI components
+│   └── api/                        # Backend API client
+
+scripts/
+├── setup-agent.ps1                 # Create AI Foundry agents
+├── seed-data.ps1                   # Load sample data
+├── deploy.ps1                      # Deployment helper
+└── teardown.ps1                    # Resource cleanup
 ```
 
 ### Security Guidelines
 
-This solution uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for authentication between Azure services. All connections use Azure AD token-based auth (passwordless).
+This solution uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources, eliminating the need for hard-coded credentials.
 
-To ensure best practices:
+To maintain strong security practices:
 - Enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) in your repository
-- Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/)
-- Use Virtual Networks for production deployments
+- Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/) to monitor Azure resources
+- Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) for production deployments
 
+---
+
+## Provide Feedback
+
+Have questions, find a bug, or want to request a feature? [Submit a new issue](../../issues) on this repo.
+
+---
+
+## Responsible AI Transparency FAQ
+
+Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
 
 ---
 
 ## Disclaimers
 
-This release is an artificial intelligence (AI) system that generates text in response to user queries. The system is designed to answer questions **only** from documents that have been uploaded to the platform. It does not search the web, use external data sources, or generate responses from its general training data. If the uploaded documents do not contain sufficient information to answer a question, the system will indicate that the answer is not available.
+This release is an artificial intelligence (AI) system that generates text in response to user queries. The system is designed to answer questions **only** from documents that have been uploaded to the platform. It does not search the web, use external data sources, or generate responses from its general training data.
 
-While the system is designed to ground all responses in the uploaded documents, AI-generated outputs may occasionally contain inaccuracies or misinterpretations of the source material. Users are responsible for verifying the accuracy and suitability of any content generated by the system for their intended purposes.
+While the system is designed to ground all responses in the uploaded documents, AI-generated outputs may occasionally contain inaccuracies. Users are responsible for verifying the accuracy and suitability of any content generated by the system.
 
-This release is intended as a proof of concept only, and is not a finished or polished product. It is not intended for commercial use or distribution, and is subject to change or discontinuation without notice.
+To the extent that the Software includes components or code used in or derived from Microsoft products or services, you must also comply with the Product Terms applicable to such Microsoft Products and Services.
 
----
+You must also comply with all domestic and international export laws and regulations that apply to the Software. For further information on export restrictions, visit https://aka.ms/exporting.
 
-## License
-
-MIT License
+BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY.
