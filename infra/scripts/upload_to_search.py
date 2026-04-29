@@ -4,7 +4,7 @@ import json
 
 # Load .env
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+project_root = os.path.dirname(os.path.dirname(script_dir))
 env_path = os.path.join(project_root, ".env")
 
 if os.path.exists(env_path):

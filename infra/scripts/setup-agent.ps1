@@ -15,7 +15,7 @@ Write-Host "  Knowledge Mining - Agent Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$envFile = Join-Path $PSScriptRoot ".." ".env"
+$envFile = Join-Path $PSScriptRoot ".." ".." ".env"
 if (-not (Test-Path $envFile)) {
     Write-Host "WARNING: .env file not found. Trying azd env values..." -ForegroundColor Yellow
 
@@ -29,7 +29,7 @@ if (-not (Test-Path $envFile)) {
 }
 
 # Activate venv if available
-$venvPath = Join-Path $PSScriptRoot ".." "venv" "Scripts" "Activate.ps1"
+$venvPath = Join-Path $PSScriptRoot ".." ".." "venv" "Scripts" "Activate.ps1"
 if (Test-Path $venvPath) {
     & $venvPath
 }
