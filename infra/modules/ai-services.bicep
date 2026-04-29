@@ -305,7 +305,7 @@ output location string = useExistingService ? cognitiveServiceExisting!.location
 output privateEndpoints privateEndpointOutputType[] = !empty(projectName) ? (useExistingService ? existing_cognitive_service_dependencies!.outputs.privateEndpoints : cognitive_service_dependencies!.outputs.privateEndpoints) : []
 
 import { aiProjectOutputType } from './project.bicep'
-output aiProjectInfo aiProjectOutputType = !empty(projectName) ? (useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo) : { name: '', apiEndpoint: '' }
+output aiProjectInfo aiProjectOutputType = !empty(projectName) ? (useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo) : { name: '', resourceId: '', apiEndpoint: '', aiprojectSystemAssignedMIPrincipalId: '' }
 
 // ================ //
 // Definitions      //
