@@ -11,12 +11,11 @@ By default this template will use the environment name as the prefix to prevent 
 | ----------------------------------------- | ------- | ------------------------ | -------------------------------------------------------------------------- |
 | `AZURE_LOCATION`                          | string  | ` `            | Sets the Azure region for resource deployment.                             |
 | `AZURE_ENV_NAME`                          | string  | `env_name`               | Sets the environment name prefix for all Azure resources.                  |
-| `AZURE_ENV_CU_LOCATION`    | string  | `swedencentral`          | Specifies the region for content understanding resources.                  |
 | `AZURE_ENV_AI_SERVICE_LOCATION`                | string  | `eastus2`                | Specifies the Azure AI service location.                                        |
 | `AZURE_ENV_SECONDARY_LOCATION`                | string  | `eastus2`                | Specifies a secondary Azure region.                                        |
 | `AZURE_ENV_MODEL_DEPLOYMENT_TYPE`     | string  | `GlobalStandard`         | Defines the model deployment type (allowed: `Standard`, `GlobalStandard`). |
-| `AZURE_ENV_GPT_MODEL_NAME`          | string  | `gpt-4o-mini`            | Specifies the GPT model name (e.g., `gpt-4`, `gpt-4o-mini`).               |
-| `AZURE_ENV_GPT_MODEL_VERSION`                 | string  | `2024-07-18`             | Sets the Azure model version (allowed: `2024-08-06`, etc.).                |
+| `AZURE_ENV_GPT_MODEL_NAME`          | string  | `gpt-4.1`            | Specifies the GPT model name (e.g., `gpt-4.1`, `gpt-4o-mini`, etc.).               |
+| `AZURE_ENV_GPT_MODEL_VERSION`                 | string  | `2025-04-14`             | Sets the Azure model version (e.g., `2025-04-14`, etc.).                |
 | `AZURE_ENV_GPT_MODEL_CAPACITY` | integer | `30`                     | Sets the GPT model capacity.                                               |
 | `AZURE_ENV_EMBEDDING_MODEL_NAME`            | string  | `text-embedding-3-small` | Sets the name of the embedding model to use.                               |
 | `AZURE_ENV_IMAGE_TAG`                      | string  | `latest_afv2`        | Sets the image tag (`latest_afv2`, `dev`, `hotfix`, etc.).   |

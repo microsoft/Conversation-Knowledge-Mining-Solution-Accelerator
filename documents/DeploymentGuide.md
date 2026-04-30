@@ -394,7 +394,7 @@ bash ./infra/scripts/process_sample_data.sh \
   <Storage-Account-Name> <Storage-Container-Name> \
   <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
   <AI-Search-Name> <Search-Endpoint> \
-  <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+  <AI-Foundry-Resource-ID> \
   <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
   <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Use-Case> <Solution-Name>
 ```
@@ -404,9 +404,9 @@ bash ./infra/scripts/process_sample_data.sh \
 - **Storage Parameters:** Storage account name and container name
 - **SQL Parameters:** SQL server name, database name, backend user managed identity client ID and display name
 - **Search Parameters:** AI Search service name and endpoint
-- **AI Foundry Parameters:** AI Foundry resource ID and Content Understanding Foundry resource ID
+- **AI Foundry Parameters:** AI Foundry resource ID
 - **OpenAI Parameters:** OpenAI endpoint, embedding model name, and deployment model name
-- **Content Understanding Parameters:** CU endpoint, AI agent endpoint, CU API version
+- **Content Understanding Parameters:** CU endpoint, CU API version, AI agent endpoint
 - **Use Case:** Either `telecom` or `IT_helpdesk`
 - **Solution Parameters:** Solution deployment name
 

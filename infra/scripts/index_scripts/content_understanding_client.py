@@ -40,6 +40,12 @@ class AzureContentUnderstandingClient:
     def _get_analyze_url(self, endpoint, api_version, analyzer_id):
         return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyze?api-version={api_version}"
 
+    def _get_analyze_binary_url(self, endpoint, api_version, analyzer_id):
+        return f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}:analyzeBinary?api-version={api_version}"
+
+    def _get_defaults_url(self, endpoint, api_version):
+        return f"{endpoint}/contentunderstanding/defaults?api-version={api_version}"
+
     def _get_training_data_config(
         self, storage_container_sas_url, storage_container_path_prefix
     ):
@@ -115,6 +121,8 @@ class AzureContentUnderstandingClient:
         analyzer_template_path: str = "",
         training_storage_container_sas_url: str = "",
         training_storage_container_path_prefix: str = "",
+        completion_model: str = "",
+        embedding_model: str = "",
     ):
         """
         Initiates the creation of an analyzer with the given ID and schema.
@@ -125,6 +133,8 @@ class AzureContentUnderstandingClient:
             analyzer_template_path (str, optional): The file path to the analyzer schema JSON file. Defaults to "".
             training_storage_container_sas_url (str, optional): The SAS URL for the training storage container. Defaults to "".
             training_storage_container_path_prefix (str, optional): The path prefix within the training storage container. Defaults to "".
+            completion_model (str, optional): The completion model deployment name for the analyzer. Defaults to "".
+            embedding_model (str, optional): The embedding model deployment name for the analyzer. Defaults to "".
 
         Raises:
             ValueError: If neither `analyzer_template` nor `analyzer_template_path` is provided.
@@ -144,10 +154,16 @@ class AzureContentUnderstandingClient:
             training_storage_container_sas_url
             and training_storage_container_path_prefix
         ):
-            analyzer_template["trainingData"] = self._get_training_data_config(
+            analyzer_template["knowledgeSources"] = self._get_training_data_config(
                 training_storage_container_sas_url,
                 training_storage_container_path_prefix,
             )
+
+        if completion_model and embedding_model:
+            analyzer_template["models"] = {
+                "completion": completion_model,
+                "embedding": embedding_model,
+            }
 
         headers = {"Content-Type": "application/json"}
         headers.update(self._headers)
@@ -208,7 +224,7 @@ class AzureContentUnderstandingClient:
                     data = file.read()
                 headers = {"Content-Type": "application/octet-stream"}
             elif "https://" in file_location or "http://" in file_location:
-                data = {"url": file_location}
+                data = {"inputs": [{"url": file_location}]}
                 headers = {"Content-Type": "application/json"}
             else:
                 raise ValueError("File location must be a valid path or URL.")
@@ -224,7 +240,7 @@ class AzureContentUnderstandingClient:
             )
         else:
             response = requests.post(
-                url=self._get_analyze_url(
+                url=self._get_analyze_binary_url(
                     self._endpoint, self._api_version, analyzer_id
                 ),
                 headers=headers,
@@ -237,15 +253,15 @@ class AzureContentUnderstandingClient:
         )
         return response
 
-    def get_image_from_analyze_operation(
-        self, analyze_response: Response, image_id: str
+    def get_file_from_analyze_operation(
+        self, analyze_response: Response, file_path: str
     ):
-        """Retrieves an image from the analyze operation using the image ID.
+        """Retrieves a file from the analyze operation using the file path.
         Args:
             analyze_response (Response): The response object from the analyze operation.
-            image_id (str): The ID of the image to retrieve.
+            file_path (str): The path of the file to retrieve.
         Returns:
-            bytes: The image content as a byte string.
+            bytes: The file content as a byte string.
         """
         operation_location = analyze_response.headers.get("operation-location", "")
         if not operation_location:
@@ -253,11 +269,11 @@ class AzureContentUnderstandingClient:
                 "Operation location not found in the analyzer response header."
             )
         operation_location = operation_location.split("?api-version")[0]
-        image_retrieval_url = (
-            f"{operation_location}/images/{image_id}?api-version={self._api_version}"
+        file_retrieval_url = (
+            f"{operation_location}/files/{file_path}?api-version={self._api_version}"
         )
         try:
-            response = requests.get(url=image_retrieval_url, headers=self._headers)
+            response = requests.get(url=file_retrieval_url, headers=self._headers)
             response.raise_for_status()
 
             assert response.headers.get("Content-Type") == "image/jpeg"
@@ -320,3 +336,39 @@ class AzureContentUnderstandingClient:
                     f"Request {operation_location.split('/')[-1].split('?')[0]} in progress ..."
                 )
             time.sleep(polling_interval_seconds)
+
+    def set_defaults(self, deployment_model: str, embedding_model: str):
+        """
+        Sets the default model deployments for the Content Understanding resource.
+        Must be called before creating analyzers in GA API.
+
+        Args:
+            deployment_model (str): The deployment name for the generative model.
+            embedding_model (str): The deployment name for the embedding model.
+
+        Returns:
+            requests.Response: The response object from the PATCH request.
+
+        Raises:
+            requests.exceptions.HTTPError: If the HTTP request fails.
+        """
+        headers = {"Content-Type": "application/merge-patch+json"}
+        headers.update(self._headers)
+
+        payload = {
+            "modelDeployments": {
+                deployment_model: deployment_model,
+                embedding_model: embedding_model,
+            }
+        }
+
+        response = requests.patch(
+            url=self._get_defaults_url(self._endpoint, self._api_version),
+            headers=headers,
+            json=payload,
+        )
+        response.raise_for_status()
+        self._logger.info(
+            f"Defaults set: deployment_model={deployment_model}, embedding_model={embedding_model}"
+        )
+        return response

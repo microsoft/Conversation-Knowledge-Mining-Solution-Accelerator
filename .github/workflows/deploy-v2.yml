@@ -39,7 +39,6 @@ on:
           - 'australiaeast'
           - 'eastus'
           - 'eastus2'
-          - 'francecentral'
           - 'japaneast'
           - 'swedencentral'
           - 'uksouth'
