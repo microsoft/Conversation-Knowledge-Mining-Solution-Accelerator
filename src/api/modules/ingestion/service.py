@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import os
+import threading
 from typing import Optional
 
 from src.api.config import get_settings
@@ -27,6 +28,32 @@ class IngestionService:
         self._uploaded_files: dict[str, UploadedFile] = {}
         self._filter_schema: FilterSchema = FilterSchema()
         self._loaded_from_db = False
+        self._processing_locks: dict[str, threading.Lock] = {}
+        self._locks_lock = threading.Lock()  # protects _processing_locks dict
+
+    def acquire_processing_lock(self, file_id: str) -> bool:
+        """Try to acquire a per-document lock. Returns False if already locked."""
+        with self._locks_lock:
+            if file_id not in self._processing_locks:
+                self._processing_locks[file_id] = threading.Lock()
+            lock = self._processing_locks[file_id]
+        return lock.acquire(blocking=False)
+
+    def release_processing_lock(self, file_id: str):
+        """Release a per-document lock."""
+        with self._locks_lock:
+            lock = self._processing_locks.get(file_id)
+        if lock:
+            try:
+                lock.release()
+            except RuntimeError:
+                pass  # Already released
+
+    def is_already_processed(self, file_id: str) -> bool:
+        """Check if a file has already been successfully processed."""
+        self._ensure_loaded()
+        f = self._uploaded_files.get(file_id)
+        return f is not None and f.status == "ready"
 
     def _ensure_loaded(self):
         """Load persisted data from Azure SQL on first access."""
@@ -341,6 +368,14 @@ class IngestionService:
     def filter_schema(self) -> FilterSchema:
         self._ensure_loaded()
         return self._filter_schema
+
+    def _update_file_status(self, file_id: str, status: str, error: str = ""):
+        """Update the processing status of an uploaded file."""
+        self._ensure_loaded()
+        if file_id in self._uploaded_files:
+            f = self._uploaded_files[file_id]
+            self._uploaded_files[file_id] = f.copy(update={"status": status, "error": error})
+            self._persist_file(self._uploaded_files[file_id])
 
     def load_json_file(self, file_path: str) -> IngestionResult:
         self._ensure_loaded()

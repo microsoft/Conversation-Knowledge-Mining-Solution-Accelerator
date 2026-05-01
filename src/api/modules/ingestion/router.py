@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import tempfile
 from typing import Optional
@@ -6,11 +7,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 
 from src.api.modules.ingestion.service import ingestion_service
-from src.api.modules.ingestion.models import Document, IngestionResult, IngestionStats, UploadedFile, FilterSchema, QuickInsights
+from src.api.modules.ingestion.models import Document, IngestionResult, IngestionStats, UploadedFile, FilterSchema
 from src.api.modules.security.auth import get_current_user, require_role
 from src.api.modules.security.models import User
-
 from src.api.utils.constants import DOCUMENT_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,12 +63,13 @@ async def upload_document(
     user: User = Depends(require_role("contributor")),
 ):
     """Upload one or more PDF, DOCX, image, or text files.
-    Text extraction happens synchronously; enrichment runs in background."""
-    import io
-    from src.api.modules.document_intelligence.service import content_understanding_service
+    Files are saved to blob storage immediately; extraction and enrichment run via queue."""
+    from datetime import datetime
+    from src.api.modules.ingestion.azure_storage import azure_storage_service
+    from src.api.modules.ingestion.queue_service import queue_service, EXTRACTION_QUEUE
 
-    all_data: list[dict] = []
-
+    # Validate all files and read their content
+    file_contents: list[tuple[str, str, bytes]] = []
     for file in files:
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -75,25 +78,74 @@ async def upload_document(
                 status_code=400,
                 detail=f"Unsupported file type: .{ext}. Accepted: {', '.join(sorted(DOCUMENT_EXTENSIONS))}",
             )
-
         content = await file.read()
+        file_contents.append((filename, ext, content))
 
-        # Extract text (synchronous — required to create the document)
+    # Save raw files to blob storage and create "processing" file records
+    for filename, ext, content in file_contents:
+        file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
+
+        # Skip if this document is already processed or currently processing
+        ingestion_service._ensure_loaded()
+        existing = ingestion_service._uploaded_files.get(file_id)
+        if existing and existing.status in ("ready", "processing"):
+            logger.info(f"Skipping {filename}: already {existing.status}")
+            continue
+
+        # Upload raw file to blob storage
         try:
-            extracted = content_understanding_service.analyze(
-                file=io.BytesIO(content), filename=filename
-            )
+            azure_storage_service.upload_raw_file(file_id, filename, content)
         except Exception as e:
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Content extraction failed for {filename}: {e}")
+            logger.warning(f"Raw blob upload failed for {filename}: {e}")
+
+        # Create a placeholder file record
+        uploaded_file = UploadedFile(
+            id=file_id,
+            filename=filename,
+            doc_count=0,
+            summary="Processing...",
+            keywords=[],
+            filter_values={},
+            doc_ids=[],
+            uploaded_at=datetime.utcnow().isoformat() + "Z",
+            status="processing",
+        )
+        ingestion_service._ensure_loaded()
+        ingestion_service._uploaded_files[file_id] = uploaded_file
+        ingestion_service._persist_file(uploaded_file)
+
+        # Enqueue for Stage 1 (extraction) — falls back to in-process if queue unavailable
+        message = {"file_id": file_id, "filename": filename, "ext": ext, "blob_path": f"raw/{file_id}/{filename}"}
+        if not queue_service.available or not queue_service.enqueue(EXTRACTION_QUEUE, message):
+            logger.info(f"Queue unavailable, falling back to background task for {filename}")
+            background_tasks.add_task(_process_single_document, file_id, filename, ext, content)
+
+    return IngestionResult(
+        total_loaded=0,
+        by_type={ext: 1 for _, ext, _ in file_contents},
+        sample_ids=[fname.rsplit(".", 1)[0].replace(" ", "_") for fname, _, _ in file_contents],
+    )
+
+
+def _process_single_document(file_id: str, filename: str, ext: str, content: bytes):
+    """Process a single document — used as fallback when queue is unavailable.
+    Runs the full pipeline: extract → chunk → embed → index → enrich."""
+    import io
+    from src.api.modules.document_intelligence.service import content_understanding_service
+    from src.api.modules.ingestion.chunking import chunk_text
+
+    try:
+        # Stage 1: Extract
+        extracted = content_understanding_service.analyze(
+            file=io.BytesIO(content), filename=filename
+        )
 
         if not extracted.markdown.strip():
-            raise HTTPException(status_code=400, detail=f"No text could be extracted from {filename}")
+            ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")
+            return
 
-        doc_id = filename.rsplit(".", 1)[0].replace(" ", "_")
-        all_data.append({
-            "id": doc_id,
+        doc_data = {
+            "id": file_id,
             "type": ext,
             "text": extracted.markdown,
             "metadata": {
@@ -101,26 +153,39 @@ async def upload_document(
                 "source_type": ext,
                 "page_count": str(extracted.page_count),
             },
-        })
+        }
 
-    # Ingest each document individually (fast — just in-memory + SQL persist)
-    total_loaded = 0
-    for doc_data in all_data:
-        doc_filename = doc_data.get("metadata", {}).get("source_file", "document")
-        result = ingestion_service.load_json_data([doc_data], filename=doc_filename)
-        total_loaded += result.total_loaded
+        ingestion_service.load_json_data([doc_data], filename=filename)
 
-    # Heavy work in background: AI enrichment, search indexing, pipeline
-    for doc_data in all_data:
-        doc_filename = doc_data.get("metadata", {}).get("source_file", "document")
-        background_tasks.add_task(ingestion_service.finalize_ingestion, [doc_data], doc_filename)
-    background_tasks.add_task(_trigger_auto_pipeline)
+        # Stage 2: Chunk + Embed + Index
+        chunks = chunk_text(extracted.markdown)
+        try:
+            from src.api.modules.embeddings.service import EmbeddingsService
+            from src.api.modules.ingestion.azure_storage import azure_storage_service
 
-    return IngestionResult(
-        total_loaded=total_loaded,
-        by_type={d.get("type", "unknown"): 1 for d in all_data},
-        sample_ids=[d["id"] for d in all_data[:5]],
-    )
+            emb_service = EmbeddingsService()
+            embeddings = []
+            for chunk in chunks:
+                try:
+                    emb = emb_service.generate_embedding(chunk)
+                    embeddings.append(emb.embedding)
+                except Exception:
+                    embeddings.append([0.0] * 1536)
+
+            azure_storage_service.index_chunks(
+                doc_id=file_id, chunks=chunks, embeddings=embeddings,
+                metadata=doc_data.get("metadata", {}),
+            )
+        except Exception as e:
+            logger.warning(f"Chunk/embed/index failed (non-blocking): {e}")
+
+        # Enrich
+        ingestion_service.finalize_ingestion([doc_data], filename)
+        ingestion_service._update_file_status(file_id, "ready")
+
+    except Exception as e:
+        logger.error(f"Processing failed for {filename}: {e}")
+        ingestion_service._update_file_status(file_id, "failed", error=str(e))
 
 
 @router.post("/upload/csv", response_model=IngestionResult)

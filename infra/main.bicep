@@ -195,6 +195,7 @@ module sql 'modules/sql.bicep' = {
     databaseName: '${abbrs.databases.sqlDatabase}${resourceToken}'
     location: location
     tags: tags
+    adminObjectId: deployer().objectId
   }
 }
 
@@ -239,6 +240,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     siteConfig: {
       linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : 'PYTHON|3.13'
       appCommandLine: !empty(backendContainerRegistryHostname) ? '' : 'pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000'
+      acrUseManagedIdentityCreds: !empty(backendContainerRegistryHostname)
       minTlsVersion: '1.2'
     }
     configs: [
@@ -263,6 +265,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
           API_APP_NAME: backendWebSiteResourceName
+          APP_FRONTEND_HOSTNAME: '${frontendWebSiteResourceName}.azurewebsites.net'
           APP_ENV: 'Prod'
         }
       }
@@ -287,6 +290,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     siteConfig: {
       linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : 'NODE|22-lts'
       appCommandLine: !empty(frontendContainerRegistryHostname) ? '' : 'pm2 serve /home/site/wwwroot --no-daemon --spa --port 8080'
+      acrUseManagedIdentityCreds: !empty(frontendContainerRegistryHostname)
       minTlsVersion: '1.2'
     }
     configs: [
@@ -313,6 +317,8 @@ module roles 'modules/roles.bicep' = {
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
     cuName: cuResourceName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
+    frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
+    acrName: !empty(backendContainerRegistryHostname) ? split(backendContainerRegistryHostname, '.')[0] : ''
     deployerPrincipalId: deployer().objectId
   }
 }

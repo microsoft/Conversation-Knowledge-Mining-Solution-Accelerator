@@ -1,29 +1,49 @@
 import axios from "axios";
-import { PublicClientApplication } from "@azure/msal-browser";
-import { msalConfig, loginRequest } from "../auth/msalConfig";
 
-const API_BASE = process.env.REACT_APP_API_BASE || "http://localhost:8000/api";
+const API_BASE = process.env.REACT_APP_API_BASE_URL || "/api";
 
 const apiClient = axios.create({
   baseURL: API_BASE,
   headers: { "Content-Type": "application/json" },
 });
 
-// Acquire AAD token silently and attach to every request
-apiClient.interceptors.request.use(async (config) => {
-  const msalInstance = new PublicClientApplication(msalConfig);
-  await msalInstance.initialize();
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    try {
-      const response = await msalInstance.acquireTokenSilent({
-        ...loginRequest,
-        account: accounts[0],
-      });
-      config.headers.Authorization = `Bearer ${response.accessToken}`;
-    } catch {
-      // Token acquisition failed — request will proceed unauthenticated
+// Fetch user info from EasyAuth and cache userId
+let _userId: string | null = null;
+
+async function getUserId(): Promise<string> {
+  if (_userId) return _userId;
+  const cached = localStorage.getItem("userId");
+  if (cached) {
+    _userId = cached;
+    return cached;
+  }
+  try {
+    const resp = await fetch(`${window.location.origin}/.auth/me`);
+    if (resp.ok) {
+      const data = await resp.json();
+      const claims = data?.[0]?.user_claims || [];
+      const oid = claims.find(
+        (c: any) =>
+          c.typ === "http://schemas.microsoft.com/identity/claims/objectidentifier" ||
+          c.typ === "oid"
+      );
+      if (oid?.val) {
+        _userId = oid.val;
+        localStorage.setItem("userId", oid.val);
+        return oid.val;
+      }
     }
+  } catch {
+    // EasyAuth not available (local dev)
+  }
+  return "default";
+}
+
+// Attach userId header to every request
+apiClient.interceptors.request.use(async (config) => {
+  const userId = await getUserId();
+  if (userId) {
+    config.headers["X-Ms-Client-Principal-Id"] = userId;
   }
   return config;
 });
@@ -54,7 +74,7 @@ export const uploadDocument = (files: File | File[]) => {
   fileArray.forEach((f) => formData.append("files", f));
   return apiClient.post("/ingestion/upload/document", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    timeout: 300000, // CU extraction can take time for multiple files
+    timeout: 60000,
   });
 };
 

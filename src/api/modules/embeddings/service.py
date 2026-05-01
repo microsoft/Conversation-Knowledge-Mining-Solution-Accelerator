@@ -12,6 +12,10 @@ from src.api.modules.ingestion.service import ingestion_service
 class EmbeddingsService:
     """Generate embeddings via Azure OpenAI and manage a local vector store."""
 
+    # Class-level cache: content_hash → embedding vector
+    # Survives across instances, avoids re-embedding identical chunks
+    _embedding_cache: dict[str, list[float]] = {}
+
     def __init__(self):
         self._vector_store: dict[str, dict] = {}
         self._client: Optional[AzureOpenAI] = None
@@ -29,6 +33,20 @@ class EmbeddingsService:
         return self._client
 
     def generate_embedding(self, text: str) -> EmbeddingResponse:
+        import hashlib
+        cache_key = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+        # Return cached embedding if we've seen this exact text before
+        if cache_key in self._embedding_cache:
+            embedding = self._embedding_cache[cache_key]
+            settings = get_settings()
+            return EmbeddingResponse(
+                text=text[:200],
+                embedding=embedding,
+                model=settings.azure_openai_embedding_deployment,
+                dimensions=len(embedding),
+            )
+
         settings = get_settings()
         client = self._get_client()
         response = client.embeddings.create(
@@ -36,6 +54,11 @@ class EmbeddingsService:
             model=settings.azure_openai_embedding_deployment,
         )
         embedding = response.data[0].embedding
+
+        # Cache for dedup (cap at 10k entries to limit memory)
+        if len(self._embedding_cache) < 10000:
+            self._embedding_cache[cache_key] = embedding
+
         return EmbeddingResponse(
             text=text[:200],
             embedding=embedding,

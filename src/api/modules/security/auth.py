@@ -1,117 +1,61 @@
-from typing import Optional
+import base64
+import json
+import logging
 
-import httpx
-from fastapi import APIRouter, Depends, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
-
+from fastapi import APIRouter, Depends, HTTPException, Request
 from src.api.config import get_settings
 from src.api.modules.security.models import User, UserInfo
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
-bearer_scheme = HTTPBearer(auto_error=False)
-
-# Cache for AAD JWKS keys
-_jwks_cache: dict = {}
 
 
-def _get_jwks(tenant_id: str) -> dict:
-    """Fetch and cache Microsoft Entra ID signing keys."""
-    if _jwks_cache.get(tenant_id):
-        return _jwks_cache[tenant_id]
-
-    openid_url = f"https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration"
-    with httpx.Client(timeout=10) as client:
-        config = client.get(openid_url).json()
-        jwks = client.get(config["jwks_uri"]).json()
-    _jwks_cache[tenant_id] = jwks
-    return jwks
+def _parse_principal(b64_principal: str) -> dict:
+    """Decode the base64-encoded X-Ms-Client-Principal header."""
+    try:
+        decoded = base64.b64decode(b64_principal)
+        return json.loads(decoded)
+    except Exception:
+        return {}
 
 
-def _decode_aad_token(token: str) -> dict:
-    """Validate and decode a Microsoft Entra ID access token."""
+async def get_current_user(request: Request) -> User:
+    """Extract user from EasyAuth headers. Falls back to dev user when not in Prod."""
     settings = get_settings()
-    tenant_id = settings.azure_ad_tenant_id
-    client_id = settings.azure_ad_client_id
+    is_prod = getattr(settings, "app_env", "").lower() == "prod"
 
-    # Get the key id from the token header
-    unverified_header = jwt.get_unverified_header(token)
-    kid = unverified_header.get("kid")
-    if not kid:
-        raise JWTError("Token header missing 'kid'")
+    # Read EasyAuth headers
+    principal_id = request.headers.get("X-Ms-Client-Principal-Id", "")
+    principal_name = request.headers.get("X-Ms-Client-Principal-Name", "")
+    principal_b64 = request.headers.get("X-Ms-Client-Principal", "")
 
-    # Find the matching signing key
-    jwks = _get_jwks(tenant_id)
-    rsa_key = {}
-    for key in jwks.get("keys", []):
-        if key["kid"] == kid:
-            rsa_key = {
-                "kty": key["kty"],
-                "kid": key["kid"],
-                "use": key["use"],
-                "n": key["n"],
-                "e": key["e"],
-            }
-            break
+    if principal_id and principal_id != "default":
+        # EasyAuth is active — extract user details
+        name = principal_name or ""
+        email = ""
+        roles: list[str] = []
 
-    if not rsa_key:
-        # Refresh JWKS cache and retry (key rotation)
-        _jwks_cache.pop(tenant_id, None)
-        jwks = _get_jwks(tenant_id)
-        for key in jwks.get("keys", []):
-            if key["kid"] == kid:
-                rsa_key = {"kty": key["kty"], "kid": key["kid"], "use": key["use"], "n": key["n"], "e": key["e"]}
-                break
-        if not rsa_key:
-            raise JWTError("Unable to find matching signing key")
+        if principal_b64:
+            claims = _parse_principal(principal_b64)
+            for claim in claims.get("claims", []):
+                if claim.get("typ") == "name":
+                    name = name or claim.get("val", "")
+                elif claim.get("typ") in ("preferred_username", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"):
+                    email = claim.get("val", "")
+                elif claim.get("typ") == "roles":
+                    roles.append(claim.get("val", ""))
 
-    payload = jwt.decode(
-        token,
-        rsa_key,
-        algorithms=["RS256"],
-        audience=client_id,
-        issuer=f"https://login.microsoftonline.com/{tenant_id}/v2.0",
-        options={"verify_at_hash": False},
-    )
-    return payload
+        return User(user_id=principal_id, name=name, email=email, roles=roles)
 
-
-async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
-) -> User:
-    """Validate the AAD bearer token. Falls back to dev user if AAD is not configured."""
-    settings = get_settings()
-
-    # Dev mode: if AAD is not configured, allow unauthenticated access
-    aad_configured = (
-        settings.azure_ad_tenant_id
-        and settings.azure_ad_client_id
-        and not settings.azure_ad_tenant_id.startswith("<")
-        and not settings.azure_ad_client_id.startswith("<")
-    )
-    if not aad_configured:
+    # Dev mode: no EasyAuth headers — allow anonymous access
+    if not is_prod:
         return User(user_id="dev-user", name="Developer", email="dev@local", roles=["Admin"])
 
-    if not credentials:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    try:
-        claims = _decode_aad_token(credentials.credentials)
-    except JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {e}")
-
-    return User(
-        user_id=claims.get("oid", claims.get("sub", "")),
-        name=claims.get("name", ""),
-        email=claims.get("preferred_username", claims.get("email", "")),
-        roles=claims.get("roles", []),
-    )
+    raise HTTPException(status_code=401, detail="Authentication required")
 
 
 def require_role(required_role: str):
-    """Dependency factory to enforce role-based access via AAD app roles."""
+    """Dependency factory to enforce role-based access."""
 
     async def role_checker(user: User = Depends(get_current_user)) -> User:
         role_hierarchy = {"reader": 0, "contributor": 1, "admin": 2}

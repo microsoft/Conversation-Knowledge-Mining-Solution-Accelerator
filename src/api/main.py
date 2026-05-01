@@ -4,6 +4,8 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.api.config import get_settings
+
 import src.api.capabilities  # noqa: F401 — register all capabilities on startup
 
 from src.api.modules.ingestion.router import router as ingestion_router
@@ -34,7 +36,6 @@ async def lifespan(app: FastAPI):
 
     # Auto-connect data sources from .env
     try:
-        from src.api.config import get_settings
         import json
         settings = get_settings()
 
@@ -85,7 +86,14 @@ async def lifespan(app: FastAPI):
         if "data_source" not in str(e).lower():
             logger.warning(f"Data source auto-connect failed: {e}")
 
+    # Start queue worker for async document processing
+    from src.api.modules.ingestion.queue_worker import queue_worker
+    queue_worker.start()
+
     yield
+
+    # Shutdown
+    queue_worker.stop()
 
 
 app = FastAPI(
@@ -97,7 +105,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

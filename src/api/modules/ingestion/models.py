@@ -47,6 +47,8 @@ class UploadedFile(BaseModel):
     filter_values: dict[str, list[str]] = {}  # dimension_id -> [values]
     doc_ids: list[str] = []  # IDs of documents belonging to this file
     uploaded_at: str = ""
+    status: str = "ready"  # "processing", "ready", "failed"
+    error: str = ""
 
 
 class FilterValue(BaseModel):

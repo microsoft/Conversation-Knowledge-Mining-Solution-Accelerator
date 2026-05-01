@@ -401,8 +401,10 @@ const Home: React.FC = () => {
         const res = await uploadJsonFile(files[0]);
         setUploadMsg(`${res.data.total_loaded} records loaded`);
       } else {
-        const res = await uploadDocument(files);
-        setUploadMsg(`${res.data.total_loaded} documents uploaded`);
+        await uploadDocument(files);
+        setUploadMsg(`${files.length} file(s) submitted — processing in background`);
+        // Navigate to Sources page so user can track progress
+        setTimeout(() => navigate("/sources"), 1500);
       }
       setUploadDone(true);
     } catch (err: unknown) {

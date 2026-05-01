@@ -52,7 +52,9 @@ const Insights: React.FC = () => {
       getUploadedFiles(),
       listDataSources(),
     ]).then(([filesRes, dsRes]) => {
-      setFiles(filesRes.status === "fulfilled" ? filesRes.value.data : []);
+      setFiles(filesRes.status === "fulfilled" 
+        ? filesRes.value.data.filter((f: any) => f.status === "ready" || !f.status) 
+        : []);
       setDataSources(
         dsRes.status === "fulfilled"
           ? dsRes.value.data.filter((s: any) => s.status === "connected")

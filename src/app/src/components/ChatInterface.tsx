@@ -68,26 +68,34 @@ const useStyles = makeStyles({
   },
   userMsg: {
     alignSelf: "flex-end",
-    backgroundColor: tokens.colorBrandBackground,
-    color: tokens.colorNeutralForegroundOnBrand,
-    padding: "12px 16px",
-    borderRadius: "16px 16px 4px 16px",
+    backgroundColor: "#e8ebf9",
+    color: "#1f2937",
+    padding: "10px 14px",
+    borderRadius: "12px",
     maxWidth: "82%",
     fontSize: tokens.fontSizeBase300,
     lineHeight: tokens.lineHeightBase300,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+  },
+  assistantMsgWrap: {
+    alignSelf: "flex-start",
+    maxWidth: "90%",
   },
   assistantMsg: {
-    alignSelf: "flex-start",
-    backgroundColor: tokens.colorNeutralBackground3,
-    padding: "14px 18px",
-    borderRadius: "16px 16px 16px 4px",
-    maxWidth: "82%",
+    backgroundColor: "#ffffff",
+    padding: "10px 14px",
+    borderRadius: "12px",
     fontSize: tokens.fontSizeBase300,
     lineHeight: tokens.lineHeightBase400,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
     whiteSpace: "pre-wrap" as const,
     wordBreak: "break-word" as const,
+    border: "1px solid #e5e7eb",
+  },
+  msgDisclaimer: {
+    fontSize: "10px",
+    color: "#9ca3af",
+    borderTop: "1px solid #f3f4f6",
+    marginTop: "8px",
+    paddingTop: "6px",
   },
   inputRow: {
     display: "flex",
@@ -96,15 +104,9 @@ const useStyles = makeStyles({
     borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
     flexShrink: 0,
     backgroundColor: tokens.colorNeutralBackground1,
+    alignItems: "center",
   },
   sources: { marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "4px" },
-  disclaimer: {
-    textAlign: "center" as const,
-    padding: "6px",
-    fontSize: "10px",
-    color: "#b0b0b0",
-    flexShrink: 0,
-  },
 });
 
 interface Message {
@@ -171,23 +173,44 @@ const ChatInterface: React.FC = () => {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={msg.role === "user" ? styles.userMsg : styles.assistantMsg}>
-            <Body1>{msg.content}</Body1>
-            {msg.sources && msg.sources.length > 0 && (
-              <div className={styles.sources}>
-                {msg.sources.map((s, j) => (
-                  <Badge key={j} appearance="outline" size="small" shape="rounded">
-                    {s.doc_id} ({s.score.toFixed(2)})
-                  </Badge>
-                ))}
+          msg.role === "user" ? (
+            <div key={i} className={styles.userMsg}>
+              <Body1>{msg.content}</Body1>
+            </div>
+          ) : (
+            <div key={i} className={styles.assistantMsgWrap}>
+              <div className={styles.assistantMsg}>
+                <Body1>{msg.content}</Body1>
+                {msg.sources && msg.sources.length > 0 && (
+                  <div className={styles.sources}>
+                    {msg.sources.map((s, j) => (
+                      <Badge key={j} appearance="outline" size="small" shape="rounded">
+                        {s.doc_id}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className={styles.msgDisclaimer}>AI-generated content may be incorrect</div>
               </div>
-            )}
-          </div>
+            </div>
+          )
         ))}
-        {loading && <Spinner size="tiny" label="Thinking..." style={{ alignSelf: "flex-start", padding: "8px" }} />}
+        {loading && (
+          <div className={styles.assistantMsgWrap}>
+            <div className={styles.assistantMsg}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#9ca3af", fontSize: 14 }}>
+                <span style={{ animation: "pulse 1.5s ease-in-out infinite" }}>●</span>
+                <span style={{ animation: "pulse 1.5s ease-in-out 0.3s infinite" }}>●</span>
+                <span style={{ animation: "pulse 1.5s ease-in-out 0.6s infinite" }}>●</span>
+                <style>{`@keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }`}</style>
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
       <div className={styles.inputRow}>
+        <ChatBubblesQuestion24Regular style={{ color: "#6366f1", flexShrink: 0 }} />
         <Input
           size="small"
           style={{ flex: 1 }}
@@ -196,9 +219,10 @@ const ChatInterface: React.FC = () => {
           onChange={(_, data) => setInput(data.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
         />
-        <Button appearance="primary" size="small" icon={<Send24Regular />} onClick={handleSend} disabled={loading} />
+        <Button appearance="transparent" size="small" icon={<Send24Regular />}
+          style={{ color: input.trim() ? "#6366f1" : "#d1d5db" }}
+          onClick={handleSend} disabled={loading} />
       </div>
-      <div className={styles.disclaimer}>AI-generated content may be incorrect</div>
     </div>
   );
 };

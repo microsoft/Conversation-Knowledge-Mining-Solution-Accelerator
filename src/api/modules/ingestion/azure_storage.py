@@ -14,6 +14,9 @@ from azure.search.documents.indexes.models import (
     SearchFieldDataType,
     SimpleField,
     SearchableField,
+    VectorSearch,
+    HnswAlgorithmConfiguration,
+    VectorSearchProfile,
 )
 
 from src.api.config import get_settings
@@ -54,14 +57,23 @@ class AzureStorageService:
         return self._search_client
 
     def _ensure_search_index(self):
-        """Create the search index if it doesn't exist."""
+        """Create the search index with vector search support if it doesn't exist."""
         settings = get_settings()
         index_client = SearchIndexClient(
             endpoint=settings.azure_search_endpoint,
             credential=self._get_credential(),
         )
+
+        # Vector search configuration
+        vector_search = VectorSearch(
+            algorithms=[HnswAlgorithmConfiguration(name="hnsw-config")],
+            profiles=[VectorSearchProfile(name="vector-profile", algorithm_configuration_name="hnsw-config")],
+        )
+
         fields = [
             SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
+            SimpleField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
+            SimpleField(name="chunk_index", type=SearchFieldDataType.Int32, filterable=True, sortable=True),
             SearchableField(name="text", type=SearchFieldDataType.String),
             SearchableField(name="summary", type=SearchFieldDataType.String),
             SimpleField(name="type", type=SearchFieldDataType.String, filterable=True, facetable=True),
@@ -72,12 +84,53 @@ class AzureStorageService:
             SearchableField(name="key_phrases", type=SearchFieldDataType.String, collection=True, filterable=True),
             SearchableField(name="entities", type=SearchFieldDataType.String, collection=True, filterable=True),
             SearchableField(name="topics", type=SearchFieldDataType.String, collection=True, filterable=True),
+            SearchField(
+                name="text_vector",
+                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
+                searchable=True,
+                vector_search_dimensions=1536,  # text-embedding-ada-002
+                vector_search_profile_name="vector-profile",
+            ),
         ]
-        index = SearchIndex(name=settings.azure_search_index_name, fields=fields)
+        index = SearchIndex(
+            name=settings.azure_search_index_name,
+            fields=fields,
+            vector_search=vector_search,
+        )
         try:
             index_client.create_or_update_index(index)
         except Exception as e:
             logger.warning(f"Could not ensure search index: {e}")
+
+    def upload_raw_file(self, file_id: str, filename: str, content: bytes) -> bool:
+        """Upload a raw file (PDF, DOCX, etc.) to blob storage for background processing."""
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return False
+        try:
+            blob_service = self._get_blob_client()
+            container = blob_service.get_container_client(settings.azure_storage_container)
+            if not container.exists():
+                container.create_container()
+
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            }
+            content_type = mime_map.get(ext, "application/octet-stream")
+
+            blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+            blob.upload_blob(
+                content,
+                overwrite=True,
+                content_settings=ContentSettings(content_type=content_type),
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Raw file upload failed for {filename}: {e}")
+            return False
 
     def upload_to_blob(self, doc_id: str, doc_data: dict) -> bool:
         """Upload a single document to blob storage."""
@@ -119,6 +172,53 @@ class AzureStorageService:
                     logger.warning(f"Search index failed for {r.key}: {r.error_message}")
         except Exception as e:
             logger.warning(f"Search indexing failed: {e}")
+
+        return indexed
+
+    def index_chunks(self, doc_id: str, chunks: list[str], embeddings: list[list[float]],
+                     metadata: dict) -> int:
+        """Index document chunks with vector embeddings in Azure AI Search."""
+        if not chunks:
+            return 0
+
+        self._ensure_search_index()
+        search_client = self._get_search_client()
+
+        search_docs = []
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Deterministic chunk ID based on content hash — safe for upserts
+            from src.api.modules.ingestion.chunking import chunk_id
+            cid = chunk_id(doc_id, i, chunk)
+            search_docs.append({
+                "id": cid,
+                "doc_id": doc_id,
+                "chunk_index": i,
+                "text": chunk,
+                "summary": metadata.get("summary", ""),
+                "type": metadata.get("type", "unknown"),
+                "product": metadata.get("product", ""),
+                "category": metadata.get("category", ""),
+                "timestamp": metadata.get("timestamp", ""),
+                "source_file": metadata.get("source_file", ""),
+                "key_phrases": metadata.get("key_phrases", []),
+                "entities": metadata.get("entities", []),
+                "topics": metadata.get("topics", []),
+                "text_vector": embedding,
+            })
+
+        indexed = 0
+        # Upsert in batches of 100 — merge_or_upload ensures idempotency
+        for batch_start in range(0, len(search_docs), 100):
+            batch = search_docs[batch_start:batch_start + 100]
+            try:
+                result = search_client.merge_or_upload_documents(documents=batch)
+                for r in result:
+                    if r.succeeded:
+                        indexed += 1
+                    else:
+                        logger.warning(f"Chunk index failed for {r.key}: {r.error_message}")
+            except Exception as e:
+                logger.warning(f"Chunk batch indexing failed: {e}")
 
         return indexed
 

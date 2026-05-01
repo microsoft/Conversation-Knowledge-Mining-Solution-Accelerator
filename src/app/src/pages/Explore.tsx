@@ -24,7 +24,7 @@ import {
   Add20Regular,
   Chat20Regular,
 } from "@fluentui/react-icons";
-import { askQuestion, getUploadedFiles, getExtractionInfo, deleteFile, listDataSources, saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
+import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources, saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import { useSearchParams } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
@@ -256,25 +256,35 @@ const useStyles = makeStyles({
   },
   userMsg: {
     alignSelf: "flex-end",
-    backgroundColor: "#1a56db",
-    color: "#ffffff",
-    padding: "10px 16px",
-    borderRadius: "16px 16px 4px 16px",
-    maxWidth: "70%",
-    fontSize: "14px",
-    lineHeight: "1.55",
-  },
-  assistantMsg: {
-    alignSelf: "flex-start",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#e8ebf9",
+    color: "#1f2937",
     padding: "12px 16px",
-    borderRadius: "16px 16px 16px 4px",
+    borderRadius: "12px",
     maxWidth: "75%",
     fontSize: "14px",
-    lineHeight: "1.7",
+    lineHeight: "1.6",
+  },
+  assistantMsgWrap: {
+    alignSelf: "flex-start",
+    maxWidth: "85%",
+  },
+  assistantMsg: {
+    backgroundColor: "#ffffff",
+    padding: "14px 18px",
+    borderRadius: "12px",
+    fontSize: "14px",
+    lineHeight: "1.75",
     whiteSpace: "pre-wrap" as const,
     wordBreak: "break-word" as const,
-    border: "1px solid #f1f5f9",
+    border: "1px solid #e5e7eb",
+  },
+  disclaimer: {
+    fontSize: "11px",
+    color: "#9ca3af",
+    padding: "8px 18px 0",
+    borderTop: "1px solid #f3f4f6",
+    marginTop: "10px",
+    paddingTop: "8px",
   },
   sources: {
     display: "flex",
@@ -283,18 +293,18 @@ const useStyles = makeStyles({
     marginTop: "8px",
   },
   chatInputWrap: {
-    padding: "12px 32px 20px",
+    padding: "0 24px 20px",
     flexShrink: 0,
   },
   chatInputBox: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: "8px",
-    padding: "10px 16px",
-    borderRadius: "12px",
-    border: `1px solid #e2e8f0`,
+    padding: "10px 12px 10px 16px",
+    borderRadius: "20px",
+    border: `1px solid #d1d5db`,
     backgroundColor: "#ffffff",
-    transition: "border-color 0.15s",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
   },
 
   /* Empty data panel */
@@ -425,7 +435,9 @@ const Explore: React.FC = () => {
         getUploadedFiles(),
         listDataSources(),
       ]);
-      setFiles(filesRes.status === "fulfilled" ? filesRes.value.data : []);
+      setFiles(filesRes.status === "fulfilled" 
+        ? filesRes.value.data.filter((f: any) => f.status === "ready" || !f.status) 
+        : []);
       setDataSources(
         dsRes.status === "fulfilled"
           ? dsRes.value.data.filter((s: any) => s.status === "connected")
@@ -723,18 +735,38 @@ const Explore: React.FC = () => {
           ) : (
             <>
               {messages.map((msg, i) => (
-                <div key={i} className={msg.role === "user" ? styles.userMsg : styles.assistantMsg}>
-                  <ChatContent content={msg.content} />
-                  {msg.sources && msg.sources.length > 0 && (
-                    <div className={styles.sources}>
-                      {msg.sources.map((s, j) => (
-                        <Badge key={j} appearance="outline" size="small" shape="rounded">{s.doc_id}</Badge>
-                      ))}
+                msg.role === "user" ? (
+                  <div key={i} className={styles.userMsg}>
+                    <ChatContent content={msg.content} />
+                  </div>
+                ) : (
+                  <div key={i} className={styles.assistantMsgWrap}>
+                    <div className={styles.assistantMsg}>
+                      <ChatContent content={msg.content} />
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div className={styles.sources}>
+                          {msg.sources.map((s, j) => (
+                            <Badge key={j} appearance="outline" size="small" shape="rounded">{s.doc_id}</Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div className={styles.disclaimer}>AI-generated content may be incorrect</div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )
               ))}
-              {chatLoading && <Spinner size="tiny" style={{ alignSelf: "flex-start" }} />}
+              {chatLoading && (
+                <div className={styles.assistantMsgWrap}>
+                  <div className={styles.assistantMsg}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#9ca3af", fontSize: 14 }}>
+                      <span style={{ animation: "pulse 1.5s ease-in-out infinite" }}>●</span>
+                      <span style={{ animation: "pulse 1.5s ease-in-out 0.3s infinite" }}>●</span>
+                      <span style={{ animation: "pulse 1.5s ease-in-out 0.6s infinite" }}>●</span>
+                      <style>{`@keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }`}</style>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={chatEndRef} />
             </>
           )}
@@ -743,21 +775,51 @@ const Explore: React.FC = () => {
         {/* Input */}
         <div className={styles.chatInputWrap}>
           <div className={styles.chatInputBox}>
-            <Input
-              style={{ flex: 1, border: "none" }}
-              appearance="underline"
-              placeholder="Ask anything about your data..."
+            <button
+              onClick={() => { setSessionId(crypto.randomUUID()); setMessages([]); }}
+              title="New conversation"
+              style={{
+                border: "none", background: "none", cursor: "pointer", padding: 4,
+                display: "flex", alignItems: "flex-start", flexShrink: 0,
+                color: "#6366f1", borderRadius: 8, marginTop: 2,
+              }}
+            >
+              <Add20Regular />
+            </button>
+            <textarea
+              placeholder="Ask a question..."
               value={chatInput}
-              onChange={(_, d) => setChatInput(d.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleChat()}
+              rows={1}
+              onChange={(e) => {
+                setChatInput(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleChat();
+                }
+              }}
+              style={{
+                flex: 1, border: "none", outline: "none", fontSize: 14,
+                background: "transparent", color: "#1f2937", fontFamily: "inherit",
+                resize: "none", overflow: "auto", lineHeight: "1.5",
+                maxHeight: 150, minHeight: 24,
+              }}
             />
-            <Button
-              appearance="transparent"
-              size="small"
-              icon={<Send24Regular />}
+            <button
               onClick={() => handleChat()}
               disabled={chatLoading || !chatInput.trim()}
-            />
+              title="Send"
+              style={{
+                border: "none", background: "none", cursor: chatInput.trim() ? "pointer" : "default",
+                padding: 4, display: "flex", alignItems: "flex-start", flexShrink: 0,
+                color: chatInput.trim() ? "#6366f1" : "#d1d5db", marginTop: 2,
+              }}
+            >
+              <Send24Regular />
+            </button>
           </div>
         </div>
       </div>
@@ -848,33 +910,6 @@ const Explore: React.FC = () => {
                     {f.doc_count} records
                   </div>
                 </div>
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!window.confirm(`Delete "${f.filename}"?`)) return;
-                    try {
-                      const res = await deleteFile(f.id);
-                      setFiles((prev) => prev.filter((x) => x.id !== f.id));
-                      setSelectedIds((prev) => { const n = new Set(prev); n.delete(f.id); return n; });
-                      // Update filters from the delete response directly
-                      if (res.data?.updated_schema) {
-                        setSchema(res.data.updated_schema);
-                      } else {
-                        setSchema(null);
-                      }
-                    } catch (err: any) {
-                      alert(err?.response?.data?.detail || "Delete failed");
-                    }
-                  }}
-                  style={{
-                    border: "none", background: "none", cursor: "pointer",
-                    color: "#ef4444", padding: 4, flexShrink: 0,
-                    transition: "color 0.15s",
-                  }}
-                  title="Delete file"
-                >
-                  <Delete20Regular />
-                </button>
               </div>
             ))
           )}
@@ -911,16 +946,6 @@ const Explore: React.FC = () => {
         {/* Chats tab */}
         {rightTab === "chats" && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            <div style={{ padding: "12px 16px", borderBottom: "1px solid #f1f5f9" }}>
-              <Button size="small" appearance="primary" icon={<Add20Regular />} style={{ width: "100%" }}
-                onClick={() => {
-                  setSessionId(crypto.randomUUID());
-                  setMessages([]);
-                  setRightTab("docs");
-                }}>
-                New Conversation
-              </Button>
-            </div>
             <div style={{ flex: 1, overflowY: "auto" }}>
               {sessions.filter((s) => s.message_count > 0).length === 0 ? (
                 <div style={{ padding: "40px 20px", textAlign: "center", color: "#94a3b8" }}>

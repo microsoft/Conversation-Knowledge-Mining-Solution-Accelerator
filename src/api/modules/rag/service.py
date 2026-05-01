@@ -100,13 +100,14 @@ class RAGService:
 
     def _search_azure_ai_search(self, query: str, top_k: int = 5,
                                 document_ids: Optional[list[str]] = None) -> list[dict]:
-        """Search using Azure AI Search index (persistent, survives restarts)."""
+        """Hybrid search using Azure AI Search (keyword + vector)."""
         settings = get_settings()
         if not settings.azure_search_endpoint:
             return []
 
         try:
             from azure.search.documents import SearchClient
+            from azure.search.documents.models import VectorizedQuery
             credential = DefaultAzureCredential()
             client = SearchClient(
                 endpoint=settings.azure_search_endpoint,
@@ -117,21 +118,43 @@ class RAGService:
             # Build filter string for scoped search
             filter_str = None
             if document_ids:
-                # OData filter: id in (...)
-                id_list = ",".join(f"'{did}'" for did in document_ids[:50])
-                filter_str = f"search.in(id, '{','.join(document_ids[:50])}')"
+                ids_csv = ",".join(document_ids[:50])
+                # Try doc_id first (chunked index), fall back to id (legacy)
+                filter_str = f"search.in(id, '{ids_csv}')"
+
+            # Generate query embedding for vector search
+            vector_queries = []
+            try:
+                from src.api.modules.embeddings.service import EmbeddingsService
+                emb_service = EmbeddingsService()
+                query_emb = emb_service.generate_embedding(query)
+                vector_queries.append(VectorizedQuery(
+                    vector=query_emb.embedding,
+                    k=top_k,
+                    fields="text_vector",
+                ))
+            except Exception as e:
+                logger.debug(f"Vector search unavailable, using keyword only: {e}")
+
+            # Use fields that exist in both legacy and chunked index schemas
+            select_fields = ["id", "text", "summary", "type", "source_file"]
 
             results = client.search(
                 search_text=query,
+                vector_queries=vector_queries if vector_queries else None,
                 top=top_k,
                 filter=filter_str,
-                select=["id", "text", "summary", "type", "source_file", "key_phrases", "entities", "topics"],
+                select=select_fields,
             )
 
             docs = []
             for r in results:
+                doc_id = r.get("doc_id", r["id"])
+                # Strip chunk suffix to get base doc ID
+                if "_c" in doc_id:
+                    doc_id = doc_id.split("_c")[0]
                 docs.append({
-                    "doc_id": r["id"],
+                    "doc_id": doc_id,
                     "text": r.get("text", ""),
                     "summary": r.get("summary", ""),
                     "type": r.get("type", "unknown"),

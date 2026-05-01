@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   makeStyles,
   tokens,
@@ -20,8 +20,6 @@ import {
   PersonAccounts24Regular,
 } from "@fluentui/react-icons";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useMsal, useIsAuthenticated } from "@azure/msal-react";
-import { loginRequest } from "../auth/msalConfig";
 import ChatInterface from "./ChatInterface";
 
 const useStyles = makeStyles({
@@ -163,16 +161,27 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const styles = useStyles();
   const navigate = useNavigate();
   const location = useLocation();
-  const { instance, accounts } = useMsal();
-  const isAuthenticated = useIsAuthenticated();
   const [showChat, setShowChat] = useState(false);
+  const [userName, setUserName] = useState("");
 
+  useEffect(() => {
+    // Fetch user info from EasyAuth
+    fetch(`${window.location.origin}/.auth/me`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => {
+        const claims = data?.[0]?.user_claims || [];
+        const name = claims.find((c: any) => c.typ === "name")?.val || "";
+        setUserName(name);
+      })
+      .catch(() => {});
+  }, []);
+
+  const isAuthenticated = !!userName;
   const showChatAvailable = location.pathname === "/insights";
 
-  const handleLogin = () => instance.loginPopup(loginRequest);
-  const handleLogout = () => instance.logoutPopup();
+  const handleLogin = () => { window.location.href = "/.auth/login/aad"; };
+  const handleLogout = () => { window.location.href = "/.auth/logout"; };
 
-  const userName = accounts[0]?.name || "";
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
   const allNavItems = [

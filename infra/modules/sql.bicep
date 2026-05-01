@@ -3,6 +3,12 @@ param databaseName string
 param location string
 param tags object
 
+@description('Object ID of the Azure AD admin for the SQL server')
+param adminObjectId string = ''
+
+@description('Display name of the Azure AD admin')
+param adminLogin string = 'azd-admin'
+
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
   location: location
@@ -13,8 +19,8 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     administrators: {
       azureADOnlyAuthentication: true
       administratorType: 'ActiveDirectory'
-      login: 'azd-admin'
-      sid: subscription().tenantId
+      login: adminLogin
+      sid: adminObjectId
       tenantId: subscription().tenantId
     }
   }

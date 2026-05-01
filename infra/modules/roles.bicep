@@ -5,6 +5,12 @@ param cosmosName string
 param cuName string
 param backendPrincipalId string
 
+@description('Principal ID of the frontend web app managed identity')
+param frontendPrincipalId string = ''
+
+@description('Name of the Azure Container Registry (empty if not using ACR)')
+param acrName string = ''
+
 @description('Principal ID of the deploying user (for local script access)')
 param deployerPrincipalId string = ''
 
@@ -17,6 +23,7 @@ var roles = {
   searchServiceContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
   storageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
   cosmosDBDataContributor: '00000000-0000-0000-0000-000000000002'
+  acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 }
 
 // ========== Backend App (ServicePrincipal) Roles ========== //
@@ -152,4 +159,30 @@ resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existing = {
 
 resource cu 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: cuName
+}
+
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (!empty(acrName)) {
+  name: acrName
+}
+
+// ========== ACR Pull Roles ========== //
+
+resource backendAcrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(acrName)) {
+  name: guid(acr.id, backendPrincipalId, roles.acrPull)
+  scope: acr
+  properties: {
+    roleDefinitionId: roles.acrPull
+    principalId: backendPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource frontendAcrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(acrName) && !empty(frontendPrincipalId)) {
+  name: guid(acr.id, frontendPrincipalId, roles.acrPull)
+  scope: acr
+  properties: {
+    roleDefinitionId: roles.acrPull
+    principalId: frontendPrincipalId
+    principalType: 'ServicePrincipal'
+  }
 }
