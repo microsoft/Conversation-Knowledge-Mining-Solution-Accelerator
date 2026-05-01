@@ -1,12 +1,12 @@
 # Base packages
-cachetools==6.2.6
+cachetools==7.0.6
 python-dotenv==1.2.2
-fastapi==0.136.0
-uvicorn[standard]==0.44.0
-pydantic[email]==2.13.2
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pydantic[email]==2.13.3
 
 # Azure SDK Core
-azure-core==1.39.0
+azure-core==1.40.0
 requests==2.33.1
 types-requests==2.33.0.20260408
 aiohttp==3.13.5
@@ -14,24 +14,24 @@ aiohttp==3.13.5
 # Azure Services
 azure-identity==1.25.3
 azure-search-documents==11.6.0
-azure-ai-projects==2.0.0b3
-azure-ai-agents==1.2.0b5
-agent-framework-core==1.0.0rc2
-agent-framework-azure-ai==1.0.0rc2
+azure-ai-projects==2.1.0
+azure-ai-agents==1.2.0b6
+agent-framework-core==1.2.2
+agent-framework-azure-ai==1.0.0rc6
 azure-cosmos==4.15.0
 
 # Additional utilities
-openai==2.32.0
+openai==2.33.0
 pyodbc==5.3.0
 pandas==3.0.2
 
-opentelemetry-exporter-otlp-proto-grpc==1.40.0
-opentelemetry-exporter-otlp-proto-http==1.40.0
+opentelemetry-exporter-otlp-proto-grpc==1.41.1
+opentelemetry-exporter-otlp-proto-http==1.41.1
 azure-monitor-events-extension==0.1.0
-opentelemetry-sdk==1.40.0
-opentelemetry-api==1.40.0
-opentelemetry-semantic-conventions==0.61b0
-opentelemetry-instrumentation==0.61b0
+opentelemetry-sdk==1.41.1
+opentelemetry-api==1.41.1
+opentelemetry-semantic-conventions==0.62b1
+opentelemetry-instrumentation==0.62b1
 azure-monitor-opentelemetry==1.8.7
 
 # Development tools
