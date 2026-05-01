@@ -22,6 +22,7 @@ var roles = {
   searchIndexDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')
   searchServiceContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')
   storageBlobDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+  storageQueueDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
   cosmosDBDataContributor: '00000000-0000-0000-0000-000000000002'
   acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 }
@@ -53,6 +54,16 @@ resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: storage
   properties: {
     roleDefinitionId: roles.storageBlobDataContributor
+    principalId: backendPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource storageQueueRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storage.id, backendPrincipalId, roles.storageQueueDataContributor)
+  scope: storage
+  properties: {
+    roleDefinitionId: roles.storageQueueDataContributor
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -125,6 +136,16 @@ resource deployerStorageRole 'Microsoft.Authorization/roleAssignments@2022-04-01
   scope: storage
   properties: {
     roleDefinitionId: roles.storageBlobDataContributor
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+resource deployerStorageQueueRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(storage.id, deployerPrincipalId, roles.storageQueueDataContributor)
+  scope: storage
+  properties: {
+    roleDefinitionId: roles.storageQueueDataContributor
     principalId: deployerPrincipalId
     principalType: 'User'
   }

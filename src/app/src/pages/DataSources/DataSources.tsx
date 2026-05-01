@@ -1,5 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Button, Badge, Spinner, Text, ProgressBar } from "@fluentui/react-components";
+import {
+  Button,
+  Badge,
+  Spinner,
+  Text,
+  ProgressBar,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@fluentui/react-components";
 import {
   Database24Regular,
   Delete20Regular,
@@ -8,7 +20,6 @@ import {
   Search20Regular,
   DataBarVertical20Regular,
   ArrowUpload20Regular,
-  CheckmarkCircle20Regular,
   ErrorCircle20Regular,
 } from "@fluentui/react-icons";
 import {
@@ -60,9 +71,18 @@ const DataSources: React.FC = () => {
     return () => clearInterval(interval);
   }, [uploadedFiles, loadSources]);
 
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const handleDeleteFile = async (id: string, filename: string) => {
-    if (!window.confirm(`Delete "${filename}"?`)) return;
-    try { await deleteFile(id); loadSources(); } catch { /* ignore */ }
+    setDeleteTarget({ id, name: filename });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try { await deleteFile(deleteTarget.id); loadSources(); } catch { /* ignore */ }
+    finally { setDeleting(false); setDeleteTarget(null); }
   };
 
   const handleDeleteSource = async (id: string) => {
@@ -272,6 +292,24 @@ const DataSources: React.FC = () => {
             onClick={() => fileInputRef.current?.click()}>Upload files</Button>
         </div>
       )}
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(_, d) => { if (!d.open) setDeleteTarget(null); }}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Delete file</DialogTitle>
+            <DialogContent>
+              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will remove all extracted data and cannot be undone.
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+              <Button appearance="primary" onClick={confirmDelete} disabled={deleting}
+                style={{ backgroundColor: "#ef4444", borderColor: "#ef4444" }}>
+                {deleting ? <Spinner size="tiny" /> : "Delete"}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 };

@@ -7,7 +7,6 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 
 from src.api.config import get_settings
-from src.api.modules.embeddings.service import embeddings_service
 from src.api.modules.rag.models import QAResponse, Source
 
 logger = logging.getLogger(__name__)

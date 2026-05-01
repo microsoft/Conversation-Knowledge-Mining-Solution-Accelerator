@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   makeStyles,
-  tokens,
   Text,
   Input,
-  Button,
   Spinner,
   Badge,
   Checkbox,
@@ -26,7 +24,7 @@ import {
 } from "@fluentui/react-icons";
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources, saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
 import { renderMarkdown } from "../utils/markdown";
 
@@ -400,17 +398,31 @@ const Explore: React.FC = () => {
   // Chat sessions
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [sessions, setSessions] = useState<Array<{ id: string; title: string; message_count: number; updated_at: string }>>([]);
-  const [showSessions, setShowSessions] = useState(false);
   const [rightTab, setRightTab] = useState<"docs" | "chats">("docs");
+  const location = useLocation();
 
+  // Re-fetch files and schema on mount and when navigating back to this page
   useEffect(() => {
     loadFiles();
     loadSessions();
-    const timer = setTimeout(() => {
-      getExtractionInfo().then((r) => setSchema(r.data)).catch(() => {});
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+    loadSchema();
+  }, [location.key]);
+
+  const loadSchema = () => {
+    getExtractionInfo().then((r) => setSchema(r.data)).catch(() => {});
+  };
+
+  // Auto-refresh files + schema while any file is still processing
+  const [allFiles, setAllFiles] = useState<any[]>([]);
+  useEffect(() => {
+    const hasProcessing = allFiles.some((f) => f.status === "processing");
+    if (!hasProcessing) return;
+    const interval = setInterval(() => {
+      loadFiles();
+      loadSchema();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [allFiles]);
 
   const loadSessions = () => {
     listChatSessions().then((r) => setSessions(r.data?.sessions || r.data || [])).catch(() => {});
@@ -435,9 +447,9 @@ const Explore: React.FC = () => {
         getUploadedFiles(),
         listDataSources(),
       ]);
-      setFiles(filesRes.status === "fulfilled" 
-        ? filesRes.value.data.filter((f: any) => f.status === "ready" || !f.status) 
-        : []);
+      const rawFiles = filesRes.status === "fulfilled" ? filesRes.value.data : [];
+      setAllFiles(rawFiles); // track all for polling
+      setFiles(rawFiles.filter((f: any) => f.status === "ready" || !f.status));
       setDataSources(
         dsRes.status === "fulfilled"
           ? dsRes.value.data.filter((s: any) => s.status === "connected")
@@ -445,6 +457,7 @@ const Explore: React.FC = () => {
       );
     } catch {
       setFiles([]);
+      setAllFiles([]);
       setDataSources([]);
     } finally {
       setLoading(false);

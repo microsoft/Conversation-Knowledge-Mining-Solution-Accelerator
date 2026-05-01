@@ -7,7 +7,6 @@ import {
   Body1,
   Subtitle2,
   Caption1,
-  Spinner,
   Badge,
 } from "@fluentui/react-components";
 import { Send24Regular, ChatBubblesQuestion24Regular } from "@fluentui/react-icons";

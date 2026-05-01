@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from azure.identity import DefaultAzureCredential
-from azure.storage.queue import QueueClient, QueueServiceClient
+from azure.storage.queue import QueueClient
 
 from src.api.config import get_settings
 

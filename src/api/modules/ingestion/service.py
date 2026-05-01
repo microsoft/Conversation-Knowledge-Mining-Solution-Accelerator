@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class IngestionService:
-    """Handles loading and managing documents. Uses Cosmos DB for persistence, in-memory as cache."""
+    """Handles loading and managing documents. Uses Azure SQL for persistence, in-memory as cache."""
 
     def __init__(self):
         self._documents: dict[str, Document] = {}
@@ -170,65 +170,6 @@ class IngestionService:
             sql_service.save_filter_schema(schema_dict)
         except Exception as e:
             logger.warning(f"Failed to persist filter schema: {e}")
-
-    def _remove_file_filters(self, uploaded_file: UploadedFile):
-        """Remove filter values contributed by a deleted file.
-        If the file has tracked filter_values, subtract them.
-        Otherwise, rebuild the entire schema from remaining files."""
-        if uploaded_file.filter_values:
-            # Subtract this file's values from the schema
-            for dim in self._filter_schema.dimensions:
-                file_vals = uploaded_file.filter_values.get(dim.id, [])
-                if not file_vals:
-                    continue
-                file_val_set = set(file_vals)
-                dim.values = [
-                    FilterValue(value=v.value, label=v.label, count=max(0, v.count - 1))
-                    for v in dim.values
-                    if v.value not in file_val_set or v.count > 1
-                ]
-            self._filter_schema.dimensions = [
-                d for d in self._filter_schema.dimensions if d.values
-            ]
-        else:
-            # File has no tracked filter values — rebuild schema from all remaining files
-            self._rebuild_filter_schema()
-
-        self._persist_schema()
-
-    def _rebuild_filter_schema(self):
-        """Rebuild the global filter schema from all remaining uploaded files."""
-        merged_dims: dict[str, FilterDimension] = {}
-        for f in self._uploaded_files.values():
-            for dim_id, values in f.filter_values.items():
-                if dim_id not in merged_dims:
-                    merged_dims[dim_id] = FilterDimension(
-                        id=dim_id, label=dim_id.replace("_", " ").title(), values=[]
-                    )
-                existing_vals = {v.value for v in merged_dims[dim_id].values}
-                for val in values:
-                    if val in existing_vals:
-                        for v in merged_dims[dim_id].values:
-                            if v.value == val:
-                                v.count += 1
-                    else:
-                        merged_dims[dim_id].values.append(
-                            FilterValue(value=val, label=val, count=1)
-                        )
-                        existing_vals.add(val)
-        self._filter_schema = FilterSchema(
-            domain="",
-            dimensions=list(merged_dims.values()),
-        )
-
-        # If no dimensions left, also clear the SQL table
-        if not merged_dims:
-            try:
-                from src.api.storage.sql_service import sql_service
-                if sql_service.available:
-                    sql_service.save_filter_schema({"domain": "", "dimensions": []})
-            except Exception:
-                pass
 
     def _persist_to_azure(self, raw_items: list[dict]):
         """Persist documents to Azure Blob Storage + Search Index in background."""
@@ -441,22 +382,26 @@ class IngestionService:
             self._documents[doc.id] = doc
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
 
-            # Persist document to Cosmos DB
             self._persist_doc(item)
 
         # Track file immediately (in-memory) so it appears in the file list right away
         from datetime import datetime
         file_id = filename.rsplit(".", 1)[0]
         ingested_ids = [item["id"] for item in data]
+
+        # Preserve existing status/error if file already exists (e.g., set to "processing" by upload)
+        existing = self._uploaded_files.get(file_id)
         uploaded_file = UploadedFile(
             id=file_id,
             filename=filename,
             doc_count=len(data),
-            summary=f"{len(data)} documents",
-            keywords=[],
-            filter_values={},
+            summary=existing.summary if existing and existing.summary != "Processing..." else f"{len(data)} documents",
+            keywords=existing.keywords if existing else [],
+            filter_values=existing.filter_values if existing else {},
             doc_ids=ingested_ids,
-            uploaded_at=datetime.utcnow().isoformat() + "Z",
+            uploaded_at=existing.uploaded_at if existing else datetime.utcnow().isoformat() + "Z",
+            status=existing.status if existing else "ready",
+            error=existing.error if existing else "",
         )
         self._uploaded_files[file_id] = uploaded_file
 

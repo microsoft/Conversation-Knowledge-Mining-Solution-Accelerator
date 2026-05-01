@@ -29,14 +29,29 @@ This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Sear
                      ▼                                      ▼                  ▼
             ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
             │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
-            │  GPT-4o         │                    │  Search     │   │  Understanding   │
-            └─────────────────┘                    └─────────────┘   └─────────────────┘
-                     │                                      │                  │
-                     ▼                                      ▼                  ▼
+            │  GPT-4o + ada-2 │                    │  Search     │   │  Understanding   │
+            └─────────────────┘                    │  (HNSW)     │   └────────┬────────┘
+                     │                             └──────┬──────┘            │
+                     ▼                                    ▼                   ▼
             ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
-            │  AI Foundry     │                    │  Azure SQL  │   │  Blob Storage   │
-            │  Agent Service  │                    │  Database   │   │                 │
+            │  AI Foundry     │                    │  Azure SQL  │   │  Blob + Queue   │
+            │  Agent Service  │                    │  Database   │   │  Storage        │
             └─────────────────┘                    └─────────────┘   └─────────────────┘
+```
+
+### Document Processing Pipeline
+
+```
+Upload (instant response)
+  → Azure Blob Storage (raw file)
+  → Queue: document-extraction
+       → Azure Content Understanding (text, summary, topics, key phrases)
+       → Queue: document-enrichment
+            → Chunk text (1000 chars, 200 overlap, paragraph-aware)
+            → Generate embeddings (text-embedding-ada-002, 1536 dimensions)
+            → Index chunks + vectors in Azure AI Search (HNSW, upserts)
+            → AI enrichment (dynamic filters, summaries, keywords)
+            → Status → "ready"
 ```
 
 ### Key Features
@@ -45,13 +60,16 @@ This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Sear
 <summary>Click to learn more about the key features this solution enables</summary>
 
 - **Chat-based insights discovery**
-  Interactive chat powered by Azure AI Search and GPT-4o enables natural language exploration of your data.
+  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration.
 
 - **Multi-modal information processing**
   Ingest and extract knowledge from multiple content types: PDF, DOCX, images, JSON, CSV, TXT.
 
-- **Document analysis and extraction**
-  Azure Content Understanding extracts text, tables, and structure from complex documents.
+- **Async document processing**
+  Two-stage queue pipeline: upload returns instantly, extraction and enrichment run in background with automatic retries.
+
+- **Chunking and vector embeddings**
+  Documents are split into overlapping chunks and embedded with text-embedding-ada-002 for semantic search.
 
 - **Dynamic filter generation**
   AI-inferred filter dimensions from content — not hardcoded. Filters scope chat queries automatically.
@@ -59,8 +77,8 @@ This solution leverages Azure OpenAI, Azure Content Understanding, Azure AI Sear
 - **Bring Your Own Index**
   Connect an existing Azure AI Search index and immediately chat with it — no upload needed.
 
-- **AI Agent integration**
-  Azure AI Foundry agents with Azure AI Search tools for grounded question-answering.
+- **Idempotent processing**
+  Content-hash chunk IDs, embedding cache, processing locks, and upserts prevent duplicate work.
 
 </details>
 
@@ -117,7 +135,7 @@ uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```bash
 cd src/app
 npm install
-npm start
+REACT_APP_API_BASE_URL=http://localhost:8000/api npm start
 ```
 
 **Docker:**
@@ -125,16 +143,18 @@ npm start
 docker-compose up --build
 ```
 
+> **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
+
 ### Prerequisites and Costs
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a region where the following services are available.
 
 | Service | Purpose | Pricing |
 |---------|---------|---------|
-| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat, summarization, entity extraction using GPT models | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
-| [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Vector-based semantic search for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
+| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-4o), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
+| [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Hybrid search (BM25 + HNSW vector) for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
 | [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
-| [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Stores uploaded documents and processing assets | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
+| [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
 | [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Structured data, metadata, and enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
 | [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Chat history storage (optional) | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
 
@@ -171,15 +191,21 @@ infra/                              # Azure Bicep infrastructure
     └── teardown.ps1                # Resource cleanup
 
 src/api/
-├── main.py                         # FastAPI application
+├── main.py                         # FastAPI application + queue worker startup
 ├── config.py                       # Settings from .env
 ├── modules/
-│   ├── ingestion/                  # Document upload and indexing
+│   ├── ingestion/                  # Document upload and processing pipeline
+│   │   ├── router.py               # Upload endpoints (instant async response)
+│   │   ├── service.py              # Document management and persistence
+│   │   ├── queue_service.py        # Azure Queue Storage client (two queues)
+│   │   ├── queue_worker.py         # Two-stage worker (extraction + enrichment)
+│   │   ├── chunking.py             # Paragraph-aware text chunking
+│   │   └── azure_storage.py        # Blob, Search index (HNSW vectors)
 │   ├── document_intelligence/      # Content Understanding extraction
-│   ├── rag/                        # Chat: AI Search → GPT-4o
+│   ├── rag/                        # Hybrid search (keyword + vector) → GPT-4o
+│   ├── embeddings/                 # Embedding generation + cache
 │   ├── processing/                 # Insights report generation
-│   ├── embeddings/                 # Embedding generation
-│   └── security/                   # Entra ID authentication
+│   └── security/                   # EasyAuth + role-based access control
 └── storage/                        # SQL, Cosmos DB, blob persistence
 
 src/app/

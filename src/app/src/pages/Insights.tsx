@@ -9,7 +9,7 @@ import {
   ChevronRight20Regular,
 } from "@fluentui/react-icons";
 import { DonutChart, BarChart } from "../components/Charts";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getInsights, getUploadedFiles, listDataSources } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import s from "./Insights.module.css";
@@ -34,6 +34,7 @@ const Insights: React.FC = () => {
   const [scope, setScope] = useState("all");
   const [open, setOpen] = useState<Set<string>>(new Set(["insights", "trends", "entities", "risks"]));
   const loadedRef = useRef(false);
+  const location = useLocation();
 
   const go = (q: string) => nav(`/explore?q=${encodeURIComponent(q)}`);
   const toggle = (id: string) => setOpen((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -61,8 +62,10 @@ const Insights: React.FC = () => {
           : []
       );
     });
+  }, [location.key]);
 
-    // Only auto-generate insights if nothing is cached
+  // Auto-generate insights on first load if nothing is cached
+  useEffect(() => {
     if (!cached && !loadedRef.current) {
       loadedRef.current = true;
       load();
