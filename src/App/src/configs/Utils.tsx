@@ -165,25 +165,6 @@ export const segregateItems = (items: Conversation[]) => {
   return finalResult;
 };
 
-export async function loadConfig() {
-  const DEFAULT_CONFIG_PATH = "./config/config.json";
-  const configPath = process.env.REACT_APP_CONFIG_PATH || DEFAULT_CONFIG_PATH;
-  if (!configPath) {
-    throw new Error("Config path is not defined in the environment variables.");
-  }
-
-  try {
-    const response = await fetch(configPath);
-    if (!response.ok) {
-      throw new Error(`Failed to load config file: ${response.statusText}`);
-    }
-    const configData = await response.json();
-    return configData;
-  } catch (error) {
-    throw error;
-  }
-}
-
 export const generateUUIDv4 = () => {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
     var r = (Math.random() * 16) | 0,

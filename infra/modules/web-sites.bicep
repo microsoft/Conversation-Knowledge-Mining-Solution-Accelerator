@@ -315,29 +315,6 @@ module app_privateEndpoints 'br/public:avm/res/network/private-endpoint:0.11.1' 
   }
 ]
 
-@description('The name of the site.')
-output name string = app.name
-
-@description('The resource ID of the site.')
-output resourceId string = app.id
-
-@description('The resource group the site was deployed into.')
-output resourceGroupName string = resourceGroup().name
-
-@description('The principal ID of the system assigned identity.')
-output systemAssignedMIPrincipalId string? = app.?identity.?principalId
-
-@description('The location the resource was deployed into.')
-output location string = app.location
-
-@description('Default hostname of the app.')
-output defaultHostname string = app.properties.defaultHostName
-
-@description('Unique identifier that verifies the custom domains assigned to the app. Customer will add this ID to a txt record for verification.')
-output customDomainVerificationId string = app.properties.customDomainVerificationId
-
-@description('The outbound IP addresses of the app.')
-output outboundIpAddresses string = app.properties.outboundIpAddresses
 
 // ================ //
 // Definitions      //

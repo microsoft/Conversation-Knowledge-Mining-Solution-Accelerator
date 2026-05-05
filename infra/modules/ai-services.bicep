@@ -283,26 +283,8 @@ output name string = useExistingService ? cognitiveServiceExisting.name : cognit
 @description('The resource ID of the cognitive services account.')
 output resourceId string = useExistingService ? cognitiveServiceExisting.id : cognitiveServiceNew.id
 
-@description('The resource group the cognitive services account was deployed into.')
-output subscriptionId string =  useExistingService ? existingCognitiveServiceDetails[2] : subscription().subscriptionId
-
-@description('The resource group the cognitive services account was deployed into.')
-output resourceGroupName string =  useExistingService ? existingCognitiveServiceDetails[4] : resourceGroup().name
-
 @description('The service endpoint of the cognitive services account.')
 output endpoint string = useExistingService ? cognitiveServiceExisting!.properties.endpoint : cognitiveService.properties.endpoint
-
-@description('All endpoints available for the cognitive services account, types depends on the cognitive service kind.')
-output endpoints endpointType = useExistingService ? cognitiveServiceExisting!.properties.endpoints : cognitiveService.properties.endpoints
-
-@description('The principal ID of the system assigned identity.')
-output systemAssignedMIPrincipalId string? = useExistingService ? cognitiveServiceExisting!.identity.principalId : cognitiveService.?identity.?principalId
-
-@description('The location the resource was deployed into.')
-output location string = useExistingService ? cognitiveServiceExisting!.location : cognitiveService.location
-
-@description('The private endpoints of the congitive services account.')
-output privateEndpoints privateEndpointOutputType[] = useExistingService ? existing_cognitive_service_dependencies!.outputs.privateEndpoints : cognitive_service_dependencies!.outputs.privateEndpoints
 
 import { aiProjectOutputType } from './project.bicep'
 output aiProjectInfo aiProjectOutputType = useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo

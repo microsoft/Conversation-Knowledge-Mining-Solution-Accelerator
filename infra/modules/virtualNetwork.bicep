@@ -279,16 +279,6 @@ module virtualNetwork 'br/public:avm/res/network/virtual-network:0.7.1' = {
 output name string = virtualNetwork.outputs.name
 output resourceId string = virtualNetwork.outputs.resourceId
 
-// combined output array that holds subnet details along with NSG information
-output subnets subnetOutputType[] = [
-  for (subnet, i) in subnets: {
-    name: subnet.name
-    resourceId: virtualNetwork.outputs.subnetResourceIds[i]
-    nsgName: !empty(subnet.?networkSecurityGroup) ? subnet.?networkSecurityGroup.name : null
-    nsgResourceId: !empty(subnet.?networkSecurityGroup) ? nsgs[i]!.outputs.resourceId : null
-  }
-]
-
 // Dynamic outputs for individual subnets for backward compatibility
 output webSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'web')
   ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'web')]
@@ -296,14 +286,8 @@ output webSubnetResourceId string = contains(map(subnets, subnet => subnet.name)
 output pepsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'peps')
   ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'peps')]
   : ''
-output bastionSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'AzureBastionSubnet')
-  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'AzureBastionSubnet')]
-  : ''
 output jumpboxSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'jumpbox')
   ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'jumpbox')]
-  : ''
-output deploymentScriptsSubnetResourceId string = contains(map(subnets, subnet => subnet.name), 'deployment-scripts')
-  ? virtualNetwork.outputs.subnetResourceIds[indexOf(map(subnets, subnet => subnet.name), 'deployment-scripts')]
   : ''
 
 @export()

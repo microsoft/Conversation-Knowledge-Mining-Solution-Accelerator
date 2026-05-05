@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "18133262101573574086"
+      "version": "0.42.1.51946",
+      "templateHash": "14373386749401803165"
     }
   },
   "parameters": {
@@ -346,7 +346,8 @@
       "[format('privatelink.dfs.{0}', environment().suffixes.storage)]",
       "privatelink.documents.azure.com",
       "[format('privatelink{0}', environment().suffixes.sqlServerHostname)]",
-      "privatelink.search.windows.net"
+      "privatelink.search.windows.net",
+      "privatelink.azurewebsites.net"
     ],
     "dnsZoneIndex": {
       "cognitiveServices": 0,
@@ -358,11 +359,11 @@
       "storageDfs": 6,
       "cosmosDB": 7,
       "sqlServer": 8,
-      "search": 9
+      "search": 9,
+      "webApp": 10
     },
     "userAssignedIdentityResourceName": "[format('id-{0}', variables('solutionSuffix'))]",
     "backendUserAssignedIdentityResourceName": "[format('id-backend-{0}', variables('solutionSuffix'))]",
-    "existingOpenAIEndpoint": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), format('https://{0}.openai.azure.com/', split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8]), '')]",
     "existingProjEndpoint": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), format('https://{0}.services.ai.azure.com/api/projects/{1}', split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8], split(parameters('existingAiFoundryAiProjectResourceId'), '/')[10]), '')]",
     "existingAIServicesName": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8], '')]",
     "existingAIProjectName": "[if(not(empty(parameters('existingAiFoundryAiProjectResourceId'))), split(parameters('existingAiFoundryAiProjectResourceId'), '/')[10], '')]",
@@ -372,7 +373,6 @@
     "aiFoundryAiServicesResourceName": "[if(variables('useExistingAiFoundryAiProject'), split(parameters('existingAiFoundryAiProjectResourceId'), '/')[8], format('aif-{0}', variables('solutionSuffix')))]",
     "aiFoundryAiProjectResourceName": "[if(variables('useExistingAiFoundryAiProject'), split(parameters('existingAiFoundryAiProjectResourceId'), '/')[10], format('proj-{0}', variables('solutionSuffix')))]",
     "aiFoundryAiServicesAiProjectResourceName": "[format('proj-{0}', variables('solutionSuffix'))]",
-    "aiFoundryAIservicesEnabled": true,
     "aiModelDeployments": [
       {
         "name": "[parameters('gptModelName')]",
@@ -408,7 +408,7 @@
     "sqlServerResourceName": "[format('sql-{0}', variables('solutionSuffix'))]",
     "sqlDbModuleName": "[format('sqldb-{0}', variables('solutionSuffix'))]",
     "webServerFarmResourceName": "[format('asp-{0}', variables('solutionSuffix'))]",
-    "reactAppLayoutConfig": "{\n  \"appConfig\": {\n    \"THREE_COLUMN\": {\n      \"DASHBOARD\": 50,\n      \"CHAT\": 33,\n      \"CHATHISTORY\": 17\n    },\n    \"TWO_COLUMN\": {\n      \"DASHBOARD_CHAT\": {\n        \"DASHBOARD\": 65,\n        \"CHAT\": 35\n      },\n      \"CHAT_CHATHISTORY\": {\n        \"CHAT\": 80,\n        \"CHATHISTORY\": 20\n      }\n    }\n  },\n  \"charts\": [\n    {\n      \"id\": \"SATISFIED\",\n      \"name\": \"Satisfied\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\n    },\n    {\n      \"id\": \"TOTAL_CALLS\",\n      \"name\": \"Total Calls\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME\",\n      \"name\": \"Average Handling Time\",\n      \"type\": \"card\",\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\n    },\n    {\n      \"id\": \"SENTIMENT\",\n      \"name\": \"Topics Overview\",\n      \"type\": \"donutchart\",\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\n    },\n    {\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\n      \"name\": \"Average Handling Time By Topic\",\n      \"type\": \"bar\",\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\n    },\n    {\n      \"id\": \"TOPICS\",\n      \"name\": \"Trending Topics\",\n      \"type\": \"table\",\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\n    },\n    {\n      \"id\": \"KEY_PHRASES\",\n      \"name\": \"Key Phrases\",\n      \"type\": \"wordcloud\",\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\n    }\n  ]\n}",
+    "reactAppLayoutConfig": "{\r\n  \"appConfig\": {\r\n    \"THREE_COLUMN\": {\r\n      \"DASHBOARD\": 50,\r\n      \"CHAT\": 33,\r\n      \"CHATHISTORY\": 17\r\n    },\r\n    \"TWO_COLUMN\": {\r\n      \"DASHBOARD_CHAT\": {\r\n        \"DASHBOARD\": 65,\r\n        \"CHAT\": 35\r\n      },\r\n      \"CHAT_CHATHISTORY\": {\r\n        \"CHAT\": 80,\r\n        \"CHATHISTORY\": 20\r\n      }\r\n    }\r\n  },\r\n  \"charts\": [\r\n    {\r\n      \"id\": \"SATISFIED\",\r\n      \"name\": \"Satisfied\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 1, \"height\": 11 }\r\n    },\r\n    {\r\n      \"id\": \"TOTAL_CALLS\",\r\n      \"name\": \"Total Calls\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 2, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME\",\r\n      \"name\": \"Average Handling Time\",\r\n      \"type\": \"card\",\r\n      \"layout\": { \"row\": 1, \"column\": 3, \"span\": 1 }\r\n    },\r\n    {\r\n      \"id\": \"SENTIMENT\",\r\n      \"name\": \"Topics Overview\",\r\n      \"type\": \"donutchart\",\r\n      \"layout\": { \"row\": 2, \"column\": 1, \"width\": 40, \"height\": 44.5 }\r\n    },\r\n    {\r\n      \"id\": \"AVG_HANDLING_TIME_BY_TOPIC\",\r\n      \"name\": \"Average Handling Time By Topic\",\r\n      \"type\": \"bar\",\r\n      \"layout\": { \"row\": 2, \"column\": 2, \"row-span\": 2, \"width\": 60 }\r\n    },\r\n    {\r\n      \"id\": \"TOPICS\",\r\n      \"name\": \"Trending Topics\",\r\n      \"type\": \"table\",\r\n      \"layout\": { \"row\": 3, \"column\": 1, \"span\": 2 }\r\n    },\r\n    {\r\n      \"id\": \"KEY_PHRASES\",\r\n      \"name\": \"Key Phrases\",\r\n      \"type\": \"wordcloud\",\r\n      \"layout\": { \"row\": 3, \"column\": 2, \"height\": 44.5 }\r\n    }\r\n  ]\r\n}",
     "backendWebSiteResourceName": "[format('api-{0}', variables('solutionSuffix'))]",
     "webSiteResourceName": "[format('app-{0}', variables('solutionSuffix'))]"
   },
@@ -4431,8 +4431,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "7835683830649565955"
+              "version": "0.42.1.51946",
+              "templateHash": "4804697174510607162"
             }
           },
           "definitions": {
@@ -7200,21 +7200,6 @@
               "type": "string",
               "value": "[reference('virtualNetwork').outputs.resourceId.value]"
             },
-            "subnets": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/subnetOutputType"
-              },
-              "copy": {
-                "count": "[length(parameters('subnets'))]",
-                "input": {
-                  "name": "[parameters('subnets')[copyIndex()].name]",
-                  "resourceId": "[reference('virtualNetwork').outputs.subnetResourceIds.value[copyIndex()]]",
-                  "nsgName": "[if(not(empty(tryGet(parameters('subnets')[copyIndex()], 'networkSecurityGroup'))), tryGet(parameters('subnets')[copyIndex()], 'networkSecurityGroup', 'name'), null())]",
-                  "nsgResourceId": "[if(not(empty(tryGet(parameters('subnets')[copyIndex()], 'networkSecurityGroup'))), reference(format('nsgs[{0}]', copyIndex())).outputs.resourceId.value, null())]"
-                }
-              }
-            },
             "webSubnetResourceId": {
               "type": "string",
               "value": "[if(contains(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'web'), reference('virtualNetwork').outputs.subnetResourceIds.value[indexOf(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'web')], '')]"
@@ -7223,17 +7208,9 @@
               "type": "string",
               "value": "[if(contains(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'peps'), reference('virtualNetwork').outputs.subnetResourceIds.value[indexOf(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'peps')], '')]"
             },
-            "bastionSubnetResourceId": {
-              "type": "string",
-              "value": "[if(contains(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'AzureBastionSubnet'), reference('virtualNetwork').outputs.subnetResourceIds.value[indexOf(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'AzureBastionSubnet')], '')]"
-            },
             "jumpboxSubnetResourceId": {
               "type": "string",
               "value": "[if(contains(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'jumpbox'), reference('virtualNetwork').outputs.subnetResourceIds.value[indexOf(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'jumpbox')], '')]"
-            },
-            "deploymentScriptsSubnetResourceId": {
-              "type": "string",
-              "value": "[if(contains(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'deployment-scripts'), reference('virtualNetwork').outputs.subnetResourceIds.value[indexOf(map(parameters('subnets'), lambda('subnet', lambdaVariables('subnet').name)), 'deployment-scripts')], '')]"
             }
           }
         }
@@ -22483,7 +22460,6 @@
       }
     },
     "aiFoundryAiServices": {
-      "condition": "[variables('aiFoundryAIservicesEnabled')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "[take(format('avm.res.cognitive-services.account.{0}', variables('aiFoundryAiServicesResourceName')), 64)]",
@@ -22595,8 +22571,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "11255056345205002263"
+              "version": "0.42.1.51946",
+              "templateHash": "6622877987634531193"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -23744,8 +23720,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.41.2.15936",
-                      "templateHash": "2352464251246464745"
+                      "version": "0.42.1.51946",
+                      "templateHash": "17566638112138005792"
                     }
                   },
                   "definitions": {
@@ -25394,8 +25370,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.41.2.15936",
-                              "templateHash": "8527060477757998371"
+                              "version": "0.42.1.51946",
+                              "templateHash": "205763774767390119"
                             }
                           },
                           "definitions": {
@@ -25624,8 +25600,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.41.2.15936",
-                      "templateHash": "2352464251246464745"
+                      "version": "0.42.1.51946",
+                      "templateHash": "17566638112138005792"
                     }
                   },
                   "definitions": {
@@ -27274,8 +27250,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.41.2.15936",
-                              "templateHash": "8527060477757998371"
+                              "version": "0.42.1.51946",
+                              "templateHash": "205763774767390119"
                             }
                           },
                           "definitions": {
@@ -27460,58 +27436,12 @@
               },
               "value": "[if(variables('useExistingService'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('existingCognitiveServiceDetails')[2], variables('existingCognitiveServiceDetails')[4]), 'Microsoft.CognitiveServices/accounts', variables('existingCognitiveServiceDetails')[8]), resourceId('Microsoft.CognitiveServices/accounts', parameters('name')))]"
             },
-            "subscriptionId": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource group the cognitive services account was deployed into."
-              },
-              "value": "[if(variables('useExistingService'), variables('existingCognitiveServiceDetails')[2], subscription().subscriptionId)]"
-            },
-            "resourceGroupName": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource group the cognitive services account was deployed into."
-              },
-              "value": "[if(variables('useExistingService'), variables('existingCognitiveServiceDetails')[4], resourceGroup().name)]"
-            },
             "endpoint": {
               "type": "string",
               "metadata": {
                 "description": "The service endpoint of the cognitive services account."
               },
               "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting').endpoint, if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')).properties.endpoint)]"
-            },
-            "endpoints": {
-              "$ref": "#/definitions/endpointType",
-              "metadata": {
-                "description": "All endpoints available for the cognitive services account, types depends on the cognitive service kind."
-              },
-              "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting').endpoints, if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')).properties.endpoints)]"
-            },
-            "systemAssignedMIPrincipalId": {
-              "type": "string",
-              "nullable": true,
-              "metadata": {
-                "description": "The principal ID of the system assigned identity."
-              },
-              "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full').identity.principalId, tryGet(tryGet(if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')), 'identity'), 'principalId'))]"
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "The location the resource was deployed into."
-              },
-              "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full').location, if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')).location)]"
-            },
-            "privateEndpoints": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/privateEndpointOutputType"
-              },
-              "metadata": {
-                "description": "The private endpoints of the congitive services account."
-              },
-              "value": "[if(variables('useExistingService'), reference('existing_cognitive_service_dependencies').outputs.privateEndpoints.value, reference('cognitive_service_dependencies').outputs.privateEndpoints.value)]"
             },
             "aiProjectInfo": {
               "$ref": "#/definitions/aiProjectOutputType",
@@ -31593,9 +31523,9 @@
         }
       },
       "dependsOn": [
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "cognitiveServicesCu",
         "virtualNetwork"
       ]
@@ -31694,7 +31624,9 @@
           "publicNetworkAccess": {
             "value": "Enabled"
           },
-          "privateEndpoints": "[if(false(), createObject('value', createArray(createObject('name', format('pep-{0}', variables('aiSearchName')), 'customNetworkInterfaceName', format('nic-{0}', variables('aiSearchName')), 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').search)).outputs.resourceId.value))), 'service', 'searchService', 'subnetResourceId', reference('virtualNetwork').outputs.pepsSubnetResourceId.value))), createObject('value', createArray()))]"
+          "privateEndpoints": {
+            "value": []
+          }
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -33730,13 +33662,11 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').search)]",
         "backendUserAssignedIdentity",
         "existingAiFoundryAiServicesProject",
         "logAnalyticsWorkspace",
         "searchService",
-        "userAssignedIdentity",
-        "virtualNetwork"
+        "userAssignedIdentity"
       ]
     },
     "existing_AIProject_SearchConnectionModule": {
@@ -33777,8 +33707,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "13998466922971349048"
+              "version": "0.42.1.51946",
+              "templateHash": "6406261689927467992"
             }
           },
           "parameters": {
@@ -33872,8 +33802,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15810098719925301401"
+              "version": "0.42.1.51946",
+              "templateHash": "3171423857861763521"
             }
           },
           "parameters": {
@@ -33907,13 +33837,7 @@
                 "principalType": "ServicePrincipal"
               }
             }
-          ],
-          "outputs": {
-            "roleAssignmentId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Authorization/roleAssignments', guid(parameters('principalId'), parameters('roleDefinitionId'), parameters('targetResourceName')))]"
-            }
-          }
+          ]
         }
       },
       "dependsOn": [
@@ -55093,7 +55017,9 @@
           },
           "diagnosticSettings": "[if(parameters('enableMonitoring'), createObject('value', createArray(createObject('workspaceResourceId', if(variables('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference('logAnalyticsWorkspace').outputs.resourceId.value)))), createObject('value', null()))]",
           "skuName": "[if(or(parameters('enableScalability'), parameters('enableRedundancy')), createObject('value', 'P1v3'), createObject('value', 'B3'))]",
-          "skuCapacity": "[if(parameters('enableScalability'), createObject('value', 1), createObject('value', 1))]",
+          "skuCapacity": {
+            "value": 1
+          },
           "zoneRedundant": "[if(parameters('enableRedundancy'), createObject('value', true()), createObject('value', false()))]"
         },
         "template": {
@@ -55716,9 +55642,8 @@
           "vnetRouteAllEnabled": "[if(parameters('enablePrivateNetworking'), createObject('value', true()), createObject('value', false()))]",
           "vnetImagePullEnabled": "[if(parameters('enablePrivateNetworking'), createObject('value', true()), createObject('value', false()))]",
           "virtualNetworkSubnetId": "[if(parameters('enablePrivateNetworking'), createObject('value', reference('virtualNetwork').outputs.webSubnetResourceId.value), createObject('value', null()))]",
-          "publicNetworkAccess": {
-            "value": "Enabled"
-          }
+          "publicNetworkAccess": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
+          "privateEndpoints": "[if(parameters('enablePrivateNetworking'), createObject('value', createArray(createObject('name', format('pep-{0}', variables('backendWebSiteResourceName')), 'customNetworkInterfaceName', format('nic-{0}', variables('backendWebSiteResourceName')), 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').webApp)).outputs.resourceId.value))), 'service', 'sites', 'subnetResourceId', reference('virtualNetwork').outputs.pepsSubnetResourceId.value))), createObject('value', createArray()))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -55727,8 +55652,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15946348041145518691"
+              "version": "0.42.1.51946",
+              "templateHash": "71820933064712862"
             }
           },
           "definitions": {
@@ -56740,8 +56665,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.41.2.15936",
-                      "templateHash": "1185169597469996118"
+                      "version": "0.42.1.51946",
+                      "templateHash": "11321300104480927368"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -56849,29 +56774,6 @@
                         "applicationInsights",
                         "storageAccount"
                       ]
-                    }
-                  },
-                  "outputs": {
-                    "name": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The name of the site config."
-                      },
-                      "value": "[parameters('name')]"
-                    },
-                    "resourceId": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The resource ID of the site config."
-                      },
-                      "value": "[resourceId('Microsoft.Web/sites/config', parameters('appName'), parameters('name'))]"
-                    },
-                    "resourceGroupName": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The resource group the site config was deployed into."
-                      },
-                      "value": "[resourceGroup().name]"
                     }
                   }
                 }
@@ -57540,71 +57442,13 @@
                 "app"
               ]
             }
-          },
-          "outputs": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "The name of the site."
-              },
-              "value": "[parameters('name')]"
-            },
-            "resourceId": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource ID of the site."
-              },
-              "value": "[resourceId('Microsoft.Web/sites', parameters('name'))]"
-            },
-            "resourceGroupName": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource group the site was deployed into."
-              },
-              "value": "[resourceGroup().name]"
-            },
-            "systemAssignedMIPrincipalId": {
-              "type": "string",
-              "nullable": true,
-              "metadata": {
-                "description": "The principal ID of the system assigned identity."
-              },
-              "value": "[tryGet(tryGet(reference('app', '2024-04-01', 'full'), 'identity'), 'principalId')]"
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "The location the resource was deployed into."
-              },
-              "value": "[reference('app', '2024-04-01', 'full').location]"
-            },
-            "defaultHostname": {
-              "type": "string",
-              "metadata": {
-                "description": "Default hostname of the app."
-              },
-              "value": "[reference('app').defaultHostName]"
-            },
-            "customDomainVerificationId": {
-              "type": "string",
-              "metadata": {
-                "description": "Unique identifier that verifies the custom domains assigned to the app. Customer will add this ID to a txt record for verification."
-              },
-              "value": "[reference('app').customDomainVerificationId]"
-            },
-            "outboundIpAddresses": {
-              "type": "string",
-              "metadata": {
-                "description": "The outbound IP addresses of the app."
-              },
-              "value": "[reference('app').outboundIpAddresses]"
-            }
           }
         }
       },
       "dependsOn": [
         "aiFoundryAiServices",
         "applicationInsights",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').webApp)]",
         "backendUserAssignedIdentity",
         "cosmosDb",
         "logAnalyticsWorkspace",
@@ -57654,7 +57498,8 @@
               {
                 "name": "appsettings",
                 "properties": {
-                  "APP_API_BASE_URL": "[format('https://api-{0}.azurewebsites.net', variables('solutionSuffix'))]"
+                  "APP_API_BASE_URL": "[if(parameters('enablePrivateNetworking'), '', format('https://api-{0}.azurewebsites.net', variables('solutionSuffix')))]",
+                  "BACKEND_API_HOST": "[if(parameters('enablePrivateNetworking'), format('api-{0}.azurewebsites.net', variables('solutionSuffix')), '')]"
                 },
                 "applicationInsightResourceId": "[if(parameters('enableMonitoring'), reference('applicationInsights').outputs.resourceId.value, null())]"
               }
@@ -57675,8 +57520,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "15946348041145518691"
+              "version": "0.42.1.51946",
+              "templateHash": "71820933064712862"
             }
           },
           "definitions": {
@@ -58688,8 +58533,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.41.2.15936",
-                      "templateHash": "1185169597469996118"
+                      "version": "0.42.1.51946",
+                      "templateHash": "11321300104480927368"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -58797,29 +58642,6 @@
                         "applicationInsights",
                         "storageAccount"
                       ]
-                    }
-                  },
-                  "outputs": {
-                    "name": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The name of the site config."
-                      },
-                      "value": "[parameters('name')]"
-                    },
-                    "resourceId": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The resource ID of the site config."
-                      },
-                      "value": "[resourceId('Microsoft.Web/sites/config', parameters('appName'), parameters('name'))]"
-                    },
-                    "resourceGroupName": {
-                      "type": "string",
-                      "metadata": {
-                        "description": "The resource group the site config was deployed into."
-                      },
-                      "value": "[resourceGroup().name]"
                     }
                   }
                 }
@@ -59487,65 +59309,6 @@
               "dependsOn": [
                 "app"
               ]
-            }
-          },
-          "outputs": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "The name of the site."
-              },
-              "value": "[parameters('name')]"
-            },
-            "resourceId": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource ID of the site."
-              },
-              "value": "[resourceId('Microsoft.Web/sites', parameters('name'))]"
-            },
-            "resourceGroupName": {
-              "type": "string",
-              "metadata": {
-                "description": "The resource group the site was deployed into."
-              },
-              "value": "[resourceGroup().name]"
-            },
-            "systemAssignedMIPrincipalId": {
-              "type": "string",
-              "nullable": true,
-              "metadata": {
-                "description": "The principal ID of the system assigned identity."
-              },
-              "value": "[tryGet(tryGet(reference('app', '2024-04-01', 'full'), 'identity'), 'principalId')]"
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "The location the resource was deployed into."
-              },
-              "value": "[reference('app', '2024-04-01', 'full').location]"
-            },
-            "defaultHostname": {
-              "type": "string",
-              "metadata": {
-                "description": "Default hostname of the app."
-              },
-              "value": "[reference('app').defaultHostName]"
-            },
-            "customDomainVerificationId": {
-              "type": "string",
-              "metadata": {
-                "description": "Unique identifier that verifies the custom domains assigned to the app. Customer will add this ID to a txt record for verification."
-              },
-              "value": "[reference('app').customDomainVerificationId]"
-            },
-            "outboundIpAddresses": {
-              "type": "string",
-              "metadata": {
-                "description": "The outbound IP addresses of the app."
-              },
-              "value": "[reference('app').outboundIpAddresses]"
             }
           }
         }

@@ -102,23 +102,8 @@ param embeddingModel string = 'text-embedding-3-small'
 @description('Optional. Capacity of the Embedding Model deployment.')
 param embeddingDeploymentCapacity int = 80
 
-@description('Optional. The Container Registry hostname where the docker images for the backend are located.')
-param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
-@description('Optional. The Container Image Name to deploy on the backend.')
-param backendContainerImageName string = 'km-api'
-
 @description('Optional. The Container Image Tag to deploy on the backend.')
 param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
-
-@description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
-param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
-@description('Optional. The Container Image Name to deploy on the frontend.')
-param frontendContainerImageName string = 'km-app'
-
-@description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -229,6 +214,10 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
   }
 }
 
+// ========== AVM Telemetry ========== //
+// This is a standard Azure Verified Modules (AVM) pattern for collecting anonymous usage telemetry.
+// It deploys a no-op nested deployment that tracks module usage without collecting any customer data.
+// For more information, see https://aka.ms/avm/TelemetryInfo
 #disable-next-line no-deployments-resources
 resource avmTelemetry 'Microsoft.Resources/deployments@2024-03-01' = if (enableTelemetry) {
   name: '46d3xbcp.ptn.sa-convknowledgemining.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
@@ -346,7 +335,11 @@ module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworki
     enableTelemetry: enableTelemetry
   }
 }
-// Azure Bastion Host
+
+// ========== Azure Bastion Host ========== //
+// Bastion Host provides secure RDP/SSH connectivity to VMs without exposing them via public IP addresses.
+// This is deployed when enablePrivateNetworking=true for WAF compliance and operational access to the jumpbox VM.
+// Purpose: Secure administrative access to private networking resources for troubleshooting and maintenance.
 var bastionHostName = 'bas-${solutionSuffix}'
 module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePrivateNetworking) {
   name: take('avm.res.network.bastion-host.${bastionHostName}', 64)
@@ -375,7 +368,12 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
   }
 }
 
-// Jumpbox Virtual Machine
+// ========== Jumpbox Virtual Machine ========== //
+// Jumpbox VM serves as a secure access point for managing resources in a private virtual network.
+// This is deployed when enablePrivateNetworking=true for WAF compliance.
+// Purpose: Provides administrative access to private endpoints, AI services, and other resources
+// that are not accessible from the public internet. Accessed via Azure Bastion for enhanced security.
+// Configuration: vmAdminUsername, vmAdminPassword, and vmSize parameters control the VM setup.
 var jumpboxVmName = take('vm-jumpbox-${solutionSuffix}', 15)
 module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enablePrivateNetworking) {
   name: take('avm.res.compute.virtual-machine.${jumpboxVmName}', 64)
@@ -519,8 +517,7 @@ module backendUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assi
 // ========== AI Foundry: AI Services ========== //
 // WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
 
-var existingOpenAIEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.openai.azure.com/', split(existingAiFoundryAiProjectResourceId, '/')[8]) : ''
-var existingProjEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(existingAiFoundryAiProjectResourceId, '/')[8], split(existingAiFoundryAiProjectResourceId, '/')[10]) : ''
+var existingProjEndpoint= !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(existingAiFoundryAiProjectResourceId, '/')[8], split(existingAiFoundryAiProjectResourceId, '/')[10]) : ''
 var existingAIServicesName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[8] : ''
 var existingAIProjectName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[10] : ''
 
@@ -538,10 +535,7 @@ var aiFoundryAiProjectResourceName = useExistingAiFoundryAiProject
   ? split(existingAiFoundryAiProjectResourceId, '/')[10]
   : 'proj-${solutionSuffix}' 
 
-// NOTE: Required version 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' not available in AVM
-// var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
 var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
-var aiFoundryAIservicesEnabled = true
 var aiModelDeployments = [
   {
     name: gptModelName
@@ -577,7 +571,7 @@ resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/account
   parent: existingAiFoundryAiServices
 }
 
-module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
+module aiFoundryAiServices 'modules/ai-services.bicep' = {
   name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesResourceName}', 64)
   params: {
     name: aiFoundryAiServicesResourceName
@@ -590,9 +584,7 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservices
     kind: 'AIServices'
     disableLocalAuth: true
     customSubDomainName: aiFoundryAiServicesResourceName
-    apiProperties: {
-      //staticsEnabled: false
-    }
+    apiProperties: {}
     networkAcls: {
       defaultAction: 'Allow'
       virtualNetworkRules: []
@@ -712,9 +704,7 @@ module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1'
     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
     disableLocalAuth: true
     customSubDomainName: aiServicesNameCu
-    apiProperties: {
-      // staticsEnabled: false
-    }
+    apiProperties: {}
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: []
     roleAssignments: [
@@ -842,22 +832,8 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
     semanticSearch: 'free'
     // Use the deployment tags provided to the template
     tags: tags
-    publicNetworkAccess: 'Enabled' //enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: false //enablePrivateNetworking
-    ? [
-        {
-          name: 'pep-${aiSearchName}'
-          customNetworkInterfaceName: 'nic-${aiSearchName}'
-          privateDnsZoneGroup: {
-            privateDnsZoneGroupConfigs: [
-              { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId }
-            ]
-          }
-          service: 'searchService'
-          subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-        }
-      ]
-    : []
+    publicNetworkAccess: 'Enabled'
+    privateEndpoints: []
   }
   dependsOn: [
     searchService
@@ -1231,7 +1207,7 @@ module webServerFarm 'br/public:avm/res/web/serverfarm:0.5.0' = {
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     // WAF aligned configuration for Scalability
     skuName: enableScalability || enableRedundancy ? 'P1v3' : 'B3'
-    skuCapacity: enableScalability ? 1 : 1
+    skuCapacity: 1
     // WAF aligned configuration for Redundancy
     zoneRedundant: enableRedundancy ? true : false
   }
@@ -1436,9 +1412,6 @@ output RESOURCE_GROUP_LOCATION string = location
 
 @description('Contains Azure Content Understanding Location.')
 output AZURE_ENV_CU_LOCATION string = contentUnderstandingLocation
-
-// @description('Contains Azure Secondary Location.')
-// output AZURE_SECONDARY_LOCATION string = secondaryLocation
 
 @description('Contains Application Insights Instrumentation Key.')
 output APPINSIGHTS_INSTRUMENTATIONKEY string = enableMonitoring ? applicationInsights!.outputs.instrumentationKey : ''

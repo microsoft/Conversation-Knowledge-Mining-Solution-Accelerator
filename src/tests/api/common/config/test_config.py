@@ -15,7 +15,6 @@ def mock_env_vars():
         "AZURE_AI_SEARCH_API_KEY": "search_key",
         "AZURE_AI_SEARCH_INDEX": "test_index",
         "USE_AI_PROJECT_CLIENT": "true",
-        "AZURE_AI_PROJECT_CONN_STRING": "Endpoint=sb://test/",
         "USE_CHAT_HISTORY_ENABLED": "TRUE",
         "AZURE_COSMOSDB_DATABASE": "cosmos_db",
         "AZURE_COSMOSDB_ACCOUNT": "cosmos_account",

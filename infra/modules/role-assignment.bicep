@@ -16,4 +16,3 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-output roleAssignmentId string = roleAssignment.id
