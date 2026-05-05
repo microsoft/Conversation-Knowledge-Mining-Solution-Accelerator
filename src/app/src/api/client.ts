@@ -156,6 +156,10 @@ export const getInsights = (fileIds?: string[], externalIndexId?: string, dataSo
   });
 export const getCachedInsights = () => apiClient.get("/processing/insights/cached");
 
+// --- Dashboard ---
+export const getDashboard = (filters?: Record<string, string>, refresh = false) =>
+  apiClient.get("/insights/dashboard", { params: { ...filters, ...(refresh ? { refresh: true } : {}) } });
+
 // --- Pipelines ---
 export const listPipelines = (source?: string) =>
   apiClient.get("/pipelines/", { params: source ? { source } : undefined });

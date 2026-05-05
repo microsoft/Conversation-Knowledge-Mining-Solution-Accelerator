@@ -449,7 +449,7 @@ class IngestionService:
 
     def load_default_dataset(self) -> IngestionResult:
         settings = get_settings()
-        dataset_path = os.path.join(settings.data_dir, "Customer_service_data.json")
+        dataset_path = os.path.join(settings.data_dir, "call_transcripts", "sample_processed_data.json")
         return self.load_json_file(dataset_path)
 
     def get_document(self, doc_id: str) -> Optional[Document]:

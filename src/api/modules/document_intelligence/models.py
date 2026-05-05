@@ -10,7 +10,6 @@ class ExtractedDocument(BaseModel):
     page_count: int = 1
     analyzer: str = "km-document"
 
-    # AI-enriched fields (populated after GPT-4o analysis of CU output)
     summary: str = ""
     entities: list[dict[str, str]] = []  # [{name, type, context}]
     key_phrases: list[str] = []

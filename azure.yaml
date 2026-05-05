@@ -23,7 +23,10 @@ hooks:
 
         Write-Host "`nNext steps:"
         Write-Host "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)" -ForegroundColor Cyan
-        Write-Host "  2. Run: ./infra/scripts/seed-data.ps1      (load sample data)" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  Then connect your data (choose one):" -ForegroundColor Yellow
+        Write-Host "  2a. Run: ./scripts/seed-sample-data.ps1   (seed sample call transcripts)" -ForegroundColor Cyan
+        Write-Host "  2b. Run: ./scripts/connect-data.ps1       (connect your own data source)" -ForegroundColor Cyan
       continueOnError: false
       interactive: true
     posix:
@@ -38,6 +41,9 @@ hooks:
 
         echo "\nNext steps:"
         echo "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)"
-        echo "  2. Run: ./infra/scripts/seed-data.ps1      (load sample data)"
+        echo ""
+        echo "  Then connect your data (choose one):"
+        echo "  2a. Run: ./scripts/seed-sample-data.ps1   (seed sample call transcripts)"
+        echo "  2b. Run: ./scripts/connect-data.ps1       (connect your own data source)"
       continueOnError: false
       interactive: true

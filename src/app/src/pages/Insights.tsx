@@ -1,368 +1,251 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Button, Spinner, Badge, Dropdown, Option } from "@fluentui/react-components";
-import {
-  ArrowSync24Regular, Sparkle24Regular,
-  Lightbulb24Regular, DataBarVertical24Regular,
-  ArrowTrending24Regular, PeopleCommunity24Regular,
-  ShieldError24Regular, Chat24Regular,
-  ArrowDownload24Regular, Settings24Regular,
-  ChevronRight20Regular,
-} from "@fluentui/react-icons";
-import { DonutChart, BarChart } from "../components/Charts";
-import { useNavigate, useLocation } from "react-router-dom";
-import { getInsights, getUploadedFiles, listDataSources } from "../api/client";
+import React, { useState, useEffect } from "react";
+import { Button, Spinner, Dropdown, Option } from "@fluentui/react-components";
+import { ArrowSync24Regular, ChartMultiple24Regular, ChevronRight20Regular } from "@fluentui/react-icons";
+import { DonutChart, BarChart, LineChart } from "../components/Charts";
+import { useNavigate } from "react-router-dom";
+import { getDashboard } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import s from "./Insights.module.css";
 
-const CAT_COLORS: Record<string, string> = {
-  pattern: "#2563eb", risk: "#f59e0b", opportunity: "#059669",
-};
-const SEV: Record<string, { bg: string; fg: string }> = {
-  high: { bg: "#fee2e2", fg: "#dc2626" },
-  medium: { bg: "#fef3c7", fg: "#d97706" },
-  low: { bg: "#d1fae5", fg: "#059669" },
-};
+const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec4899", "#0ea5e9", "#f97316"];
 
 const Insights: React.FC = () => {
   const nav = useNavigate();
-  const { insights: cached, setInsights: cache } = useAppState();
-  const [data, setData] = useState<any>(cached);
-  const [loading, setLoading] = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState("Analyzing your documents...");
-  const [files, setFiles] = useState<Array<{ id: string; filename: string }>>([]);
-  const [dataSources, setDataSources] = useState<Array<{ id: string; name: string; source_type: string; status: string }>>([]);
-  const [scope, setScope] = useState("all");
-  const [open, setOpen] = useState<Set<string>>(new Set(["insights", "trends", "entities", "risks"]));
-  const loadedRef = useRef(false);
-  const location = useLocation();
+  const { setDashboardHeadline } = useAppState();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  const go = (q: string) => nav(`/explore?q=${encodeURIComponent(q)}`);
-  const toggle = (id: string) => setOpen((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggle = (id: string) => setCollapsed(p => {
+    const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
 
-  const load = async (fileIds?: string[], docName?: string, dataSourceId?: string, refresh = false) => {
+  const load = async (f?: Record<string, string>, refresh = false) => {
     setLoading(true);
-    setLoadingMsg(docName ? `Analyzing "${docName}"...` : "Analyzing all documents...");
-    if (refresh) setData(null); // Only clear for explicit refresh
-    try { const r = (await getInsights(fileIds, undefined, dataSourceId, refresh)).data; setData(r); cache(r); } catch {}
+    try {
+      const r = await getDashboard(f, refresh);
+      setData(r.data);
+      if (r.data?.headline) {
+        setDashboardHeadline(r.data.headline);
+        try { sessionStorage.setItem("km_headline", JSON.stringify(r.data.headline)); } catch {}
+      }
+    } catch (e) { console.error("Dashboard load failed", e); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    // Load file lists in parallel, non-blocking
-    Promise.allSettled([
-      getUploadedFiles(),
-      listDataSources(),
-    ]).then(([filesRes, dsRes]) => {
-      setFiles(filesRes.status === "fulfilled" 
-        ? filesRes.value.data.filter((f: any) => f.status === "ready" || !f.status) 
-        : []);
-      setDataSources(
-        dsRes.status === "fulfilled"
-          ? dsRes.value.data.filter((s: any) => s.status === "connected")
-          : []
-      );
-    });
-  }, [location.key]);
+  useEffect(() => { load(); }, []);
 
-  // Auto-generate insights on first load if nothing is cached
-  useEffect(() => {
-    if (!cached && !loadedRef.current) {
-      loadedRef.current = true;
-      load();
-    }
-  }, []);
-
-  const handleScope = (_: any, opt: any) => {
-    const v = opt.optionValue || "all";
-    setScope(v);
-    if (v === "all") {
-      load(undefined, undefined);
-    } else if (v.startsWith("ds:")) {
-      const dsId = v.slice(3);
-      const ds = dataSources.find((d) => d.id === dsId);
-      load(undefined, ds?.name || dsId, dsId);
-    } else {
-      const fileName = files.find((f) => f.id === v)?.filename || v;
-      load([v], fileName);
-    }
+  const applyFilter = (field: string, value: string) => {
+    const next = { ...filters };
+    if (!value || value === "_all") delete next[field];
+    else next[field] = value;
+    setFilters(next);
+    load(next);
   };
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "insights-report.json"; a.click();
-    URL.revokeObjectURL(url);
+  const fmt = (kpi: any) => {
+    if (kpi.format === "percentage") return `${kpi.value}%`;
+    if (kpi.format === "minutes") return `${kpi.value}mins`;
+    return kpi.value?.toLocaleString?.() ?? kpi.value;
   };
 
-  if (!data && !loading) return (
-    <div className={s.page}><div className={s.empty}>
-      <Sparkle24Regular style={{ fontSize: 48 }} /><h2>No insights yet</h2><p>Upload documents to generate intelligence.</p>
-    </div></div>
-  );
   if (loading && !data) return (
     <div className={s.page}><div className={s.loading}>
-      <Spinner size="large" /><h3>{loadingMsg}</h3>
+      <Spinner size="large" /><h3>Analyzing your data...</h3>
     </div></div>
   );
 
-  const findings = data?.deep_findings || data?.key_insights || data?.key_findings || [];
-  const signals = data?.signals || data?.signal_cards || [];
-  const chains = data?.causal_chains || (data?.root_causes?.chains || []);
-  const entities = data?.entity_map || data?.entity_intelligence?.top_entities || [];
-  const risks = data?.risks || data?.risk_assessment?.risks || [];
-  const opps = data?.opportunities || [];
-  const questions = data?.questions_to_investigate || data?.suggested_questions || [];
+  if (!data || (data.data_context?.total_records ?? data.total_records ?? 0) === 0) return (
+    <div className={s.page}><div className={s.empty}>
+      <ChartMultiple24Regular style={{ fontSize: 48 }} />
+      <h2>No Data Available</h2><p>Upload documents or connect a data source to see insights.</p>
+    </div></div>
+  );
+
+  const ctx = data.data_context || {};
+  const sections = data.sections || [];
+  const kpis = data.kpis || [];
+  const availableFilters = data.filters || [];
+  const questions = data.suggested_questions || [];
 
   return (
     <div className={s.page}>
-      {/* ── Sticky top bar ── */}
-      <div className={s.topBar}>
-        <div className={s.topTitle}>Insights Report</div>
-        <div className={s.topRight}>
-          <Dropdown
-            value={scope === "all" ? "All Documents" : scope.startsWith("ds:") ? (dataSources.find((d) => d.id === scope.slice(3))?.name || scope) : (files.find((f) => f.id === scope)?.filename || scope)}
-            onOptionSelect={handleScope}
-            size="small"
-            style={{ minWidth: 180 }}
-          >
-            <Option value="all">All Documents</Option>
-            {files.map((f) => <Option key={f.id} value={f.id}>{f.filename}</Option>)}
-            {dataSources.length > 0 && dataSources.map((ds) => (
-              <Option key={`ds:${ds.id}`} value={`ds:${ds.id}`} text={`⚡ ${ds.name}`}>⚡ {ds.name}</Option>
-            ))}
-          </Dropdown>
-          <Button appearance="primary" size="small" icon={<ArrowSync24Regular />}
-            onClick={() => {
-              if (scope === "all") load(undefined, undefined, undefined, true);
-              else if (scope.startsWith("ds:")) {
-                const dsId = scope.slice(3);
-                const ds = dataSources.find((d) => d.id === dsId);
-                load(undefined, ds?.name || dsId, dsId, true);
-              }
-              else load([scope], files.find((f) => f.id === scope)?.filename || scope, undefined, true);
-            }} disabled={loading}>
-            {loading ? "Analyzing..." : "Refresh"}
-          </Button>
-          <Button appearance="subtle" size="small" icon={<ArrowDownload24Regular />} onClick={exportData}>
-            Export
-          </Button>
-        </div>
-      </div>
-
       <div className={s.content}>
-        {/* ── Headline ── */}
-        <div className={s.headline}>
-          <div className={s.headlineText}>{data?.headline || "Analysis Complete"}</div>
-          <div className={s.narrative}>
-            {data?.narrative || data?.executive_summary?.text || data?.executive_summary || ""}
+        {/* ── Top: summary + record count + re-analyze ── */}
+        <div className={s.topBar}>
+          <div style={{ flex: 1 }}>
+            {data.summary && <div className={s.summary}>{data.summary}</div>}
+            {ctx.filtered_records !== undefined && ctx.filtered_records !== ctx.total_records && (
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+                Showing {ctx.filtered_records} of {ctx.total_records} records
+              </div>
+            )}
           </div>
-          <div className={s.meta}>
-            {data?.confidence && <span>Confidence: <strong>{data.confidence}</strong></span>}
-            <span>{findings.length} findings</span>
-            <span>{entities.length} entities</span>
-            <span>{risks.length} risks</span>
-          </div>
+          <Button appearance="subtle" size="small" icon={<ArrowSync24Regular />}
+            onClick={() => load(filters, true)} disabled={loading}>
+            {loading ? "Analyzing..." : "Re-analyze"}
+          </Button>
         </div>
 
-        {/* ── 1. Metrics (always visible, no collapse) ── */}
-        {signals.length > 0 && (
-          <div className={s.metricsRow}>
-            {signals.map((sig: any, i: number) => {
-              const cat = sig.category || "pattern";
-              return (
-                <div key={i} className={s.metric} data-cat={cat}>
-                  <div className={s.metricCat} style={{ color: CAT_COLORS[cat] || "#94a3b8" }}>{cat.toUpperCase()}</div>
-                  <div className={s.metricValue}>{sig.metric || sig.value}</div>
-                  <div className={s.metricLabel}>{sig.label || sig.title}</div>
-                  <div className={s.metricDesc}>{sig.interpretation || sig.context}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── Charts ── */}
-        {(entities.length > 0 || risks.length > 0) && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-            {/* Entity relevance chart */}
-            {entities.length > 0 && (
-              <div className={s.section} style={{ padding: "20px 24px" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 12 }}>Entity Relevance</div>
-                <BarChart
-                  data={entities.slice(0, 6).map((e: any) => ({ label: e.name, value: e.relevance || 50 }))}
-                  height={180}
-                  horizontal
-                  color="#2563eb"
-                />
-              </div>
-            )}
-
-            {/* Risk distribution chart */}
-            {risks.length > 0 && (
-              <div className={s.section} style={{ padding: "20px 24px" }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", marginBottom: 12 }}>Risk Distribution</div>
-                <DonutChart
-                  data={(() => {
-                    const counts: Record<string, number> = {};
-                    risks.forEach((r: any) => { const sev = r.severity || "medium"; counts[sev] = (counts[sev] || 0) + 1; });
-                    return Object.entries(counts).map(([label, value]) => ({ label, value }));
-                  })()}
-                  height={180}
-                />
-              </div>
+        {/* ── Filters ── */}
+        {availableFilters.length > 0 && (
+          <div className={s.filterRow}>
+            {availableFilters.map((f: any) => (
+              <Dropdown key={f.field} placeholder={f.label}
+                value={filters[f.field] || "All"}
+                onOptionSelect={(_, opt) => applyFilter(f.field, opt?.optionValue || "")}
+                size="small" style={{ minWidth: 140 }}>
+                <Option value="_all" text={`All ${f.label}`}>All {f.label}</Option>
+                {f.values.map((v: string) => <Option key={v} value={v} text={v}>{v}</Option>)}
+              </Dropdown>
+            ))}
+            {Object.keys(filters).length > 0 && (
+              <Button size="small" appearance="subtle" onClick={() => { setFilters({}); load({}); }}>Clear</Button>
             )}
           </div>
         )}
 
-        {/* ── 2. Key Insights (collapsible) ── */}
-        {findings.length > 0 && (
-          <Section id="insights" title="Key Insights" count={findings.length} open={open} toggle={toggle}
-            icon={<Lightbulb24Regular />} iconBg="#dbeafe" iconColor="#2563eb"
-            actions={[{ label: "Ask about this", fn: () => go("Explain the key findings") }, { label: "Export", fn: exportData }]}>
-            {findings.map((f: any, i: number) => (
-              <div key={i} className={s.insight}>
-                <div className={s.insightFinding}>{typeof f === "string" ? f : f.finding || JSON.stringify(f)}</div>
-                {f.why_it_matters && <div className={s.insightWhy}>{f.why_it_matters}</div>}
-                {f.recommendation && <div className={s.insightRec}>→ {f.recommendation}</div>}
+        {/* ── KPIs ── */}
+        {kpis.length > 0 && (
+          <div className={s.kpiRow}>
+            {kpis.map((kpi: any, i: number) => (
+              <div key={i} className={s.kpi}>
+                <div className={s.kpiLabel}>{kpi.label}</div>
+                <div className={s.kpiValue}>{fmt(kpi)}</div>
               </div>
             ))}
-          </Section>
+          </div>
         )}
 
-        {/* ── 3. Trends & Root Causes ── */}
-        {chains.length > 0 && (
-          <Section id="trends" title="Trends & Root Causes" count={chains.length} open={open} toggle={toggle}
-            icon={<ArrowTrending24Regular />} iconBg="#fef3c7" iconColor="#d97706"
-            actions={[{ label: "Ask about this", fn: () => go("Explain the trends and root causes") }]}>
-            {chains.map((c: any, i: number) => (
-              <div key={i} className={s.trend}>
-                <div className={s.trendChain}>{typeof c === "string" ? c : c.chain || JSON.stringify(c)}</div>
-                {typeof c === "object" && c.explanation && <div className={s.trendExplain}>{c.explanation}</div>}
-              </div>
-            ))}
-          </Section>
-        )}
-
-        {/* ── 4. Entities & Themes ── */}
-        {entities.length > 0 && (
-          <Section id="entities" title="Entities & Themes" count={entities.length} open={open} toggle={toggle}
-            icon={<PeopleCommunity24Regular />} iconBg="#dbeafe" iconColor="#2563eb"
-            actions={[{ label: "Ask about this", fn: () => go("Tell me about the key entities") }]}>
-            <div className={s.entityGrid}>
-              {entities.map((e: any, i: number) => (
-                <div key={i} className={s.entity} onClick={() => go(e.name)}>
-                  <div className={s.entityName}>{e.name}</div>
-                  <div className={s.entityRole}>{e.role || e.context || ""}</div>
-                  <div className={s.entityBar}>
-                    <div className={s.entityBarFill} style={{ width: `${e.relevance || 50}%` }} />
-                  </div>
-                  {e.connections?.length > 0 && (
-                    <div className={s.entityTags}>
-                      {e.connections.map((c: string) => <Badge key={c} appearance="outline" size="small" shape="rounded">{c}</Badge>)}
-                    </div>
-                  )}
-                </div>
+        {/* ── Sections — everything from backend, rendered generically ── */}
+        {sections.map((sec: any) => (
+          <Section key={sec.id} id={sec.id} title={sec.title}
+            collapsed={collapsed} toggle={toggle}>
+            <div className={sec.charts?.length === 1 ? undefined : s.chartGrid}>
+              {(sec.charts || []).map((chart: any, ci: number) => (
+                <ChartCard key={ci} chart={chart} />
               ))}
             </div>
           </Section>
-        )}
+        ))}
 
-        {/* ── 5. Risks & Opportunities ── */}
-        {(risks.length > 0 || opps.length > 0) && (
-          <Section id="risks" title="Risks & Opportunities" count={risks.length + opps.length} open={open} toggle={toggle}
-            icon={<ShieldError24Regular />} iconBg="#fee2e2" iconColor="#dc2626"
-            actions={[{ label: "Ask about this", fn: () => go("What are the risks and opportunities?") }, { label: "Refine", fn: () => {
-              if (scope === "all") load(undefined, undefined);
-              else if (scope.startsWith("ds:")) {
-                const dsId = scope.slice(3);
-                const ds = dataSources.find((d) => d.id === dsId);
-                load(undefined, ds?.name || dsId, dsId);
-              }
-              else load([scope], files.find((f) => f.id === scope)?.filename || scope);
-            } }]}>
-            <div className={s.riskOppGrid}>
-              <div className={s.riskCol}>
-                <div className={s.riskColLabel}>Risks ({risks.length})</div>
-                {risks.map((r: any, i: number) => {
-                  const sv = SEV[r.severity] || SEV.medium;
-                  return (
-                    <div key={i} className={s.risk}>
-                      <div className={s.riskHeader}>
-                        <span className={s.riskBadge} style={{ background: sv.bg, color: sv.fg }}>{r.severity}</span>
-                        <span className={s.riskTitle}>{typeof r === "string" ? r : r.risk}</span>
-                      </div>
-                      {r.evidence && <div className={s.riskDetail}>Evidence: {r.evidence}</div>}
-                      {r.mitigation && <div className={s.riskDetail} style={{ color: "#059669" }}>Mitigation: {r.mitigation}</div>}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className={s.oppCol}>
-                <div className={s.oppColLabel}>Opportunities ({opps.length})</div>
-                {opps.map((o: any, i: number) => (
-                  <div key={i} className={s.opp}>
-                    <div className={s.oppTitle}>{typeof o === "string" ? o : o.opportunity}</div>
-                    {o.potential_impact && <div className={s.oppImpact}>Impact: {o.potential_impact}</div>}
-                    {o.next_step && <div className={s.oppNext}>→ {o.next_step}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Section>
-        )}
-
-        {/* ── 6. Investigate Further ── */}
+        {/* ── Suggested questions ── */}
         {questions.length > 0 && (
-          <Section id="questions" title="Investigate Further" open={open} toggle={toggle}
-            icon={<Chat24Regular />} iconBg="#d1fae5" iconColor="#059669">
-            <div className={s.questionGrid}>
+          <div className={s.card}>
+            <div className={s.cardTitle}>Investigate Further</div>
+            <div className={s.questionRow}>
               {questions.map((q: string, i: number) => (
-                <button key={i} className={s.questionBtn} onClick={() => go(q)}>{q}</button>
+                <button key={i} className={s.questionBtn}
+                  onClick={() => nav(`/explore?q=${encodeURIComponent(q)}`)}>{q}</button>
               ))}
             </div>
-          </Section>
+          </div>
         )}
 
-
+        <div className={s.disclaimer}>AI-generated content may be incorrect</div>
       </div>
     </div>
   );
 };
 
-/* ── Collapsible Section ── */
+/* ═══════════════════════════════════════════
+   Generic chart renderer — no business logic
+   ═══════════════════════════════════════════ */
+const ChartCard: React.FC<{ chart: any }> = ({ chart }) => {
+  const vis = chart.visualization;
+
+  // Driver table — full width
+  if (vis === "driver_table") {
+    const d = chart.data;
+    return (
+      <div className={s.cardFull}>
+        <div className={s.cardTitle}>{chart.title}</div>
+        {chart.description && <div className={s.cardDesc}>{chart.description}</div>}
+        <table className={s.driverTable}>
+          <thead>
+            <tr><th>Dimension</th><th>Value</th><th>Rate</th><th>vs Baseline ({d.baseline}%)</th><th>Count</th></tr>
+          </thead>
+          <tbody>
+            {d.factors.map((f: any, j: number) => (
+              <tr key={j}>
+                <td style={{ color: "#64748b", fontSize: 11 }}>{f.dimension}</td>
+                <td><strong>{f.value}</strong></td>
+                <td>{f.rate}%</td>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div className={s.driverBar}>
+                      <div className={s.driverBarFill} style={{
+                        width: `${Math.min(100, f.rate)}%`,
+                        background: f.impact === "positive" ? "#059669" : "#dc2626",
+                      }} />
+                    </div>
+                    <span className={f.impact === "positive" ? s.driverUp : s.driverDown}>
+                      {f.deviation > 0 ? "+" : ""}{f.deviation}%
+                    </span>
+                  </div>
+                </td>
+                <td style={{ color: "#94a3b8" }}>{f.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // All other chart types
+  return (
+    <div className={s.card}>
+      <div className={s.cardTitle}>{chart.title}</div>
+      {chart.description && <div className={s.cardDesc}>{chart.description}</div>}
+
+      {vis === "donut" && <DonutChart data={chart.data} height={260} />}
+      {vis === "bar" && <BarChart data={chart.data} height={260} color="#2563eb" />}
+      {vis === "horizontal_bar" && <BarChart data={chart.data} height={260} horizontal color="#1e3a6b" />}
+      {vis === "line" && <LineChart data={chart.data} height={260} color="#2563eb" />}
+
+      {vis === "table" && (
+        <table className={s.topicTable}>
+          <thead><tr><th>Item</th><th>Count</th></tr></thead>
+          <tbody>
+            {chart.data.map((d: any, j: number) => (
+              <tr key={j}><td>{d.label}</td><td><strong>{d.value}</strong></td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {vis === "word_cloud" && (
+        <div className={s.wordCloud}>
+          {chart.data.map((p: any, i: number) => (
+            <span key={i} className={s.wordItem}
+              style={{ fontSize: Math.max(12, Math.round(p.weight * 32 + 10)),
+                       color: WORD_COLORS[i % WORD_COLORS.length] }}
+              title={`${p.text}: ${p.frequency}`}>{p.text}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════
+   Collapsible section
+   ═══════════════════════════════════════════ */
 const Section: React.FC<{
-  id: string;
-  title: string;
-  count?: number;
-  open: Set<string>;
-  toggle: (id: string) => void;
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  actions?: Array<{ label: string; fn: () => void }>;
+  id: string; title: string;
+  collapsed: Set<string>; toggle: (id: string) => void;
   children: React.ReactNode;
-}> = ({ id, title, count, open, toggle, icon, iconBg, iconColor, actions, children }) => {
-  const isOpen = open.has(id);
+}> = ({ id, title, collapsed, toggle, children }) => {
+  const isOpen = !collapsed.has(id);
   return (
     <div className={s.section}>
       <div className={s.sectionHeader} onClick={() => toggle(id)}>
-        <div className={s.sectionIcon} style={{ background: iconBg, color: iconColor }}>{icon}</div>
         <div className={s.sectionTitle}>{title}</div>
-        {count !== undefined && <div className={s.sectionCount}>{count}</div>}
         <ChevronRight20Regular className={isOpen ? s.sectionChevronOpen : s.sectionChevron} />
       </div>
-      {isOpen && (
-        <div className={s.sectionBody}>
-          {children}
-          {actions && actions.length > 0 && (
-            <div className={s.sectionActions}>
-              {actions.map((a) => (
-                <button key={a.label} className={s.actionBtn} onClick={a.fn}>{a.label}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {isOpen && <div className={s.sectionBody}>{children}</div>}
     </div>
   );
 };

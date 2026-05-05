@@ -12,6 +12,10 @@ interface AppState {
   insights: any | null;
   setInsights: (data: any) => void;
 
+  // Dashboard headline (LLM-generated, shown in app header)
+  dashboardHeadline: string;
+  setDashboardHeadline: (h: string) => void;
+
   // Chat cache (global chat on Insights page)
   chatMessages: ChatMessage[];
   setChatMessages: (msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
@@ -24,6 +28,8 @@ interface AppState {
 const AppContext = createContext<AppState>({
   insights: null,
   setInsights: () => {},
+  dashboardHeadline: "",
+  setDashboardHeadline: () => {},
   chatMessages: [],
   setChatMessages: () => {},
   exploreChatMessages: [],
@@ -34,6 +40,7 @@ export const useAppState = () => useContext(AppContext);
 
 export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [insights, setInsightsRaw] = useState<any | null>(() => loadFromSession("km_insights", null));
+  const [dashboardHeadline, setDashboardHeadline] = useState<string>(() => loadFromSession("km_headline", ""));
   const [chatMessages, setChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_chat", []));
   const [exploreChatMessages, setExploreChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_explore_chat", []));
 
@@ -61,6 +68,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
   return (
     <AppContext.Provider value={{
       insights, setInsights,
+      dashboardHeadline, setDashboardHeadline,
       chatMessages, setChatMessages,
       exploreChatMessages, setExploreChatMessages,
     }}>

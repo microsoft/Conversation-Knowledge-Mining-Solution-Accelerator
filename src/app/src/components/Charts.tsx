@@ -1,5 +1,5 @@
 import React from "react";
-import { Doughnut, Bar } from "react-chartjs-2";
+import { Doughnut, Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -8,11 +8,14 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  PointElement,
+  LineElement,
+  Filler,
 } from "chart.js";
 
 import { COLORS } from "../utils/constants";
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler);
 
 interface DonutChartProps {
   data: Array<{ label: string; value: number }>;
@@ -89,6 +92,51 @@ export const BarChart: React.FC<BarChartProps> = ({ data, title, height = 200, h
           scales: {
             x: { grid: { display: false }, ticks: { font: { size: 10 } } },
             y: { grid: { color: "#f1f5f9" }, ticks: { font: { size: 10 } } },
+          },
+        }}
+      />
+    </div>
+  );
+};
+
+interface LineChartProps {
+  data: Array<{ label: string; value: number }>;
+  title?: string;
+  height?: number;
+  color?: string;
+}
+
+export const LineChart: React.FC<LineChartProps> = ({ data, title, height = 200, color = "#2563eb" }) => {
+  const chartData = {
+    labels: data.map((d) => d.label),
+    datasets: [
+      {
+        data: data.map((d) => d.value),
+        borderColor: color,
+        backgroundColor: color + "20",
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: color,
+        tension: 0.3,
+        fill: true,
+      },
+    ],
+  };
+
+  return (
+    <div style={{ height }}>
+      <Line
+        data={chartData}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { bodyFont: { size: 12 } },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } },
+            y: { grid: { color: "#f1f5f9" }, ticks: { font: { size: 10 } }, beginAtZero: true },
           },
         }}
       />

@@ -2,6 +2,7 @@
   "name": "knowledge-mining-frontend",
   "version": "1.0.0",
   "private": true,
+  "proxy": "http://localhost:8000",
   "dependencies": {
     "@azure/msal-browser": "^3.30.0",
     "@azure/msal-react": "^2.2.0",

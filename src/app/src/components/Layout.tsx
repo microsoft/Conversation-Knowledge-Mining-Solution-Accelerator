@@ -21,6 +21,7 @@ import {
 } from "@fluentui/react-icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
+import { useAppState } from "../context/AppStateContext";
 
 const useStyles = makeStyles({
   root: {
@@ -163,6 +164,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
   const [userName, setUserName] = useState("");
+  const { dashboardHeadline } = useAppState();
 
   useEffect(() => {
     // Fetch user info from EasyAuth
@@ -186,9 +188,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const allNavItems = [
     { path: "/", label: "Home", icon: <Home24Regular />, activeIcon: <Home24Filled /> },
-    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
-    { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
+    { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
+    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
   ];
 
   const navItems = allNavItems;
@@ -202,7 +204,8 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       <div className={styles.topBar}>
         <div className={styles.topBarLeft}>
           <span className={styles.breadcrumb}>
-            {process.env.REACT_APP_BRANDING_NAME || "Knowledge Mining"}{pageTitle ? ` — ${pageTitle}` : ""}
+            {process.env.REACT_APP_BRANDING_NAME || "Knowledge Mining"}
+            {dashboardHeadline ? <span style={{ fontWeight: 400, color: "#94a3b8" }}>{" | "}{dashboardHeadline}</span> : ""}
           </span>
         </div>
         <div className={styles.topBarRight}>
@@ -215,6 +218,23 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               style={{ color: "#cbd5e1" }}
             >
               <span style={{ color: "#cbd5e1" }}>{showChat ? "Hide Chat" : "Ask your data"}</span>
+            </Button>
+          )}
+          {isAuthenticated ? (
+            <Tooltip content={`Sign out (${userName})`} relationship="label" positioning="below">
+              <div className={styles.userBadge} onClick={handleLogout}>
+                {initials || "U"}
+              </div>
+            </Tooltip>
+          ) : (
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<PersonAccounts24Regular />}
+              onClick={handleLogin}
+              style={{ color: "#cbd5e1" }}
+            >
+              <span style={{ color: "#cbd5e1" }}>Sign in</span>
             </Button>
           )}
         </div>
@@ -238,17 +258,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           );
         })}
         <div className={styles.sidebarBottom}>
-          {isAuthenticated ? (
-            <div className={styles.userBadge} onClick={handleLogout} title={`Sign out (${userName})`}>
-              {initials || "U"}
-            </div>
-          ) : (
-            <Tooltip content="Sign In" relationship="label" positioning="after">
-              <div className={styles.navItem} onClick={handleLogin}>
-                <PersonAccounts24Regular />
-              </div>
-            </Tooltip>
-          )}
         </div>
       </nav>
 
