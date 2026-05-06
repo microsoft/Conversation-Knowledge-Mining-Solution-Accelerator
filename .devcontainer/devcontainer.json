@@ -6,7 +6,11 @@
     "forwardPorts": [50505],
     "features": {
         "ghcr.io/azure/azure-dev/azd:latest": {},
-        "ghcr.io/devcontainers/features/azure-cli:1": {},
+        "ghcr.io/devcontainers/features/azure-cli:1": {
+            "installBicep": true,
+            "version": "latest",
+            "bicepVersion": "latest"
+        },
         "ghcr.io/devcontainers/features/docker-in-docker:2": {},
         "ghcr.io/jlaundry/devcontainer-features/mssql-odbc-driver:1": {
 			"version": "18"
