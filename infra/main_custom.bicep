@@ -102,9 +102,6 @@ param embeddingModel string = 'text-embedding-3-small'
 @description('Optional. Capacity of the Embedding Model deployment.')
 param embeddingDeploymentCapacity int = 80
 
-@description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
-
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
 
@@ -832,8 +829,24 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
     semanticSearch: 'free'
     // Use the deployment tags provided to the template
     tags: tags
-    publicNetworkAccess: 'Enabled'
-    privateEndpoints: []
+    // Respect the deployment-wide private networking setting for Search as well.
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-search-${solutionSuffix}'
+            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                {
+                  name: 'search-dns-zone-group'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId
+                }
+              ]
+            }
+          }
+        ]
+      : []
   }
   dependsOn: [
     searchService
@@ -1511,9 +1524,6 @@ output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 
 @description('Contains Azure Container Registry name.')
 output ACR_NAME string = acrName
-
-@description('Contains Azure environment image tag.')
-output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 
 @description('Contains existing AI project resource ID.')
 output AZURE_EXISTING_AIPROJECT_RESOURCE_ID string = existingAiFoundryAiProjectResourceId

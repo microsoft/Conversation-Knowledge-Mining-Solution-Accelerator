@@ -846,8 +846,24 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
     semanticSearch: 'free'
     // Use the deployment tags provided to the template
     tags: tags
-    publicNetworkAccess: 'Enabled'
-    privateEndpoints: []
+    // Respect the deployment-wide private networking setting for Search as well.
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-search-${solutionSuffix}'
+            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                {
+                  name: 'search-dns-zone-group'
+                  privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.search]!.outputs.resourceId
+                }
+              ]
+            }
+          }
+        ]
+      : []
   }
   dependsOn: [
     searchService
