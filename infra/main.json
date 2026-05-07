@@ -45,8 +45,10 @@
         "eastus",
         "eastus2",
         "japaneast",
+        "southcentralus",
         "swedencentral",
         "uksouth",
+        "westeurope",
         "westus",
         "westus3"
       ],
@@ -54,7 +56,7 @@
         "azd": {
           "type": "location",
           "usageName": [
-            "OpenAI.GlobalStandard.gpt-4.1,150",
+            "OpenAI.GlobalStandard.gpt-4o-mini,150",
             "OpenAI.GlobalStandard.text-embedding-3-small,80"
           ]
         },
@@ -94,14 +96,14 @@
     },
     "gptModelName": {
       "type": "string",
-      "defaultValue": "gpt-4.1",
+      "defaultValue": "gpt-4o-mini",
       "metadata": {
         "description": "Optional. Name of the GPT model to deploy."
       }
     },
     "gptModelVersion": {
       "type": "string",
-      "defaultValue": "2025-04-14",
+      "defaultValue": "2024-07-18",
       "metadata": {
         "description": "Optional. Version of the GPT model to deploy."
       }

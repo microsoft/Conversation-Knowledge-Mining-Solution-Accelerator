@@ -25,8 +25,10 @@ param location string
   'eastus'
   'eastus2'
   'japaneast'
+  'southcentralus'
   'swedencentral'
   'uksouth'
+  'westeurope'
   'westus'
   'westus3'
 ])
@@ -34,7 +36,7 @@ param location string
   azd: {
     type: 'location'
     usageName: [
-      'OpenAI.GlobalStandard.gpt4.1,150'
+      'OpenAI.GlobalStandard.gpt-4o-mini,150'
       'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
@@ -63,10 +65,10 @@ param secondaryLocation string = 'eastus2'
 param deploymentType string = 'GlobalStandard'
 
 @description('Optional. Name of the GPT model to deploy.')
-param gptModelName string = 'gpt-4.1'
+param gptModelName string = 'gpt-4o-mini'
 
 @description('Optional. Version of the GPT model to deploy.')
-param gptModelVersion string = '2025-04-14'
+param gptModelVersion string = '2024-07-18'
 
 @description('Optional. Version of AI Agent API.')
 param azureAiAgentApiVersion string = '2025-05-01'
