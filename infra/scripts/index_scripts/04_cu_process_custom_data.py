@@ -385,142 +385,146 @@ async def process_files():
         base_url=embeddings_base_url,
         api_key=embeddings_token_provider(),
     )
-    ANALYZER_ID = "ckm_analyzer_json"
-    # Process files and insert into DB and Search - transcripts
-    for path in paths:
-        file_client = file_system_client.get_file_client(path.name)
-        data_file = file_client.download_file()
-        data = data_file.readall()
-        try:
-            response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-            result = cu_client.poll_result(response)
-            file_name = path.name.split('/')[-1].replace("%3A", "_")
-            start_time = file_name.replace(".json", "")[-19:]
-            timestamp_format = "%Y-%m-%d %H_%M_%S"
-            start_timestamp = datetime.strptime(start_time, timestamp_format)
-            conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-            conversationIds.append(conversation_id)
-
-            fields = result['result']['contents'][0]['fields']
-            duration_str = get_field_value(fields, 'Duration', '0')
+    try:
+        ANALYZER_ID = "ckm_analyzer_json"
+        # Process files and insert into DB and Search - transcripts
+        for path in paths:
+            file_client = file_system_client.get_file_client(path.name)
+            data_file = file_client.download_file()
+            data = data_file.readall()
             try:
-                duration = int(duration_str)
-            except (ValueError, TypeError):
-                duration = 0
+                response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+                result = cu_client.poll_result(response)
+                file_name = path.name.split('/')[-1].replace("%3A", "_")
+                start_time = file_name.replace(".json", "")[-19:]
+                timestamp_format = "%Y-%m-%d %H_%M_%S"
+                start_timestamp = datetime.strptime(start_time, timestamp_format)
+                conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+                conversationIds.append(conversation_id)
 
-            end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
-            start_timestamp = str(start_timestamp).split(".")[0]
-            summary = get_field_value(fields, 'summary')
-            satisfied = get_field_value(fields, 'satisfied')
-            sentiment = get_field_value(fields, 'sentiment')
-            topic = get_field_value(fields, 'topic')
-            key_phrases = get_field_value(fields, 'keyPhrases')
-            complaint = get_field_value(fields, 'complaint')
-            content = get_field_value(fields, 'content')
+                fields = result['result']['contents'][0]['fields']
+                duration_str = get_field_value(fields, 'Duration', '0')
+                try:
+                    duration = int(duration_str)
+                except (ValueError, TypeError):
+                    duration = 0
 
-            # Collect record for batch insert
-            processed_records.append({
-                'ConversationId': conversation_id,
-                'EndTime': end_timestamp,
-                'StartTime': start_timestamp,
-                'Content': content,
-                'summary': summary,
-                'satisfied': satisfied,
-                'sentiment': sentiment,
-                'topic': topic,
-                'key_phrases': key_phrases,
-                'complaint': complaint
-            })
+                end_timestamp = str(start_timestamp + timedelta(seconds=duration)).split(".")[0]
+                start_timestamp = str(start_timestamp).split(".")[0]
+                summary = get_field_value(fields, 'summary')
+                satisfied = get_field_value(fields, 'satisfied')
+                sentiment = get_field_value(fields, 'sentiment')
+                topic = get_field_value(fields, 'topic')
+                key_phrases = get_field_value(fields, 'keyPhrases')
+                complaint = get_field_value(fields, 'complaint')
+                content = get_field_value(fields, 'content')
 
-            docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
-            counter += 1
-        except Exception:  # Skip files that fail processing
-            pass
-        if docs != [] and counter % 10 == 0:
+                # Collect record for batch insert
+                processed_records.append({
+                    'ConversationId': conversation_id,
+                    'EndTime': end_timestamp,
+                    'StartTime': start_timestamp,
+                    'Content': content,
+                    'summary': summary,
+                    'satisfied': satisfied,
+                    'sentiment': sentiment,
+                    'topic': topic,
+                    'key_phrases': key_phrases,
+                    'complaint': complaint
+                })
+
+                docs.extend(await prepare_search_doc(content, conversation_id, path.name, embeddings_client))
+                counter += 1
+            except Exception:  # Skip files that fail processing
+                pass
+            if docs != [] and counter % 10 == 0:
+                search_client.upload_documents(documents=docs)
+                docs = []
+        if docs:
             search_client.upload_documents(documents=docs)
-            docs = []
-    if docs:
-        search_client.upload_documents(documents=docs)
 
-    print(f"✓ Processed {counter} transcript files")
+        print(f"✓ Processed {counter} transcript files")
 
-    # Process files for audio data
-    ANALYZER_ID = "ckm_analyzer_audio"
-    audio_paths = list(file_system_client.get_paths(path=AUDIO_DIRECTORY))
-    docs = []
-    counter = 0
-    # process and upload audio files to search index - audio data
-    for path in audio_paths:
-        file_client = file_system_client.get_file_client(path.name)
-        data_file = file_client.download_file()
-        data = data_file.readall()
-        try:
-            # Analyzer file
-            response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
-            result = cu_client.poll_result(response)
-
-            file_name = path.name.split('/')[-1]
-            start_time = file_name.replace(".wav", "")[-19:]
-
-            timestamp_format = "%Y-%m-%d %H_%M_%S"
-            start_timestamp = datetime.strptime(start_time, timestamp_format)
-
-            conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
-            conversationIds.append(conversation_id)
-
-            fields = result['result']['contents'][0]['fields']
-            duration_str = get_field_value(fields, 'Duration', '0')
+        # Process files for audio data
+        ANALYZER_ID = "ckm_analyzer_audio"
+        audio_paths = list(file_system_client.get_paths(path=AUDIO_DIRECTORY))
+        docs = []
+        counter = 0
+        # process and upload audio files to search index - audio data
+        for path in audio_paths:
+            file_client = file_system_client.get_file_client(path.name)
+            data_file = file_client.download_file()
+            data = data_file.readall()
             try:
-                duration = int(duration_str)
-            except (ValueError, TypeError):
-                duration = 0
+                # Analyzer file
+                response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
+                result = cu_client.poll_result(response)
 
-            end_timestamp = str(start_timestamp + timedelta(seconds=duration))
-            end_timestamp = end_timestamp.split(".")[0]
-            start_timestamp = str(start_timestamp).split(".")[0]
+                file_name = path.name.split('/')[-1]
+                start_time = file_name.replace(".wav", "")[-19:]
 
-            summary = get_field_value(fields, 'summary')
-            satisfied = get_field_value(fields, 'satisfied')
-            sentiment = get_field_value(fields, 'sentiment')
-            topic = get_field_value(fields, 'topic')
-            key_phrases = get_field_value(fields, 'keyPhrases')
-            complaint = get_field_value(fields, 'complaint')
-            content = get_field_value(fields, 'content')
+                timestamp_format = "%Y-%m-%d %H_%M_%S"
+                start_timestamp = datetime.strptime(start_time, timestamp_format)
 
-            # Collect record for batch insert
-            processed_records.append({
-                'ConversationId': conversation_id,
-                'EndTime': end_timestamp,
-                'StartTime': start_timestamp,
-                'Content': content,
-                'summary': summary,
-                'satisfied': satisfied,
-                'sentiment': sentiment,
-                'topic': topic,
-                'key_phrases': key_phrases,
-                'complaint': complaint
-            })
+                conversation_id = file_name.split('convo_', 1)[1].split('_')[0]
+                conversationIds.append(conversation_id)
 
-            document_id = conversation_id
-            docs.extend(await prepare_search_doc(content, document_id, path.name, embeddings_client))
-            counter += 1
-        except Exception:
-            pass  # Skip files that fail to process
-        if docs != [] and counter % 10 == 0:
+                fields = result['result']['contents'][0]['fields']
+                duration_str = get_field_value(fields, 'Duration', '0')
+                try:
+                    duration = int(duration_str)
+                except (ValueError, TypeError):
+                    duration = 0
+
+                end_timestamp = str(start_timestamp + timedelta(seconds=duration))
+                end_timestamp = end_timestamp.split(".")[0]
+                start_timestamp = str(start_timestamp).split(".")[0]
+
+                summary = get_field_value(fields, 'summary')
+                satisfied = get_field_value(fields, 'satisfied')
+                sentiment = get_field_value(fields, 'sentiment')
+                topic = get_field_value(fields, 'topic')
+                key_phrases = get_field_value(fields, 'keyPhrases')
+                complaint = get_field_value(fields, 'complaint')
+                content = get_field_value(fields, 'content')
+
+                # Collect record for batch insert
+                processed_records.append({
+                    'ConversationId': conversation_id,
+                    'EndTime': end_timestamp,
+                    'StartTime': start_timestamp,
+                    'Content': content,
+                    'summary': summary,
+                    'satisfied': satisfied,
+                    'sentiment': sentiment,
+                    'topic': topic,
+                    'key_phrases': key_phrases,
+                    'complaint': complaint
+                })
+
+                document_id = conversation_id
+                docs.extend(await prepare_search_doc(content, document_id, path.name, embeddings_client))
+                counter += 1
+            except Exception:
+                pass  # Skip files that fail to process
+            if docs != [] and counter % 10 == 0:
+                search_client.upload_documents(documents=docs)
+                docs = []
+
+        # upload the last batch
+        if docs != []:
             search_client.upload_documents(documents=docs)
-            docs = []
 
-    # upload the last batch
-    if docs != []:
-        search_client.upload_documents(documents=docs)
+        print(f"✓ Processed {counter} audio files")
 
-    print(f"✓ Processed {counter} audio files")
-
-    # Batch insert all processed records using optimized SQL script
-    if processed_records:
-        df_processed = pd.DataFrame(processed_records)
-        columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
-        generate_sql_insert_script(df_processed, 'processed_data', columns, 'custom_processed_data_batch_insert.sql')
+        # Batch insert all processed records using optimized SQL script
+        if processed_records:
+            df_processed = pd.DataFrame(processed_records)
+            columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
+            generate_sql_insert_script(df_processed, 'processed_data', columns, 'custom_processed_data_batch_insert.sql')
+    finally:
+        # Close the embeddings client to release the underlying httpx connection pool.
+        await embeddings_client.close()
 
     return conversationIds
 
