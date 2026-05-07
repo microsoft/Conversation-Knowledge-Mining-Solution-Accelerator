@@ -1,18 +1,11 @@
 {
-  "analyzerId": "ckm-analyzer-text",
-  "name": "ckm-analyzer-text",
-  "scenario": "text",
-  "description": "Conversation analytics",
-  "tags": {
-    "projectId": "",
-    "templateId": "postCallAnalytics-2024-12-01"
-  },
+  "baseAnalyzerId": "prebuilt-callCenter",
+  "description": "Conversation process",
   "config": {
-    "returnDetails": true
+    "returnDetails": false,
+    "locales": ["en-US"]
   },
   "fieldSchema": {
-    "name": "CallCenterConversationAnalysis",
-    "descriptions": "Content, Summary, sentiment, and more analyses from a call center conversation",
     "fields": {
       "content": {
         "type": "string",
