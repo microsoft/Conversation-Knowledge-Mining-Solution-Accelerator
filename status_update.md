@@ -9,7 +9,7 @@
 
 **What it is.** A modular and generic solution accelerator for knowledge mining. Users upload documents (PDF, DOCX, images, JSON, CSV, TXT) or connect to external data sources (Microsoft Fabric, SQL databases, Azure Synapse, ODBC, or an existing Azure AI Search index). The platform extracts knowledge using AI and lets users explore results through natural language chat and auto-generated dashboards. Deploy with one command (`azd up`), bring your data, start asking questions.
 
-**Why we built it.** Organizations sit on large volumes of unstructured data but lack tools to interact with it conversationally. Existing approaches require manual exploration, custom pipelines per dataset, and hardcoded dashboards. This accelerator gives you a working end-to-end system out of the box — upload any data, and the platform adapts its insights, filters, and chat grounding to your content automatically.
+**Why we built it.** Every team has data they wish they could just talk to — call transcripts, contracts, research papers, support tickets, patient records, policy documents. But building a knowledge mining solution from scratch for each use case takes months. This accelerator eliminates that. Deploy once, bring whatever data you have, and the platform adapts. The dashboards, filters, chat behavior, and processing pipelines all shape themselves to your content. No domain-specific code, no hardcoded schemas.
 
 **Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-4o, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore, Data Sources, Data Explorer, and Pipelines pages. Infrastructure deploys cleanly via `azd up` with Managed Identity and RBAC.
 
@@ -35,12 +35,12 @@
 - **Auth** — Azure AD login via App Service EasyAuth, with role-based access control
 
 ### Frontend (React / Fluent UI)
-- **Home** — drag-and-drop upload, data status, processing progress
-- **Explore** — chat with your data, filter panel, chat sessions, source citations
-- **Insights** — auto-generated dashboard (KPIs, donut/bar/line/word cloud charts, filterable)
-- **Data Sources** — manage connected sources and uploaded files
-- **Data Explorer** — browse documents, extract entities, summarize on demand
-- **Pipelines** — view and run processing pipelines
+- **Home** — Landing page where users drag-and-drop files or see the status of their data. Shows which files are still processing and which are ready to explore
+- **Explore** — The main chat experience. Users type questions in plain English, get answers grounded in their data with clickable source citations. They can filter by topic, sentiment, date, etc. and save conversations for later
+- **Insights** — A dashboard that builds itself based on your data. Users see KPIs, charts (donut, bar, line, word cloud), and key findings without configuring anything. They can filter and drill down
+- **Data Sources** — Where users manage everything they've connected — uploaded files, linked databases, external indexes. They can re-ingest, delete, or check connection status
+- **Data Explorer** — A browsing view for individual documents. Users can search, open a document, ask for a summary, or extract entities (people, places, topics) on the fly
+- **Pipelines** — Shows available processing workflows and lets users run them manually. Each pipeline displays its steps and current status
 
 ---
 
@@ -115,6 +115,7 @@ Upload (instant response)
 | 6 | **CI/CD** | GitHub Actions for lint, test, build, and `azd` deploy on merge. |
 | 7 | **Docs** | API reference is auto-generated (OpenAPI), but we need a user guide and a developer guide (how to add connectors, capabilities, pipeline steps). |
 | 8 | **Auth polish** | Frontend login/logout flow, protected routes, session timeout, role-based UI visibility. |
+| 9 | **Use-case selection flow** | Let deployers pick a scenario (e.g., call center, legal, general) during `azd up` or via a post-deploy script. Should auto-configure prompts, sample data, pipelines, and field mappings for that use case. |
 
 ---
 
@@ -129,6 +130,48 @@ Upload (instant response)
 | **Data Sources nav hidden** | Users can't discover the feature | Literally one line to uncomment — just needs the polish pass |
 | **Region availability** | Not all Azure services are available in all regions (especially Content Understanding + AI Foundry) | README documents prerequisites; `azd` will fail fast with clear errors |
 | **Local dev without Azure** | Queue worker falls back to in-process tasks, but Content Understanding and AI Search require live Azure resources | Sample data path (`load-default`) works without CU, but chat needs Search + OpenAI |
+
+---
+
+## How it's modular & use-case agnostic
+
+The platform is designed so you can swap data, change the domain, or extend behavior without modifying core code.
+
+**One platform, any use case.** There is zero domain-specific logic in the codebase. The same deployment that analyzes call center transcripts can analyze legal contracts, HR policies, insurance claims, academic research, engineering specs, or customer feedback — just swap the data. The system adapts automatically:
+
+| What adapts | How |
+|-------------|-----|
+| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-4o to decide which visualizations make sense. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. |
+| **Search filters** | Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels. |
+| **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml` — change it per use case without touching code. |
+| **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. Works across schemas without manual config for most datasets. |
+
+
+**Use cases it supports (not an exhaustive list — it works with any data):**
+
+| Use case | Data type | What users get |
+|----------|-----------|----------------|
+| **Call center analytics** | JSON call transcripts | Sentiment trends, topic clusters, agent performance, Q&A over conversations |
+| **Telecom support** | Call transcripts + WAV files | Same as above, with audio file ingestion |
+| **Legal / compliance review** | Contracts, policies (PDF/DOCX) | Clause extraction, risk classification, searchable knowledge base |
+| **Healthcare** | Clinical notes, reports | Entity extraction (conditions, medications), summarization, chat Q&A |
+| **HR / internal knowledge** | Policy docs, handbooks, FAQs | Employees ask questions and get answers grounded in company docs |
+| **Research & academia** | Papers, articles, datasets | Topic clustering, literature Q&A, cross-document insights |
+| **Customer feedback** | Surveys, reviews, support tickets | Sentiment analysis, issue categorization, trend dashboards |
+| **Insurance claims** | Claim forms, adjuster notes | Entity extraction, status tracking, pattern detection |
+| **Any existing search index** | Azure AI Search index | Instant chat over pre-indexed data — zero upload, zero processing |
+
+The point: **you don't pick a use case when you build the accelerator — you pick it when you bring your data.** The platform is the same every time.
+
+**Where use-case selection is headed:**
+
+The goal is to let deployers pick a use case during or right after deployment — not buried in code. This isn't fully built yet, but the plan:
+
+- **During deployment (`azd up`)** — A parameter or prompt that selects a use-case pack (e.g., "call center", "legal review", "general"). This would set the system prompt, seed sample data, configure default pipelines, and apply the right field mappings automatically.
+- **Post-deployment script** — A script like `./scripts/setup-usecase.ps1 --usecase telecom` that applies the use-case configuration to an already-deployed instance. Swap the use case without redeploying infrastructure.
+- **From the UI** — Eventually, a first-run wizard where the user picks their scenario, connects their data, and the platform configures itself.
+
+Right now, use-case customization is manual (edit `prompts.yaml`, seed different data, configure pipelines). The building blocks are there — it just needs the orchestration layer to tie them into a single selection flow.
 
 ---
 
