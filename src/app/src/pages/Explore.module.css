@@ -147,8 +147,12 @@
   transition: background 0.1s;
 }
 .srcItem:hover { background: #fafafa; }
-.srcDoc { font-weight: 600; color: #0f172a; }
-.srcText { color: #64748b; margin-top: 4px; line-height: 1.5; font-size: 11px; }
+.srcDoc {
+  font-weight: 600; color: #0f172a;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 170px;
+}
+.srcText { color: #64748b; margin-top: 4px; line-height: 1.5; font-size: 11px; word-break: break-word; }
 .srcScore { color: #2563eb; font-weight: 700; font-size: 11px; }
 
 /* ── History drawer ── */

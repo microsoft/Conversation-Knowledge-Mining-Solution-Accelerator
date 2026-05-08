@@ -42,6 +42,25 @@ const PROMPTS = [
   "Summarize the data",
 ];
 
+/* ── Source display helpers ── */
+const getSourceLabel = (src: any, index: number): string => {
+  if (src.source_file) {
+    // Strip path and extension for a clean filename
+    const name = src.source_file.split(/[/\\]/).pop() || src.source_file;
+    return name;
+  }
+  if (src.title) return src.title;
+  // Fallback: show a short label instead of raw UUID
+  return `Source ${index + 1}`;
+};
+
+const getSourceSnippet = (text: string, maxLen = 120): string => {
+  if (!text) return "";
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLen) return clean;
+  return clean.slice(0, maxLen).replace(/\s\S*$/, "") + "…";
+};
+
 /* ── Component ── */
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -272,10 +291,10 @@ const Explore: React.FC = () => {
                               {(msg.sources || []).map((src: any, j: number) => (
                                 <div key={j} className={s.evidenceItem}>
                                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                    <span style={{ fontWeight: 600, color: "#0f172a" }}>{src.doc_id}</span>
+                                    <span style={{ fontWeight: 600, color: "#0f172a" }} title={src.doc_id}>{getSourceLabel(src, j)}</span>
                                     <span style={{ color: "#2563eb", fontWeight: 600, fontSize: 11 }}>{(src.score * 100).toFixed(0)}%</span>
                                   </div>
-                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}...</div>}
+                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{getSourceSnippet(src.text, 180)}</div>}
                                 </div>
                               ))}
                             </div>
@@ -326,26 +345,7 @@ const Explore: React.FC = () => {
           </div>
         </div>
 
-        {/* ═══ RIGHT: Sources ═══ */}
-        <div className={s.right}>
-          <div className={s.rightHeader}>
-            <span>Sources</span>
-            {lastSources.length > 0 && <Caption1>{lastSources.length} retrieved</Caption1>}
-          </div>
-          {lastSources.length === 0 ? (
-            <div className={s.rightEmpty}>Ask a question to see grounding sources here</div>
-          ) : (
-            lastSources.map((src, i) => (
-              <div key={i} className={s.srcItem}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className={s.srcDoc}>{src.doc_id}</span>
-                  <span className={s.srcScore}>{(src.score * 100).toFixed(0)}%</span>
-                </div>
-                {src.text && <div className={s.srcText}>{src.text.slice(0, 150)}...</div>}
-              </div>
-            ))
-          )}
-        </div>
+        {/* Sources panel hidden — sources are already shown inline under each answer */}
       </div>
 
       {/* ═══ HISTORY DRAWER ═══ */}

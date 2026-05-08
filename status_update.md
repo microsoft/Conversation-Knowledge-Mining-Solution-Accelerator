@@ -136,7 +136,17 @@ The goal is to let deployers pick a use case during or right after deployment �
 The point: **you don't pick a use case when you build the accelerator — you pick it when you bring your data.** The platform is the same every time.
 
 
+---
 
+## To do
+
+| # | Item | Details |
+|---|------|---------|
+| 1 | **Copilot Studio agent** | Build a Copilot Studio agent that connects to the KM backend APIs. Users would interact with their knowledge base directly from Teams, M365, or any Copilot Studio channel — without needing to open the web app. The agent calls the RAG (`/api/rag`) and Insights (`/api/insights`) endpoints, so the same grounded answers and dashboard data are available conversationally inside the tools people already use. |
+| 2 | **Quick-connect wizard UI** | Backend `/quick-connect` endpoint is built. Need a multi-step frontend dialog for the "bring your data" flow. |
+| 3 | **Use-case selection flow** | Let deployers pick a scenario during `azd up` or via a post-deploy script that auto-configures prompts, sample data, pipelines, and field mappings. |
+| 4 | **Testing** | Unit tests per module, integration tests for the ingestion pipeline, E2E tests for the chat flow. |
+| 5 | **Docs** | User guide and developer guide (how to add connectors, capabilities, pipeline steps). |
 
 ---
 
