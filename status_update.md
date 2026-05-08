@@ -26,15 +26,15 @@
 - Deployment scripts: agent setup, sample data seeding, teardown
 
 ### Backend (FastAPI / Python)
-- **Document ingestion** — two-stage async queue pipeline (upload → extract → chunk → embed → index). Upload returns instantly; processing runs in background
-- **Hybrid search** — keyword (BM25) + vector (HNSW) in Azure AI Search
-- **RAG chat** — GPT-4o answers grounded in your documents, with citations
-- **Insights engine** — LLM analyzes your data schema, plans which charts matter, SQL computes exact numbers. Adapts to any dataset
-- **Pipeline engine** — YAML-defined processing pipelines with 11 pluggable capabilities (classify, summarize, extract entities, etc.)
-- **External data connectors** — 5 adapters (Fabric, SQL, Synapse, ODBC, Azure AI Search). Auto-detects field mapping. Supports ingest, live query, or both
-- **Auth** — EasyAuth (Azure AD) with role-based access control
+- **Document ingestion** — Users upload files, the system processes them in the background (extract text → split into chunks → create embeddings → add to search index). The upload response is instant
+- **Hybrid search** — Combines keyword matching and semantic similarity for better results
+- **RAG chat** — Users ask questions in natural language, the system finds relevant content and GPT-4o generates an answer with citations
+- **Insights engine** — Looks at what data you have, decides which charts and KPIs are useful, and builds a dashboard automatically. No hardcoded charts — adapts to any dataset
+- **Pipeline engine** — Lets you define multi-step processing workflows in YAML (e.g., classify → summarize → extract entities). Runs automatically when new data arrives, tracks history, and shows progress in real time
+- **External data connectors** — Connect to Fabric, SQL databases, Synapse, ODBC sources, or an existing Azure AI Search index. The system figures out which columns map to which fields. Can pull data in, query live, or both
+- **Auth** — Azure AD login via App Service EasyAuth, with role-based access control
 
-### Frontend (React / Fluent UI 2)
+### Frontend (React / Fluent UI)
 - **Home** — drag-and-drop upload, data status, processing progress
 - **Explore** — chat with your data, filter panel, chat sessions, source citations
 - **Insights** — auto-generated dashboard (KPIs, donut/bar/line/word cloud charts, filterable)
@@ -58,7 +58,6 @@
 | Structured data | **Azure SQL Database** | Metadata, enrichment cache, data source configs |
 | Chat history | **Azure Cosmos DB** | Low-latency session storage |
 | File + queue storage | **Azure Blob + Queue** | Raw file storage + async job queue for the processing pipeline |
-| IaC | **Bicep + azd** | Native Azure, modular, one-command deploy |
 | Auth | **App Service EasyAuth** | Zero-code Azure AD integration |
 
 ---
