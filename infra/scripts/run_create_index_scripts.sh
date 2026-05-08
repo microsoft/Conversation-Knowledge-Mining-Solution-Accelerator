@@ -18,10 +18,9 @@ embedding_model="${11}"
 cu_endpoint="${12}"
 cu_api_version="${13}"
 aif_resource_id="${14}"
-cu_foundry_resource_id="${15}"
-ai_agent_endpoint="${16}"
-usecase="${17}"
-solution_name="${18}"
+ai_agent_endpoint="${15}"
+usecase="${16}"
+solution_name="${17}"
 
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
@@ -86,16 +85,14 @@ if [ -z "$role_assignment" ]; then
     fi
 fi
 
-### Assign Azure AI User role to the signed in user for CU Foundry ###
-if [ -n "$cu_foundry_resource_id" ] && [ "$cu_foundry_resource_id" != "null" ]; then
-    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
-    if [ -z "$role_assignment" ]; then
-        echo "✓ Assigning Azure AI User role for CU Foundry"
-        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --output none
-        if [ $? -ne 0 ]; then
-            echo "✗ Failed to assign Azure AI User role for CU Foundry"
-            exit 1
-        fi
+### Assign Cognitive Services OpenAI User role to the signed in user for AI Foundry ###
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "✓ Assigning Cognitive Services OpenAI User role for AI Foundry"
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Cognitive Services OpenAI User role for AI Foundry"
+        exit 1
     fi
 fi
 
@@ -144,7 +141,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "✓ Creating CU template for text"
-python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
@@ -152,7 +149,7 @@ fi
 
 if [ "$usecase" == "telecom" ]; then
     echo "✓ Creating CU template for audio"
-    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
     if [ $? -ne 0 ]; then
         echo "Error: 02_create_cu_template_audio.py failed."
         error_flag=true

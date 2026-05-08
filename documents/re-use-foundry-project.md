@@ -2,6 +2,13 @@
 
 # Reusing an Existing Microsoft Foundry Project
 To configure your environment to use an existing Microsoft Foundry Project, follow these steps:
+
+> **⚠️ Region requirement**
+>
+> The existing Foundry project must reside in a region that supports **both** the GPT model deployed by this accelerator (default `gpt-4o-mini` with `GlobalStandard` deployment type) **and** Azure AI Content Understanding (GA).<br>
+> Supported regions: `australiaeast`, `eastus`, `eastus2`, `japaneast`, `southcentralus`, `swedencentral`, `uksouth`, `westeurope`, `westus`, `westus3`.<br>
+> If the existing project is in a different region, deployment will fail or the application will not work correctly.
+
 ---
 ### 1. Go to Azure Portal
 Go to https://portal.azure.com
