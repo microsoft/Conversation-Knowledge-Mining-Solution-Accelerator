@@ -44,6 +44,42 @@ DEFAULT_ANALYZER_TEMPLATE = {
     }
 }
 
+# Audio/video analyzer for call transcripts
+AUDIO_ANALYZER_ID = "km-audio"
+AUDIO_ANALYZER_TEMPLATE = {
+    "scenario": "audioTranscription",
+    "description": "Transcribe and analyze audio call recordings",
+    "config": {"returnDetails": True},
+    "fieldSchema": {
+        "name": "AudioAnalysis",
+        "descriptions": "Transcribe and extract metadata from audio recordings",
+        "fields": {
+            "content": {
+                "type": "string",
+                "method": "generate",
+                "description": "Full transcription of the audio in readable format"
+            },
+            "summary": {
+                "type": "string",
+                "method": "generate",
+                "description": "Summarize the conversation in 2-3 sentences"
+            },
+            "topic": {
+                "type": "string",
+                "method": "generate",
+                "description": "Identify the single primary topic in 6 words or less"
+            },
+            "keyPhrases": {
+                "type": "string",
+                "method": "generate",
+                "description": "Identify the top 10 key phrases as comma separated string"
+            },
+        }
+    }
+}
+
+AUDIO_EXTENSIONS = {"wav", "mp3", "mp4"}
+
 _credential = DefaultAzureCredential()
 
 
@@ -51,7 +87,7 @@ class ContentUnderstandingService:
     """Extract content from files using Azure Content Understanding."""
 
     def __init__(self):
-        self._analyzer_ensured = False
+        self._analyzers_ensured: set[str] = set()
 
     def _get_token(self) -> str:
         token = _credential.get_token("https://cognitiveservices.azure.com/.default")
@@ -66,9 +102,10 @@ class ContentUnderstandingService:
 
     def _ensure_analyzer(self, analyzer_id: str = DEFAULT_ANALYZER_ID):
         """Create the CU analyzer if it doesn't exist yet."""
-        if self._analyzer_ensured:
+        if analyzer_id in self._analyzers_ensured:
             return
 
+        template = AUDIO_ANALYZER_TEMPLATE if analyzer_id == AUDIO_ANALYZER_ID else DEFAULT_ANALYZER_TEMPLATE
         endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}"
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
@@ -77,11 +114,11 @@ class ContentUnderstandingService:
             # Check if analyzer exists
             resp = client.get(url, headers=self._auth_headers())
             if resp.status_code == 200:
-                self._analyzer_ensured = True
+                self._analyzers_ensured.add(analyzer_id)
                 return
 
             # Create the analyzer
-            resp = client.put(url, headers=headers, json=DEFAULT_ANALYZER_TEMPLATE)
+            resp = client.put(url, headers=headers, json=template)
             if resp.status_code >= 400:
                 print(f"CU Analyzer create error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
@@ -91,7 +128,7 @@ class ContentUnderstandingService:
             if operation_url:
                 self._poll_result(client, operation_url)
 
-        self._analyzer_ensured = True
+        self._analyzers_ensured.add(analyzer_id)
         print(f"CU Analyzer '{analyzer_id}' ready")
 
     def analyze(
@@ -100,6 +137,10 @@ class ContentUnderstandingService:
         ext = filename.rsplit(".", 1)[-1].lower()
         if ext not in SUPPORTED_EXTENSIONS:
             raise ValueError(f"Unsupported file type: .{ext}")
+
+        # Route audio/video files to the audio analyzer
+        if ext in AUDIO_EXTENSIONS:
+            analyzer = AUDIO_ANALYZER_ID
 
         content = file.read()
 

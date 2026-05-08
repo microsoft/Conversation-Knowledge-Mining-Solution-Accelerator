@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   Text,
   Button,
-  makeStyles,
   Spinner,
 } from "@fluentui/react-components";
 import {
@@ -11,381 +10,81 @@ import {
   ErrorCircle24Regular,
   Search24Regular,
   ChartMultiple24Regular,
-  DocumentText20Regular,
+  Database24Regular,
   LightbulbFilament20Regular,
   ChatBubblesQuestion20Regular,
   TextBulletListSquare20Regular,
 } from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
 import {
-  loadDefaultDataset,
   uploadJsonFile,
   uploadDocument,
+  listDataSources,
   getUploadedFiles,
 } from "../api/client";
 import { FILE_TYPES } from "../utils/constants";
-
-/* ── Styles ── */
-const useStyles = makeStyles({
-  page: {
-    overflowY: "auto",
-    height: "100%",
-    backgroundColor: "#f9fafb",
-  },
-
-  /* Hero — stacked: text on top, upload below */
-  hero: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "32px",
-    alignItems: "center",
-    maxWidth: "1060px",
-    margin: "0 auto",
-    padding: "56px 40px 0",
-  },
-  heroLeft: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "16px",
-    textAlign: "center" as const,
-    alignItems: "center",
-  },
-  heroTitle: {
-    fontSize: "28px",
-    fontWeight: "700",
-    color: "#0f172a",
-    lineHeight: "1.25",
-    letterSpacing: "-0.5px",
-  },
-  heroSub: {
-    fontSize: "15px",
-    color: "#64748b",
-    lineHeight: "1.7",
-    maxWidth: "500px",
-    textAlign: "center" as const,
-  },
-  heroCtas: {
-    display: "flex",
-    gap: "10px",
-    alignItems: "center",
-    flexWrap: "wrap" as const,
-    marginTop: "4px",
-  },
-  connectLink: {
-    fontSize: "13px",
-    color: "#2563eb",
-    cursor: "pointer",
-    fontWeight: "500",
-    marginLeft: "4px",
-    border: "none",
-    background: "none",
-    fontFamily: "inherit",
-    padding: 0,
-  },
-
-  /* Upload card — full width below hero text */
-  uploadCard: {
-    width: "100%",
-    maxWidth: "640px",
-    padding: "56px 40px",
-    borderRadius: "24px",
-    border: "2px dashed #d1d5db",
-    backgroundColor: "#ffffff",
-    textAlign: "center" as const,
-    cursor: "pointer",
-    transition: "border-color 0.2s, box-shadow 0.2s, transform 0.15s",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "16px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-  },
-  uploadIcon: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "50%",
-    background: "linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fileTypes: {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap" as const,
-    justifyContent: "center",
-    marginTop: "4px",
-  },
-  fileType: {
-    fontSize: "10px",
-    padding: "3px 8px",
-    borderRadius: "4px",
-    backgroundColor: "#f1f5f9",
-    color: "#64748b",
-    fontWeight: "600",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.5px",
-  },
-
-  /* Content sections */
-  content: {
-    maxWidth: "1060px",
-    margin: "0 auto",
-    padding: "40px 40px 60px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "40px",
-  },
-
-  /* Value section */
-  sectionLabel: {
-    fontSize: "11px",
-    fontWeight: "700",
-    color: "#94a3b8",
-    textTransform: "uppercase" as const,
-    letterSpacing: "1.2px",
-    marginBottom: "4px",
-  },
-  valueGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr 1fr",
-    gap: "16px",
-  },
-  valueCard: {
-    padding: "24px",
-    borderRadius: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #f1f5f9",
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-    transition: "box-shadow 0.2s, transform 0.15s",
-    cursor: "default",
-  },
-  valueIcon: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  valueTitle: {
-    fontSize: "15px",
-    fontWeight: "600",
-    color: "#0f172a",
-  },
-  valueDesc: {
-    fontSize: "13px",
-    color: "#64748b",
-    lineHeight: "1.55",
-  },
-
-  /* Quick start cards */
-  quickGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-  },
-  quickCard: {
-    padding: "22px 24px",
-    borderRadius: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    transition: "box-shadow 0.2s, transform 0.15s",
-  },
-  quickIcon: {
-    width: "44px",
-    height: "44px",
-    borderRadius: "12px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-
-  /* Recent work — compact table */
-  recentGrid: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0px",
-    borderRadius: "12px",
-    border: "1px solid #e2e8f0",
-    backgroundColor: "#ffffff",
-    overflow: "hidden",
-  },
-  recentCard: {
-    padding: "12px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-    borderBottom: "1px solid #f1f5f9",
-    transition: "background 0.12s",
-    cursor: "default",
-    ":last-child": { borderBottom: "none" },
-  },
-  recentName: {
-    fontSize: "13px",
-    fontWeight: "600",
-    color: "#0f172a",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap" as const,
-    flex: 1,
-    minWidth: 0,
-  },
-  recentMeta: {
-    fontSize: "12px",
-    color: "#94a3b8",
-    whiteSpace: "nowrap" as const,
-    flexShrink: 0,
-  },
-  recentActions: {
-    display: "flex",
-    gap: "4px",
-    flexShrink: 0,
-  },
-
-  /* Ready card */
-  readyCard: {
-    maxWidth: "1060px",
-    margin: "0 auto",
-    padding: "0 40px",
-  },
-  readyInner: {
-    borderRadius: "20px",
-    backgroundColor: "#ffffff",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02)",
-    padding: "32px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "20px",
-    marginTop: "48px",
-  },
-  readyHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "14px",
-  },
-  bullets: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  bullet: {
-    fontSize: "14px",
-    color: "#475569",
-    lineHeight: "1.7",
-  },
-  detected: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    flexWrap: "wrap" as const,
-    paddingTop: "12px",
-    borderTop: "1px solid #f1f5f9",
-  },
-  detectedLabel: {
-    fontSize: "11px",
-    fontWeight: "700",
-    color: "#94a3b8",
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.8px",
-  },
-  detectedTag: {
-    fontSize: "12px",
-    padding: "4px 12px",
-    borderRadius: "8px",
-    backgroundColor: "#f1f5f9",
-    color: "#475569",
-    fontWeight: "500",
-  },
-  nextSteps: {
-    display: "flex",
-    gap: "12px",
-    paddingTop: "4px",
-  },
-  intentWrap: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    marginTop: "4px",
-  },
-  suggestions: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap" as const,
-  },
-  suggestion: {
-    padding: "7px 16px",
-    borderRadius: "20px",
-    border: "1px solid #e5e7eb",
-    backgroundColor: "#ffffff",
-    fontSize: "13px",
-    color: "#64748b",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    transition: "all 0.15s",
-  },
-  uploadAnother: {
-    fontSize: "13px",
-    color: "#94a3b8",
-    cursor: "pointer",
-    textAlign: "center" as const,
-    fontWeight: "500",
-    marginTop: "4px",
-  },
-
-  /* Connect form */
-  connectForm: {
-    padding: "28px",
-    borderRadius: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #e5e7eb",
-    display: "flex",
-    flexDirection: "column",
-    gap: "14px",
-  },
-
-  /* Error */
-  errorCard: {
-    maxWidth: "1060px",
-    margin: "48px auto 0",
-    padding: "0 40px",
-  },
-  errorInner: {
-    padding: "22px 28px",
-    borderRadius: "16px",
-    backgroundColor: "#ffffff",
-    border: "1px solid #fecaca",
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-  },
-});
+import { useAppState } from "../context/AppStateContext";
+import s from "./Home.module.css";
 
 /* ── Component ── */
 const Home: React.FC = () => {
-  const s = useStyles();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { setDashboardHeadline, setInsights } = useAppState();
 
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploadDone, setUploadDone] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  const [existingDocCount, setExistingDocCount] = useState(0);
+  const [dataSources, setDataSources] = useState<any[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [loadingSources, setLoadingSources] = useState(true);
 
+  const loadStatus = () => {
+    Promise.allSettled([listDataSources(), getUploadedFiles()])
+      .then(([srcRes, filesRes]) => {
+        const sources = srcRes.status === "fulfilled" ? srcRes.value.data || [] : [];
+        const files = filesRes.status === "fulfilled" ? filesRes.value.data || [] : [];
+        setDataSources(sources);
+        setUploadedFiles(files);
+        if (sources.length > 0 && sources[0].name) {
+          setDashboardHeadline(sources[0].name);
+        }
+        // Clear insights cache if no data exists (data was cleared)
+        if (sources.length === 0 && files.length === 0) {
+          setInsights(null);
+          try { sessionStorage.removeItem("km_insights"); } catch {}
+        }
+      })
+      .finally(() => setLoadingSources(false));
+  };
+
+  useEffect(() => { loadStatus(); }, []);
+
+  // Auto-refresh while any file is still processing
+  const processingFiles = uploadedFiles.filter((f: any) => f.status === "processing");
+  const readyFiles = uploadedFiles.filter((f: any) => f.status !== "processing");
   useEffect(() => {
-    getUploadedFiles()
-      .then((r) => setExistingDocCount(r.data?.length || 0))
-      .catch(() => {});
-  }, []);
+    if (processingFiles.length === 0) return;
+    const interval = setInterval(loadStatus, 5000);
+    return () => clearInterval(interval);
+  }, [processingFiles.length]);
+
+  const uploadedFileCount = uploadedFiles.length;
+  const totalRecords = dataSources.reduce((sum: number, ds: any) => sum + (ds.doc_count || 0), 0);
+  const hasData = dataSources.length > 0 || uploadedFileCount > 0;
+
+  const buildSummary = () => {
+    const parts: string[] = [];
+    if (totalRecords > 0) parts.push(`${totalRecords.toLocaleString()} records`);
+    if (dataSources.length > 0) {
+      const types = dataSources.map((ds: any) => ds.source_type);
+      parts.push(types.join(" + "));
+    }
+    if (uploadedFileCount > 0) parts.push(`${uploadedFileCount} ${uploadedFileCount === 1 ? "document" : "documents"}`);
+    return parts.join(" \u00b7 ");
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -403,31 +102,15 @@ const Home: React.FC = () => {
       } else {
         await uploadDocument(files);
         setUploadMsg(`${files.length} file(s) submitted — processing in background`);
-        // Navigate to Sources page so user can track progress
-        setTimeout(() => navigate("/sources"), 1500);
       }
       setUploadDone(true);
+      setInsights(null); // Invalidate insights cache so it regenerates with new data
+      loadStatus();
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDemo = async () => {
-    setUploading(true);
-    setUploadDone(false);
-    setUploadError("");
-    setUploadMsg("Loading sample data...");
-    try {
-      const res = await loadDefaultDataset();
-      setUploadMsg(`${res.data.total_loaded} documents loaded`);
-      setUploadDone(true);
-    } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : "Load failed");
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -444,11 +127,67 @@ const Home: React.FC = () => {
         <div className={s.heroLeft}>
           <div className={s.heroTitle}>Turn your data into answers and insights</div>
           <div className={s.heroSub}>
-            Upload documents, connect a data source, or try a demo — then explore through chat and AI-generated reports.
+            Your connected data source is ready to explore. Upload additional documents to enrich your knowledge base.
           </div>
         </div>
 
-        {/* Upload card — all states in one box */}
+        {/* Active Dataset card */}
+        <div className={s.sourceCard}>
+          {loadingSources ? (
+            <Spinner size="small" />
+          ) : hasData ? (
+            <>
+              <div className={s.sourceLabel}>Active Dataset</div>
+              <Text size={300} style={{ color: "#64748b" }}>
+                {buildSummary()}
+              </Text>
+              {/* File status list */}
+              {uploadedFiles.length > 0 && (
+                <div className={s.fileStatusList}>
+                  {uploadedFiles.map((f: any) => (
+                    <div key={f.id} className={s.fileStatusItem}>
+                      <span className={s.fileStatusName}>{f.filename}</span>
+                      {f.status === "processing" && (
+                        <span className={s.fileStatusBadge} style={{ color: "#f59e0b", background: "#fef3c7" }}>
+                          Processing
+                        </span>
+                      )}
+                      {f.status === "failed" && (
+                        <span className={s.fileStatusBadge} style={{ color: "#dc2626", background: "#fee2e2" }}
+                          title={f.error || "Processing failed"}>
+                          Failed
+                        </span>
+                      )}
+                      {(f.status === "ready" || !f.status) && (
+                        <span className={s.fileStatusBadge} style={{ color: "#059669", background: "#d1fae5" }}>
+                          Ready
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
+                  onClick={() => navigate("/insights")}>View insights</Button>
+                <Button appearance="outline" size="medium" icon={<Search24Regular />}
+                  onClick={() => navigate("/explore")}>Explore data</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Database24Regular style={{ color: "#94a3b8", fontSize: 24 }} />
+              <Text weight="semibold" size={400} style={{ color: "#64748b" }}>
+                No data source connected
+              </Text>
+              <Text size={200} style={{ color: "#94a3b8" }}>
+                Run the post-deployment script to connect a data source, or upload documents below.
+              </Text>
+            </>
+          )}
+        </div>
+
+        {/* Upload card */}
         <div
           className={s.uploadCard}
           onClick={() => !uploading && !uploadDone && fileInputRef.current?.click()}
@@ -464,9 +203,6 @@ const Home: React.FC = () => {
           style={{
             ...(dragOver ? { borderColor: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.1)" } : {}),
             ...(uploadDone ? { cursor: "default", borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
-            ...(!uploading && !uploadDone && !uploadError && existingDocCount > 0
-              ? { borderStyle: "solid", borderColor: "#bbf7d0", cursor: "pointer" }
-              : {}),
           }}
         >
           {/* Uploading state */}
@@ -509,40 +245,22 @@ const Home: React.FC = () => {
 
           {/* Default state */}
           {!uploading && !uploadDone && !uploadError && (
-            existingDocCount > 0 ? (
-              <>
-                <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
-                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
-                  {existingDocCount} {existingDocCount === 1 ? "file" : "files"} ready
-                </Text>
-                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                  <Button appearance="primary" size="medium" icon={<Search24Regular />}
-                    onClick={(e) => { e.stopPropagation(); navigate("/explore"); }}>Explore data</Button>
-                  <Button appearance="outline" size="medium" icon={<ChartMultiple24Regular />}
-                    onClick={(e) => { e.stopPropagation(); navigate("/insights"); }}>View insights</Button>
-                </div>
-                <Text size={200} style={{ color: "#94a3b8" }}>
-                  or drop more files here to add data
-                </Text>
-              </>
-            ) : (
-              <>
-                <div className={s.uploadIcon}>
-                  <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
-                </div>
-                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
-                  Upload your data to get started
-                </Text>
-                <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
-                <div className={s.fileTypes}>
-                  {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
-                </div>
-              </>
-            )
+            <>
+              <div className={s.uploadIcon}>
+                <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
+              </div>
+              <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
+                Upload additional documents
+              </Text>
+              <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
+              <div className={s.fileTypes}>
+                {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
+              </div>
+            </>
           )}
 
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
-            accept=".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.tiff,.bmp" onChange={handleUpload} />
+            accept=".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.tiff,.bmp,.wav,.mp3,.mp4" onChange={handleUpload} />
         </div>
       </div>
 
@@ -571,24 +289,6 @@ const Home: React.FC = () => {
               </div>
               <div className={s.valueTitle}>Structure outputs</div>
               <div className={s.valueDesc}>Extract entities, key phrases, and structured data. Export reports as JSON for downstream use.</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick start */}
-        <div>
-          <div className={s.sectionLabel}>Quick start</div>
-          <div className={s.quickGrid}>
-            <div className={s.quickCard} onClick={handleDemo} style={uploading ? { opacity: 0.5 } : undefined}>
-              <div className={s.quickIcon} style={{ backgroundColor: "#fef3c7" }}>
-                <DocumentText20Regular style={{ color: "#d97706" }} />
-              </div>
-              <div>
-                <Text weight="semibold" size={300} style={{ color: "#0f172a" }}>Try demo dataset</Text>
-                <Text block size={200} style={{ color: "#94a3b8", marginTop: 2 }}>
-                  60 customer service documents — chats, tickets, FAQs
-                </Text>
-              </div>
             </div>
           </div>
         </div>

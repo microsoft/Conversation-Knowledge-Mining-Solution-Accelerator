@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  makeStyles,
-  tokens,
   Button,
   Text,
   Tooltip,
@@ -22,144 +20,10 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
 import { useAppState } from "../context/AppStateContext";
-
-const useStyles = makeStyles({
-  root: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    overflow: "hidden",
-  },
-  topBar: {
-    height: "52px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 28px",
-    backgroundColor: "#0f172a",
-    flexShrink: 0,
-    zIndex: 10,
-  },
-  topBarLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-  topBarRight: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  breadcrumb: {
-    fontSize: "15px",
-    fontWeight: 700,
-    color: "#ffffff",
-    letterSpacing: "-0.2px",
-  },
-  bodyRow: {
-    display: "flex",
-    flex: 1,
-    overflow: "hidden",
-  },
-  sidebar: {
-    width: "68px",
-    backgroundColor: "#ffffff",
-    borderRight: "1px solid #f1f5f9",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    paddingTop: "16px",
-    flexShrink: 0,
-    gap: "8px",
-  },
-  navItem: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "3px",
-    cursor: "pointer",
-    color: "#94a3b8",
-    transition: "all 0.15s",
-    border: "none",
-    backgroundColor: "transparent",
-    fontSize: "9px",
-    fontWeight: "500",
-    letterSpacing: "0.2px",
-  },
-  navItemActive: {
-    width: "48px",
-    height: "48px",
-    borderRadius: "12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "3px",
-    cursor: "pointer",
-    color: "#2563eb",
-    backgroundColor: "#eff6ff",
-    border: "none",
-    fontSize: "9px",
-    fontWeight: "600",
-    letterSpacing: "0.2px",
-  },
-  sidebarBottom: {
-    marginTop: "auto",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "4px",
-    paddingBottom: "16px",
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    overflow: "hidden",
-  },
-  content: {
-    flex: 1,
-    overflowY: "auto",
-    backgroundColor: "var(--km-bg, #f9fafb)",
-  },
-  chatPanel: {
-    width: "380px",
-    flexShrink: 0,
-    borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
-    display: "flex",
-    flexDirection: "column",
-    backgroundColor: tokens.colorNeutralBackground1,
-    overflow: "hidden",
-  },
-  chatHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "14px 20px",
-    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-    flexShrink: 0,
-  },
-  userBadge: {
-    width: "32px",
-    height: "32px",
-    borderRadius: "50%",
-    backgroundColor: "#2563eb",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "white",
-    fontSize: "11px",
-    fontWeight: "600",
-    cursor: "pointer",
-    border: "none",
-  },
-});
+import uiConfig from "../config/ui-config.json";
+import styles from "./Layout.module.css";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const styles = useStyles();
   const navigate = useNavigate();
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
@@ -190,7 +54,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { path: "/", label: "Home", icon: <Home24Regular />, activeIcon: <Home24Filled /> },
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
     { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
-    { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
+    // { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
   ];
 
   const navItems = allNavItems;
@@ -205,7 +69,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className={styles.topBarLeft}>
           <span className={styles.breadcrumb}>
             {process.env.REACT_APP_BRANDING_NAME || "Knowledge Mining"}
-            {dashboardHeadline ? <span style={{ fontWeight: 400, color: "#94a3b8" }}>{" | "}{dashboardHeadline}</span> : ""}
+            {uiConfig.useCaseName && (
+              <span style={{ fontWeight: 400, color: "#94a3b8" }}>
+                {" | "}{uiConfig.useCaseName}
+              </span>
+            )}
           </span>
         </div>
         <div className={styles.topBarRight}>

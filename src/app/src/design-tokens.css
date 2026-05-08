@@ -2,7 +2,7 @@
 
 :root {
   /* Surfaces */
-  --km-bg: #f9fafb;
+  --km-bg: #f5f5f5;
   --km-card: #ffffff;
   --km-card-hover: #f8fafc;
   --km-border: #e5e7eb;
@@ -57,4 +57,5 @@ body {
   font-family: var(--km-font);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
 }

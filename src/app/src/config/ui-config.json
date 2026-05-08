@@ -1,5 +1,6 @@
 {
   "appTitle": "Knowledge Mining",
+  "useCaseName": "Telecom Usecase",
   "modules": {
     "chat": { "enabled": true, "label": "Explore" },
     "insights": { "enabled": true, "label": "Insights" },

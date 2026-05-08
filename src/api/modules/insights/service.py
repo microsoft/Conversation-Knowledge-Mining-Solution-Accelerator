@@ -29,6 +29,87 @@ _SAFE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 # ═══════════════════════════════════════════════════
+# Semantic Field Classifier
+# ═══════════════════════════════════════════════════
+
+_SEMANTIC_RULES: list[tuple[re.Pattern, str, str]] = [
+    # (pattern, semantic_type, business_role)
+    (re.compile(r"(^id$|_id$|ticket|case_num|record)", re.I), "identifier", "reference"),
+    (re.compile(r"(sentiment|satisfaction|outcome|result|resolution_status)", re.I), "outcome", "customer_experience"),
+    (re.compile(r"(rating|score|nps|csat)", re.I), "metric", "customer_experience"),
+    (re.compile(r"(duration|elapsed|time_spent|handle_time|resolution_time)", re.I), "duration", "operational"),
+    (re.compile(r"(timestamp|created|updated|date|_at$|_time$|start_time|end_time)", re.I), "time", "temporal"),
+    (re.compile(r"(agent|rep|employee|handler|assigned)", re.I), "actor", "workforce"),
+    (re.compile(r"(customer|caller|user|client|contact)", re.I), "actor", "customer"),
+    (re.compile(r"(category|type|topic|department|channel|reason|complaint|issue)", re.I), "category", "classification"),
+    (re.compile(r"(region|location|city|state|country|site|branch)", re.I), "dimension", "geographic"),
+    (re.compile(r"(priority|severity|urgency|level|tier)", re.I), "dimension", "operational"),
+    (re.compile(r"(transcript|text|body|content|description|notes|summary)", re.I), "text", "content"),
+    (re.compile(r"(name|title|label|subject)", re.I), "label", "descriptive"),
+    (re.compile(r"(count|total|amount|quantity|num_)", re.I), "metric", "quantitative"),
+    (re.compile(r"(email|phone|address|url)", re.I), "contact", "pii"),
+]
+
+
+def _classify_field(name: str, samples: set, count: int, total_sampled: int) -> dict:
+    """Infer semantic type, data type, and business role from field name and values."""
+    sample_list = list(samples)
+
+    # Data type detection
+    data_type = "categorical"
+    if all(_is_numeric(v) for v in sample_list[:10] if v):
+        data_type = "numeric"
+    elif all(_is_datetime(v) for v in sample_list[:10] if v):
+        data_type = "datetime"
+    elif any(len(v) > 100 for v in sample_list[:5]):
+        data_type = "text"
+
+    # Semantic type from name patterns
+    semantic_type = "dimension"
+    business_role = "general"
+    for pattern, sem, role in _SEMANTIC_RULES:
+        if pattern.search(name):
+            semantic_type = sem
+            business_role = role
+            break
+
+    # Override: high cardinality text → text type
+    if data_type == "categorical" and len(samples) > 15:
+        if semantic_type not in ("time", "identifier"):
+            semantic_type = "dimension"
+
+    # Override: datetime detected → time
+    if data_type == "datetime" and semantic_type == "dimension":
+        semantic_type = "time"
+        business_role = "temporal"
+
+    return {
+        "semantic_type": semantic_type,
+        "data_type": data_type,
+        "business_role": business_role,
+        "cardinality": len(samples),
+        "coverage": round(count / max(total_sampled, 1), 2),
+    }
+
+
+def _is_numeric(val: str) -> bool:
+    try:
+        float(val.replace(",", ""))
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+def _is_datetime(val: str) -> bool:
+    import re as _re
+    return bool(_re.match(
+        r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}", val
+    )) or bool(_re.match(
+        r"^\d{1,2}[-/]\d{1,2}[-/]\d{4}", val
+    ))
+
+
+# ═══════════════════════════════════════════════════
 # Schema Extractor
 # ═══════════════════════════════════════════════════
 
@@ -40,6 +121,7 @@ def _extract_schema(cursor) -> dict:
         "SELECT TOP 150 metadata FROM documents "
         "WHERE metadata IS NOT NULL AND LEN(metadata) > 2"
     )
+    sampled = min(total, 150)
     field_info: dict[str, dict] = {}
     for row in cursor.fetchall():
         try:
@@ -70,10 +152,16 @@ def _extract_schema(cursor) -> dict:
         except Exception:
             pass
 
-    fields = [{"name": n, "unique_count": len(i["samples"]),
-               "sample_values": list(i["samples"])[:10],
-               "coverage": f"{i['count']}/{min(total, 150)}"}
-              for n, i in field_info.items()]
+    fields = []
+    for name, info in field_info.items():
+        classification = _classify_field(name, info["samples"], info["count"], sampled)
+        fields.append({
+            "name": name,
+            "unique_count": len(info["samples"]),
+            "sample_values": list(info["samples"])[:10],
+            "coverage": f"{info['count']}/{sampled}",
+            **classification,
+        })
 
     return {"total_records": total, "fields": fields, "has_key_phrases": has_phrases}
 
@@ -87,11 +175,34 @@ _PLAN_PROMPT = """You are a data analyst designing an insight dashboard.
 DATASET SCHEMA:
 {schema}
 
+Each field includes:
+- semantic_type: identifier | outcome | metric | duration | time | actor | category | dimension | text | label | contact
+- data_type: categorical | numeric | datetime | text
+- business_role: customer_experience | operational | temporal | workforce | customer | classification | geographic | content | descriptive | quantitative | reference | pii | general
+- cardinality: number of unique values
+- coverage: fraction of records with this field (0.0 to 1.0)
+
+Use semantic_type to guide insight design:
+- outcome fields → KPIs (rate), driver analysis, donut charts
+- time fields → trend_over_time (line charts)
+- category/dimension fields → distribution, rate_by_dimension, filters
+- duration fields → average_duration KPIs, duration_by_dimension
+- actor fields → rate_by_dimension breakdown
+- identifier/contact/pii fields → NEVER use in charts or filters
+- text fields → skip (use key_phrases instead if available)
+
 Return JSON with this structure:
 
 {{
   "headline": "6-10 word use case headline",
   "summary": "One sentence (max 30 words) describing what this data represents",
+
+  "key_insights": [
+    "First major pattern or finding (one sentence)",
+    "Second major pattern or finding (one sentence)",
+    "Third major pattern or finding (one sentence)",
+    "Fourth major pattern or finding (one sentence)"
+  ],
 
   "kpis": [
     {{
@@ -146,16 +257,30 @@ Return JSON with this structure:
     }}
   ],
 
-  "suggested_questions": ["question 1", "question 2", "question 3"]
+  "suggested_questions": ["question 1", "question 2", "question 3"],
+
+  "standout_findings": [
+    "First notable standout observation (one sentence)",
+    "Second notable standout observation (one sentence)",
+    "Third notable standout observation (one sentence)"
+  ]
 }}
 
 RULES:
 - Only use field names from the schema
+- Use semantic_type to pick the right insight_type for each field
+- Use fields with coverage >= 0.5 for KPIs and charts; avoid low-coverage fields
+- NEVER use identifier, contact, or pii fields in charts, KPIs, or filters
+- Prefer outcome fields for rate KPIs and driver analysis
+- Prefer time fields for trend_over_time; prefer category/dimension for distribution
 - 3-5 KPIs, 2-4 sections, each with 1-2 charts
+- key_insights: exactly 3-4 bullets summarizing the most important patterns in the data
+- standout_findings: exactly 2-3 bullets highlighting what stands out or is unusual
 - Section types must be one of: summary, breakdown, trend, distribution, text_analysis, drivers
+- The FIRST chart in the first section should be the single most important visualization
 - insight_type must match query_type exactly
 - Suggested questions MUST reference actual field names or values from the schema
-- Include drivers only if a clear binary outcome exists
+- Include drivers only if a clear outcome field (semantic_type=outcome) exists
 - Include text_analysis only if has_key_phrases is true
 - Include trend only if time fields exist
 - Return ONLY valid JSON"""
@@ -261,6 +386,15 @@ def _count_filtered(cursor, where, params) -> int:
     return cursor.fetchone()[0]
 
 
+def _confidence_level(sample_size: int, coverage: float = 1.0) -> str:
+    """Compute confidence label from sample size and coverage."""
+    if sample_size >= 50 and coverage >= 0.7:
+        return "high"
+    if sample_size >= 20 and coverage >= 0.4:
+        return "medium"
+    return "low"
+
+
 def _exec_kpi(cursor, spec, where, params):
     qt = spec.get("query_type", "")
     base = {"label": spec["label"], "format": spec.get("format", "number"),
@@ -268,25 +402,32 @@ def _exec_kpi(cursor, spec, where, params):
     try:
         if qt == "count":
             cursor.execute(f"SELECT COUNT(*) FROM documents WHERE {where}", list(params))
-            return {**base, "value": cursor.fetchone()[0]}
+            val = cursor.fetchone()[0]
+            return {**base, "value": val,
+                    "confidence": _confidence_level(val), "sample_size": val}
         if qt == "rate":
             f, pos = spec["field"], spec["positive_value"]
             cursor.execute(
-                f"SELECT SUM(CASE WHEN JSON_VALUE(metadata,'$.{f}')=? THEN 1 ELSE 0 END)*100.0"
-                f"/NULLIF(COUNT(*),0) FROM documents WHERE {where} "
+                f"SELECT SUM(CASE WHEN JSON_VALUE(metadata,'$.{f}')=? THEN 1 ELSE 0 END),"
+                f"COUNT(*) FROM documents WHERE {where} "
                 f"AND JSON_VALUE(metadata,'$.{f}') IS NOT NULL",
                 [pos] + list(params))
             r = cursor.fetchone()
-            return {**base, "value": round(float(r[0]), 1) if r and r[0] else 0, "format": "percentage"}
+            n = r[1] if r else 0
+            val = round(r[0] * 100.0 / n, 1) if r and n > 0 else 0
+            return {**base, "value": val, "format": "percentage",
+                    "confidence": _confidence_level(n), "sample_size": n}
         if qt == "average_duration":
             sf, ef = spec["start_field"], spec["end_field"]
             cursor.execute(
                 f"SELECT AVG(DATEDIFF(MINUTE,TRY_CAST(JSON_VALUE(metadata,'$.{sf}') AS DATETIME2),"
-                f"TRY_CAST(JSON_VALUE(metadata,'$.{ef}') AS DATETIME2))) "
+                f"TRY_CAST(JSON_VALUE(metadata,'$.{ef}') AS DATETIME2))),COUNT(*) "
                 f"FROM documents WHERE {where} AND JSON_VALUE(metadata,'$.{sf}') IS NOT NULL "
                 f"AND JSON_VALUE(metadata,'$.{ef}') IS NOT NULL", list(params))
             r = cursor.fetchone()
-            return {**base, "value": round(float(r[0])) if r and r[0] else 0, "format": "minutes"}
+            n = r[1] if r else 0
+            return {**base, "value": round(float(r[0])) if r and r[0] else 0, "format": "minutes",
+                    "confidence": _confidence_level(n), "sample_size": n}
     except Exception as e:
         logger.warning(f"KPI failed ({spec.get('label','')}): {e}")
     return None
@@ -297,6 +438,11 @@ def _exec_chart(cursor, spec, where, params):
     base = {"insight_type": it, "title": spec.get("title", ""),
             "description": spec.get("description", ""),
             "visualization": spec.get("visualization", "bar")}
+
+    def _with_confidence(result: dict, sample_size: int, coverage: float = 1.0) -> dict:
+        return {**result, "confidence": _confidence_level(sample_size, coverage),
+                "sample_size": sample_size}
+
     try:
         if it == "distribution":
             f = spec["field"]
@@ -305,7 +451,8 @@ def _exec_chart(cursor, spec, where, params):
                 f"AND JSON_VALUE(metadata,'$.{f}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{f}') ORDER BY COUNT(*) DESC", list(params))
             data = [{"label": r[0], "value": r[1]} for r in cursor.fetchall() if r[0]]
-            return {**base, "data": data, "field": f} if len(data) >= 2 else None
+            n = sum(d["value"] for d in data)
+            return _with_confidence({**base, "data": data, "field": f}, n) if len(data) >= 2 else None
 
         if it == "rate_by_dimension":
             of, df, pos = spec["outcome_field"], spec["dimension_field"], spec["positive_value"]
@@ -317,19 +464,21 @@ def _exec_chart(cursor, spec, where, params):
                 [pos] + list(params))
             data = [{"label": r[0], "value": round(r[1]*100.0/r[2], 1), "positive": r[1], "total": r[2]}
                     for r in cursor.fetchall() if r[0] and r[2] > 0]
-            return {**base, "data": data} if len(data) >= 2 else None
+            n = sum(d["total"] for d in data)
+            return _with_confidence({**base, "data": data}, n) if len(data) >= 2 else None
 
         if it == "duration_by_dimension":
             sf, ef, df = spec["start_field"], spec["end_field"], spec["dimension_field"]
             cursor.execute(
                 f"SELECT JSON_VALUE(metadata,'$.{df}'),"
                 f"AVG(DATEDIFF(MINUTE,TRY_CAST(JSON_VALUE(metadata,'$.{sf}') AS DATETIME2),"
-                f"TRY_CAST(JSON_VALUE(metadata,'$.{ef}') AS DATETIME2))) "
+                f"TRY_CAST(JSON_VALUE(metadata,'$.{ef}') AS DATETIME2))),COUNT(*) "
                 f"FROM documents WHERE {where} AND JSON_VALUE(metadata,'$.{df}') IS NOT NULL "
                 f"AND JSON_VALUE(metadata,'$.{sf}') IS NOT NULL AND JSON_VALUE(metadata,'$.{ef}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{df}') ORDER BY 2 DESC", list(params))
             data = [{"label": r[0], "value": round(r[1]) if r[1] else 0} for r in cursor.fetchall() if r[0]]
-            return {**base, "data": data} if data else None
+            n = sum(1 for _ in data)
+            return _with_confidence({**base, "data": data}, n) if data else None
 
         if it == "trend_over_time":
             tf = spec.get("time_field") or spec.get("start_field", "")
@@ -339,26 +488,31 @@ def _exec_chart(cursor, spec, where, params):
                 f"GROUP BY CAST(TRY_CAST(JSON_VALUE(metadata,'$.{tf}') AS DATE) AS NVARCHAR) ORDER BY 1",
                 list(params))
             data = [{"label": r[0], "value": r[1]} for r in cursor.fetchall() if r[0]]
-            return {**base, "visualization": "line", "data": data} if len(data) >= 2 else None
+            n = sum(d["value"] for d in data)
+            return _with_confidence({**base, "visualization": "line", "data": data}, n) if len(data) >= 2 else None
 
         if it == "top_phrases":
             cursor.execute(
                 f"SELECT key_phrases FROM documents WHERE {where} "
                 f"AND key_phrases IS NOT NULL AND LEN(key_phrases)>2", list(params))
             ctr: Counter = Counter()
+            doc_count = 0
             for row in cursor.fetchall():
+                doc_count += 1
                 try:
                     for p in json.loads(row[0]):
                         if isinstance(p, str) and len(p.strip()) > 1:
                             ctr[p.strip().lower()] += 1
                 except Exception:
                     pass
-            top = ctr.most_common(30)
+            top = ctr.most_common(15)
             if not top:
                 return None
             mx = top[0][1]
-            return {**base, "visualization": "word_cloud",
-                    "data": [{"text": t, "frequency": f, "weight": round(f/mx, 2)} for t, f in top]}
+            return _with_confidence(
+                {**base, "visualization": "word_cloud",
+                 "data": [{"text": t, "frequency": f, "weight": round(f/mx, 2)} for t, f in top]},
+                doc_count)
 
         if it == "trending_table":
             f = spec["field"]
@@ -367,7 +521,8 @@ def _exec_chart(cursor, spec, where, params):
                 f"AND JSON_VALUE(metadata,'$.{f}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{f}') ORDER BY COUNT(*) DESC", list(params))
             data = [{"label": r[0], "value": r[1]} for r in cursor.fetchall() if r[0]]
-            return {**base, "visualization": "table", "data": data} if data else None
+            n = sum(d["value"] for d in data)
+            return _with_confidence({**base, "visualization": "table", "data": data}, n) if data else None
     except Exception as e:
         logger.warning(f"Chart failed ({spec.get('title','')}): {e}")
     return None
@@ -532,6 +687,8 @@ class DashboardService:
                 },
                 "headline": plan.get("headline", "Data Insights"),
                 "summary": plan.get("summary", ""),
+                "key_insights": plan.get("key_insights", []),
+                "standout_findings": plan.get("standout_findings", []),
                 "kpis": kpis,
                 "sections": sections,
                 "filters": avail_filters,

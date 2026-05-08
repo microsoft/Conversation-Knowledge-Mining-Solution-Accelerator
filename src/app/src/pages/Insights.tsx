@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Spinner, Dropdown, Option } from "@fluentui/react-components";
-import { ArrowSync24Regular, ChartMultiple24Regular, ChevronRight20Regular } from "@fluentui/react-icons";
+import { ArrowSync24Regular, ChartMultiple24Regular } from "@fluentui/react-icons";
 import { DonutChart, BarChart, LineChart } from "../components/Charts";
 import { useNavigate } from "react-router-dom";
 import { getDashboard } from "../api/client";
@@ -11,21 +11,17 @@ const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec
 
 const Insights: React.FC = () => {
   const nav = useNavigate();
-  const { setDashboardHeadline } = useAppState();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { setDashboardHeadline, insights: cachedData, setInsights } = useAppState();
+  const [data, setData] = useState<any>(cachedData);
+  const [loading, setLoading] = useState(!cachedData);
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-
-  const toggle = (id: string) => setCollapsed(p => {
-    const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
-  });
 
   const load = async (f?: Record<string, string>, refresh = false) => {
     setLoading(true);
     try {
       const r = await getDashboard(f, refresh);
       setData(r.data);
+      setInsights(r.data);
       if (r.data?.headline) {
         setDashboardHeadline(r.data.headline);
         try { sessionStorage.setItem("km_headline", JSON.stringify(r.data.headline)); } catch {}
@@ -34,7 +30,7 @@ const Insights: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (!cachedData) load(); }, []);
 
   const applyFilter = (field: string, value: string) => {
     const next = { ...filters };
@@ -68,25 +64,72 @@ const Insights: React.FC = () => {
   const kpis = data.kpis || [];
   const availableFilters = data.filters || [];
   const questions = data.suggested_questions || [];
+  const keyInsights = data.key_insights || [];
+  const standoutFindings = data.standout_findings || [];
+
+  // Flatten all charts into a single list, with donut + word_cloud adjacent
+  const gridCharts = (() => {
+    const all = sections.flatMap((sec: any) =>
+      (sec.charts || []).map((chart: any) => ({ ...chart, sectionId: sec.id }))
+    );
+    const donutIdx = all.findIndex((c: any) => c.visualization === "donut");
+    const wcIdx = all.findIndex((c: any) => c.visualization === "word_cloud");
+    if (donutIdx >= 0 && wcIdx >= 0 && Math.abs(donutIdx - wcIdx) > 1) {
+      const sorted = [...all];
+      const wc = sorted.splice(sorted.findIndex((c: any) => c.visualization === "word_cloud"), 1)[0];
+      const di = sorted.findIndex((c: any) => c.visualization === "donut");
+      sorted.splice(di + 1, 0, wc);
+      return sorted;
+    }
+    return all;
+  })();
 
   return (
     <div className={s.page}>
       <div className={s.content}>
-        {/* ── Top: summary + record count + re-analyze ── */}
-        <div className={s.topBar}>
+        {/* ── Dataset header ── */}
+        <div className={s.datasetHeader}>
           <div style={{ flex: 1 }}>
-            {data.summary && <div className={s.summary}>{data.summary}</div>}
-            {ctx.filtered_records !== undefined && ctx.filtered_records !== ctx.total_records && (
-              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-                Showing {ctx.filtered_records} of {ctx.total_records} records
-              </div>
-            )}
+            <div className={s.datasetTitle}>{data.headline || "Data Insights"}</div>
+            <div className={s.datasetMeta}>
+              {ctx.total_records?.toLocaleString()} records
+              {data.summary && <> &middot; {data.summary}</>}
+              {ctx.filtered_records !== undefined && ctx.filtered_records !== ctx.total_records && (
+                <span> &middot; Showing {ctx.filtered_records.toLocaleString()} filtered</span>
+              )}
+            </div>
           </div>
           <Button appearance="subtle" size="small" icon={<ArrowSync24Regular />}
             onClick={() => load(filters, true)} disabled={loading}>
-            {loading ? "Analyzing..." : "Re-analyze"}
+            {loading ? "Analyzing..." : "Re-generate"}
           </Button>
         </div>
+
+        {/* ── Key Insights + What Stands Out side by side ── */}
+        {(keyInsights.length > 0 || standoutFindings.length > 0) && (
+          <div className={s.insightsRow}>
+            {keyInsights.length > 0 && (
+              <div className={s.insightsCard}>
+                <div className={s.insightsTitle}>Key Insights</div>
+                <ul className={s.insightsList}>
+                  {keyInsights.map((insight: string, i: number) => (
+                    <li key={i}>{insight}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {standoutFindings.length > 0 && (
+              <div className={s.insightsCard}>
+                <div className={s.insightsTitle}>What Stands Out</div>
+                <ul className={s.insightsList}>
+                  {standoutFindings.map((finding: string, i: number) => (
+                    <li key={i}>{finding}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Filters ── */}
         {availableFilters.length > 0 && (
@@ -118,22 +161,25 @@ const Insights: React.FC = () => {
           </div>
         )}
 
-        {/* ── Sections — everything from backend, rendered generically ── */}
-        {sections.map((sec: any) => (
-          <Section key={sec.id} id={sec.id} title={sec.title}
-            collapsed={collapsed} toggle={toggle}>
-            <div className={sec.charts?.length === 1 ? undefined : s.chartGrid}>
-              {(sec.charts || []).map((chart: any, ci: number) => (
-                <ChartCard key={ci} chart={chart} />
-              ))}
-            </div>
-          </Section>
-        ))}
+        {/* ── All charts in 2-column grid ── */}
+        {gridCharts.length > 0 && (
+          <div className={s.dashboardGrid}>
+            {gridCharts.map((chart: any, i: number) => {
+              const isWide = chart.visualization === "driver_table" ||
+                             chart.visualization === "table";
+              return (
+                <div key={i} className={isWide ? s.gridItemFull : s.gridItem}>
+                  <ChartCard chart={chart} />
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-        {/* ── Suggested questions ── */}
+        {/* ── Explore Further ── */}
         {questions.length > 0 && (
           <div className={s.card}>
-            <div className={s.cardTitle}>Investigate Further</div>
+            <div className={s.cardTitle}>Explore Further</div>
             <div className={s.questionRow}>
               {questions.map((q: string, i: number) => (
                 <button key={i} className={s.questionBtn}
@@ -220,32 +266,12 @@ const ChartCard: React.FC<{ chart: any }> = ({ chart }) => {
         <div className={s.wordCloud}>
           {chart.data.map((p: any, i: number) => (
             <span key={i} className={s.wordItem}
-              style={{ fontSize: Math.max(12, Math.round(p.weight * 32 + 10)),
+              style={{ fontSize: Math.max(11, Math.round(p.weight * 14 + 10)),
                        color: WORD_COLORS[i % WORD_COLORS.length] }}
               title={`${p.text}: ${p.frequency}`}>{p.text}</span>
           ))}
         </div>
       )}
-    </div>
-  );
-};
-
-/* ═══════════════════════════════════════════
-   Collapsible section
-   ═══════════════════════════════════════════ */
-const Section: React.FC<{
-  id: string; title: string;
-  collapsed: Set<string>; toggle: (id: string) => void;
-  children: React.ReactNode;
-}> = ({ id, title, collapsed, toggle, children }) => {
-  const isOpen = !collapsed.has(id);
-  return (
-    <div className={s.section}>
-      <div className={s.sectionHeader} onClick={() => toggle(id)}>
-        <div className={s.sectionTitle}>{title}</div>
-        <ChevronRight20Regular className={isOpen ? s.sectionChevronOpen : s.sectionChevron} />
-      </div>
-      {isOpen && <div className={s.sectionBody}>{children}</div>}
     </div>
   );
 };

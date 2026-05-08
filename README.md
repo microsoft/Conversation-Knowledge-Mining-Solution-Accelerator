@@ -74,8 +74,17 @@ Upload (instant response)
 - **Dynamic filter generation**
   AI-inferred filter dimensions from content — not hardcoded. Filters scope chat queries automatically.
 
+- **LLM-planned insights dashboard**
+  The system analyzes your data schema, uses an LLM to plan which insights matter, then computes exact numbers via SQL. Adapts to any dataset — no hardcoded charts.
+
+- **Configurable processing pipelines**
+  YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, etc.). Auto-trigger on upload.
+
 - **Bring Your Own Index**
   Connect an existing Azure AI Search index and immediately chat with it — no upload needed.
+
+- **Bring Your Own Data**
+  Connect external databases (Microsoft Fabric, SQL, Azure Synapse, ODBC) with auto-detected field mapping and one-click ingestion.
 
 - **Idempotent processing**
   Content-hash chunk IDs, embedding cache, processing locks, and upserts prevent duplicate work.
@@ -183,36 +192,45 @@ This solution addresses those challenges by enabling:
 infra/                              # Azure Bicep infrastructure
 ├── main.bicep                      # Main deployment template
 ├── main.parameters.json            # Parameter defaults
-├── modules/                        # Reusable Bicep modules
+├── modules/                        # 12 reusable Bicep modules
 └── scripts/                        # Deployment & setup scripts
     ├── setup-agent.ps1             # Create AI Foundry agents
     ├── seed-data.ps1               # Load sample data
     ├── deploy.ps1                  # Deployment helper
     └── teardown.ps1                # Resource cleanup
 
+scripts/                            # Operational scripts
+├── connect-data.ps1/.py            # External data source setup
+├── seed-sample-data.ps1/.py        # Sample data loader
+└── setup-data.ps1                  # Data setup orchestrator
+
 src/api/
-├── main.py                         # FastAPI application + queue worker startup
-├── config.py                       # Settings from .env
+├── main.py                         # FastAPI app + lifespan + 9 module routers
+├── config.py                       # Pydantic settings from .env
+├── capabilities/                   # 11 pluggable processing capabilities
+│   ├── classify.py, summarize.py, extract_entities.py, filter.py,
+│   │   generate.py, search.py, select.py, embed.py, transform.py
+│   ├── executor.py                 # Step executor for pipeline engine
+│   └── _llm.py                     # LLM base capability
 ├── modules/
-│   ├── ingestion/                  # Document upload and processing pipeline
-│   │   ├── router.py               # Upload endpoints (instant async response)
-│   │   ├── service.py              # Document management and persistence
-│   │   ├── queue_service.py        # Azure Queue Storage client (two queues)
-│   │   ├── queue_worker.py         # Two-stage worker (extraction + enrichment)
-│   │   ├── chunking.py             # Paragraph-aware text chunking
-│   │   └── azure_storage.py        # Blob, Search index (HNSW vectors)
-│   ├── document_intelligence/      # Content Understanding extraction
-│   ├── rag/                        # Hybrid search (keyword + vector) → GPT-4o
+│   ├── ingestion/                  # Document upload + two-stage queue pipeline
+│   ├── document_intelligence/      # Azure Content Understanding extraction
 │   ├── embeddings/                 # Embedding generation + cache
+│   ├── rag/                        # Hybrid search (keyword + vector) → GPT-4o
 │   ├── processing/                 # Insights report generation
+│   ├── pipelines/                  # YAML-defined configurable pipeline engine
+│   ├── data_sources/               # External connectors (5 adapters)
+│   ├── insights/                   # LLM-planned dashboard engine
 │   └── security/                   # EasyAuth + role-based access control
-└── storage/                        # SQL, Cosmos DB, blob persistence
+└── storage/                        # SQL, Cosmos DB, Blob, Vector, Chat stores
 
 src/app/
 ├── src/
-│   ├── pages/                      # Home, Explore, Insights pages
-│   ├── components/                 # Reusable UI components
-│   └── api/                        # Backend API client
+│   ├── pages/                      # Home, Explore, Insights, DataSources, Pipelines, DataExplorer
+│   ├── components/                 # Layout, Charts, ChatInterface, SearchPanel
+│   ├── api/                        # Backend API client
+│   ├── context/                    # App state (React Context)
+│   └── config/                     # UI config + prompts
 ```
 
 ### Security Guidelines

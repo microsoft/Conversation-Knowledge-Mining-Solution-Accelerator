@@ -7,10 +7,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 
 from src.api.modules.ingestion.service import ingestion_service
-from src.api.modules.ingestion.models import Document, IngestionResult, IngestionStats, UploadedFile, FilterSchema
+from src.api.modules.ingestion.models import Document, IngestionResult, IngestionStats, UploadedFile, FilterSchema, FilterDimension, FilterValue
 from src.api.modules.security.auth import get_current_user, require_role
 from src.api.modules.security.models import User
 from src.api.utils.constants import DOCUMENT_EXTENSIONS
+from src.api.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -249,13 +250,89 @@ async def list_uploaded_files(user: User = Depends(get_current_user)):
 
 @router.get("/extraction", response_model=FilterSchema)
 async def get_filter_schema(user: User = Depends(get_current_user)):
-    """Return the AI-generated filter schema with dimensions and values."""
-    return ingestion_service.filter_schema
+    """Return the AI-generated filter schema with dimensions and values.
+    Falls back to SQL metadata if no extraction schema exists."""
+    schema = ingestion_service.filter_schema
+    if schema.dimensions:
+        return schema
+    # Fallback: build dimensions from SQL metadata for seeded/connected data
+    return _build_sql_filters()
+
+
+def _build_sql_filters() -> FilterSchema:
+    """Build filter dimensions from SQL document metadata."""
+    import struct as _struct
+    settings = get_settings()
+    if not settings.azure_sql_server:
+        return FilterSchema()
+    try:
+        import pyodbc
+        from azure.identity import DefaultAzureCredential
+        cred = DefaultAzureCredential()
+        tok = cred.get_token("https://database.windows.net/.default")
+        tb = tok.token.encode("utf-16-le")
+        ts = _struct.pack(f"<I{len(tb)}s", len(tb), tb)
+        conn = pyodbc.connect(
+            f"Driver={{ODBC Driver 18 for SQL Server}};Server={settings.azure_sql_server};"
+            f"Database={settings.azure_sql_database};Encrypt=yes;TrustServerCertificate=no;",
+            attrs_before={1256: ts})
+        cursor = conn.cursor()
+
+        # Sample metadata to discover categorical fields
+        cursor.execute(
+            "SELECT TOP 100 metadata FROM documents "
+            "WHERE metadata IS NOT NULL AND LEN(metadata) > 2"
+        )
+        import json as _json, re as _re
+        _SAFE_RE = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+        field_values: dict[str, dict[str, int]] = {}
+        for row in cursor.fetchall():
+            try:
+                meta = _json.loads(row[0])
+                if not isinstance(meta, dict):
+                    continue
+                for k, v in meta.items():
+                    if not _SAFE_RE.match(k) or v is None:
+                        continue
+                    sv = str(v).strip()
+                    if not sv or len(sv) > 60:
+                        continue
+                    if k not in field_values:
+                        field_values[k] = {}
+                    field_values[k][sv] = field_values[k].get(sv, 0) + 1
+            except Exception:
+                continue
+
+        # Skip identifiers/text, keep categorical fields (2-20 unique values)
+        skip_patterns = _re.compile(r"(^id$|_id$|ticket|transcript|text|body|content|description|notes|summary|name$|email|phone|url)", _re.I)
+        dims = []
+        for field, vals in field_values.items():
+            if skip_patterns.search(field):
+                continue
+            if 2 <= len(vals) <= 20:
+                sorted_vals = sorted(vals.items(), key=lambda x: -x[1])
+                dims.append(FilterDimension(
+                    id=field,
+                    label=field.replace("_", " ").title(),
+                    type="multi_select",
+                    values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
+                ))
+        conn.close()
+        return FilterSchema(domain="", dimensions=dims)
+    except Exception as e:
+        logger.warning(f"SQL filter fallback failed: {e}")
+        return FilterSchema()
 
 
 @router.delete("/clear")
 async def clear_documents(user: User = Depends(get_current_user)):
     ingestion_service.clear()
+    # Also clear the insights plan cache so it regenerates for new data
+    try:
+        from src.api.modules.insights.service import dashboard_service
+        dashboard_service._plan_cache.clear()
+    except Exception:
+        pass
     return {"message": "All documents, files, and filters cleared"}
 
 

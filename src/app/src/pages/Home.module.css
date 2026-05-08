@@ -1,0 +1,302 @@
+.page {
+  overflow-y: auto;
+  height: 100%;
+  background-color: var(--km-bg, #f5f5f5);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  align-items: center;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 56px 40px 0;
+}
+
+.heroLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+  align-items: center;
+}
+
+.heroTitle {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+}
+
+.heroSub {
+  font-size: 15px;
+  color: #64748b;
+  line-height: 1.7;
+  max-width: 500px;
+  text-align: center;
+}
+
+.heroCtas {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.connectLink {
+  font-size: 13px;
+  color: #2563eb;
+  cursor: pointer;
+  font-weight: 500;
+  margin-left: 4px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  padding: 0;
+}
+
+.uploadCard {
+  width: 100%;
+  max-width: 640px;
+  padding: 32px 40px;
+  border-radius: 24px;
+  border: 2px dashed #d1d5db;
+  background-color: #ffffff;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sourceCard {
+  width: 100%;
+  max-width: 640px;
+  padding: 28px 32px;
+  border-radius: 20px;
+  border: 1px solid #bbf7d0;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.sourceHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.sourceLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+
+.fileStatusList {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.fileStatusItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+.fileStatusName {
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  margin-right: 8px;
+}
+
+.fileStatusBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.uploadIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fileTypes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.fileType {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.content {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 40px 40px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-bottom: 4px;
+}
+
+.valueGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.valueCard {
+  padding: 24px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.2s, transform 0.15s;
+  cursor: default;
+}
+
+.valueIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.valueTitle { font-size: 15px; font-weight: 600; color: #0f172a; }
+.valueDesc { font-size: 13px; color: #64748b; line-height: 1.55; }
+
+.quickGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.quickCard {
+  padding: 22px 24px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.quickIcon {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+.recentGrid {
+  display: flex; flex-direction: column; border-radius: 12px;
+  border: 1px solid #e2e8f0; background-color: #ffffff; overflow: hidden;
+}
+
+.recentCard {
+  padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  border-bottom: 1px solid #f1f5f9; transition: background 0.12s; cursor: default;
+}
+.recentCard:last-child { border-bottom: none; }
+
+.recentName {
+  font-size: 13px; font-weight: 600; color: #0f172a;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;
+}
+.recentMeta { font-size: 12px; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+.recentActions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.readyCard { max-width: 1060px; margin: 0 auto; padding: 0 40px; }
+.readyInner {
+  border-radius: 20px; background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02);
+  padding: 32px; display: flex; flex-direction: column; gap: 20px; margin-top: 48px;
+}
+.readyHeader { display: flex; align-items: center; gap: 14px; }
+.bullets { display: flex; flex-direction: column; gap: 8px; }
+.bullet { font-size: 14px; color: #475569; line-height: 1.7; }
+.detected {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding-top: 12px; border-top: 1px solid #f1f5f9;
+}
+.detectedLabel {
+  font-size: 11px; font-weight: 700; color: #94a3b8;
+  text-transform: uppercase; letter-spacing: 0.8px;
+}
+.detectedTag {
+  font-size: 12px; padding: 4px 12px; border-radius: 8px;
+  background-color: #f1f5f9; color: #475569; font-weight: 500;
+}
+.nextSteps { display: flex; gap: 12px; padding-top: 4px; }
+.intentWrap { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+.suggestions { display: flex; gap: 8px; flex-wrap: wrap; }
+.suggestion {
+  padding: 7px 16px; border-radius: 20px; border: 1px solid #e5e7eb;
+  background-color: #ffffff; font-size: 13px; color: #64748b;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.uploadAnother {
+  font-size: 13px; color: #94a3b8; cursor: pointer;
+  text-align: center; font-weight: 500; margin-top: 4px;
+}
+.connectForm {
+  padding: 28px; border-radius: 16px; background-color: #ffffff;
+  border: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: 14px;
+}
+.errorCard { max-width: 1060px; margin: 48px auto 0; padding: 0 40px; }
+.errorInner {
+  padding: 22px 28px; border-radius: 16px; background-color: #ffffff;
+  border: 1px solid #fecaca; display: flex; align-items: center; gap: 16px;
+}
