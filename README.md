@@ -86,8 +86,6 @@ Upload (instant response)
 - **Bring Your Own Data**
   Connect external databases (Microsoft Fabric, SQL, Azure Synapse, ODBC) with auto-detected field mapping and one-click ingestion.
 
-- **Idempotent processing**
-  Content-hash chunk IDs, embedding cache, processing locks, and upserts prevent duplicate work.
 
 </details>
 
