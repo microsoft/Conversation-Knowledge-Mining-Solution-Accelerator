@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "2050321244821343355"
+      "templateHash": "7971547352074507493"
     }
   },
   "parameters": {
@@ -4416,7 +4416,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "11913031206393910066"
+              "templateHash": "4804697174510607162"
             }
           },
           "definitions": {
@@ -22556,7 +22556,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "440495301690535829"
+              "templateHash": "18203992824250297061"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -27427,6 +27427,13 @@
               },
               "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting').endpoint, if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')).properties.endpoint)]"
             },
+            "endpoints": {
+              "type": "object",
+              "metadata": {
+                "description": "All endpoints available for the cognitive services account, types depends on the cognitive service kind."
+              },
+              "value": "[if(variables('useExistingService'), reference('cognitiveServiceExisting').endpoints, if(variables('useExistingService'), reference('cognitiveServiceExisting', '2025-09-01', 'full'), reference('cognitiveServiceNew', '2025-06-01', 'full')).properties.endpoints)]"
+            },
             "aiProjectInfo": {
               "$ref": "#/definitions/aiProjectOutputType",
               "value": "[if(variables('useExistingService'), reference('existing_cognitive_service_dependencies').outputs.aiProjectInfo.value, reference('cognitive_service_dependencies').outputs.aiProjectInfo.value)]"
@@ -28210,9 +28217,9 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "virtualNetwork"
       ]
     },
@@ -30487,7 +30494,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "16034492197511599742"
+              "templateHash": "3171423857861763521"
             }
           },
           "parameters": {
@@ -38515,11 +38522,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
@@ -52338,7 +52344,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "2986806403289762320"
+              "templateHash": "71820933064712862"
             }
           },
           "definitions": {
@@ -53351,7 +53357,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.42.1.51946",
-                      "templateHash": "7209561163082212668"
+                      "templateHash": "11321300104480927368"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -54206,7 +54212,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "2986806403289762320"
+              "templateHash": "71820933064712862"
             }
           },
           "definitions": {
@@ -55219,7 +55225,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.42.1.51946",
-                      "templateHash": "7209561163082212668"
+                      "templateHash": "11321300104480927368"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."

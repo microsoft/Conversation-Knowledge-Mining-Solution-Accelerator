@@ -286,6 +286,9 @@ output resourceId string = useExistingService ? cognitiveServiceExisting.id : co
 @description('The service endpoint of the cognitive services account.')
 output endpoint string = useExistingService ? cognitiveServiceExisting!.properties.endpoint : cognitiveService.properties.endpoint
 
+@description('All endpoints available for the cognitive services account, types depends on the cognitive service kind.')
+output endpoints object = useExistingService ? cognitiveServiceExisting!.properties.endpoints : cognitiveService.properties.endpoints
+
 import { aiProjectOutputType } from './project.bicep'
 output aiProjectInfo aiProjectOutputType = useExistingService ? existing_cognitive_service_dependencies!.outputs.aiProjectInfo : cognitive_service_dependencies!.outputs.aiProjectInfo
 
