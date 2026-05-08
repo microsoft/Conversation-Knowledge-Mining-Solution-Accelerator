@@ -1,8 +1,5 @@
 # Knowledge Mining Solution Accelerator — Status Update
 
-**Date:** May 8, 2026  
-**Audience:** Engineering team & managers
-
 ---
 
 ## Executive Summary
@@ -11,16 +8,15 @@
 
 **Why we built it.** Every team has data they wish they could just talk to — call transcripts, contracts, research papers, support tickets, patient records, policy documents. But building a knowledge mining solution from scratch for each use case takes months. This accelerator eliminates that. Deploy once, bring whatever data you have, and the platform adapts. The dashboards, filters, chat behavior, and processing pipelines all shape themselves to your content. No domain-specific code, no hardcoded schemas.
 
-**Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-4o, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore, Data Sources, Data Explorer, and Pipelines pages. Infrastructure deploys cleanly via `azd up` with Managed Identity and RBAC.
+**Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-4o, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore. Infra deploys cleanly via `azd up` with Managed Identity and RBAC.
 
-**What still needs work.** Testing (no real test suite yet), production hardening (retry logic, rate limiting, monitoring), CI/CD, and some frontend navigation polish. Details in the [What's left](#whats-left-to-do) section.
-
+**What still needs work.** Testing 
 ---
 
 ## What's been done
 
 ### Infrastructure
-- Full Bicep IaC with `azd up` deployment (12 modules)
+- Full Bicep with `azd up` deployment (still has to test end-to-end)
 - Managed Identity + RBAC everywhere — no API keys in app config
 - Docker support (`docker-compose.yaml`) for local dev
 - Deployment scripts: agent setup, sample data seeding, teardown
@@ -31,7 +27,6 @@
 - **Hybrid search** — Combines keyword matching and semantic similarity for better results
 - **RAG chat** — Users ask questions in natural language, the system finds relevant content and GPT-4o generates an answer with citations
 - **Insights engine** — Looks at what data you have, decides which charts and KPIs are useful, and builds a dashboard automatically. No hardcoded charts — adapts to any dataset
-- **Pipeline engine** — Lets you define multi-step processing workflows in YAML (e.g., classify → summarize → extract entities). Runs automatically when new data arrives, tracks history, and shows progress in real time
 - **Auth** — Azure AD login via App Service EasyAuth, with role-based access control
 
 ### Frontend (React / Fluent UI)
