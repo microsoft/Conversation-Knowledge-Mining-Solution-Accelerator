@@ -20,7 +20,7 @@ logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
 
 import pandas as pd
 import pyodbc
-from azure.ai.inference.aio import EmbeddingsClient
+from openai import AsyncOpenAI
 from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
@@ -86,8 +86,11 @@ SOLUTION_NAME = args.solution_name
 TOPIC_MINING_AGENT_NAME = f"KM-TopicMiningAgent-{SOLUTION_NAME}"
 TOPIC_MAPPING_AGENT_NAME = f"KM-TopicMappingAgent-{SOLUTION_NAME}"
 
-# Azure AI Foundry (Inference) endpoint
-inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
+# Azure OpenAI embeddings endpoint (v1 API - no api-version needed)
+embeddings_base_url = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/openai/v1/"
+embeddings_token_provider = get_bearer_token_provider(
+    AzureCliCredential(process_timeout=30), "https://ai.azure.com/.default"
+)
 
 # Azure DataLake setup
 account_url = f"https://{STORAGE_ACCOUNT_NAME}.dfs.core.windows.net"
@@ -211,9 +214,9 @@ cu_client = AzureContentUnderstandingClient(
 
 # Utility functions
 async def get_embeddings_async(text: str, embeddings_client):
-    """Get embeddings using async EmbeddingsClient."""
+    """Get embeddings using async OpenAI client."""
     try:
-        resp = await embeddings_client.embed(model=EMBEDDING_MODEL, input=[text])
+        resp = await embeddings_client.embeddings.create(model=EMBEDDING_MODEL, input=text)
         return resp.data[0].embedding
     except Exception as e:
         print(f"Error getting embeddings: {e}")
@@ -378,15 +381,12 @@ async def process_files():
     processed_records = []  # Collect all records for batch insert
 
     # Create embeddings client for entire processing session
-    async with (
-        AsyncAzureCliCredential(process_timeout=30) as async_cred,
-        EmbeddingsClient(
-            endpoint=inference_endpoint,
-            credential=async_cred,
-            credential_scopes=["https://ai.azure.com/.default"],
-        ) as embeddings_client
-    ):
-        ANALYZER_ID = "ckm-json"
+    embeddings_client = AsyncOpenAI(
+        base_url=embeddings_base_url,
+        api_key=embeddings_token_provider(),
+    )
+    try:
+        ANALYZER_ID = "ckm_analyzer_json"
         # Process files and insert into DB and Search - transcripts
         for path in paths:
             file_client = file_system_client.get_file_client(path.name)
@@ -446,7 +446,7 @@ async def process_files():
         print(f"✓ Processed {counter} transcript files")
 
         # Process files for audio data
-        ANALYZER_ID = "ckm-audio"
+        ANALYZER_ID = "ckm_analyzer_audio"
         audio_paths = list(file_system_client.get_paths(path=AUDIO_DIRECTORY))
         docs = []
         counter = 0
@@ -517,11 +517,14 @@ async def process_files():
 
         print(f"✓ Processed {counter} audio files")
 
-    # Batch insert all processed records using optimized SQL script
-    if processed_records:
-        df_processed = pd.DataFrame(processed_records)
-        columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
-        generate_sql_insert_script(df_processed, 'processed_data', columns, 'custom_processed_data_batch_insert.sql')
+        # Batch insert all processed records using optimized SQL script
+        if processed_records:
+            df_processed = pd.DataFrame(processed_records)
+            columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
+            generate_sql_insert_script(df_processed, 'processed_data', columns, 'custom_processed_data_batch_insert.sql')
+    finally:
+        # Close the embeddings client to release the underlying httpx connection pool.
+        await embeddings_client.close()
 
     return conversationIds
 
