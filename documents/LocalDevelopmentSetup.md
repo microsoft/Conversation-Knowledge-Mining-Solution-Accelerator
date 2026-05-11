@@ -20,6 +20,7 @@ This application consists of two separate services that run independently:
 **Terminal Organization:**
 
 • **Terminal 1**: Backend API - HTTP server on port 8000  
+
 • **Terminal 2**: Frontend - Development server on port 5173
 
 ---
