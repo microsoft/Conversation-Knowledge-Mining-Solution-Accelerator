@@ -20,7 +20,7 @@ This application consists of two separate services that run independently:
 **Terminal Organization:**
 
 • **Terminal 1**: Backend API - HTTP server on port 8000  
-• **Terminal 2**: Frontend - Development server on port 3000
+• **Terminal 2**: Frontend - Development server on port 5173
 
 ---
 
@@ -746,15 +746,15 @@ Add the following to `src/App/.env`:
 
 ```bash
 # API Configuration
-REACT_APP_API_BASE_URL=http://127.0.0.1:8000
+VITE_API_BASE_URL=http://127.0.0.1:8000
 
 # Optional: Enable debug logging
-REACT_APP_DEBUG=true
+VITE_DEBUG=true
 ```
 
 > ⚠️ **Important**: 
-> - The `REACT_APP_API_BASE_URL` must match the backend API address (default: `http://127.0.0.1:8000`)
-> - React apps require `REACT_APP_` prefix for custom environment variables
+> - The `VITE_API_BASE_URL` must match the backend API address (default: `http://127.0.0.1:8000`)
+> - Vite apps require `VITE_` prefix for custom environment variables
 > - After changing `.env`, restart the frontend development server
 
 ### 5.3. Install UI Dependencies
@@ -775,11 +775,8 @@ This will install all dependencies listed in `package.json`, including:
 - Axios for API calls
 - Development tools and testing libraries
 
-> **Note**: The `package.json` includes a proxy configuration. If you see `"proxy": "http://localhost:5000"` in package.json but your backend runs on port 8000, you may need to update it:
-> ```json
-> "proxy": "http://localhost:8000"
-> ```
-> Or rely on the `REACT_APP_API_BASE_URL` environment variable instead.
+> **Note**: The frontend uses Vite with a dev server proxy configured in `vite.config.ts`. The proxy forwards `/api` and `/history` requests to the backend at `http://localhost:8000`.
+> You can also set the `VITE_API_BASE_URL` environment variable in `.env` to configure the backend URL.
 
 #### Troubleshooting npm Installation
 
@@ -821,73 +818,66 @@ For production builds:
 npm run build
 ```
 
-This creates an optimized production build in the `build/` directory. This step is optional for local development.
+This creates an optimized production build in the `dist/` directory. This step is optional for local development.
 
 ### 5.5. Start Development Server
 
 ```bash
-# Start the React development server
-npm start
+# Start the Vite development server
+npm run dev
 ```
 
 The app will start at:
 
 ```
-http://localhost:3000
+http://localhost:5173
 ```
 
-The browser should automatically open. If not, manually navigate to `http://localhost:3000`
+The browser should automatically open. If not, manually navigate to `http://localhost:5173`
 
 #### Expected Output
 
 When successfully running, you should see output similar to:
 
 ```
-Compiled successfully!
+  VITE v6.x.x  ready in xxx ms
 
-You can now view the app in the browser.
-
-  Local:            http://localhost:3000
-  On Your Network:  http://192.168.1.x:3000
-
-Note that the development build is not optimized.
-To create a production build, use npm run build.
-
-webpack compiled successfully
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://192.168.1.x:5173/
+  ➜  press h + enter to show help
 ```
 
-#### React Development Features
+#### Vite Development Features
 
 The development server provides:
 - **Hot Module Replacement (HMR)**: Automatically refreshes when you save changes
 - **Error Overlay**: Shows compilation errors and runtime errors in the browser
-- **API Proxy**: Uses `REACT_APP_API_BASE_URL` from `.env` to connect to backend at `http://127.0.0.1:8000`
+- **API Proxy**: Configured in `vite.config.ts` to proxy `/api` and `/history` requests to the backend at `http://localhost:8000`
 - **Azure AD Authentication**: Integrated with @azure/msal-react for user authentication
 
 #### Common Frontend Issues
 
-**Port 3000 Already in Use:**
+**Port 5173 Already in Use:**
 ```bash
 # Option 1: Use a different port
-PORT=3001 npm start  # Linux/macOS
-$env:PORT=3001; npm start  # Windows PowerShell
+npx vite --port 3000  # Linux/macOS/Windows
 
-# Option 2: Kill process on port 3000
+# Option 2: Kill process on port 5173
 # Windows:
-netstat -ano | findstr :3000
+netstat -ano | findstr :5173
 taskkill /PID <process-id> /F
 
 # Linux/macOS:
-lsof -i :3000
+lsof -i :5173
 kill -9 <process-id>
 ```
 
 **Cannot Connect to Backend API:**
 ```bash
 # 1. Verify backend is running on http://127.0.0.1:8000
-# 2. Check REACT_APP_API_BASE_URL in src/App/.env
+# 2. Check VITE_API_BASE_URL in src/App/.env
 # 3. Check browser console for CORS errors
-# 4. Restart frontend after changing .env: Ctrl+C then npm start
+# 4. Restart frontend after changing .env: Ctrl+C then npm run dev
 ```
 
 **Module Not Found or TypeScript Errors:**
@@ -908,7 +898,7 @@ Before using the application, confirm both services are running in separate term
 | Terminal | Service | Command | Expected Log Message | Access URL |
 |----------|---------|---------|----------------------|------------|
 | Terminal 1 | Backend API | `python app.py` | `Uvicorn running on http://127.0.0.1:8000` | http://127.0.0.1:8000 |
-| Terminal 2 | Frontend | `npm start` | `webpack compiled successfully` | http://localhost:3000 |
+| Terminal 2 | Frontend | `npm run dev` | `VITE ready in xxx ms` | http://localhost:5173 |
 
 ### Quick Verification
 
@@ -925,14 +915,14 @@ curl http://127.0.0.1:8000/health
 
 #### 2. Check Frontend
 
-• Open browser to `http://localhost:3000`  
+• Open browser to `http://localhost:5173`  
 • Should see the Conversation Knowledge Mining UI  
 • Check browser console (F12) for any errors  
 • Verify no "Cannot connect to backend" errors
 
 #### 3. Test End-to-End Connection
 
-1. Navigate to the main application interface at `http://localhost:3000`
+1. Navigate to the main application interface at `http://localhost:5173`
 2. Try entering a sample query in the chat interface
 3. Verify the frontend successfully communicates with the backend
 4. Check Terminal 1 (Backend) for incoming API request logs
@@ -1033,11 +1023,11 @@ python -m pip install --trusted-host pypi.org --trusted-host pypi.python.org --t
 # Check environment variables are loaded
 # Linux/macOS:
 env | grep AZURE
-env | grep REACT_APP
+env | grep VITE
 
 # Windows PowerShell:
 Get-ChildItem Env:AZURE*
-Get-ChildItem Env:REACT_APP*
+Get-ChildItem Env:VITE*
 
 # Validate .env file format (should show key=value pairs)
 # Linux/macOS:
@@ -1162,7 +1152,7 @@ az resource list --resource-group <rg-name> --output table
 #### React App Shows Blank Page
 
 1. Check browser console (F12) for JavaScript errors
-2. Verify `REACT_APP_API_BASE_URL` in `src/App/.env`
+2. Verify `VITE_API_BASE_URL` in `src/App/.env`
 3. Clear browser cache or try incognito mode
 4. Verify backend is running and accessible at `http://127.0.0.1:8000`
 
@@ -1179,13 +1169,13 @@ fetch('http://127.0.0.1:8000/health')
 # Check CORS configuration
 # Look for CORS errors in browser console (F12 → Console tab)
 
-# Verify backend CORS settings allow localhost:3000
+# Verify backend CORS settings allow localhost:5173
 # Check src/api/app.py for CORS middleware configuration
 ```
 
 **CORS Error Example:**
 ```
-Access to fetch at 'http://127.0.0.1:8000/api/...' from origin 'http://localhost:3000' 
+Access to fetch at 'http://127.0.0.1:8000/api/...' from origin 'http://localhost:5173' 
 has been blocked by CORS policy
 ```
 
@@ -1193,7 +1183,7 @@ has been blocked by CORS policy
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1208,10 +1198,10 @@ app.add_middleware(
 # Error: AADSTS900561 - Endpoint only accepts POST
 # Solution: Configure app registration as SPA (Single-Page Application)
 # Azure Portal → App Registrations → Your App → Authentication
-# Add platform: Single-page application with redirect URI http://localhost:3000
+# Add platform: Single-page application with redirect URI http://localhost:5173
 
 # Error: AADSTS50011 - Redirect URI mismatch
-# Solution: Add http://localhost:3000 to redirect URIs in app registration
+# Solution: Add http://localhost:5173 to redirect URIs in app registration
 ```
 
 ### Network and Firewall Issues
@@ -1348,7 +1338,7 @@ If issues persist after trying the troubleshooting steps:
 
 Once all services are running (as confirmed in Step 6), you can:
 
-1. **Explore the Application**: Navigate through the UI at `http://localhost:3000` to explore conversational insights
+1. **Explore the Application**: Navigate through the UI at `http://localhost:5173` to explore conversational insights
 2. **Try Sample Queries**: Follow [SampleQuestions.md](./SampleQuestions.md) for example queries you can ask the system
 3. **Understand the Architecture**: Review [TechnicalArchitecture.md](./TechnicalArchitecture.md) to understand how the system processes conversations
 4. **Customize Your Data**: Follow [CustomizeData.md](./CustomizeData.md) to learn how to import your own conversation data
