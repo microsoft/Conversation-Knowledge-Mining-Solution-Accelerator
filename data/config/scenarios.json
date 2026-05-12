@@ -1,0 +1,30 @@
+{
+  "scenarios": {
+    "contact-center": {
+      "name": "Contact Center",
+      "description": "IT helpdesk call transcripts — sentiment analysis, topic clustering, agent performance",
+      "data_folder": "ContactCenter_usecase",
+      "data_types": ["json"],
+      "has_preprocessed": true,
+      "preprocessed_files": {
+        "search_index": "sample_search_index_data.json",
+        "processed_data": "sample_processed_data.json",
+        "key_phrases": "sample_processed_data_key_phrases.json"
+      }
+    },
+    "mortgage-application": {
+      "name": "Mortgage Application",
+      "description": "Housing reports and purchase contracts — document summarization, clause extraction, risk analysis",
+      "data_folder": "MortgageApplication_usecase",
+      "data_types": ["pdf"],
+      "has_preprocessed": false
+    },
+    "telecom-analysis": {
+      "name": "Telecom Analysis",
+      "description": "Call transcripts and audio recordings — transcription, sentiment breakdowns, topic clustering",
+      "data_folder": "telecom_analysis_usecase",
+      "data_types": ["json", "wav"],
+      "has_preprocessed": false
+    }
+  }
+}

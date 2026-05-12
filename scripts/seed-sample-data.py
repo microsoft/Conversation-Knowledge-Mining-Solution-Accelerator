@@ -61,7 +61,7 @@ COSMOS_DATABASE = os.getenv("AZURE_COSMOS_DATABASE", "km-db")
 SQL_SERVER = os.getenv("AZURE_SQL_SERVER", "")
 SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE", "km-db")
 
-DATA_DIR = os.path.join(project_root, "data", "call_transcripts")
+DATA_DIR = os.getenv("KM_SCENARIO_DATA_DIR", os.path.join(project_root, "data", "ContactCenter_usecase"))
 
 SEARCH_DATA_FILE = os.path.join(DATA_DIR, "sample_search_index_data.json")
 PROCESSED_DATA_FILE = os.path.join(DATA_DIR, "sample_processed_data.json")

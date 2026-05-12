@@ -10,7 +10,7 @@
 
 **Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-4o, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore — all restructured with dedicated CSS module files and cleaned-up component layouts. The Explore page now shows source citations inline under each answer with clean filenames and snippets (no more raw UUIDs or redundant side panel). Infra deploys cleanly via `azd up` with Managed Identity and RBAC. Queue Storage RBAC roles are provisioned. A two-stage async pipeline (extract → chunk/embed/index) runs via Azure Queue Storage.
 
-**What still needs work.** Testing, quick-connect wizard UI (backend endpoint is built), use-case selection flow, docs.
+**What still needs work.** Testing, quick-connect wizard UI (backend endpoint is built), docs.
 ---
 
 ## What's been done
@@ -115,29 +115,23 @@ The platform is designed so you can swap data, change the domain, or extend beha
 | **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml` — change it per use case without touching code. |
 | **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. Works across schemas without manual config for most datasets. |
 
-**Where use-case selection is headed:**
+**Scenario packs (post-deployment):**
 
-The goal is to let deployers pick a use case during or right after deployment — not buried in code. This isn't fully built yet, but the plan:
+After deploying with `azd up`, users run a script to seed one of three built-in scenario packs — or skip them entirely and connect their own data. Each pack ships with sample data in the `data/` folder, ready to ingest.
 
-- **During deployment (`azd up`)** — A parameter or prompt that selects a use-case pack (e.g., "call center", "legal review", "general"). This would set the system prompt, seed sample data, configure default pipelines, and apply the right field mappings automatically.
-- **Post-deployment script** — A script like `./scripts/setup-usecase.ps1 --usecase telecom` that applies the use-case configuration to an already-deployed instance. Swap the use case without redeploying infrastructure.
+| # | Scenario | Data folder | Sample data | What users see |
+|---|----------|-------------|-------------|----------------|
+| 1 | **Contact Center** | `data/ContactCenter_usecase/` | JSON call transcripts (5 conversations) + pre-processed search index data | Sentiment trends, topic clusters, agent performance, Q&A over conversations |
+| 2 | **Mortgage Application** | `data/MortgageApplication_usecase/` | PDF documents (housing reports, purchase contracts, NPL reports — 6 files) | Document summarization, clause extraction, risk analysis, Q&A over mortgage docs |
+| 3 | **Telecom Analysis** | `data/telecom_analysis_usecase/` | JSON call transcripts (5) + WAV audio recordings (5) | Call analysis, audio transcription, sentiment breakdowns, topic clustering |
+| 4 | **Bring Your Own Data** | — | None — user connects their own source | User connects via the data source connectors (Fabric, SQL, Synapse, ODBC, Azure AI Search) or uploads files directly through the UI |
 
-**Use cases it supports :**
+**How it works:**
+- **Post-deployment script** — After `azd up`, run `./scripts/setup-data.ps1 -Scenario contact-center` (or `mortgage-application` / `telecom-analysis`). Or run `./scripts/setup-data.ps1` with no args for an interactive menu. The platform auto-adapts dashboards, filters, and chat grounding to whatever data lands.
+- **Scenario 4 (BYOD)** — Skip the seeding script entirely. Instead, upload files through the Home page, run `./scripts/setup-data.ps1 -DataPath path/to/files`, or connect an external data source via the API / quick-connect endpoint. The platform figures out the schema and adapts.
+- **Scenario config** — `data/config/scenarios.json` defines each pack's folder, data types, and whether it has pre-processed data.
 
-| Use case | Data type | What users get |
-|----------|-----------|----------------|
-| **Call center analytics** | JSON call transcripts | Sentiment trends, topic clusters, agent performance, Q&A over conversations |
-| **Telecom support** | Call transcripts + WAV files | Same as above, with audio file ingestion |
-| **Legal / compliance review** | Contracts, policies (PDF/DOCX) | Clause extraction, risk classification, searchable knowledge base |
-| **Healthcare** | Clinical notes, reports | Entity extraction (conditions, medications), summarization, chat Q&A |
-| **HR / internal knowledge** | Policy docs, handbooks, FAQs | Employees ask questions and get answers grounded in company docs |
-| **Research & academia** | Papers, articles, datasets | Topic clustering, literature Q&A, cross-document insights |
-| **Customer feedback** | Surveys, reviews, support tickets | Sentiment analysis, issue categorization, trend dashboards |
-| **Insurance claims** | Claim forms, adjuster notes | Entity extraction, status tracking, pattern detection |
-| **Any existing search index** | Azure AI Search index | Instant chat over pre-indexed data — zero upload, zero processing |
-
-The point: **you don't pick a use case when you build the accelerator — you pick it when you bring your data.** The platform is the same every time.
-
+**Why this works:** There is zero domain-specific logic in the codebase. The same deployment handles all four scenarios. The dashboards, search filters, and chat behavior shape themselves to whatever content is indexed. The scenario pack just determines which sample data gets loaded — not how the platform behaves.
 
 ---
 
@@ -145,9 +139,9 @@ The point: **you don't pick a use case when you build the accelerator — you pi
 
 | # | Item | Status | Details |
 |---|------|--------|---------|
-| 1 | **Copilot Studio agent** | Not started | Build a Copilot Studio agent that connects to the KM backend APIs. Users would interact with their knowledge base directly from Teams, M365, or any Copilot Studio channel — without needing to open the web app. The agent calls the RAG (`/api/rag`) and Insights (`/api/insights`) endpoints, so the same grounded answers and dashboard data are available conversationally inside the tools people already use. |
+| 1 | **Copilot Studio agent** | Not started | Build a Copilot Studio agent that connects to the KM backend APIs. Users would interact with their knowledge base directly from Teams, M365, or any Copilot Studio channel — without needing to open the web app. |
 | 2 | **Quick-connect wizard UI** | Backend done | Backend `/quick-connect` endpoint is built and working. Need a multi-step frontend dialog for the "bring your data" flow. |
-| 3 | **Use-case selection flow** | Not started | Let deployers pick a scenario during `azd up` or via a post-deploy script that auto-configures prompts, sample data, pipelines, and field mappings. `setup-data.ps1` script added as a starting point. |
+| 3 | **Use-case selection flow** | Done | Deployers pick a scenario via `./scripts/setup-data.ps1 -Scenario <name>` (or interactively). Three built-in packs: `contact-center`, `mortgage-application`, `telecom-analysis`. Config in `data/config/scenarios.json`. |
 | 4 | **Testing** | Not started | Unit tests per module, integration tests for the ingestion pipeline, E2E tests for the chat flow. |
 | 5 | **Docs** | Not started | User guide and developer guide (how to add connectors, capabilities, pipeline steps). |
 
@@ -162,7 +156,14 @@ azd up
 
 # Post-deploy
 ./infra/scripts/setup-agent.ps1       # Create AI agent
-./scripts/seed-sample-data.ps1        # Load sample data (optional)
+
+# Load a scenario pack (pick one)
+./scripts/setup-data.ps1 -Scenario contact-center
+./scripts/setup-data.ps1 -Scenario mortgage-application
+./scripts/setup-data.ps1 -Scenario telecom-analysis
+
+# Or run interactively
+./scripts/setup-data.ps1
 
 # Local dev
 python -m venv venv && venv\Scripts\activate

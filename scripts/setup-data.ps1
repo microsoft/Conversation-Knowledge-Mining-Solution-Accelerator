@@ -4,30 +4,36 @@
     Post-deployment data setup for Knowledge Mining.
 .DESCRIPTION
     Unified script to load data into the app after deployment. Supports:
-      1. Upload raw files (JSON conversations, WAV/MP3 audio, PDF, DOCX, etc.)
-      2. Connect an external data source (Azure AI Search, Fabric, SQL, Synapse)
-      3. Load the built-in sample dataset
+      1. Load a built-in scenario pack (contact-center, mortgage-application, telecom-analysis)
+      2. Upload files from a custom folder (JSON, WAV, PDF, DOCX, etc.)
+      3. Connect an external data source (Azure AI Search, Fabric, SQL, Synapse)
 
+    Scenario packs ship with sample data under data/<scenario_folder>/.
     Raw files are processed through the Content Understanding pipeline:
       WAV/MP3 → transcribed → chunked → embedded → indexed
       JSON    → transformed → loaded → enriched → indexed
       PDF/DOCX → extracted → chunked → embedded → indexed
 
 .EXAMPLE
-    # Interactive — choose data source type
+    # Interactive — choose scenario or data source
     ./scripts/setup-data.ps1
 
-    # Upload files from a folder
-    ./scripts/setup-data.ps1 -DataPath "data/telecom_usecase"
+    # Load a scenario pack
+    ./scripts/setup-data.ps1 -Scenario contact-center
+    ./scripts/setup-data.ps1 -Scenario mortgage-application
+    ./scripts/setup-data.ps1 -Scenario telecom-analysis
+
+    # Upload files from a custom folder
+    ./scripts/setup-data.ps1 -DataPath "path/to/my/data"
 
     # Connect Azure AI Search index
     ./scripts/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
-
-    # Load built-in sample data
-    ./scripts/setup-data.ps1 -UseSampleData
 #>
 
 param(
+    [ValidateSet("contact-center", "mortgage-application", "telecom-analysis")]
+    [string]$Scenario,
+
     [string]$DataPath,
     [switch]$UseSampleData,
     [switch]$ClearExisting,
@@ -74,30 +80,31 @@ if (-not $token) {
 $headers = @{ Authorization = "Bearer $token" }
 
 # ── Interactive mode if no params ──
-if (-not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
-    Write-Host "Choose a data source:" -ForegroundColor White
+if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
+    Write-Host "Choose how to load data:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  1. Upload files from a folder (JSON, WAV, PDF, etc.)" -ForegroundColor White
-    Write-Host "  2. Connect external data source (AI Search, Fabric, SQL)" -ForegroundColor White
-    Write-Host "  3. Load built-in sample dataset" -ForegroundColor White
+    Write-Host "  1. Contact Center       — IT helpdesk call transcripts (JSON)" -ForegroundColor White
+    Write-Host "  2. Mortgage Application  — Housing reports & contracts (PDF)" -ForegroundColor White
+    Write-Host "  3. Telecom Analysis      — Call transcripts & audio (JSON + WAV)" -ForegroundColor White
+    Write-Host "  4. Upload from a folder  — Bring your own files" -ForegroundColor White
+    Write-Host "  5. Connect external source — AI Search, Fabric, SQL, Synapse" -ForegroundColor White
     Write-Host ""
-    $choice = Read-Host "Enter choice (1-3)"
+    $choice = Read-Host "Enter choice (1-5)"
 
     switch ($choice) {
-        "1" {
-            $DataPath = Read-Host "Path to data folder (e.g., data/telecom_usecase)"
+        "1" { $Scenario = "contact-center" }
+        "2" { $Scenario = "mortgage-application" }
+        "3" { $Scenario = "telecom-analysis" }
+        "4" {
+            $DataPath = Read-Host "Path to data folder (e.g., data/my_files)"
             if (-not [System.IO.Path]::IsPathRooted($DataPath)) {
                 $DataPath = Join-Path $projectRoot $DataPath
             }
         }
-        "2" {
-            # Delegate to connect-data.ps1
+        "5" {
             Write-Host ""
             & (Join-Path $PSScriptRoot "connect-data.ps1")
             exit $LASTEXITCODE
-        }
-        "3" {
-            $UseSampleData = $true
         }
         default {
             Write-Host "Invalid choice." -ForegroundColor Red
@@ -106,8 +113,53 @@ if (-not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
     }
 }
 
+# ── Resolve scenario to data path ──
+if ($Scenario) {
+    $scenarioConfig = Get-Content (Join-Path $projectRoot "data" "config" "scenarios.json") -Raw | ConvertFrom-Json
+    $pack = $scenarioConfig.scenarios.$Scenario
+
+    if (-not $pack) {
+        Write-Host "ERROR: Unknown scenario '$Scenario'." -ForegroundColor Red
+        Write-Host "Available: contact-center, mortgage-application, telecom-analysis" -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "Scenario: $($pack.name)" -ForegroundColor Cyan
+    Write-Host "  $($pack.description)" -ForegroundColor White
+    Write-Host ""
+
+    $scenarioDataPath = Join-Path $projectRoot "data" $pack.data_folder
+
+    if (-not (Test-Path $scenarioDataPath)) {
+        Write-Host "ERROR: Scenario data folder not found: $scenarioDataPath" -ForegroundColor Red
+        exit 1
+    }
+
+    # Contact Center has pre-processed data — use the direct seed path
+    if ($pack.has_preprocessed -eq $true) {
+        Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Run seed-sample-data.py with the scenario data directory
+        $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
+        python (Join-Path $PSScriptRoot "seed-sample-data.py")
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "Scenario '$($pack.name)' loaded successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "Scenario loading encountered errors." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        # Non-preprocessed scenarios — upload raw files through the API
+        $DataPath = $scenarioDataPath
+    }
+}
+
 # ── Clear existing data ──
-if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource)) {
+if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not $Scenario)) {
     Write-Host ""
     if (-not $ClearExisting) {
         $confirm = Read-Host "Clear existing data before loading? (y/N)"
