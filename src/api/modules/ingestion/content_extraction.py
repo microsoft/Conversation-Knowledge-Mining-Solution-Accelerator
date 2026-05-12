@@ -9,10 +9,10 @@ import json
 import logging
 from typing import Optional
 
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from openai import AzureOpenAI
 
 from src.api.config import get_settings
+from src.api.capabilities._llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -103,16 +103,7 @@ class ContentExtractionService:
 
     def _get_client(self) -> AzureOpenAI:
         if self._client is None:
-            settings = get_settings()
-            credential = DefaultAzureCredential()
-            token_provider = get_bearer_token_provider(
-                credential, "https://cognitiveservices.azure.com/.default"
-            )
-            self._client = AzureOpenAI(
-                azure_endpoint=settings.azure_openai_endpoint,
-                azure_ad_token_provider=token_provider,
-                api_version="2024-10-21",
-            )
+            self._client = get_llm_client()
         return self._client
 
     def _call_llm(self, system: str, user: str, max_tokens: int = 4000) -> dict:

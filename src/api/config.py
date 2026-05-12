@@ -4,7 +4,10 @@ import os
 
 
 class Settings(BaseSettings):
-    # Azure OpenAI
+    # Azure AI Foundry (Foundry IQ) — preferred path for centralized model governance
+    azure_foundry_endpoint: str = ""  # e.g., https://<project>.services.ai.azure.com
+
+    # Azure OpenAI (direct SDK fallback when Foundry IQ is not configured)
     azure_openai_endpoint: str = ""
     azure_openai_embedding_deployment: str = "text-embedding-ada-002"
     azure_openai_chat_deployment: str = "gpt-4o"

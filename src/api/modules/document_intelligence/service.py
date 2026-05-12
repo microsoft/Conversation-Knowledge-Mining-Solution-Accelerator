@@ -266,8 +266,7 @@ class ContentUnderstandingService:
         Results are cached in Cosmos DB by content hash to avoid repeated GPT-4o calls."""
         import hashlib
         import json
-        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-        from openai import AzureOpenAI
+        from src.api.capabilities._llm import get_llm_client
 
         settings = get_settings()
         if not doc.markdown.strip():
@@ -294,13 +293,7 @@ class ContentUnderstandingService:
             pass  # Cache miss or Cosmos not available — proceed with GPT-4o
 
         try:
-            credential = DefaultAzureCredential()
-            token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-            client = AzureOpenAI(
-                azure_endpoint=settings.azure_openai_endpoint,
-                azure_ad_token_provider=token_provider,
-                api_version="2024-10-21",
-            )
+            client = get_llm_client()
 
             response = client.chat.completions.create(
                 model=settings.azure_openai_chat_deployment,
@@ -352,17 +345,10 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
             }
         """
         import json
-        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-        from openai import AzureOpenAI
+        from src.api.capabilities._llm import get_llm_client
 
         settings = get_settings()
-        credential = DefaultAzureCredential()
-        token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
-        client = AzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            azure_ad_token_provider=token_provider,
-            api_version="2024-10-21",
-        )
+        client = get_llm_client()
 
         # Build snippets — shorter for large batches
         max_snippet = 200 if len(documents) > 20 else 500
