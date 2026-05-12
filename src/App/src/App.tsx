@@ -153,7 +153,6 @@ const Dashboard: React.FC = () => {
 
   const onHandlePanelStates = useCallback(
     (panelName: string) => {
-      dispatch(hideCitation());
       setLayoutWidthUpdated((previousFlag) => !previousFlag);
       const nextState = {
         ...panelShowStates,
@@ -170,7 +169,7 @@ const Dashboard: React.FC = () => {
       updateLayoutWidths(nextState);
       setPanelShowStates(nextState);
     },
-    [dispatch, panelShowStates, updateLayoutWidths]
+    [panelShowStates, updateLayoutWidths]
   );
 
   const getHistoryListData = useCallback(async () => {
