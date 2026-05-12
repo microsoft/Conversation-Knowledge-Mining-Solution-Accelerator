@@ -1,13 +1,5 @@
 #!/usr/bin/env pwsh
-<#
-.SYNOPSIS
-    Set up the Azure AI Foundry agent after deployment.
-.DESCRIPTION
-    Creates the KnowledgeMiningAgent in Azure AI Foundry with
-    Azure AI Search as a tool. Run after azd up.
-.EXAMPLE
-    ./infra/scripts/setup-agent.ps1
-#>
+
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

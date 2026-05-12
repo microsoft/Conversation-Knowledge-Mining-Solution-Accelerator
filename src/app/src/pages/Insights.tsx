@@ -26,7 +26,7 @@ const Insights: React.FC = () => {
         setDashboardHeadline(r.data.headline);
         try { sessionStorage.setItem("km_headline", JSON.stringify(r.data.headline)); } catch {}
       }
-    } catch (e) { console.error("Dashboard load failed", e); }
+    } catch { /* handled by loading state */ }
     finally { setLoading(false); }
   };
 

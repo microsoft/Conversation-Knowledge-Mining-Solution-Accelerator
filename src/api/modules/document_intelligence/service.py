@@ -120,7 +120,7 @@ class ContentUnderstandingService:
             # Create the analyzer
             resp = client.put(url, headers=headers, json=template)
             if resp.status_code >= 400:
-                print(f"CU Analyzer create error {resp.status_code}: {resp.text}")
+                logger.error(f"CU Analyzer create error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
 
             # Poll until ready
@@ -129,7 +129,7 @@ class ContentUnderstandingService:
                 self._poll_result(client, operation_url)
 
         self._analyzers_ensured.add(analyzer_id)
-        print(f"CU Analyzer '{analyzer_id}' ready")
+        logger.info(f"CU Analyzer '{analyzer_id}' ready")
 
     def analyze(
         self, file: BinaryIO, filename: str, analyzer: str = DEFAULT_ANALYZER_ID
@@ -170,7 +170,7 @@ class ContentUnderstandingService:
         with httpx.Client(timeout=120) as client:
             resp = client.post(url, headers=headers, content=content)
             if resp.status_code >= 400:
-                print(f"CU Error {resp.status_code}: {resp.text}")
+                logger.error(f"CU Error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:
@@ -194,7 +194,7 @@ class ContentUnderstandingService:
         with httpx.Client(timeout=60) as client:
             resp = client.post(url, headers=headers, json=body)
             if resp.status_code >= 400:
-                print(f"CU Error {resp.status_code}: {resp.text}")
+                logger.error(f"CU Error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:

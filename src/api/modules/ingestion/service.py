@@ -279,6 +279,50 @@ class IngestionService:
             for k, v in merged.items():
                 filter_values[k] = sorted(v)
 
+            # ── Write enriched metadata back to SQL documents table ──
+            # The insights engine reads JSON_VALUE(metadata, '$.field') so enriched
+            # fields (topics, sentiment, etc.) must be in each document's metadata.
+            doc_extractions = extraction.get("doc_extractions", [])
+            extraction_map = {d["id"]: d for d in doc_extractions if d.get("id")}
+            filter_map = {df["id"]: df.get("values", {}) for df in doc_filters if df.get("id")}
+
+            try:
+                from src.api.storage.sql_service import sql_service
+                if sql_service.available:
+                    for item in data:
+                        doc_id = item.get("id", "")
+                        if not doc_id:
+                            continue
+
+                        meta = dict(item.get("metadata", {}))
+
+                        # Merge per-doc extraction (summary, keywords)
+                        ext = extraction_map.get(doc_id, {})
+                        if ext.get("summary") and not meta.get("summary"):
+                            meta["summary"] = ext["summary"]
+                        if ext.get("keywords"):
+                            meta["key_phrases"] = ext["keywords"]
+
+                        # Merge filter dimension values (sentiment, topic, etc.)
+                        fvals = filter_map.get(doc_id, {})
+                        for dim_id, dim_vals in fvals.items():
+                            if isinstance(dim_vals, list) and len(dim_vals) == 1:
+                                meta[dim_id] = dim_vals[0]
+                            elif isinstance(dim_vals, list):
+                                meta[dim_id] = ", ".join(dim_vals)
+                            else:
+                                meta[dim_id] = dim_vals
+
+                        sql_service.save_document(doc_id, {
+                            **item,
+                            "summary": ext.get("summary", item.get("summary", "")),
+                            "key_phrases": ext.get("keywords", item.get("key_phrases", [])),
+                            "metadata": meta,
+                        })
+                    logger.info(f"Enriched metadata written to SQL for {len(data)} docs")
+            except Exception as e:
+                logger.warning(f"Failed to write enriched metadata to SQL: {e}")
+
         except Exception as e:
             logger.warning(f"AI extraction failed (using fallback): {e}")
             if not summary:

@@ -1,5 +1,7 @@
 venv/
 .venv/
+.venv
+venv
 .git/
 .github/
 .azdo/
@@ -16,3 +18,16 @@ plan.md
 *.md
 .env
 .env.*
+
+# Scenario data — uploaded via setup-data.ps1
+data/telecom_analysis_usecase/
+data/MortgageApplication_usecase/
+data/ContactCenter_usecase/
+data/PDF_sampleData/
+data/synthesis_data.py
+data/synthesis_data2.py
+*.wav
+*.mp3
+*.mp4
+infra/
+src/app/

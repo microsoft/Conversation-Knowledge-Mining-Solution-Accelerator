@@ -7,8 +7,6 @@ import {
 import {
   Home24Regular,
   Home24Filled,
-  Database24Regular,
-  Database24Filled,
   Search24Regular,
   Search24Filled,
   ChartMultiple24Regular,
@@ -50,14 +48,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
-  const allNavItems = [
+  const navItems = [
     { path: "/", label: "Home", icon: <Home24Regular />, activeIcon: <Home24Filled /> },
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
     { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
-    // { path: "/data-sources", label: "Sources", icon: <Database24Regular />, activeIcon: <Database24Filled /> },
   ];
-
-  const navItems = allNavItems;
 
   const currentPage = navItems.find((n) => n.path === location.pathname);
   const pageTitle = location.pathname === "/" ? "" : currentPage?.label || "";

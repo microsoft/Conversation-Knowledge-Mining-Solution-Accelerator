@@ -1,15 +1,4 @@
 #!/usr/bin/env pwsh
-<#
-.SYNOPSIS
-    Populate the Azure AI Search index with sample data.
-.DESCRIPTION
-    Uploads the sample Customer_service_data.json to the backend
-    and indexes it in Azure AI Search.
-.EXAMPLE
-    ./infra/scripts/seed-data.ps1
-    ./infra/scripts/seed-data.ps1 -BackendUrl https://ca-backend-xxx.azurecontainerapps.io
-#>
-
 param(
     [string]$BackendUrl = "http://localhost:8000"
 )
