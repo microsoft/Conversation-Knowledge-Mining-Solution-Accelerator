@@ -220,6 +220,9 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
   }
 }
 
+// AVM Telemetry: Standard Azure Verified Modules (AVM) no-op marker deployment.
+// Deploys zero actual resources — used only to track AVM module usage telemetry.
+// Gated by the enableTelemetry parameter (default: true). See https://aka.ms/avm/TelemetryInfo
 #disable-next-line no-deployments-resources
 resource avmTelemetry 'Microsoft.Resources/deployments@2024-03-01' = if (enableTelemetry) {
   name: '46d3xbcp.ptn.sa-convknowledgemining.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
@@ -322,6 +325,10 @@ module applicationInsights 'br/public:avm/res/insights/component:0.7.1' = if (en
   }
 }
 // ========== Virtual Network and Networking Components ========== //
+// NOTE: All resources in this section (VNet, Bastion, Jumpbox VM, Private DNS Zones, Private Endpoints)
+// are gated behind enablePrivateNetworking (default: false). These are infrastructure-only resources
+// required for WAF-aligned deployments with private networking. They provide secure network connectivity
+// and operational access (jumpbox/bastion for RDP/SSH) — no application code references are expected.
 
 // Virtual Network with NSGs and Subnets
 module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworking) {
@@ -336,7 +343,7 @@ module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworki
     enableTelemetry: enableTelemetry
   }
 }
-// Azure Bastion Host
+// Azure Bastion Host — provides secure RDP/SSH access to the Jumpbox VM without exposing public IPs
 var bastionHostName = 'bas-${solutionSuffix}'
 module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePrivateNetworking) {
   name: take('avm.res.network.bastion-host.${bastionHostName}', 64)
@@ -365,7 +372,7 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
   }
 }
 
-// Jumpbox Virtual Machine
+// Jumpbox Virtual Machine — provides operational access to private network resources via Bastion
 var jumpboxVmName = take('vm-jumpbox-${solutionSuffix}', 15)
 module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enablePrivateNetworking) {
   name: take('avm.res.compute.virtual-machine.${jumpboxVmName}', 64)
@@ -425,6 +432,8 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
 }
 
 // ========== Private DNS Zones ========== //
+// These DNS zones enable private endpoint name resolution for all Azure services in WAF deployments.
+// Each zone is linked to the VNet and allows private endpoints to resolve to internal IPs.
 var privateDnsZones = [
   'privatelink.cognitiveservices.azure.com'
   'privatelink.openai.azure.com'
@@ -509,7 +518,6 @@ module backendUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assi
 // ========== AI Foundry: AI Services ========== //
 // WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
 
-var existingOpenAIEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.openai.azure.com/', split(existingAiFoundryAiProjectResourceId, '/')[8]) : ''
 var existingProjEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(existingAiFoundryAiProjectResourceId, '/')[8], split(existingAiFoundryAiProjectResourceId, '/')[10]) : ''
 var existingAIServicesName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[8] : ''
 var existingAIProjectName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[10] : ''
@@ -528,10 +536,7 @@ var aiFoundryAiProjectResourceName = useExistingAiFoundryAiProject
   ? split(existingAiFoundryAiProjectResourceId, '/')[10]
   : 'proj-${solutionSuffix}' 
 
-// NOTE: Required version 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' not available in AVM
-// var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
 var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
-var aiFoundryAIservicesEnabled = true
 var aiModelDeployments = [
   {
     name: gptModelName
@@ -567,7 +572,7 @@ resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/account
   parent: existingAiFoundryAiServices
 }
 
-module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
+module aiFoundryAiServices 'modules/ai-services.bicep' = {
   name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesResourceName}', 64)
   params: {
     name: aiFoundryAiServicesResourceName

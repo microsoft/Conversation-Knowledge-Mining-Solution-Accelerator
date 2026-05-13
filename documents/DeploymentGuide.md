@@ -53,8 +53,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search)
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction)
-- [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/)
-- [Azure Container Registry](https://learn.microsoft.com/en-us/azure/container-registry/)
+- [Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/overview)
 - [Embedding Deployment Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#embedding-models)
 - [Azure Semantic Search](./AzureSemanticSearchRegion.md)
 
@@ -225,7 +224,7 @@ azd env set AZURE_ENV_VM_ADMIN_PASSWORD <your-password>
 <details>
 <summary><b>Configurable Parameters</b></summary>
 
-You can customize various deployment settings before running `azd up`, including Azure regions, AI model configurations (deployment type, version, capacity), container registry settings, and resource names.
+You can customize various deployment settings before running `azd up`, including Azure regions, AI model configurations (deployment type, version, capacity), and resource names.
 
 📖 **Complete Guide:** See [Parameter Customization Guide](./CustomizingAzdParameters.md) for the full list of available parameters and their usage.
 

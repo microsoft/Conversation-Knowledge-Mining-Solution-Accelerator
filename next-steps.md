@@ -35,21 +35,20 @@ To describe the infrastructure and application, `azure.yaml` along with Infrastr
 ```yaml
 - azure.yaml        # azd project configuration
 - infra/            # Infrastructure-as-code Bicep files
-  - main.bicep      # Subscription level resources
-  - resources.bicep # Primary resource group resources
+  - main.bicep      # Main deployment template
   - modules/        # Library modules
 ```
 
-The resources declared in [resources.bicep](./infra/resources.bicep) are provisioned when running `azd up` or `azd provision`.
+The resources declared in [main.bicep](./infra/main.bicep) are provisioned when running `azd up` or `azd provision`.
 This includes:
 
-
-- Azure Container App to host the 'app' service.
-- Azure Container App to host the 'km-charts-function' service.
-- Azure Container App to host the 'km-rag-function' service.
-- Azure Container App to host the 'add-user-scripts' service.
-- Azure Container App to host the 'fabric-scripts' service.
-- Azure Container App to host the 'index-scripts' service.
+- AI Foundry (AI Services and AI Project)
+- AI Search
+- Storage Account
+- Cosmos DB
+- SQL Database
+- App Service Plan and Web Apps (backend API and frontend)
+- Virtual Network and Private Endpoints (WAF deployment)
 
 More information about [Bicep](https://aka.ms/bicep) language.
 
@@ -83,13 +82,13 @@ Q: I visited the service endpoint listed, and I'm seeing a blank page, a generic
 A: Your service may have failed to start, or it may be missing some configuration settings. To investigate further:
 
 1. Run `azd show`. Click on the link under "View in Azure Portal" to open the resource group in Azure Portal.
-2. Navigate to the specific Container App service that is failing to deploy.
-3. Click on the failing revision under "Revisions with Issues".
-4. Review "Status details" for more information about the type of failure.
-5. Observe the log outputs from Console log stream and System log stream to identify any errors.
-6. If logs are written to disk, use *Console* in the navigation to connect to a shell within the running container.
+2. Navigate to the specific App Service that is failing to deploy.
+3. Check the **Deployment Center** logs for deployment errors.
+4. Review **Log stream** for application runtime errors.
+5. Check **Diagnose and solve problems** for platform-level issues.
+6. If logs are written to disk, use *Advanced Tools (Kudu)* to connect to the container and inspect logs.
 
-For more troubleshooting information, visit [Container Apps troubleshooting](https://learn.microsoft.com/azure/container-apps/troubleshooting). 
+For more troubleshooting information, visit [App Service troubleshooting](https://learn.microsoft.com/azure/app-service/overview-diagnostics).
 
 ### Additional information
 
