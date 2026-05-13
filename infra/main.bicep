@@ -550,6 +550,18 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
       }
     ]
     enableTelemetry: enableTelemetry
+    extensionMonitoringAgentConfig: enableMonitoring
+      ? {
+          dataCollectionRuleAssociations: [
+            {
+              dataCollectionRuleResourceId: windowsVmDataCollectionRules!.outputs.resourceId
+              name: 'send-${logAnalyticsWorkspaceResourceName}'
+            }
+          ]
+          enabled: true
+          tags: tags
+        }
+      : null
   }
 }
 
