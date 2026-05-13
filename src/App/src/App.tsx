@@ -302,15 +302,6 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
-        {showCitation && currentConversationIdForCitation !== "" && (
-          <div
-            style={{
-              width: `${panelWidths[panels.CHATHISTORY] || 17}%`,
-            }}
-          >
-            <CitationPanel activeCitation={activeCitation} />
-          </div>
-        )}
         {panelShowStates[panels.CHAT] &&
           panelShowStates[panels.CHATHISTORY] && (
             <div
@@ -331,6 +322,11 @@ const Dashboard: React.FC = () => {
             </div>
           )}
       </div>
+      {showCitation && currentConversationIdForCitation !== "" && (
+        <div className="citation-overlay">
+          <CitationPanel activeCitation={activeCitation} />
+        </div>
+      )}
     </FluentProvider>
   );
 };

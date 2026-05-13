@@ -50,6 +50,19 @@ body {
   font-weight: 400;
 }
 
+.citation-overlay {
+  position: fixed;
+  top: 6vh;
+  right: 0;
+  width: 20%;
+  min-width: 280px;
+  max-width: 400px;
+  height: calc(100vh - 6vh);
+  z-index: 100;
+  padding: var(--margin-base);
+  box-sizing: border-box;
+}
+
 .left-section {
   position: relative;
   margin-block-end: 0.1% !important;
