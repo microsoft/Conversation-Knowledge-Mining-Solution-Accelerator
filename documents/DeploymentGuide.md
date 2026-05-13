@@ -224,7 +224,7 @@ azd env set AZURE_ENV_VM_ADMIN_PASSWORD <your-password>
 <details>
 <summary><b>Configurable Parameters</b></summary>
 
-You can customize various deployment settings before running `azd up`, including Azure regions, AI model configurations (deployment type, version, capacity), and resource names.
+You can customize various deployment settings before running `azd up`, including Azure regions, AI model configurations (deployment type, version, capacity), container registry settings, and resource names.
 
 📖 **Complete Guide:** See [Parameter Customization Guide](./CustomizingAzdParameters.md) for the full list of available parameters and their usage.
 
