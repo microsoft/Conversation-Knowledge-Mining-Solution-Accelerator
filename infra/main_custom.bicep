@@ -202,9 +202,6 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
   }
 }
 
-// AVM Telemetry: Standard Azure Verified Modules (AVM) no-op marker deployment.
-// Deploys zero actual resources — used only to track AVM module usage telemetry.
-// Gated by the enableTelemetry parameter (default: true). See https://aka.ms/avm/TelemetryInfo
 #disable-next-line no-deployments-resources
 resource avmTelemetry 'Microsoft.Resources/deployments@2024-03-01' = if (enableTelemetry) {
   name: '46d3xbcp.ptn.sa-convknowledgemining.${replace('-..--..-', '.', '-')}.${substring(uniqueString(deployment().name, location), 0, 4)}'
@@ -308,10 +305,6 @@ module applicationInsights 'br/public:avm/res/insights/component:0.7.1' = if (en
   }
 }
 // ========== Virtual Network and Networking Components ========== //
-// NOTE: All resources in this section (VNet, Bastion, Jumpbox VM, Private DNS Zones, Private Endpoints)
-// are gated behind enablePrivateNetworking (default: false). These are infrastructure-only resources
-// required for WAF-aligned deployments with private networking. They provide secure network connectivity
-// and operational access (jumpbox/bastion for RDP/SSH) — no application code references are expected.
 
 // Virtual Network with NSGs and Subnets
 module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworking) {
@@ -326,7 +319,7 @@ module virtualNetwork 'modules/virtualNetwork.bicep' = if (enablePrivateNetworki
     enableTelemetry: enableTelemetry
   }
 }
-// Azure Bastion Host — provides secure RDP/SSH access to the Jumpbox VM without exposing public IPs
+// Azure Bastion Host
 var bastionHostName = 'bas-${solutionSuffix}'
 module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePrivateNetworking) {
   name: take('avm.res.network.bastion-host.${bastionHostName}', 64)
@@ -355,7 +348,7 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
   }
 }
 
-// Jumpbox Virtual Machine — provides operational access to private network resources via Bastion
+// Jumpbox Virtual Machine
 var jumpboxVmName = take('vm-jumpbox-${solutionSuffix}', 15)
 module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enablePrivateNetworking) {
   name: take('avm.res.compute.virtual-machine.${jumpboxVmName}', 64)
@@ -415,8 +408,6 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
 }
 
 // ========== Private DNS Zones ========== //
-// These DNS zones enable private endpoint name resolution for all Azure services in WAF deployments.
-// Each zone is linked to the VNet and allows private endpoints to resolve to internal IPs.
 var privateDnsZones = [
   'privatelink.cognitiveservices.azure.com'
   'privatelink.openai.azure.com'
