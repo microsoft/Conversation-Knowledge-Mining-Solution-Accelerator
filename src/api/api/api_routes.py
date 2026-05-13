@@ -108,6 +108,7 @@ async def conversation(request: Request):
         query = request_json.get("query")
         authenticated_user = get_authenticated_user_details(request_headers=request.headers)
         user_id = authenticated_user.get("user_principal_id", "")
+        team_id = authenticated_user.get("team_id", "")
         logger.info("POST /chat called: conversation_id=%s, query_length=%d",
                     conversation_id, len(query) if query else 0)
 
@@ -123,7 +124,12 @@ async def conversation(request: Request):
             span.set_attribute("conversation_id", conversation_id)
 
         chat_service = ChatService()
-        result = await chat_service.stream_chat_request(conversation_id, query, user_id=user_id)
+        result = await chat_service.stream_chat_request(
+            conversation_id,
+            query,
+            user_id=user_id,
+            team_id=team_id,
+        )
         logger.info("Chat stream initiated successfully for conversation_id=%s", conversation_id)
         track_event_if_configured(
             "ChatStreamSuccess",

@@ -236,3 +236,53 @@ dependencies
     TotalOutput = sum(output_tokens)
     by model
 | order by TotalInput desc
+
+// 18. Token usage by team (top teams)
+customEvents
+| where name == 'LLM_Team_Token_Usage'
+| where timestamp > ago(7d)
+| extend team_id = tostring(customDimensions['team_id'])
+| extend input_tokens = toint(customDimensions['input_tokens'])
+| extend output_tokens = toint(customDimensions['output_tokens'])
+| extend total_tokens = toint(customDimensions['total_tokens'])
+| summarize
+    InputTokens = sum(input_tokens),
+    OutputTokens = sum(output_tokens),
+    TotalTokens = sum(total_tokens),
+    Requests = count(),
+    UniqueUsers = dcount(tostring(customDimensions['user_id']))
+    by TeamId = team_id
+| order by TotalTokens desc
+
+// 19. Session-level token usage (top sessions)
+customEvents
+| where name == 'LLM_Session_Token_Usage'
+| where timestamp > ago(7d)
+| extend session_id = tostring(customDimensions['session_id'])
+| extend user_id = tostring(customDimensions['user_id'])
+| extend team_id = tostring(customDimensions['team_id'])
+| extend total_tokens = toint(customDimensions['total_tokens'])
+| summarize
+    TotalTokens = sum(total_tokens),
+    Requests = count(),
+    FirstSeen = min(timestamp),
+    LastSeen = max(timestamp)
+    by SessionId = session_id, UserId = user_id, TeamId = team_id
+| order by TotalTokens desc
+| take 50
+
+// 20. Estimated daily cost by team
+let input_price_per_million = 2.50;
+let output_price_per_million = 10.00;
+customEvents
+| where name == 'LLM_Team_Token_Usage'
+| where timestamp > ago(30d)
+| extend team_id = tostring(customDimensions['team_id'])
+| extend input_tokens = toint(customDimensions['input_tokens'])
+| extend output_tokens = toint(customDimensions['output_tokens'])
+| summarize TotalInput = sum(input_tokens), TotalOutput = sum(output_tokens) by Day = bin(timestamp, 1d), TeamId = team_id
+| extend InputCost = round(TotalInput * input_price_per_million / 1000000.0, 4)
+| extend OutputCost = round(TotalOutput * output_price_per_million / 1000000.0, 4)
+| extend TotalCost = InputCost + OutputCost
+| project Day, TeamId, TotalInput, TotalOutput, InputCost, OutputCost, TotalCost
+| order by Day desc, TotalCost desc

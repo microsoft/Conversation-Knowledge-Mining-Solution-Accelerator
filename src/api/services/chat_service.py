@@ -117,7 +117,13 @@ class ChatService:
             thread_cache = ExpCache(maxsize=1000, ttl=3600.0)
         return thread_cache
 
-    async def stream_openai_text(self, conversation_id: str, query: str, user_id: str = "") -> AsyncGenerator[tuple[str, str], None]:
+    async def stream_openai_text(
+        self,
+        conversation_id: str,
+        query: str,
+        user_id: str = "",
+        team_id: str = "",
+    ) -> AsyncGenerator[tuple[str, str], None]:
         """
         Get a streaming text response from OpenAI.
 
@@ -218,6 +224,8 @@ class ChatService:
                             usage=token_usage,
                             conversation_id=conversation_id,
                             user_id=user_id,
+                            session_id=conversation_id,
+                            team_id=team_id,
                         )
                 cache[conversation_id] = thread_conversation_id
 
@@ -288,7 +296,7 @@ class ChatService:
 
                     yield ("tool", citation_json)
 
-    async def stream_chat_request(self, conversation_id, query, user_id: str = ""):
+    async def stream_chat_request(self, conversation_id, query, user_id: str = "", team_id: str = ""):
         """
         Handles streaming chat requests.
         """
@@ -296,7 +304,12 @@ class ChatService:
 
         async def generate():
             try:
-                async for role, content in self.stream_openai_text(conversation_id, query, user_id=user_id):
+                async for role, content in self.stream_openai_text(
+                    conversation_id,
+                    query,
+                    user_id=user_id,
+                    team_id=team_id,
+                ):
                     if content:
                         response = {
                             "choices": [

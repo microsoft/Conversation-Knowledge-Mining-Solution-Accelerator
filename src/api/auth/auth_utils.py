@@ -12,10 +12,10 @@ def get_authenticated_user_details(request_headers):
         # if it's not, assume we're in development mode and return a default user
         from . import sample_user
 
-        raw_user_object = sample_user.sample_user
+        raw_user_object = {k.lower(): v for k, v in sample_user.sample_user.items()}
     else:
         # if it is, get the user details from the EasyAuth headers
-        raw_user_object = {k: v for k, v in request_headers.items()}
+        raw_user_object = normalized_headers
 
     user_object["user_principal_id"] = raw_user_object.get("x-ms-client-principal-id")
     user_object["user_name"] = raw_user_object.get("x-ms-client-principal-name")
@@ -23,6 +23,12 @@ def get_authenticated_user_details(request_headers):
     user_object["auth_token"] = raw_user_object.get("x-ms-token-aad-id-token")
     user_object["client_principal_b64"] = raw_user_object.get("x-ms-client-principal")
     user_object["aad_id_token"] = raw_user_object.get("x-ms-token-aad-id-token")
+    user_object["tenant_id"] = get_tenantid(user_object["client_principal_b64"])
+    user_object["team_id"] = (
+        user_object["tenant_id"]
+        or raw_user_object.get("x-ms-client-principal-idp")
+        or "default"
+    )
 
     return user_object
 

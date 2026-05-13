@@ -27,6 +27,8 @@ class TestAuthUtils(unittest.TestCase):
         self.assertEqual(result["auth_token"], "token123")
         self.assertEqual(result["client_principal_b64"], "encodedstring")
         self.assertEqual(result["aad_id_token"], "token123")
+        self.assertEqual(result["tenant_id"], "")
+        self.assertEqual(result["team_id"], "aad")
 
     def test_get_authenticated_user_details_prod_mode(self):
         request_headers = {
@@ -45,6 +47,8 @@ class TestAuthUtils(unittest.TestCase):
         self.assertEqual(result["auth_token"], "token123")
         self.assertEqual(result["client_principal_b64"], "encodedstring")
         self.assertEqual(result["aad_id_token"], "token123")
+        self.assertEqual(result["tenant_id"], "")
+        self.assertEqual(result["team_id"], "aad")
 
     def test_get_tenantid_valid_b64(self):
         payload = {"tid": "tenant123"}

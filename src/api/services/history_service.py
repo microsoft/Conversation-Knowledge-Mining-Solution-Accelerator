@@ -56,7 +56,13 @@ class HistoryService:
             logger.exception("Failed to initialize CosmosDB client")
             raise
 
-    async def generate_title(self, conversation_messages):
+    async def generate_title(
+        self,
+        conversation_messages,
+        conversation_id: str = "",
+        user_id: str = "",
+        team_id: str = "",
+    ):
         # Filter user messages and prepare content
         user_messages = [{"role": msg["role"], "content": msg["content"]}
                          for msg in conversation_messages if msg["role"] == "user"]
@@ -93,6 +99,10 @@ class HistoryService:
                             agent_name="TitleAgent",
                             model_deployment_name=self.title_agent_name,
                             usage=token_usage,
+                            conversation_id=conversation_id,
+                            user_id=user_id,
+                            session_id=conversation_id,
+                            team_id=team_id,
                         )
 
                 return title
@@ -104,7 +114,7 @@ class HistoryService:
                 return user_messages[-1]["content"][:50]
             return "New Conversation"
 
-    async def update_conversation(self, user_id: str, request_json: dict):
+    async def update_conversation(self, user_id: str, request_json: dict, team_id: str = ""):
         conversation_id = request_json.get("conversation_id")
         messages = request_json.get("messages", [])
         if not conversation_id:
@@ -116,7 +126,12 @@ class HistoryService:
         conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
         if not conversation:
             logger.info("Conversation %s not found, creating new conversation", conversation_id)
-            title = await self.generate_title(messages)
+            title = await self.generate_title(
+                messages,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                team_id=team_id,
+            )
             conversation = await cosmos_conversation_client.create_conversation(
                 user_id=user_id, conversation_id=conversation_id, title=title
             )

@@ -8,6 +8,8 @@ from common.logging.token_usage_utils import (
     _to_int,
     emit_agent_token_event,
     emit_model_token_event,
+    emit_session_token_event,
+    emit_team_token_event,
     emit_user_token_event,
     emit_summary_token_event,
     extract_token_usage,
@@ -161,6 +163,8 @@ class TestEmitAgentTokenEvent:
             "model_deployment_name": "gpt-4o",
             "conversation_id": "conv-123",
             "user_id": "user-456",
+            "session_id": "",
+            "team_id": "",
         })
 
 
@@ -186,6 +190,8 @@ class TestEmitModelTokenEvent:
             "total_tokens": "280",
             "conversation_id": "conv-456",
             "user_id": "user-789",
+            "session_id": "",
+            "team_id": "",
         })
 
 
@@ -213,6 +219,64 @@ class TestEmitUserTokenEvent:
             "output_tokens": "60",
             "total_tokens": "210",
             "conversation_id": "conv-789",
+            "session_id": "",
+            "team_id": "",
+        })
+
+
+class TestEmitTeamTokenEvent:
+    """Custom event emission for per-team token usage."""
+
+    @patch("common.logging.token_usage_utils.track_event_if_configured")
+    def test_emits_correct_event(self, mock_track):
+        usage = {"input_tokens": 170, "output_tokens": 90, "total_tokens": 260}
+        emit_team_token_event(
+            team_id="team-001",
+            agent_name="ConversationAgent",
+            model_deployment_name="gpt-4o",
+            usage=usage,
+            conversation_id="conv-900",
+            user_id="user-222",
+            session_id="session-900",
+        )
+        mock_track.assert_called_once_with("LLM_Team_Token_Usage", {
+            "team_id": "team-001",
+            "agent_name": "ConversationAgent",
+            "model_deployment_name": "gpt-4o",
+            "input_tokens": "170",
+            "output_tokens": "90",
+            "total_tokens": "260",
+            "conversation_id": "conv-900",
+            "user_id": "user-222",
+            "session_id": "session-900",
+        })
+
+
+class TestEmitSessionTokenEvent:
+    """Custom event emission for per-session token usage."""
+
+    @patch("common.logging.token_usage_utils.track_event_if_configured")
+    def test_emits_correct_event(self, mock_track):
+        usage = {"input_tokens": 70, "output_tokens": 30, "total_tokens": 100}
+        emit_session_token_event(
+            session_id="session-111",
+            agent_name="TitleAgent",
+            model_deployment_name="gpt-4o-mini",
+            usage=usage,
+            conversation_id="conv-111",
+            user_id="user-333",
+            team_id="team-xyz",
+        )
+        mock_track.assert_called_once_with("LLM_Session_Token_Usage", {
+            "session_id": "session-111",
+            "agent_name": "TitleAgent",
+            "model_deployment_name": "gpt-4o-mini",
+            "input_tokens": "70",
+            "output_tokens": "30",
+            "total_tokens": "100",
+            "conversation_id": "conv-111",
+            "user_id": "user-333",
+            "team_id": "team-xyz",
         })
 
 
@@ -241,6 +305,8 @@ class TestEmitSummaryTokenEvent:
             "user_id": "user-abc",
             "agent_name": "ConversationAgent",
             "model_deployment_name": "gpt-4o",
+            "session_id": "",
+            "team_id": "",
         })
 
 
@@ -251,7 +317,7 @@ class TestTrackAllTokenEvents:
     """Convenience function that emits all event types."""
 
     @patch("common.logging.token_usage_utils.track_event_if_configured")
-    def test_emits_all_four_events_with_user(self, mock_track):
+    def test_emits_all_six_events_with_user_team_session(self, mock_track):
         usage = {"input_tokens": 100, "output_tokens": 50, "total_tokens": 150}
         track_all_token_events(
             agent_name="ConversationAgent",
@@ -259,13 +325,17 @@ class TestTrackAllTokenEvents:
             usage=usage,
             conversation_id="conv-1",
             user_id="user-1",
+            team_id="team-1",
+            session_id="session-1",
         )
-        # Should emit 4 events: agent, model, user, summary
-        assert mock_track.call_count == 4
+        # Should emit 6 events: agent, model, user, team, session, summary
+        assert mock_track.call_count == 6
         event_names = [c.args[0] for c in mock_track.call_args_list]
         assert "LLM_Agent_Token_Usage" in event_names
         assert "LLM_Model_Token_Usage" in event_names
         assert "LLM_User_Token_Usage" in event_names
+        assert "LLM_Team_Token_Usage" in event_names
+        assert "LLM_Session_Token_Usage" in event_names
         assert "LLM_Token_Usage_Summary" in event_names
 
     @patch("common.logging.token_usage_utils.track_event_if_configured")
@@ -276,7 +346,9 @@ class TestTrackAllTokenEvents:
             model_deployment_name="gpt-4o-mini",
             usage=usage,
         )
-        # Should emit 3 events: agent, model, summary (no user)
+        # Should emit 3 events: agent, model, summary (no user/team/session)
         assert mock_track.call_count == 3
         event_names = [c.args[0] for c in mock_track.call_args_list]
         assert "LLM_User_Token_Usage" not in event_names
+        assert "LLM_Team_Token_Usage" not in event_names
+        assert "LLM_Session_Token_Usage" not in event_names

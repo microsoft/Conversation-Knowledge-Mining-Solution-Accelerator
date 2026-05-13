@@ -21,6 +21,7 @@ async def update_conversation(request: Request):
         authenticated_user = get_authenticated_user_details(
             request_headers=request.headers)
         user_id = authenticated_user["user_principal_id"]
+        team_id = authenticated_user.get("team_id", "")
 
         # Parse request body
         request_json = await request.json()
@@ -36,7 +37,7 @@ async def update_conversation(request: Request):
             span.set_attribute("conversation_id", conversation_id)
 
         # Call HistoryService to update conversation
-        update_response = await history_service.update_conversation(user_id, request_json)
+        update_response = await history_service.update_conversation(user_id, request_json, team_id=team_id)
 
         if not update_response:
             raise HTTPException(status_code=500, detail="Failed to update conversation")

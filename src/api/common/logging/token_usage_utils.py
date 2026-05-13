@@ -8,6 +8,8 @@ Tracking dimensions:
 - Per Agent: ConversationAgent, TitleAgent
 - Per Model: Azure OpenAI deployment name
 - Per User: user_principal_id from EasyAuth headers
+- Per Team: team_id derived from tenant/identity context
+- Per Session: session_id aligned with conversation_id
 """
 
 import logging
@@ -97,6 +99,8 @@ def emit_agent_token_event(
     usage: dict[str, int],
     conversation_id: str = "",
     user_id: str = "",
+    session_id: str = "",
+    team_id: str = "",
 ) -> None:
     """Emit a per-agent token usage event to Application Insights.
 
@@ -106,6 +110,8 @@ def emit_agent_token_event(
         usage: Dict with input_tokens, output_tokens, total_tokens.
         conversation_id: Conversation ID for correlation.
         user_id: Authenticated user's principal ID.
+        session_id: Session ID for per-session analysis.
+        team_id: Team identifier (tenant or group based).
     """
     track_event_if_configured("LLM_Agent_Token_Usage", {
         "agent_name": agent_name,
@@ -115,6 +121,8 @@ def emit_agent_token_event(
         "model_deployment_name": model_deployment_name,
         "conversation_id": conversation_id,
         "user_id": user_id,
+        "session_id": session_id,
+        "team_id": team_id,
     })
     logger.info(
         "[TOKEN USAGE] agent=%s model=%s input=%d output=%d total=%d user=%s conversation=%s",
@@ -133,6 +141,8 @@ def emit_model_token_event(
     usage: dict[str, int],
     conversation_id: str = "",
     user_id: str = "",
+    session_id: str = "",
+    team_id: str = "",
 ) -> None:
     """Emit a per-model token usage event to Application Insights.
 
@@ -141,6 +151,8 @@ def emit_model_token_event(
         usage: Dict with input_tokens, output_tokens, total_tokens.
         conversation_id: Conversation ID for correlation.
         user_id: Authenticated user's principal ID.
+        session_id: Session ID for per-session analysis.
+        team_id: Team identifier (tenant or group based).
     """
     track_event_if_configured("LLM_Model_Token_Usage", {
         "model_deployment_name": model_deployment_name,
@@ -149,6 +161,8 @@ def emit_model_token_event(
         "total_tokens": str(usage.get("total_tokens", 0)),
         "conversation_id": conversation_id,
         "user_id": user_id,
+        "session_id": session_id,
+        "team_id": team_id,
     })
 
 
@@ -158,6 +172,8 @@ def emit_user_token_event(
     model_deployment_name: str,
     usage: dict[str, int],
     conversation_id: str = "",
+    session_id: str = "",
+    team_id: str = "",
 ) -> None:
     """Emit a per-user token usage event to Application Insights.
 
@@ -167,6 +183,8 @@ def emit_user_token_event(
         model_deployment_name: Azure OpenAI model deployment name.
         usage: Dict with input_tokens, output_tokens, total_tokens.
         conversation_id: Conversation ID for correlation.
+        session_id: Session ID for per-session analysis.
+        team_id: Team identifier (tenant or group based).
     """
     track_event_if_configured("LLM_User_Token_Usage", {
         "user_id": user_id,
@@ -176,6 +194,54 @@ def emit_user_token_event(
         "output_tokens": str(usage.get("output_tokens", 0)),
         "total_tokens": str(usage.get("total_tokens", 0)),
         "conversation_id": conversation_id,
+        "session_id": session_id,
+        "team_id": team_id,
+    })
+
+
+def emit_team_token_event(
+    team_id: str,
+    agent_name: str,
+    model_deployment_name: str,
+    usage: dict[str, int],
+    conversation_id: str = "",
+    user_id: str = "",
+    session_id: str = "",
+) -> None:
+    """Emit a per-team token usage event to Application Insights."""
+    track_event_if_configured("LLM_Team_Token_Usage", {
+        "team_id": team_id,
+        "agent_name": agent_name,
+        "model_deployment_name": model_deployment_name,
+        "input_tokens": str(usage.get("input_tokens", 0)),
+        "output_tokens": str(usage.get("output_tokens", 0)),
+        "total_tokens": str(usage.get("total_tokens", 0)),
+        "conversation_id": conversation_id,
+        "user_id": user_id,
+        "session_id": session_id,
+    })
+
+
+def emit_session_token_event(
+    session_id: str,
+    agent_name: str,
+    model_deployment_name: str,
+    usage: dict[str, int],
+    conversation_id: str = "",
+    user_id: str = "",
+    team_id: str = "",
+) -> None:
+    """Emit a per-session token usage event to Application Insights."""
+    track_event_if_configured("LLM_Session_Token_Usage", {
+        "session_id": session_id,
+        "agent_name": agent_name,
+        "model_deployment_name": model_deployment_name,
+        "input_tokens": str(usage.get("input_tokens", 0)),
+        "output_tokens": str(usage.get("output_tokens", 0)),
+        "total_tokens": str(usage.get("total_tokens", 0)),
+        "conversation_id": conversation_id,
+        "user_id": user_id,
+        "team_id": team_id,
     })
 
 
@@ -187,6 +253,8 @@ def emit_summary_token_event(
     user_id: str = "",
     agent_name: str = "",
     model_deployment_name: str = "",
+    session_id: str = "",
+    team_id: str = "",
 ) -> None:
     """Emit a summary token usage event for a complete chat interaction.
 
@@ -198,6 +266,8 @@ def emit_summary_token_event(
         user_id: Authenticated user's principal ID.
         agent_name: Name of the agent used.
         model_deployment_name: Model deployment name.
+        session_id: Session ID for per-session analysis.
+        team_id: Team identifier (tenant or group based).
     """
     track_event_if_configured("LLM_Token_Usage_Summary", {
         "total_input_tokens": str(total_input_tokens),
@@ -207,6 +277,8 @@ def emit_summary_token_event(
         "user_id": user_id,
         "agent_name": agent_name,
         "model_deployment_name": model_deployment_name,
+        "session_id": session_id,
+        "team_id": team_id,
     })
     logger.info(
         "[TOKEN SUMMARY] conversation=%s user=%s agent=%s model=%s input=%d output=%d total=%d",
@@ -226,10 +298,12 @@ def track_all_token_events(
     usage: dict[str, int],
     conversation_id: str = "",
     user_id: str = "",
+    session_id: str = "",
+    team_id: str = "",
 ) -> None:
     """Convenience function to emit all token tracking events at once.
 
-    Emits per-agent, per-model, per-user, and summary events.
+    Emits per-agent, per-model, optional per-user/per-team/per-session, and summary events.
 
     Args:
         agent_name: Name of the agent.
@@ -237,6 +311,8 @@ def track_all_token_events(
         usage: Dict with input_tokens, output_tokens, total_tokens.
         conversation_id: Conversation ID for correlation.
         user_id: Authenticated user's principal ID.
+        session_id: Session ID for per-session analysis.
+        team_id: Team identifier (tenant or group based).
     """
     emit_agent_token_event(
         agent_name=agent_name,
@@ -244,12 +320,16 @@ def track_all_token_events(
         usage=usage,
         conversation_id=conversation_id,
         user_id=user_id,
+        session_id=session_id,
+        team_id=team_id,
     )
     emit_model_token_event(
         model_deployment_name=model_deployment_name,
         usage=usage,
         conversation_id=conversation_id,
         user_id=user_id,
+        session_id=session_id,
+        team_id=team_id,
     )
     if user_id:
         emit_user_token_event(
@@ -258,6 +338,28 @@ def track_all_token_events(
             model_deployment_name=model_deployment_name,
             usage=usage,
             conversation_id=conversation_id,
+            session_id=session_id,
+            team_id=team_id,
+        )
+    if team_id:
+        emit_team_token_event(
+            team_id=team_id,
+            agent_name=agent_name,
+            model_deployment_name=model_deployment_name,
+            usage=usage,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
+    if session_id:
+        emit_session_token_event(
+            session_id=session_id,
+            agent_name=agent_name,
+            model_deployment_name=model_deployment_name,
+            usage=usage,
+            conversation_id=conversation_id,
+            user_id=user_id,
+            team_id=team_id,
         )
     emit_summary_token_event(
         total_input_tokens=usage.get("input_tokens", 0),
@@ -267,6 +369,8 @@ def track_all_token_events(
         user_id=user_id,
         agent_name=agent_name,
         model_deployment_name=model_deployment_name,
+        session_id=session_id,
+        team_id=team_id,
     )
 
 
