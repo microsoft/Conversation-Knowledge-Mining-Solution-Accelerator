@@ -15,6 +15,7 @@ import re
 from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
+from common.logging.token_usage_utils import extract_token_usage, track_all_token_events
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
@@ -179,7 +180,9 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
+                last_chunk = None
                 async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                    last_chunk = chunk
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
                         annotations = getattr(content, "annotations", [])
@@ -204,6 +207,18 @@ class ChatService:
                     "citation_count": len(citations),
                     "response_content": complete_response[:8192] if len(complete_response) > 8192 else complete_response
                 })
+
+                # Track LLM token usage for the conversation agent
+                if last_chunk is not None:
+                    token_usage = extract_token_usage(last_chunk)
+                    if token_usage.get("total_tokens", 0) > 0:
+                        track_all_token_events(
+                            agent_name="ConversationAgent",
+                            model_deployment_name=self.orchestrator_agent_name,
+                            usage=token_usage,
+                            conversation_id=conversation_id,
+                            user_id=user_id,
+                        )
                 cache[conversation_id] = thread_conversation_id
 
                 citation_json = "[]"

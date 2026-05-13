@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
+from common.logging.token_usage_utils import extract_token_usage, track_all_token_events
 from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
 
 from agent_framework.azure import AzureAIProjectAgentProvider
@@ -83,6 +84,17 @@ class HistoryService:
                 result = await agent.run(final_prompt)
                 title = str(result.text).strip() if result is not None else "New Conversation"
                 logger.info("Title generated successfully: '%s'", title)
+
+                # Track LLM token usage for the title agent
+                if result is not None:
+                    token_usage = extract_token_usage(result)
+                    if token_usage.get("total_tokens", 0) > 0:
+                        track_all_token_events(
+                            agent_name="TitleAgent",
+                            model_deployment_name=self.title_agent_name,
+                            usage=token_usage,
+                        )
+
                 return title
 
         except Exception as e:
