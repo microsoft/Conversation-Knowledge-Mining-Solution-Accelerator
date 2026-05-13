@@ -54,6 +54,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview)
 - [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction)
 - [Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/overview)
+- [Azure Container Registry](https://learn.microsoft.com/en-us/azure/container-registry/)
 - [Embedding Deployment Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#embedding-models)
 - [Azure Semantic Search](./AzureSemanticSearchRegion.md)
 
