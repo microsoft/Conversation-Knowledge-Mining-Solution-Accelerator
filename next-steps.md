@@ -86,7 +86,7 @@ A: Your service may have failed to start, or it may be missing some configuratio
 3. Check the **Deployment Center** logs for deployment errors.
 4. Review **Log stream** for application runtime errors.
 5. Check **Diagnose and solve problems** for platform-level issues.
-6. If logs are written to disk, use *Advanced Tools (Kudu)* to connect to the container and inspect logs.
+6. If you need access to the running container, use the App Service **SSH/Console** experience in Azure Portal or run `az webapp ssh`. Use *Advanced Tools (Kudu)* to inspect the SCM site, filesystem, and any logs written to disk.
 
 For more troubleshooting information, visit [App Service troubleshooting](https://learn.microsoft.com/azure/app-service/overview-diagnostics).
 
