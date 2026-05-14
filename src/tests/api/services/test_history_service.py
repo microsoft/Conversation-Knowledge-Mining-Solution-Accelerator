@@ -124,7 +124,7 @@ class TestHistoryService:
         mock_project_client.agents.runs.create_and_process.return_value = mock_run
         
         with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
-            with patch("services.history_service.get_azure_credential"):
+            with patch("services.history_service.get_azure_credential_async"):
                 result = await history_service.generate_title(conversation_messages)
                 assert result == "Test message"  # Should fall back to truncated user message
 
