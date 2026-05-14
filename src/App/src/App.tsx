@@ -166,10 +166,14 @@ const Dashboard: React.FC = () => {
         nextState[panels.CHAT] = true;
       }
 
+      if (panelName === panels.CHAT && !nextState[panels.CHAT]) {
+        dispatch(hideCitation());
+      }
+
       updateLayoutWidths(nextState);
       setPanelShowStates(nextState);
     },
-    [panelShowStates, updateLayoutWidths]
+    [dispatch, panelShowStates, updateLayoutWidths]
   );
 
   const getHistoryListData = useCallback(async () => {
