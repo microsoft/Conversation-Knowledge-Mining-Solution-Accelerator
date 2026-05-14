@@ -15,6 +15,10 @@ import re
 from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
+from common.logging.token_usage_utils import (
+    extract_token_usage_from_stream_chunk,
+    emit_all_token_events,
+)
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
@@ -179,12 +183,18 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
+                accumulated_token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
                 async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
                         annotations = getattr(content, "annotations", [])
                         if annotations:
                             citations.extend(annotations)
+
+                    # Extract token usage from streaming chunks (typically in final chunk)
+                    chunk_token_usage = extract_token_usage_from_stream_chunk(chunk)
+                    if chunk_token_usage["total_tokens"] > 0:
+                        accumulated_token_usage = chunk_token_usage
 
                     chunk_text = str(chunk.text) if chunk.text else ""
 
@@ -194,6 +204,16 @@ class ChatService:
                     if chunk_text:
                         complete_response += chunk_text
                         yield ("assistant", chunk_text)
+
+                # Emit token usage events after streaming completes
+                model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
+                emit_all_token_events(
+                    agent_name=self.orchestrator_agent_name or "orchestrator",
+                    model_deployment_name=model_deployment,
+                    usage=accumulated_token_usage,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                )
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))

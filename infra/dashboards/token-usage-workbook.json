@@ -1,0 +1,369 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# LLM Token Usage Dashboard\n\nMonitors token consumption across all agents, users, teams, and models in Conversation Knowledge Mining Solution Accelerator."
+      },
+      "name": "title"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "a0b1c2d3-e4f5-6789-abcd-ef0123456789",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time Range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {"durationMs": 3600000},
+                {"durationMs": 86400000},
+                {"durationMs": 604800000},
+                {"durationMs": 2592000000}
+              ],
+              "allowCustom": true
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Overview"
+      },
+      "name": "section-overview"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Token_Usage_Summary'\r\n| where timestamp > ago(7d)\r\n| extend input_tokens = toint(customDimensions['total_input_tokens'])\r\n| extend output_tokens = toint(customDimensions['total_output_tokens'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    TotalConversations = count(),\r\n    TotalInputTokens = sum(input_tokens),\r\n    TotalOutputTokens = sum(output_tokens),\r\n    TotalTokens = sum(total_tokens),\r\n    AvgTokensPerConversation = round(avg(total_tokens), 0)",
+        "size": 3,
+        "title": "Overall Token Usage Summary",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "overall-summary"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Token_Usage_Summary'\r\n| where timestamp > ago(7d)\r\n| extend input_tokens = toint(customDimensions['total_input_tokens'])\r\n| extend output_tokens = toint(customDimensions['total_output_tokens'])\r\n| summarize InputTokens = sum(input_tokens), OutputTokens = sum(output_tokens) by bin(timestamp, 1h)\r\n| order by timestamp asc",
+        "size": 0,
+        "title": "Token Usage Over Time (Hourly)",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart"
+      },
+      "name": "tokens-over-time"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Per Agent Token Usage"
+      },
+      "name": "section-agent"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Agent_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend agent = tostring(customDimensions['agent_name'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    InputTokens = sum(input_tokens),\r\n    OutputTokens = sum(output_tokens),\r\n    TotalTokens = sum(total_tokens),\r\n    Invocations = count()\r\n    by Agent = agent\r\n| order by TotalTokens desc",
+        "size": 0,
+        "title": "Token Usage by Agent",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      },
+      "name": "tokens-by-agent"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Agent_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend agent = tostring(customDimensions['agent_name'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize TotalTokens = sum(total_tokens) by agent",
+        "size": 0,
+        "title": "Token Distribution by Agent",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      },
+      "name": "token-distribution-agent-pie"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Per Team Token Usage"
+      },
+      "name": "section-team"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Team_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend team = tostring(customDimensions['team_name'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    InputTokens = sum(input_tokens),\r\n    OutputTokens = sum(output_tokens),\r\n    TotalTokens = sum(total_tokens),\r\n    Conversations = count(),\r\n    UniqueUsers = dcount(tostring(customDimensions['user_id']))\r\n    by Team = team\r\n| order by TotalTokens desc",
+        "size": 0,
+        "title": "Token Usage by Team",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      },
+      "name": "tokens-by-team"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Team_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend team = tostring(customDimensions['team_name'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize TotalTokens = sum(total_tokens) by bin(timestamp, 1h), team\r\n| order by timestamp asc",
+        "size": 0,
+        "title": "Team Token Usage Over Time",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart"
+      },
+      "name": "team-tokens-over-time"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Per User Token Usage"
+      },
+      "name": "section-user"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_User_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend user_id = tostring(customDimensions['user_id'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    InputTokens = sum(input_tokens),\r\n    OutputTokens = sum(output_tokens),\r\n    TotalTokens = sum(total_tokens),\r\n    Conversations = count()\r\n    by User = user_id\r\n| order by TotalTokens desc\r\n| take 20",
+        "size": 0,
+        "title": "Top 20 Token-Consuming Users",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "top-users"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_User_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend user_id = tostring(customDimensions['user_id'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize TotalTokens = sum(total_tokens) by bin(timestamp, 1h), user_id\r\n| order by timestamp asc",
+        "size": 0,
+        "title": "User Token Usage Over Time",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart"
+      },
+      "name": "user-tokens-over-time"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Per Model Token Usage"
+      },
+      "name": "section-model"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Model_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend model = tostring(customDimensions['model_deployment_name'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    InputTokens = sum(input_tokens),\r\n    OutputTokens = sum(output_tokens),\r\n    TotalTokens = sum(total_tokens),\r\n    Invocations = count()\r\n    by Model = model\r\n| order by TotalTokens desc",
+        "size": 0,
+        "title": "Token Usage by Model",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "tokens-by-model"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Model_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend model = tostring(customDimensions['model_deployment_name'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize TotalTokens = sum(total_tokens) by model",
+        "size": 0,
+        "title": "Token Distribution by Model",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      },
+      "name": "model-distribution-pie"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Model_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend model = tostring(customDimensions['model_deployment_name'])\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize TotalTokens = sum(total_tokens) by bin(timestamp, 1h), model\r\n| order by timestamp asc",
+        "size": 0,
+        "title": "Model Token Usage Over Time",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart"
+      },
+      "name": "model-tokens-over-time"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Cost Estimation"
+      },
+      "name": "section-cost"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let input_price_per_million = 2.50;\r\nlet output_price_per_million = 10.00;\r\ncustomEvents\r\n| where name == 'LLM_Token_Usage_Summary'\r\n| where timestamp > ago(7d)\r\n| extend input_tokens = toint(customDimensions['total_input_tokens'])\r\n| extend output_tokens = toint(customDimensions['total_output_tokens'])\r\n| summarize TotalInput = sum(input_tokens), TotalOutput = sum(output_tokens) by bin(timestamp, 1d)\r\n| extend InputCost = round(TotalInput * input_price_per_million / 1000000.0, 4)\r\n| extend OutputCost = round(TotalOutput * output_price_per_million / 1000000.0, 4)\r\n| extend TotalCost = InputCost + OutputCost\r\n| project Day = timestamp, TotalInput, TotalOutput, InputCost, OutputCost, TotalCost\r\n| order by Day desc",
+        "size": 0,
+        "title": "Estimated Daily Cost (GPT-4o Pricing: $2.50/1M input, $10.00/1M output)",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "cost-estimation"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let gpt4o_input = 2.50;\r\nlet gpt4o_output = 10.00;\r\nlet gpt4o_mini_input = 0.15;\r\nlet gpt4o_mini_output = 0.60;\r\ncustomEvents\r\n| where name == 'LLM_Model_Token_Usage'\r\n| where timestamp > ago(7d)\r\n| extend model = tostring(customDimensions['model_deployment_name'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| summarize TotalInput = sum(input_tokens), TotalOutput = sum(output_tokens) by model\r\n| extend InputPrice = case(model has \"mini\", gpt4o_mini_input, gpt4o_input)\r\n| extend OutputPrice = case(model has \"mini\", gpt4o_mini_output, gpt4o_output)\r\n| extend InputCost = round(TotalInput * InputPrice / 1000000.0, 4)\r\n| extend OutputCost = round(TotalOutput * OutputPrice / 1000000.0, 4)\r\n| extend TotalCost = InputCost + OutputCost\r\n| project Model = model, TotalInput, TotalOutput, InputCost, OutputCost, TotalCost\r\n| order by TotalCost desc",
+        "size": 0,
+        "title": "Estimated Cost by Model",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "cost-by-model"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let input_price_per_million = 2.50;\r\nlet output_price_per_million = 10.00;\r\ncustomEvents\r\n| where name == 'LLM_Team_Token_Usage'\r\n| where timestamp > ago(30d)\r\n| extend team = tostring(customDimensions['team_name'])\r\n| extend input_tokens = toint(customDimensions['input_tokens'])\r\n| extend output_tokens = toint(customDimensions['output_tokens'])\r\n| summarize TotalInput = sum(input_tokens), TotalOutput = sum(output_tokens) by team\r\n| extend InputCost = round(TotalInput * input_price_per_million / 1000000.0, 4)\r\n| extend OutputCost = round(TotalOutput * output_price_per_million / 1000000.0, 4)\r\n| extend TotalCost = InputCost + OutputCost\r\n| project Team = team, TotalInput, TotalOutput, InputCost, OutputCost, TotalCost\r\n| order by TotalCost desc",
+        "size": 0,
+        "title": "Estimated Cost by Team",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "cost-by-team"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## Percentiles & Trends"
+      },
+      "name": "section-percentiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Token_Usage_Summary'\r\n| where timestamp > ago(7d)\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    p50 = percentile(total_tokens, 50),\r\n    p90 = percentile(total_tokens, 90),\r\n    p95 = percentile(total_tokens, 95),\r\n    p99 = percentile(total_tokens, 99),\r\n    Max = max(total_tokens)",
+        "size": 3,
+        "title": "Token Usage Percentiles Per Conversation",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "token-percentiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == 'LLM_Token_Usage_Summary'\r\n| where timestamp > ago(30d)\r\n| extend total_tokens = toint(customDimensions['total_tokens'])\r\n| summarize\r\n    ConversationsProcessed = count(),\r\n    TotalTokens = sum(total_tokens),\r\n    AvgTokensPerConversation = round(avg(total_tokens), 0),\r\n    MaxTokensPerConversation = max(total_tokens)\r\n    by Day = bin(timestamp, 1d)\r\n| order by Day desc",
+        "size": 0,
+        "title": "Daily Conversation Volume with Token Usage",
+        "timeContext": {
+          "durationMs": 2592000000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "daily-volume"
+    }
+  ],
+  "fallbackResourceIds": [
+    "Azure Monitor"
+  ],
+  "fromTemplateId": "community-Workbooks/Common/Templates"
+}
