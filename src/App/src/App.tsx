@@ -321,12 +321,12 @@ const Dashboard: React.FC = () => {
               />
             </div>
           )}
-        {showCitation && currentConversationIdForCitation !== "" && (
-          <div className="citation-panel-wrapper">
-            <CitationPanel activeCitation={activeCitation} />
-          </div>
-        )}
       </div>
+      {showCitation && currentConversationIdForCitation !== "" && (
+        <section className="citation-overlay" aria-label="Citation panel">
+          <CitationPanel activeCitation={activeCitation} />
+        </section>
+      )}
     </FluentProvider>
   );
 };
