@@ -323,14 +323,7 @@ const Dashboard: React.FC = () => {
           )}
       </div>
       {showCitation && currentConversationIdForCitation !== "" && (
-        <div
-          className="citation-overlay"
-          style={{
-            right: panelShowStates[panels.CHATHISTORY]
-              ? `${panelWidths[panels.CHATHISTORY] || 17}%`
-              : 0,
-          }}
-        >
+        <div className="citation-overlay">
           <CitationPanel activeCitation={activeCitation} />
         </div>
       )}
