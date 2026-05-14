@@ -35,6 +35,7 @@ Ensure the following tools are installed on your machine:
 |------|---------|---------------|
 | PowerShell | v7.0+ | [Install PowerShell](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.5) |
 | Azure Developer CLI (azd) | v1.18.0+ | [Install azd](https://aka.ms/install-azd) |
+| Bicep CLI | v0.33.0+ | [Install Bicep](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install) |
 | Python | 3.9+ | [Download Python](https://www.python.org/downloads/) |
 | Docker Desktop | Latest | [Download Docker](https://www.docker.com/products/docker-desktop/) |
 | Git | Latest | [Download Git](https://git-scm.com/downloads) |

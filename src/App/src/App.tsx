@@ -153,7 +153,6 @@ const Dashboard: React.FC = () => {
 
   const onHandlePanelStates = useCallback(
     (panelName: string) => {
-      dispatch(hideCitation());
       setLayoutWidthUpdated((previousFlag) => !previousFlag);
       const nextState = {
         ...panelShowStates,
@@ -170,7 +169,7 @@ const Dashboard: React.FC = () => {
       updateLayoutWidths(nextState);
       setPanelShowStates(nextState);
     },
-    [dispatch, panelShowStates, updateLayoutWidths]
+    [panelShowStates, updateLayoutWidths]
   );
 
   const getHistoryListData = useCallback(async () => {
@@ -303,15 +302,6 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
-        {showCitation && currentConversationIdForCitation !== "" && (
-          <div
-            style={{
-              width: `${panelWidths[panels.CHATHISTORY] || 17}%`,
-            }}
-          >
-            <CitationPanel activeCitation={activeCitation} />
-          </div>
-        )}
         {panelShowStates[panels.CHAT] &&
           panelShowStates[panels.CHATHISTORY] && (
             <div
@@ -331,6 +321,11 @@ const Dashboard: React.FC = () => {
               />
             </div>
           )}
+        {showCitation && currentConversationIdForCitation !== "" && (
+          <div className="citation-panel-wrapper">
+            <CitationPanel activeCitation={activeCitation} />
+          </div>
+        )}
       </div>
     </FluentProvider>
   );
