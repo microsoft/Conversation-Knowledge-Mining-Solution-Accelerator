@@ -1,6 +1,7 @@
 :root {
   --margin-base: 0.8%;
   --gap-base: 0.8%;
+  --header-height: 6vh;
   --button-height: 2rem;
   --header-btn-font-size: 1rem;
   --header-btn-icon-size: 1rem;
@@ -9,7 +10,7 @@
 .main-container {
   display: flex;
   flex-direction: row;
-  height: calc(100vh - 6vh);
+  height: calc(100vh - var(--header-height));
   gap: var(--gap-base);
   margin-inline: var(--margin-base);
 }
@@ -52,15 +53,19 @@ body {
 
 .citation-overlay {
   position: fixed;
-  top: 6vh;
+  top: var(--header-height);
   right: 0;
   width: 20%;
   min-width: 280px;
   max-width: 400px;
-  height: calc(100vh - 6vh);
+  height: calc(100vh - var(--header-height));
   z-index: 100;
-  padding: var(--margin-base);
+  pointer-events: none;
   box-sizing: border-box;
+}
+
+.citation-overlay > * {
+  pointer-events: auto;
 }
 
 .left-section {
