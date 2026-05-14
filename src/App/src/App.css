@@ -13,6 +13,7 @@
   height: calc(100vh - var(--header-height));
   gap: var(--gap-base);
   margin-inline: var(--margin-base);
+  overflow: hidden;
 }
 
 .main-container > div {
@@ -51,21 +52,17 @@ body {
   font-weight: 400;
 }
 
-.citation-overlay {
-  position: fixed;
-  top: var(--header-height);
-  right: 0;
-  width: 20%;
-  min-width: 280px;
+.citation-panel-wrapper {
+  flex: 0 1 20%;
+  min-width: 200px;
   max-width: 400px;
-  height: calc(100vh - var(--header-height));
-  z-index: 100;
-  pointer-events: none;
-  box-sizing: border-box;
+  margin-block: var(--margin-base);
+  overflow: hidden;
 }
 
-.citation-overlay > * {
-  pointer-events: auto;
+.citation-panel-wrapper .citationPanel {
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .left-section {
