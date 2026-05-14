@@ -50,11 +50,16 @@ body {
   font-weight: 400;
 }
 
-.citation-panel-wrapper {
-  flex: 0 0 20%;
+.citation-overlay {
+  position: fixed;
+  top: 6vh;
+  width: 20%;
   min-width: 280px;
   max-width: 400px;
-  margin-block: var(--margin-base);
+  height: calc(100vh - 6vh);
+  z-index: 100;
+  padding: var(--margin-base);
+  box-sizing: border-box;
 }
 
 .left-section {
