@@ -80,6 +80,22 @@ class TestExtractTokenUsage:
             "total_tokens": 280,
         }
 
+    def test_usage_details_prefers_input_output_over_legacy_when_both_present(self):
+        response = MagicMock()
+        response.usage_details = {
+            "input_tokens": 423,
+            "output_tokens": 18,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 441,
+        }
+        result = extract_token_usage(response)
+        assert result == {
+            "input_tokens": 423,
+            "output_tokens": 18,
+            "total_tokens": 441,
+        }
+
     def test_usage_details_none_falls_to_usage_attribute(self):
         response = MagicMock()
         response.usage_details = None
@@ -209,6 +225,20 @@ class TestExtractTokenUsageFromDict:
             "input_tokens": 200,
             "output_tokens": 80,
             "total_tokens": 280,
+        }
+
+    def test_dict_prefers_input_output_over_legacy_when_both_present(self):
+        result = extract_token_usage_from_dict({
+            "input_tokens": 297,
+            "output_tokens": 3870,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 4167,
+        })
+        assert result == {
+            "input_tokens": 297,
+            "output_tokens": 3870,
+            "total_tokens": 4167,
         }
 
 

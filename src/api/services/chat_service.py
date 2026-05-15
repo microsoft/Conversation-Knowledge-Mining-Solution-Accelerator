@@ -206,7 +206,37 @@ class ChatService:
                         yield ("assistant", chunk_text)
 
                 # Emit token usage events after streaming completes
+                # Try to get token usage from the thread run via OpenAI client
                 model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
+                if accumulated_token_usage["total_tokens"] == 0:
+                    # Streaming chunks didn't include usage; attempt to retrieve from thread runs
+                    try:
+                        openai_client = project_client.get_openai_client()
+                        runs = await openai_client.conversations.runs.list(
+                            conversation_id=thread_conversation_id, limit=1, order="desc"
+                        )
+                        if runs and runs.data:
+                            last_run = runs.data[0]
+                            run_usage = getattr(last_run, "usage", None)
+                            if run_usage:
+                                from common.logging.token_usage_utils import extract_token_usage_from_dict
+                                accumulated_token_usage = extract_token_usage_from_dict(run_usage)
+                                logger.info("Token usage retrieved from run: %s", accumulated_token_usage)
+                    except Exception as usage_err:
+                        logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
+
+                # If still no usage from SDK, estimate from response content
+                if accumulated_token_usage["total_tokens"] == 0 and complete_response:
+                    # Rough estimation: ~4 chars per token for English text
+                    estimated_output = max(1, len(complete_response) // 4)
+                    estimated_input = max(1, len(query) // 4) if query else 1
+                    accumulated_token_usage = {
+                        "input_tokens": estimated_input,
+                        "output_tokens": estimated_output,
+                        "total_tokens": estimated_input + estimated_output,
+                    }
+                    logger.info("Token usage estimated from content length: %s", accumulated_token_usage)
+
                 emit_all_token_events(
                     agent_name=self.orchestrator_agent_name or "orchestrator",
                     model_deployment_name=model_deployment,

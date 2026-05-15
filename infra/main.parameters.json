@@ -55,6 +55,9 @@
     },
     "usecase":{
       "value": "${USE_CASE}"
+    },
+    "enableMonitoring": {
+      "value": "${enableMonitoring}"
     }
   }
 }

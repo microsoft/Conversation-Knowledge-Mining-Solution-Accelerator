@@ -23,9 +23,9 @@ customEvents
 | where name == 'LLM_Agent_Token_Usage'
 | where timestamp > ago(7d)
 | extend agent = tostring(customDimensions['agent_name'])
-| extend input_tokens = toint(customDimensions['input_tokens'])
-| extend output_tokens = toint(customDimensions['output_tokens'])
-| extend total_tokens = toint(customDimensions['total_tokens'])
+| extend input_tokens = coalesce(tolong(customDimensions['input_tokens']), tolong(customDimensions['input_token_count']), tolong(customDimensions['prompt_tokens']), 0)
+| extend output_tokens = coalesce(tolong(customDimensions['output_tokens']), tolong(customDimensions['output_token_count']), tolong(customDimensions['completion_tokens']), 0)
+| extend total_tokens = coalesce(tolong(customDimensions['total_tokens']), tolong(customDimensions['total_token_count']), input_tokens + output_tokens)
 | summarize
     InputTokens = sum(input_tokens),
     OutputTokens = sum(output_tokens),

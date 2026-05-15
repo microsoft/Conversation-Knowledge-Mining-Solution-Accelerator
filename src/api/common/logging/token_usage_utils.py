@@ -68,13 +68,13 @@ def extract_token_usage(response: Any) -> dict[str, int]:
         if isinstance(usage_details, dict):
             input_tokens = _to_int(
                 usage_details.get("input_token_count")
-                or usage_details.get("prompt_tokens")
                 or usage_details.get("input_tokens")
+                or usage_details.get("prompt_tokens")
             )
             output_tokens = _to_int(
                 usage_details.get("output_token_count")
-                or usage_details.get("completion_tokens")
                 or usage_details.get("output_tokens")
+                or usage_details.get("completion_tokens")
             )
             total_tokens = _to_int(
                 usage_details.get("total_token_count")
@@ -84,10 +84,12 @@ def extract_token_usage(response: Any) -> dict[str, int]:
             # UsageDetails object with attributes
             input_tokens = _to_int(
                 getattr(usage_details, "input_token_count", 0)
+                or getattr(usage_details, "input_tokens", 0)
                 or getattr(usage_details, "prompt_tokens", 0)
             )
             output_tokens = _to_int(
                 getattr(usage_details, "output_token_count", 0)
+                or getattr(usage_details, "output_tokens", 0)
                 or getattr(usage_details, "completion_tokens", 0)
             )
             total_tokens = _to_int(
@@ -100,24 +102,24 @@ def extract_token_usage(response: Any) -> dict[str, int]:
         if usage_obj is not None:
             if isinstance(usage_obj, dict):
                 input_tokens = _to_int(
-                    usage_obj.get("prompt_tokens")
-                    or usage_obj.get("input_tokens")
+                    usage_obj.get("input_tokens")
+                    or usage_obj.get("prompt_tokens")
                 )
                 output_tokens = _to_int(
-                    usage_obj.get("completion_tokens")
-                    or usage_obj.get("output_tokens")
+                    usage_obj.get("output_tokens")
+                    or usage_obj.get("completion_tokens")
                 )
                 total_tokens = _to_int(
                     usage_obj.get("total_tokens")
                 ) or (input_tokens + output_tokens)
             else:
                 input_tokens = _to_int(
-                    getattr(usage_obj, "prompt_tokens", 0)
-                    or getattr(usage_obj, "input_tokens", 0)
+                    getattr(usage_obj, "input_tokens", 0)
+                    or getattr(usage_obj, "prompt_tokens", 0)
                 )
                 output_tokens = _to_int(
-                    getattr(usage_obj, "completion_tokens", 0)
-                    or getattr(usage_obj, "output_tokens", 0)
+                    getattr(usage_obj, "output_tokens", 0)
+                    or getattr(usage_obj, "completion_tokens", 0)
                 )
                 total_tokens = _to_int(
                     getattr(usage_obj, "total_tokens", 0)
@@ -131,24 +133,24 @@ def extract_token_usage(response: Any) -> dict[str, int]:
             if usage_obj is not None:
                 if isinstance(usage_obj, dict):
                     input_tokens = _to_int(
-                        usage_obj.get("prompt_tokens")
-                        or usage_obj.get("input_tokens")
+                        usage_obj.get("input_tokens")
+                        or usage_obj.get("prompt_tokens")
                     )
                     output_tokens = _to_int(
-                        usage_obj.get("completion_tokens")
-                        or usage_obj.get("output_tokens")
+                        usage_obj.get("output_tokens")
+                        or usage_obj.get("completion_tokens")
                     )
                     total_tokens = _to_int(
                         usage_obj.get("total_tokens")
                     ) or (input_tokens + output_tokens)
                 else:
                     input_tokens = _to_int(
-                        getattr(usage_obj, "prompt_tokens", 0)
-                        or getattr(usage_obj, "input_tokens", 0)
+                        getattr(usage_obj, "input_tokens", 0)
+                        or getattr(usage_obj, "prompt_tokens", 0)
                     )
                     output_tokens = _to_int(
-                        getattr(usage_obj, "completion_tokens", 0)
-                        or getattr(usage_obj, "output_tokens", 0)
+                        getattr(usage_obj, "output_tokens", 0)
+                        or getattr(usage_obj, "completion_tokens", 0)
                     )
                     total_tokens = _to_int(
                         getattr(usage_obj, "total_tokens", 0)
@@ -200,13 +202,13 @@ def extract_token_usage_from_dict(usage_data: Any) -> dict[str, int]:
     """
     if isinstance(usage_data, dict):
         input_tokens = _to_int(
-            usage_data.get("prompt_tokens")
-            or usage_data.get("input_tokens")
+            usage_data.get("input_tokens")
+            or usage_data.get("prompt_tokens")
             or usage_data.get("input_token_count")
         )
         output_tokens = _to_int(
-            usage_data.get("completion_tokens")
-            or usage_data.get("output_tokens")
+            usage_data.get("output_tokens")
+            or usage_data.get("completion_tokens")
             or usage_data.get("output_token_count")
         )
         total_tokens = _to_int(
@@ -215,12 +217,12 @@ def extract_token_usage_from_dict(usage_data: Any) -> dict[str, int]:
         ) or (input_tokens + output_tokens)
     else:
         input_tokens = _to_int(
-            getattr(usage_data, "prompt_tokens", 0)
-            or getattr(usage_data, "input_tokens", 0)
+            getattr(usage_data, "input_tokens", 0)
+            or getattr(usage_data, "prompt_tokens", 0)
         )
         output_tokens = _to_int(
-            getattr(usage_data, "completion_tokens", 0)
-            or getattr(usage_data, "output_tokens", 0)
+            getattr(usage_data, "output_tokens", 0)
+            or getattr(usage_data, "completion_tokens", 0)
         )
         total_tokens = _to_int(
             getattr(usage_data, "total_tokens", 0)
