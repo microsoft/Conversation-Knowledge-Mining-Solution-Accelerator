@@ -18,9 +18,9 @@ embedding_model="${11}"
 cu_endpoint="${12}"
 cu_api_version="${13}"
 aif_resource_id="${14}"
-cu_foundry_resource_id="${15}"
-ai_agent_endpoint="${16}"
-usecase="${17}"
+ai_agent_endpoint="${15}"
+usecase="${16}"
+solution_name="${17}"
 
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
@@ -30,19 +30,45 @@ if ! az account show &> /dev/null; then
 	az login --use-device-code
 fi
 
-# Get signed in user and store the output
-signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
-if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
-    echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
-    az login --use-device-code
-    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
-fi
+# Determine if we're running as a user or service principal
+account_type=$(az account show --query user.type --output tsv 2>/dev/null)
 
-signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
-signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
-
-if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
-    echo "✗ Failed to extract user information after authentication"
+if [ "$account_type" == "user" ]; then
+    # Running as a user - get signed-in user info
+    signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json 2>&1)
+    if [[ "$signed_user" == *"ERROR"* ]] || [[ "$signed_user" == *"InteractionRequired"* ]] || [[ "$signed_user" == *"AADSTS"* ]]; then
+        echo "✗ Failed to get signed-in user. Token may have expired. Re-authenticating..."
+        az login --use-device-code
+        signed_user=$(az ad signed-in-user show --query "{id:id, displayName:displayName}" -o json)
+    fi
+    signed_user_id=$(echo "$signed_user" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+    signed_user_display_name=$(echo "$signed_user" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to extract user information after authentication"
+        exit 1
+    fi
+    echo "✓ Running as user: $signed_user_display_name ($signed_user_id)"
+elif [ "$account_type" == "servicePrincipal" ]; then
+    # Running as a service principal - get SP object ID and display name
+    client_id=$(az account show --query user.name --output tsv 2>/dev/null)
+    if [ -n "$client_id" ]; then
+        sp_info=$(az ad sp show --id "$client_id" --query "{id:id, displayName:displayName}" -o json 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "✗ Failed to retrieve service principal information for client ID: $client_id"
+            echo "$sp_info"
+            exit 1
+        fi
+        signed_user_id=$(echo "$sp_info" | grep -o '"id": *"[^"]*"' | head -1 | sed 's/"id": *"\([^"]*\)"/\1/')
+        signed_user_display_name=$(echo "$sp_info" | grep -o '"displayName": *"[^"]*"' | sed 's/"displayName": *"\([^"]*\)"/\1/')
+    fi
+    if [ -z "$signed_user_id" ] || [ -z "$signed_user_display_name" ]; then
+        echo "✗ Failed to get service principal information"
+        exit 1
+    fi
+    echo "✓ Running as service principal: $signed_user_display_name ($signed_user_id)"
+else
+    echo "✗ Unknown account type: $account_type"
     exit 1
 fi
 
@@ -59,16 +85,14 @@ if [ -z "$role_assignment" ]; then
     fi
 fi
 
-### Assign Azure AI User role to the signed in user for CU Foundry ###
-if [ -n "$cu_foundry_resource_id" ] && [ "$cu_foundry_resource_id" != "null" ]; then
-    role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
-    if [ -z "$role_assignment" ]; then
-        echo "✓ Assigning Azure AI User role for CU Foundry"
-        MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $cu_foundry_resource_id --output none
-        if [ $? -ne 0 ]; then
-            echo "✗ Failed to assign Azure AI User role for CU Foundry"
-            exit 1
-        fi
+### Assign Cognitive Services OpenAI User role to the signed in user for AI Foundry ###
+role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
+if [ -z "$role_assignment" ]; then
+    echo "✓ Assigning Cognitive Services OpenAI User role for AI Foundry"
+    MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd --scope $aif_resource_id --output none
+    if [ $? -ne 0 ]; then
+        echo "✗ Failed to assign Cognitive Services OpenAI User role for AI Foundry"
+        exit 1
     fi
 fi
 
@@ -117,7 +141,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "✓ Creating CU template for text"
-python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+python ${pythonScriptPath}02_create_cu_template_text.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
 if [ $? -ne 0 ]; then
     echo "Error: 02_create_cu_template_text.py failed."
     error_flag=true
@@ -125,7 +149,7 @@ fi
 
 if [ "$usecase" == "telecom" ]; then
     echo "✓ Creating CU template for audio"
-    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version"
+    python ${pythonScriptPath}02_create_cu_template_audio.py --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --deployment_model="$deployment_model" --embedding_model="$embedding_model"
     if [ $? -ne 0 ]; then
         echo "Error: 02_create_cu_template_audio.py failed."
         error_flag=true
@@ -134,7 +158,7 @@ fi
 
 echo "✓ Processing data with CU"
 sql_server_fqdn="$sqlServerName.database.windows.net"
-python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase"
+python ${pythonScriptPath}03_cu_process_data_text.py --search_endpoint="$search_endpoint" --ai_project_endpoint="$ai_agent_endpoint" --deployment_model="$deployment_model" --embedding_model="$embedding_model" --storage_account_name="$storageAccountName" --sql_server="$sql_server_fqdn" --sql_database="$sqlDatabaseName" --cu_endpoint="$cu_endpoint" --cu_api_version="$cu_api_version" --usecase="$usecase" --solution_name="$solution_name"
 if [ $? -ne 0 ]; then
     echo "Error: 03_cu_process_data_text.py failed."
     error_flag=true
@@ -144,7 +168,18 @@ fi
 if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisplayName" ] && [ -n "$sqlDatabaseName" ]; then
     mi_display_name="$backendManagedIdentityDisplayName"
     server_fqdn="$sqlServerName.database.windows.net"
-    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\"},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\"}]"
+    
+    # Determine isServicePrincipal based on account type
+    # When running as servicePrincipal, use SID-based approach
+    # When running as user, use FROM EXTERNAL PROVIDER
+    if [ "$account_type" == "servicePrincipal" ]; then
+        is_sp="true"
+    else
+        is_sp="false"
+    fi
+    
+    # Managed identity role assignments
+    roles_json="[{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\",\"isServicePrincipal\":$is_sp},{\"clientId\":\"$backendManagedIdentityClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\",\"isServicePrincipal\":$is_sp}]"
 
     if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"

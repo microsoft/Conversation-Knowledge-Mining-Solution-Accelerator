@@ -12,13 +12,14 @@ import {
 import styles from "./ChatHistoryListItemGroups.module.css";
 import { ChatHistoryListItemCell } from "../ChatHistoryListItemCell/ChatHistoryListItemCell";
 import { Conversation } from "../../types/AppTypes";
-import { useAppContext } from "../../state/useAppContext";
+import { useAppSelector } from "../../state/hooks";
 import { segregateItems } from "../../configs/Utils";
 
 export interface GroupedChatHistory {
   title: string;
   entries: Conversation[];
 }
+
 interface ChatHistoryListItemGroupsProps {
   handleFetchHistory: () => Promise<void>;
   onSelectConversation: (id: string) => void;
@@ -26,32 +27,30 @@ interface ChatHistoryListItemGroupsProps {
 
 export const ChatHistoryListItemGroups: React.FC<
   ChatHistoryListItemGroupsProps
-> = ({
-  handleFetchHistory,
-  onSelectConversation,
-}) => {
-  const observerTarget = useRef(null);
+> = ({ handleFetchHistory, onSelectConversation }) => {
+  const observerTarget = useRef<HTMLDivElement | null>(null);
   const initialCall = useRef(true);
-  const { state } = useAppContext();
-  const { chatHistory } = state;
+  const conversations = useAppSelector((state) => state.chatHistory.list);
+  const isFetchingConversations = useAppSelector(
+    (state) => state.chatHistory.fetchingConversations
+  );
 
-  const groupedChatHistory = segregateItems(chatHistory.list);
+  const groupedChatHistory = segregateItems(conversations);
 
   const handleSelectHistory = (item?: Conversation) => {
-    if (typeof item === "object") {
-      onSelectConversation(item?.id);
+    if (item) {
+      onSelectConversation(item.id);
     }
   };
 
-  const onRenderCell = (item?: Conversation) => {
-    return (
-      <ChatHistoryListItemCell
-        item={item}
-        onSelect={() => handleSelectHistory(item)}
-        key={item?.id}
-      />
-    );
-  };
+  const onRenderCell = (item?: Conversation) => (
+    <ChatHistoryListItemCell
+      item={item}
+      onSelect={() => handleSelectHistory(item)}
+      key={item?.id}
+    />
+  );
+
   useEffect(() => {
     if (initialCall.current) {
       initialCall.current = false;
@@ -59,26 +58,25 @@ export const ChatHistoryListItemGroups: React.FC<
   }, []);
 
   useEffect(() => {
-    if (initialCall.current) {
+    if (initialCall.current || !observerTarget.current) {
       return;
     }
+
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          if (!chatHistory?.fetchingConversations) {
-            handleFetchHistory();
-          }
+        if (entries[0].isIntersecting && !isFetchingConversations) {
+          void handleFetchHistory();
         }
       },
       { threshold: 1 }
     );
 
-    if (observerTarget.current) observer.observe(observerTarget.current);
+    observer.observe(observerTarget.current);
 
     return () => {
-      if (observerTarget.current) observer.unobserve(observerTarget.current);
+      observer.disconnect();
     };
-  }, [observerTarget.current, chatHistory?.fetchingConversations]);
+  }, [handleFetchHistory, isFetchingConversations]);
 
   const allConversationsLength = groupedChatHistory.reduce(
     (previousValue, currentValue) =>
@@ -86,7 +84,7 @@ export const ChatHistoryListItemGroups: React.FC<
     0
   );
 
-  if (!chatHistory.fetchingConversations && allConversationsLength === 0) {
+  if (!isFetchingConversations && allConversationsLength === 0) {
     return (
       <Stack
         horizontal
@@ -125,7 +123,7 @@ export const ChatHistoryListItemGroups: React.FC<
                 {group.title}
               </Stack>
               <List
-                aria-label={`chat history list`}
+                aria-label="chat history list"
                 items={group.entries}
                 onRenderCell={onRenderCell}
                 className={styles.chatList}
@@ -147,7 +145,7 @@ export const ChatHistoryListItemGroups: React.FC<
           },
         }}
       />
-      {Boolean(chatHistory?.fetchingConversations) && (
+      {Boolean(isFetchingConversations) && (
         <div className={styles.spinnerContainer}>
           <Spinner
             size={SpinnerSize.small}

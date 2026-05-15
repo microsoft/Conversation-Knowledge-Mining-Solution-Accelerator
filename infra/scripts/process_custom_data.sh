@@ -24,27 +24,25 @@ searchEndpoint="${10}"
 
 # AI Foundry
 aif_resource_id="${11}"
-cu_foundry_resource_id="${12}"
 
 # OpenAI
-openaiEndpoint="${13}"
-embeddingModel="${14}"
-deploymentModel="${15}"
+openaiEndpoint="${12}"
+embeddingModel="${13}"
+deploymentModel="${14}"
 
 # Content Understanding & AI Agent
-cuEndpoint="${16}"
+cuEndpoint="${15}"
+cuApiVersion="${16}"
 aiAgentEndpoint="${17}"
-cuApiVersion="${18}"
+
+solutionName="${18}"
 
 # Global variables to track original network access states
 original_storage_public_access=""
 original_storage_default_action=""
 original_foundry_public_access=""
-original_cu_foundry_public_access=""
 aif_resource_group=""
 aif_account_resource_id=""
-cu_resource_group=""
-cu_account_resource_id=""
 # Add global variable for SQL Server public access
 original_sql_public_access=""
 created_sql_allow_all_firewall_rule="false"
@@ -116,34 +114,6 @@ enable_public_access() {
 				--set properties.publicNetworkAccess=Enabled properties.apiProperties="{}" \
 				--output none; then
 				echo "⚠ Failed to enable AI Foundry public access"
-			fi
-		fi
-	fi
-	
-	# Enable public access for Content Understanding Foundry
-	if [ -n "$cu_foundry_resource_id" ] && [ "$cu_foundry_resource_id" != "null" ]; then
-		cu_account_resource_id="$cu_foundry_resource_id"
-		cu_resource_name=$(echo "$cu_foundry_resource_id" | sed -n 's|.*/providers/Microsoft.CognitiveServices/accounts/\([^/]*\).*|\1|p')
-		cu_resource_group=$(echo "$cu_foundry_resource_id" | sed -n 's|.*/resourceGroups/\([^/]*\)/.*|\1|p')
-		cu_subscription_id=$(echo "$cu_account_resource_id" | sed -n 's|.*/subscriptions/\([^/]*\)/.*|\1|p')
-		
-		original_cu_foundry_public_access=$(az cognitiveservices account show \
-			--name "$cu_resource_name" \
-			--resource-group "$cu_resource_group" \
-			--subscription "$cu_subscription_id" \
-			--query "properties.publicNetworkAccess" \
-			--output tsv)
-		
-		if [ -z "$original_cu_foundry_public_access" ] || [ "$original_cu_foundry_public_access" = "null" ]; then
-			echo "⚠ Could not retrieve CU Foundry network access status"
-		elif [ "$original_cu_foundry_public_access" != "Enabled" ]; then
-			echo "✓ Enabling CU Foundry public access"
-			if ! MSYS_NO_PATHCONV=1 az resource update \
-				--ids "$cu_account_resource_id" \
-				--api-version 2024-10-01 \
-				--set properties.publicNetworkAccess=Enabled properties.apiProperties="{}" \
-				--output none; then
-				echo "⚠ Failed to enable CU Foundry public access"
 			fi
 		fi
 	fi
@@ -258,20 +228,6 @@ restore_network_access() {
 		fi
 	fi
 	
-	# Restore CU Foundry access
-	if [ -n "$original_cu_foundry_public_access" ] && [ "$original_cu_foundry_public_access" != "Enabled" ]; then
-		echo "✓ Restoring CU Foundry access"
-		if ! MSYS_NO_PATHCONV=1 az resource update \
-			--ids "$cu_account_resource_id" \
-			--api-version 2024-10-01 \
-			--set properties.publicNetworkAccess="$original_cu_foundry_public_access" \
-        	--set properties.apiProperties.qnaAzureSearchEndpointKey="" \
-        	--set properties.networkAcls.bypass="AzureServices" \
-			--output none 2>/dev/null; then
-			echo "⚠ Failed to restore CU Foundry access - please check Azure portal"
-		fi
-	fi
-	
 	
 	# Restore SQL Server public access
 	if [ -n "$original_sql_public_access" ] && [ "$original_sql_public_access" != "Enabled" ]; then
@@ -328,20 +284,20 @@ get_values_from_azd_env() {
 	backendUserMidDisplayName=$(azd env get-value BACKEND_USER_MID_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aiSearchName=$(azd env get-value AZURE_AI_SEARCH_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aif_resource_id=$(azd env get-value AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	cu_foundry_resource_id=$(azd env get-value CU_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	searchEndpoint=$(azd env get-value AZURE_AI_SEARCH_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
 	openaiEndpoint=$(azd env get-value AZURE_OPENAI_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+/?$')
-	embeddingModel=$(azd env get-value AZURE_OPENAI_EMBEDDING_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	embeddingModel=$(azd env get-value AZURE_ENV_EMBEDDING_MODEL_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	cuEndpoint=$(azd env get-value AZURE_OPENAI_CU_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
 	aiAgentEndpoint=$(azd env get-value AZURE_AI_AGENT_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/:/-]+$')
 	cuApiVersion=$(azd env get-value AZURE_CONTENT_UNDERSTANDING_API_VERSION 2>&1 | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}(-preview)?$')
-	deploymentModel=$(azd env get-value AZURE_OPENAI_DEPLOYMENT_MODEL 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	deploymentModel=$(azd env get-value AZURE_ENV_GPT_MODEL_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
+	solutionName=$(azd env get-value SOLUTION_NAME 2>&1 | grep -E '^[a-zA-Z0-9._-]+$')
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$solutionName" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	fi
@@ -368,31 +324,30 @@ get_values_from_az_deployment() {
 		local fallback_key="$2"
 		local value
 		
-		value=$(echo "$deploymentOutputs" | grep -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+		value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		if [ -z "$value" ] && [ -n "$fallback_key" ]; then
-			value=$(echo "$deploymentOutputs" | grep -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+			value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
 		fi
 		echo "$value"
 	}
 
 	# Extract each value using the helper function
-	storageAccountName=$(extract_value "storageAccountName" "storagE_ACCOUNT_NAME")
-	fileSystem=$(extract_value "storageContainerName" "storagE_CONTAINER_NAME")
-	sqlServerName=$(extract_value "sqlDBServer" "sqldB_SERVER")
-	SqlDatabaseName=$(extract_value "sqlDBDatabase" "sqldB_DATABASE")
-	backendUserMidClientId=$(extract_value "backendUserMid" "backenD_USER_MID")
-	backendUserMidDisplayName=$(extract_value "backendUserMidName" "backenD_USER_MID_NAME")
-	aiSearchName=$(extract_value "azureAISearchName" "azurE_AI_SEARCH_NAME")
-	searchEndpoint=$(extract_value "azureAISearchEndpoint" "azurE_AI_SEARCH_ENDPOINT")
-	aif_resource_id=$(extract_value "aiFoundryResourceId" "aI_FOUNDRY_RESOURCE_ID")
-	cu_foundry_resource_id=$(extract_value "cuFoundryResourceId" "cU_FOUNDRY_RESOURCE_ID")
-	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "azurE_OPENAI_ENDPOINT")
-	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "azurE_OPENAI_EMBEDDING_MODEL")
-	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "azurE_OPENAI_CU_ENDPOINT")
-	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "azurE_AI_AGENT_ENDPOINT")
-	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "azurE_CONTENT_UNDERSTANDING_API_VERSION")
-	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "azurE_OPENAI_DEPLOYMENT_MODEL")
-	usecase=$(extract_value "useCase" "usE_CASE")
+	storageAccountName=$(extract_value "storageAccountName" "STORAGE_ACCOUNT_NAME")
+	fileSystem=$(extract_value "storageContainerName" "STORAGE_CONTAINER_NAME")
+	sqlServerName=$(extract_value "sqlDBServer" "SQLDB_SERVER")
+	SqlDatabaseName=$(extract_value "sqlDBDatabase" "SQLDB_DATABASE")
+	backendUserMidClientId=$(extract_value "backendUserMid" "BACKEND_USER_MID")
+	backendUserMidDisplayName=$(extract_value "backendUserMidName" "BACKEND_USER_MID_NAME")
+	aiSearchName=$(extract_value "azureAISearchName" "AZURE_AI_SEARCH_NAME")
+	searchEndpoint=$(extract_value "azureAISearchEndpoint" "AZURE_AI_SEARCH_ENDPOINT")
+	aif_resource_id=$(extract_value "aiFoundryResourceId" "AI_FOUNDRY_RESOURCE_ID")
+	openaiEndpoint=$(extract_value "azureOpenAIEndpoint" "AZURE_OPENAI_ENDPOINT")
+	embeddingModel=$(extract_value "azureOpenAIEmbeddingModel" "AZURE_ENV_EMBEDDING_MODEL_NAME")
+	cuEndpoint=$(extract_value "azureOpenAICuEndpoint" "AZURE_OPENAI_CU_ENDPOINT")
+	aiAgentEndpoint=$(extract_value "azureAiAgentEndpoint" "AZURE_AI_AGENT_ENDPOINT")
+	cuApiVersion=$(extract_value "azureContentUnderstandingApiVersion" "AZURE_CONTENT_UNDERSTANDING_API_VERSION")
+	deploymentModel=$(extract_value "azureOpenAIDeploymentModel" "AZURE_ENV_GPT_MODEL_NAME")
+	solutionName=$(extract_value "solutionName" "SOLUTION_NAME")
 	
 	# Strip FQDN suffix from SQL server name if present (Azure CLI needs just the server name)
 	sqlServerName="${sqlServerName%.database.windows.net}"
@@ -407,15 +362,14 @@ get_values_from_az_deployment() {
 		["backendUserMidDisplayName"]="BACKEND_USER_MID_NAME"
 		["aiSearchName"]="AZURE_AI_SEARCH_NAME"
 		["aif_resource_id"]="AI_FOUNDRY_RESOURCE_ID"
-		["cu_foundry_resource_id"]="CU_FOUNDRY_RESOURCE_ID"
 		["searchEndpoint"]="AZURE_AI_SEARCH_ENDPOINT"
 		["openaiEndpoint"]="AZURE_OPENAI_ENDPOINT"
-		["embeddingModel"]="AZURE_OPENAI_EMBEDDING_MODEL"
+		["embeddingModel"]="AZURE_ENV_EMBEDDING_MODEL_NAME"
 		["cuEndpoint"]="AZURE_OPENAI_CU_ENDPOINT"
 		["aiAgentEndpoint"]="AZURE_AI_AGENT_ENDPOINT"
 		["cuApiVersion"]="AZURE_CONTENT_UNDERSTANDING_API_VERSION"
-		["deploymentModel"]="AZURE_OPENAI_DEPLOYMENT_MODEL"
-		["usecase"]="USE_CASE"
+		["deploymentModel"]="AZURE_ENV_GPT_MODEL_NAME"
+		["solutionName"]="SOLUTION_NAME"
 	)
 
 	# Validate and collect missing values
@@ -494,7 +448,13 @@ echo ""
 
 echo ""
 
-if [ -z "$resourceGroupName" ]; then
+# Check if all required parameters are provided
+if [ -n "$resourceGroupName" ] && [ -n "$azSubscriptionId" ] && [ -n "$storageAccountName" ] && [ -n "$fileSystem" ] && [ -n "$sqlServerName" ] && [ -n "$SqlDatabaseName" ] && [ -n "$backendUserMidClientId" ] && [ -n "$backendUserMidDisplayName" ] && [ -n "$aiSearchName" ] && [ -n "$searchEndpoint" ] && [ -n "$aif_resource_id" ] && [ -n "$openaiEndpoint" ] && [ -n "$embeddingModel" ] && [ -n "$deploymentModel" ] && [ -n "$cuEndpoint" ] && [ -n "$cuApiVersion" ] && [ -n "$aiAgentEndpoint" ] && [ -n "$solutionName" ]; then
+    # All parameters provided - use them directly
+    echo "All parameters provided via command line."
+    # Strip FQDN suffix from SQL server name if present
+    sqlServerName="${sqlServerName%.database.windows.net}"
+elif [ -z "$resourceGroupName" ]; then
     # No resource group provided - use azd env
     if ! get_values_from_azd_env; then
         echo "Failed to get values from azd environment."
@@ -506,7 +466,7 @@ if [ -z "$resourceGroupName" ]; then
         exit 1
     fi
 else
-    # Resource group provided - use deployment outputs
+    # Only resource group provided - use deployment outputs
 	echo ""
     echo "Resource group provided: $resourceGroupName"
 
@@ -541,7 +501,6 @@ echo "Backend User-Assigned Managed Identity Display Name: $backendUserMidDispla
 echo "Backend User-Assigned Managed Identity Client ID: $backendUserMidClientId"
 echo "AI Search Service Name: $aiSearchName"
 echo "AI Foundry Resource ID: $aif_resource_id"
-echo "CU Foundry Resource ID: $cu_foundry_resource_id"
 echo "Search Endpoint: $searchEndpoint"
 echo "OpenAI Endpoint: $openaiEndpoint"
 echo "Embedding Model: $embeddingModel"
@@ -549,6 +508,7 @@ echo "CU Endpoint: $cuEndpoint"
 echo "CU API Version: $cuApiVersion"
 echo "AI Agent Endpoint: $aiAgentEndpoint"
 echo "Deployment Model: $deploymentModel"
+echo "Solution Name: $solutionName"
 echo "==============================================="
 echo ""
 
@@ -562,6 +522,7 @@ fi
 pythonScriptPath="$SCRIPT_DIR/index_scripts/"
 
 # Install the requirements
+echo "Installing requirements"
 pip install --quiet -r ${pythonScriptPath}requirements.txt
 if [ $? -ne 0 ]; then
 	echo "Error: Failed to install Python requirements."
@@ -570,13 +531,13 @@ fi
 
 # Create Content Understanding analyzers
 echo "✓ Creating Content Understanding analyzer templates"
-python "${pythonScriptPath}02_create_cu_template_text.py" --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion"
+python "${pythonScriptPath}02_create_cu_template_text.py" --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion" --deployment_model="$deploymentModel" --embedding_model="$embeddingModel"
 if [ $? -ne 0 ]; then
 	echo "Error: 02_create_cu_template_text.py failed."
 	exit 1
 fi
 
-python "${pythonScriptPath}02_create_cu_template_audio.py" --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion"
+python "${pythonScriptPath}02_create_cu_template_audio.py" --cu_endpoint="$cuEndpoint" --cu_api_version="$cuApiVersion" --deployment_model="$deploymentModel" --embedding_model="$embeddingModel"
 if [ $? -ne 0 ]; then
 	echo "Error: 02_create_cu_template_audio.py failed."
 	exit 1
@@ -595,9 +556,12 @@ python "${pythonScriptPath}04_cu_process_custom_data.py" \
     --sql_server "$sql_server_fqdn" \
     --sql_database "$SqlDatabaseName" \
     --cu_endpoint "$cuEndpoint" \
-    --cu_api_version "$cuApiVersion"
+    --cu_api_version "$cuApiVersion" \
+    --solution_name "$solutionName"
 
 if [ $? -ne 0 ]; then
 	echo "Error: 04_cu_process_custom_data.py failed."
 	exit 1
 fi
+
+echo "All scripts executed successfully."

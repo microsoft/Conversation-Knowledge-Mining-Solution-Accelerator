@@ -113,8 +113,7 @@ export const segregateItems = (items: Conversation[]) => {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  // Sort items by updatedAt in descending order
-  items.sort(
+  const sortedItems = [...items].sort(
     (a, b) =>
       new Date(b.updatedAt ? b.updatedAt : new Date()).getTime() -
       new Date(a.updatedAt ? a.updatedAt : new Date()).getTime()
@@ -133,7 +132,7 @@ export const segregateItems = (items: Conversation[]) => {
     Past: {},
   };
 
-  items.forEach((item) => {
+  sortedItems.forEach((item) => {
     const itemDate = new Date(item.updatedAt ? item.updatedAt : new Date());
     const itemDateOnly = itemDate.toDateString();
     if (itemDateOnly === today.toDateString()) {
@@ -181,7 +180,6 @@ export async function loadConfig() {
     const configData = await response.json();
     return configData;
   } catch (error) {
-    console.error("Error loading config:", error);
     throw error;
   }
 }
@@ -245,8 +243,8 @@ export const tryGetRaiPrettyError = (errorMessage: string) => {
         )
       }
     }
-  } catch (e) {
-    console.error('Failed to parse the error:', e)
+  } catch {
+    return errorMessage
   }
   return errorMessage
 }
@@ -263,8 +261,8 @@ export const parseErrorMessage = (errorMessage: string) => {
       innerErrorString = innerErrorString.replaceAll("\\'", "'")
       let newErrorMessage = errorCodeMessage + ' ' + innerErrorString
       errorMessage = newErrorMessage
-    } catch (e) {
-      console.error('Error parsing inner error message: ', e)
+    } catch {
+      return tryGetRaiPrettyError(errorMessage)
     }
   }
 

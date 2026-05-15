@@ -31,6 +31,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: write
 
 jobs:
   #   frontend_tests:
@@ -106,7 +107,19 @@ jobs:
       - name: Run Backend Tests with Coverage
         if: env.skip_backend_tests == 'false'
         run: |
-          pytest --cov=. --cov-report=term-missing --cov-report=xml ./src/tests/api
+          pytest --cov=. --cov-report=term-missing --cov-report=xml --junitxml=pytest.xml ./src/tests/api
+
+      - name: Pytest Coverage Comment
+        if: |
+          always() &&
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.fork == false &&
+          env.skip_backend_tests == 'false'
+        uses: MishaKav/pytest-coverage-comment@26f986d2599c288bb62f623d29c2da98609e9cd4  # v1.6.0
+        with:
+          pytest-xml-coverage-path: coverage.xml
+          junitxml-path: pytest.xml
+          report-only-changed-files: true
 
       - name: Skip Backend Tests
         if: env.skip_backend_tests == 'true'

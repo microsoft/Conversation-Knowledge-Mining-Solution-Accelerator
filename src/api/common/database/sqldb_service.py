@@ -2,11 +2,31 @@ from datetime import datetime
 import struct
 
 import pandas as pd
+from pydantic import BaseModel
 from api.models.input_models import ChartFilters
 from common.config.config import Config
 import logging
 from helpers.azure_credential_utils import get_azure_credential_async
 import pyodbc
+
+
+class SQLTool(BaseModel):
+    model_config = {"arbitrary_types_allowed": True}
+    conn: pyodbc.Connection
+
+    async def get_sql_response(self, sql_query: str) -> str:
+        cursor = None
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute(sql_query)
+            result = ''.join(str(row) for row in cursor.fetchall())
+            return result
+        except Exception as e:
+            logging.error("Error executing SQL query: %s", e)
+            return f"Error executing SQL query: {str(e)}"
+        finally:
+            if cursor:
+                cursor.close()
 
 
 async def get_db_connection():
@@ -15,9 +35,6 @@ async def get_db_connection():
 
     server = config.sqldb_server
     database = config.sqldb_database
-    username = config.sqldb_username
-    password = config.sqldb_database
-    # mid_id = config.mid_id
     mid_id = config.azure_client_id
 
     credential = None
@@ -47,20 +64,10 @@ async def get_db_connection():
 
         if conn is None:
             raise RuntimeError("Unable to connect using ODBC Driver 18 or 17 with Azure Credential")
+        return conn
     except Exception as e:
         logging.error("Failed with Azure Credential: %s", str(e))
-        # Try username/password authentication with both drivers
-        for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
-            try:
-                conn = pyodbc.connect(
-                    f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}",
-                    timeout=5)
-                logging.info(f"Connected using Username & Password with {driver}")
-                return conn
-            except pyodbc.Error:
-                continue
-
-        raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
+        raise RuntimeError("Unable to connect to SQL database using Microsoft Entra authentication.") from e
     finally:
         if credential and hasattr(credential, "close"):
             await credential.close()
@@ -173,7 +180,7 @@ async def fetch_chart_data(chart_filters: ChartFilters = ''):
         req_body = ''
         try:
             req_body = chart_filters.model_dump()
-        except BaseException:
+        except Exception:  # model_dump may fail if filters are empty or invalid
             pass
         if req_body != '':
             where_clause = ''

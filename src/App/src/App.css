@@ -10,7 +10,6 @@
   display: flex;
   flex-direction: row;
   height: calc(100vh - 6vh);
-  /* height: 94vh; */
   gap: var(--gap-base);
   margin-inline: var(--margin-base);
 }
@@ -31,7 +30,6 @@ body {
 .header {
   display: flex;
   align-items: center;
-  /* height: 64px; */
   height: 6vh;
   justify-content: space-between;
   background-color: #fff;
@@ -44,14 +42,8 @@ body {
 }
 
 .header-title {
-  /* font-size: 24px; */
   color: #242424;
-  /* font-size: 18px;
-  font-style: normal;
-  font-weight: 700;
-  font-family: "Segoe UI"; */
   margin-left: 0.5rem;
-  /* font-size: 1.1rem; */
 }
 
 .header-title span {
@@ -76,20 +68,6 @@ body {
   display: flex;
   gap: 0.25rem;
 }
-
-/* .header button {
-  height: var(--button-height) !important;
-  font-size: var(--header-btn-font-size) !important;
-} */
-
-/* .header button > span > svg {
-  width: var(--header-btn-icon-size);
-  height: var(--header-btn-icon-size);
-} */
-
-/* .answerDisclaimerContainer {
-  margin-top: 3px;
-} */
 
 .answerDisclaimer {
   font-size: var(--answer-disclaimer-font, 12px);

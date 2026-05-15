@@ -6,7 +6,7 @@ on:
       ENV_NAME:
         required: true
         type: string
-      AZURE_ENV_OPENAI_LOCATION:
+      AZURE_ENV_AI_SERVICE_LOCATION:
         required: true
         type: string
       AZURE_LOCATION:
@@ -28,12 +28,16 @@ on:
         required: false
         type: string
         default: 'false'
-      AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID:
+      AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID:
         required: false
         type: string
-      AZURE_EXISTING_AI_PROJECT_RESOURCE_ID:
+      AZURE_EXISTING_AIPROJECT_RESOURCE_ID:
         required: false
         type: string
+      USE_CASE:
+        required: false
+        type: string
+        default: 'telecom'
     outputs:
       WEB_APP_URL:
         description: "Web App URL"
@@ -45,6 +49,7 @@ on:
 jobs:
   deploy-linux:
     runs-on: ubuntu-latest
+    environment: production
     env:
       AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
     outputs:
@@ -56,15 +61,16 @@ jobs:
         shell: bash
         env:
           INPUT_ENV_NAME: ${{ inputs.ENV_NAME }}
-          INPUT_AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
+          INPUT_AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.AZURE_ENV_AI_SERVICE_LOCATION }}
           INPUT_AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           INPUT_RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
           INPUT_IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
           INPUT_BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           INPUT_EXP: ${{ inputs.EXP }}
           INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
-          INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-          INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
+          INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}
+          INPUT_USE_CASE: ${{ inputs.USE_CASE }}
         run: |
           echo "🔍 Validating workflow input parameters..."
           VALIDATION_FAILED=false
@@ -80,15 +86,15 @@ jobs:
             echo "✅ ENV_NAME: '$INPUT_ENV_NAME' is valid"
           fi
           
-          # Validate AZURE_ENV_OPENAI_LOCATION (required, Azure region format)
-          if [[ -z "$INPUT_AZURE_ENV_OPENAI_LOCATION" ]]; then
-            echo "❌ ERROR: AZURE_ENV_OPENAI_LOCATION is required but not provided"
+          # Validate AZURE_ENV_AI_SERVICE_LOCATION (required, Azure region format)
+          if [[ -z "$INPUT_AZURE_ENV_AI_SERVICE_LOCATION" ]]; then
+            echo "❌ ERROR: AZURE_ENV_AI_SERVICE_LOCATION is required but not provided"
             VALIDATION_FAILED=true
-          elif [[ ! "$INPUT_AZURE_ENV_OPENAI_LOCATION" =~ ^[a-z0-9]+$ ]]; then
-            echo "❌ ERROR: AZURE_ENV_OPENAI_LOCATION '$INPUT_AZURE_ENV_OPENAI_LOCATION' is invalid. Must contain only lowercase letters and numbers"
+          elif [[ ! "$INPUT_AZURE_ENV_AI_SERVICE_LOCATION" =~ ^[a-z0-9]+$ ]]; then
+            echo "❌ ERROR: AZURE_ENV_AI_SERVICE_LOCATION '$INPUT_AZURE_ENV_AI_SERVICE_LOCATION' is invalid. Must contain only lowercase letters and numbers"
             VALIDATION_FAILED=true
           else
-            echo "✅ AZURE_ENV_OPENAI_LOCATION: '$INPUT_AZURE_ENV_OPENAI_LOCATION' is valid"
+            echo "✅ AZURE_ENV_AI_SERVICE_LOCATION: '$INPUT_AZURE_ENV_AI_SERVICE_LOCATION' is valid"
           fi
           
           # Validate AZURE_LOCATION (required, Azure region format)
@@ -151,28 +157,37 @@ jobs:
             echo "✅ WAF_ENABLED: '$INPUT_WAF_ENABLED' is valid"
           fi
           
-          # Validate AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID (optional, if provided must be valid Resource ID)
-          if [[ -n "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/microsoft\.operationalinsights/workspaces/[^/]+$ ]]; then
-              echo "❌ ERROR: AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID is invalid. Must be a valid Azure Resource ID format:"
+          # Validate AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID (optional, if provided must be valid Resource ID)
+          if [[ -n "$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" ]]; then
+            if [[ ! "$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/[Mm]icrosoft\.[Oo]perational[Ii]nsights/[Ww]orkspaces/[^/]+$ ]]; then
+              echo "❌ ERROR: AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.OperationalInsights/workspaces/{workspaceName}"
-              echo "   Got: '$INPUT_AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID'"
+              echo "   Got: '$INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID'"
               VALIDATION_FAILED=true
             else
-              echo "✅ AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: Valid Resource ID format"
+              echo "✅ AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: Valid Resource ID format"
             fi
           fi
           
-          # Validate AZURE_EXISTING_AI_PROJECT_RESOURCE_ID (optional, if provided must be valid Resource ID)
-          if [[ -n "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
-            if [[ ! "$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/resourceGroups/[^/]+/providers/(Microsoft\.MachineLearningServices/(workspaces|projects)/[^/]+|Microsoft\.CognitiveServices/accounts/[^/]+/projects/[^/]+)$ ]]; then
-              echo "❌ ERROR: AZURE_EXISTING_AI_PROJECT_RESOURCE_ID is invalid. Must be a valid Azure Resource ID format:"
+          # Validate AZURE_EXISTING_AIPROJECT_RESOURCE_ID (optional, Azure Resource ID format)
+          if [[ -n "$INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID" ]]; then
+            if [[ ! "$INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID" =~ ^/subscriptions/[a-fA-F0-9-]+/[Rr]esource[Gg]roups/[^/]+/providers/([Mm]icrosoft\.[Mm]achine[Ll]earning[Ss]ervices/([Ww]orkspaces|[Pp]rojects)/[^/]+|[Mm]icrosoft\.[Cc]ognitive[Ss]ervices/[Aa]ccounts/[^/]+/[Pp]rojects/[^/]+)$ ]]; then
+              echo "❌ ERROR: AZURE_EXISTING_AIPROJECT_RESOURCE_ID is invalid. Must be a valid Azure Resource ID format:"
               echo "   /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.CognitiveServices/accounts/{accountName}/projects/{projectName}"
-              echo "   Got: '$INPUT_AZURE_EXISTING_AI_PROJECT_RESOURCE_ID'"
+              echo "   Got: '$INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID'"
               VALIDATION_FAILED=true
             else
-              echo "✅ AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: Valid Resource ID format"
+              echo "✅ AZURE_EXISTING_AIPROJECT_RESOURCE_ID: Valid Resource ID format"
             fi
+          fi
+          
+          # Validate USE_CASE (optional, must be 'telecom' or 'IT_helpdesk')
+          USE_CASE="${INPUT_USE_CASE:-telecom}"
+          if [[ "$USE_CASE" != "telecom" && "$USE_CASE" != "IT_helpdesk" ]]; then
+            echo "❌ ERROR: USE_CASE must be one of: telecom, IT_helpdesk, got: '$USE_CASE'"
+            VALIDATION_FAILED=true
+          else
+            echo "✅ USE_CASE: '$USE_CASE' is valid"
           fi
           
           # Fail workflow if any validation failed
@@ -186,7 +201,7 @@ jobs:
           echo "✅ All input parameters validated successfully!"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       
       - name: Configure Parameters Based on WAF Setting
         shell: bash
@@ -203,27 +218,31 @@ jobs:
       - name: Install azd
         uses: Azure/setup-azd@v2
           
-      - name: Login to AZD
-        id: login-azure
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure AZD to use Azure CLI authentication
         shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --client-secret ${{ secrets.AZURE_CLIENT_SECRET }} --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+        run: azd config set auth.useAzCliAuth "true"
 
       - name: Deploy using azd up and extract values (Linux)
         id: get_output_linux
         shell: bash
         env:
           ENV_NAME: ${{ inputs.ENV_NAME }}
-          AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
+          AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.AZURE_ENV_AI_SERVICE_LOCATION }}
           AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
           IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
           BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           EXP: ${{ inputs.EXP }}
-          AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: ${{ inputs.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}
-          AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AI_PROJECT_RESOURCE_ID }}
+          AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
+          AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}
+          USE_CASE: ${{ inputs.USE_CASE }}
         run: |
           set -e          
           echo "Starting azd deployment..."
@@ -242,10 +261,11 @@ jobs:
         
           # Set additional parameters
           azd env set AZURE_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-          azd env set AZURE_ENV_OPENAI_LOCATION="$AZURE_ENV_OPENAI_LOCATION"
+          azd env set AZURE_ENV_AI_SERVICE_LOCATION="$AZURE_ENV_AI_SERVICE_LOCATION"
           azd env set AZURE_LOCATION="$AZURE_LOCATION"
           azd env set AZURE_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
-          azd env set AZURE_ENV_IMAGETAG="$IMAGE_TAG"
+          azd env set AZURE_ENV_IMAGE_TAG="$IMAGE_TAG"
+          azd env set USE_CASE="$USE_CASE"
           
           if [[ "$BUILD_DOCKER_IMAGE" == "true" ]]; then
             ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}")
@@ -258,22 +278,22 @@ jobs:
           if [[ "$EXP" == "true" ]]; then
             echo "✅ EXP ENABLED - Setting EXP parameters..."
             
-            if [[ -n "$AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID" ]]; then
-              EXP_LOG_ANALYTICS_ID="$AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID"
+            if [[ -n "$AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID" ]]; then
+              EXP_LOG_ANALYTICS_ID="$AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID"
             else
-              EXP_LOG_ANALYTICS_ID="${{ secrets.AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID }}"
+              EXP_LOG_ANALYTICS_ID="${{ secrets.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}"
             fi
             
-            if [[ -n "$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID" ]]; then
-              EXP_AI_PROJECT_ID="$AZURE_EXISTING_AI_PROJECT_RESOURCE_ID"
+            if [[ -n "$AZURE_EXISTING_AIPROJECT_RESOURCE_ID" ]]; then
+              EXP_AI_PROJECT_ID="$AZURE_EXISTING_AIPROJECT_RESOURCE_ID"
             else
-              EXP_AI_PROJECT_ID="${{ secrets.AZURE_ENV_FOUNDRY_PROJECT_ID }}"
+              EXP_AI_PROJECT_ID="${{ secrets.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}"
             fi
             
-            echo "AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID: $EXP_LOG_ANALYTICS_ID"
-            echo "AZURE_EXISTING_AI_PROJECT_RESOURCE_ID: $EXP_AI_PROJECT_ID"
-            azd env set AZURE_ENV_LOG_ANALYTICS_WORKSPACE_ID="$EXP_LOG_ANALYTICS_ID"
-            azd env set AZURE_EXISTING_AI_PROJECT_RESOURCE_ID="$EXP_AI_PROJECT_ID"
+            echo "AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: $EXP_LOG_ANALYTICS_ID"
+            echo "AZURE_EXISTING_AIPROJECT_RESOURCE_ID: $EXP_AI_PROJECT_ID"
+            azd env set AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID="$EXP_LOG_ANALYTICS_ID"
+            azd env set AZURE_EXISTING_AIPROJECT_RESOURCE_ID="$EXP_AI_PROJECT_ID"
           else
             echo "❌ EXP DISABLED - Skipping EXP parameters"
           fi
@@ -281,24 +301,102 @@ jobs:
           azd up --no-prompt
           
           echo "✅ Deployment succeeded."
-          echo "$DEPLOY_OUTPUT"
 
           echo "Extracting deployment outputs..."
-          DEPLOY_OUTPUT=$(azd env get-values --output json)
-          echo "Deployment output: $DEPLOY_OUTPUT"
-          
-          if [[ -z "$DEPLOY_OUTPUT" ]]; then
-            echo "Error: Deployment output is empty. Please check the deployment logs."
-            exit 1
+          API_APP_URL=$(azd env get-value API_APP_URL)
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_ENV
+          echo "API_APP_URL=${API_APP_URL}" >> $GITHUB_OUTPUT
+
+          WEB_APP_URL=$(azd env get-value WEB_APP_URL)
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
+          echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
+
+      - name: Install ODBC Driver 18 for SQL Server
+        shell: bash
+        run: |
+          if ! [[ "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
+          then
+              echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
+              exit 1;
           fi
+              
+          # Download the package to configure the Microsoft repo
+          curl -fsSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb || { echo "Failed to download Microsoft packages config"; exit 1; }
+          # Install the package
+          sudo dpkg -i packages-microsoft-prod.deb
+          # Delete the file
+          rm packages-microsoft-prod.deb
+              
+          # Install the driver
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          echo "✅ ODBC Driver 18 for SQL Server installed successfully."
 
-          API_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.API_APP_URL // empty')"
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_ENV
-          echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+      - name: Re-authenticate with Azure (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-          WEB_APP_URL="$(echo "$DEPLOY_OUTPUT" | jq -r '.WEB_APP_URL // empty')"
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_ENV
-          echo "WEB_APP_URL=$WEB_APP_URL" >> $GITHUB_OUTPUT
+      - name: Run Create Agents Scripts
+        id: run_create_agents_scripts
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running run_create_agents_scripts.sh..."
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Run Create Agents Scripts
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
+          sleep 20
+          bash ./infra/scripts/run_create_agents_scripts.sh
+          echo "✅ Create agents scripts completed successfully on retry."
+
+      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.process_sample_data.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 20
+          bash ./infra/scripts/process_sample_data.sh
+          echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Deployment Summary
         if: always()
@@ -308,8 +406,9 @@ jobs:
           WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
           EXP: ${{ inputs.EXP }}
           AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
-          AZURE_ENV_OPENAI_LOCATION: ${{ inputs.AZURE_ENV_OPENAI_LOCATION }}
+          AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.AZURE_ENV_AI_SERVICE_LOCATION }}
           IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
+          USE_CASE: ${{ inputs.USE_CASE }}
         run: |
           echo "## 🚀 Deploy Job Summary (Linux)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -319,14 +418,16 @@ jobs:
           echo "| **Resource Group** | \`$RESOURCE_GROUP_NAME\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Configuration Type** | \`${{ inputs.WAF_ENABLED == 'true' && inputs.EXP == 'true' && 'WAF + EXP' || inputs.WAF_ENABLED == 'true' && inputs.EXP != 'true' && 'WAF + Non-EXP' || inputs.WAF_ENABLED != 'true' && inputs.EXP == 'true' && 'Non-WAF + EXP' || 'Non-WAF + Non-EXP' }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure Region (Infrastructure)** | \`$AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Azure OpenAI Region** | \`$AZURE_ENV_OPENAI_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Azure AI Service Region** | \`$AZURE_ENV_AI_SERVICE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Docker Image Tag** | \`$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Use Case** | \`$USE_CASE\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ job.status }}" == "success" ]]; then
             echo "### ✅ Deployment Details" >> $GITHUB_STEP_SUMMARY
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
+            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
             echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY

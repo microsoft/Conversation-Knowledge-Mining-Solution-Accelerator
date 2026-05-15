@@ -142,7 +142,7 @@ const BarChart: React.FC<BarChartProps> = ({
         .style("font-size", "12px")
         .text(yLabel);
     }
-  }, [data, title, yLabel, containerHeight]);
+  }, [containerHeight, containerID, data, title, yLabel]);
 
   return (
     <div style={{ height: "91%" }}>

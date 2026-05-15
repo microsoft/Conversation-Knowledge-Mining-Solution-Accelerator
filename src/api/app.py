@@ -2,26 +2,27 @@
 FastAPI application entry point for the Conversation Knowledge Mining Solution Accelerator.
 
 This module sets up the FastAPI app, configures middleware, loads environment variables,
-registers API routers, and manages application lifespan events such as agent initialization
-and cleanup.
+and registers API routers.
 """
 
 
 import logging
 import os
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
 import uvicorn
 
-from agents.conversation_agent_factory import ConversationAgentFactory
-from agents.search_agent_factory import SearchAgentFactory
-from agents.sql_agent_factory import SQLAgentFactory
-from agents.chart_agent_factory import ChartAgentFactory
 from api.api_routes import router as backend_router
 from api.history_routes import router as history_router
+
+# Configure Azure Monitor and OpenTelemetry imports
+from azure.monitor.opentelemetry import configure_azure_monitor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from common.logging.span_filters import DropASGIResponseBodySpanProcessor, DropCosmosDependencySpanProcessor
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -42,32 +43,16 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+# Suppress noisy Azure SDK and OpenTelemetry internal loggers.
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies._universal").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("opentelemetry.sdk").setLevel(logging.WARNING)
+logging.getLogger("azure.monitor.opentelemetry.exporter.export._base").setLevel(logging.WARNING)
+
 # Package config: Azure loggers set to WARNING to suppress INFO
 for logger_name in AZURE_LOGGING_PACKAGES:
     logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
-
-
-@asynccontextmanager
-async def lifespan(fastapi_app: FastAPI):
-    """
-    Manages the application lifespan events for the FastAPI app.
-
-    On startup, initializes the Azure AI agent using the configuration and attaches it to the app state.
-    On shutdown, deletes the agent instance and performs any necessary cleanup.
-    """
-    fastapi_app.state.agent = await ConversationAgentFactory.get_agent()
-    fastapi_app.state.search_agent = await SearchAgentFactory.get_agent()
-    fastapi_app.state.sql_agent = await SQLAgentFactory.get_agent()
-    fastapi_app.state.chart_agent = await ChartAgentFactory.get_agent()
-    yield
-    await ConversationAgentFactory.delete_agent()
-    await SearchAgentFactory.delete_agent()
-    await SQLAgentFactory.delete_agent()
-    await ChartAgentFactory.delete_agent()
-    fastapi_app.state.sql_agent = None
-    fastapi_app.state.search_agent = None
-    fastapi_app.state.agent = None
-    fastapi_app.state.chart_agent = None
 
 
 def build_app() -> FastAPI:
@@ -76,8 +61,7 @@ def build_app() -> FastAPI:
     """
     fastapi_app = FastAPI(
         title="Conversation Knowledge Mining Solution Accelerator",
-        version="1.0.0",
-        lifespan=lifespan
+        version="1.0.0"
     )
 
     fastapi_app.add_middleware(
@@ -96,6 +80,29 @@ def build_app() -> FastAPI:
     async def health_check():
         """Health check endpoint"""
         return {"status": "healthy"}
+
+    # Configure Azure Monitor and instrument FastAPI for OpenTelemetry
+    # This enables automatic request tracing, dependency tracking, and proper operation_id
+    instrumentation_key = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if instrumentation_key:
+        # Configure Application Insights telemetry with live metrics
+        configure_azure_monitor(
+            connection_string=instrumentation_key,
+            enable_live_metrics=True,
+            span_processors=[
+                DropASGIResponseBodySpanProcessor(),
+                DropCosmosDependencySpanProcessor()
+            ]
+        )
+
+        # Instrument FastAPI app — exclude health-check URL to reduce telemetry noise
+        FastAPIInstrumentor.instrument_app(
+            fastapi_app,
+            excluded_urls="health"
+        )
+        logger.info("Application Insights configured with live metrics and FastAPI instrumentation enabled")
+    else:
+        logger.warning("No Application Insights connection string found. Telemetry disabled.")
 
     return fastapi_app
 

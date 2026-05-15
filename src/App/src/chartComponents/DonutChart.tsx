@@ -49,12 +49,13 @@ const DonutChart: React.FC<DonutChartProps> = ({
     const donutWidthAndHeight =
       (containerHeight > containerWidth ? containerWidth : containerHeight) /
       1.7;
-    const width = donutWidthAndHeight; // Set width equal to containerHeight for a square layout
+    const width = donutWidthAndHeight;
     const radius = width / 2;
     const svgHeight = donutWidthAndHeight + 40;
     const svgWidth = width + 40;
+    const chartElement = chartRef.current;
     const svg = d3
-      .select(chartRef.current)
+      .select(chartElement)
       .attr("width", svgWidth)
       .attr("height", svgHeight + 8)
       .append("g")
@@ -88,7 +89,9 @@ const DonutChart: React.FC<DonutChartProps> = ({
       });
 
     return () => {
-      d3.select(chartRef.current).selectAll("*").remove();
+      if (chartElement) {
+        d3.select(chartElement).selectAll("*").remove();
+      }
     };
   }, [data, containerHeight, containerID]);
 

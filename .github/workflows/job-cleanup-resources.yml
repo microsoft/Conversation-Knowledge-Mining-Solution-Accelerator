@@ -29,8 +29,8 @@ on:
         description: 'Azure Location'
         required: true
         type: string
-      azure_env_openai_location:
-        description: 'Azure OpenAI Location'
+      azure_env_ai_service_location:
+        description: 'Azure AI Service Location'
         required: true
         type: string
       env_name:
@@ -45,19 +45,21 @@ on:
 jobs:
   cleanup-deployment:
     runs-on: ${{ inputs.runner_os }}
+    environment: production
     continue-on-error: true
     env:
       RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
       AZURE_LOCATION: ${{ inputs.azure_location }}
-      AZURE_ENV_OPENAI_LOCATION: ${{ inputs.azure_env_openai_location }}
+      AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.azure_env_ai_service_location }}
       ENV_NAME: ${{ inputs.env_name }}
       IMAGE_TAG: ${{ inputs.image_tag }}
     steps:
       - name: Login to Azure
-        shell: bash
-        run: |
-          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az account set --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Delete Resource Group (Optimized Cleanup)
         id: delete_rg

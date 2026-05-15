@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
 from common.logging.event_utils import track_event_if_configured  
@@ -21,7 +21,7 @@ def test_track_event_without_instrumentation_key(monkeypatch, event_data, caplog
     monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
 
     with patch("common.logging.event_utils.track_event") as mock_track_event:
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.WARNING, logger="common.logging.event_utils"):
             track_event_if_configured("TestEvent", event_data)
             mock_track_event.assert_not_called()
-            assert "Skipping track_event for TestEvent as Application Insights is not configured" in caplog.text
+            assert "Skipping track_event for TestEvent: Application Insights is not configured" in caplog.text
