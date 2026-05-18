@@ -729,12 +729,12 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = {
     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
     roleAssignments: [
       {
-        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Foundry User
         principalId: userAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
       {
-        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Foundry User
         principalId: backendUserAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
