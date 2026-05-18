@@ -2,7 +2,6 @@
 set -e
 echo "Started the agent creation script setup..."
 
-
 # Variables
 resourceGroup="$1"
 projectEndpoint="$2"
