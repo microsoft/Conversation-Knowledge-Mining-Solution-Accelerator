@@ -192,21 +192,21 @@ call az sql server ad-admin create ^
     --output tsv >nul 2>&1
 echo Azure SQL Server AAD admin role assigned successfully.
 
-REM Assign Azure AI User role
-echo Checking Azure AI User role assignment...
+REM Assign Foundry User role
+echo Checking Foundry User role assignment...
 if not defined EXISTING_AI_PROJECT_RESOURCE_ID (
     echo Using AI Foundry account scope...
     FOR /F "delims=" %%i IN ('az role assignment list --assignee %signed_user_id% --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.CognitiveServices/accounts/%AI_FOUNDRY_NAME%" --query "[0].id" -o tsv') DO set "aiUserRoleExists=%%i"
     if defined aiUserRoleExists (
-        echo User already has the Azure AI User role.
+        echo User already has the Foundry User role.
     ) else (
-        echo Assigning Azure AI User role to AI Foundry account...
+        echo Assigning Foundry User role to AI Foundry account...
         call az role assignment create ^
             --assignee %signed_user_id% ^
             --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" ^
             --scope "/subscriptions/%subscription_id%/resourceGroups/%AZURE_RESOURCE_GROUP%/providers/Microsoft.CognitiveServices/accounts/%AI_FOUNDRY_NAME%" ^
             --output none
-        echo Azure AI User role assigned successfully.
+        echo Foundry User role assigned successfully.
     )
 ) else (
     echo Extracting foundry scope from existing AI project resource ID...
@@ -216,15 +216,15 @@ if not defined EXISTING_AI_PROJECT_RESOURCE_ID (
     echo Using foundry scope from existing project: !FOUNDRY_SCOPE!
     FOR /F "delims=" %%i IN ('az role assignment list --assignee %signed_user_id% --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" --scope "!FOUNDRY_SCOPE!" --query "[0].id" -o tsv') DO set "aiUserRoleExists=%%i"
     if defined aiUserRoleExists (
-        echo User already has the Azure AI User role.
+        echo User already has the Foundry User role.
     ) else (
-        echo Assigning Azure AI User role to foundry account...
+        echo Assigning Foundry User role to foundry account...
         call az role assignment create ^
             --assignee %signed_user_id% ^
             --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" ^
             --scope "!FOUNDRY_SCOPE!" ^
             --output none
-        echo Azure AI User role assigned successfully.
+        echo Foundry User role assigned successfully.
     )
 )
 

@@ -389,10 +389,10 @@ Write-Host $PRINCIPAL_ID
 #### Azure AI Foundry & OpenAI Access
 
 ```bash
-# Assign Azure AI User role
+# Assign Foundry User role
 az role assignment create \
   --assignee $PRINCIPAL_ID \
-  --role "Azure AI User" \
+  --role "Foundry User" \
   --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.MachineLearningServices/workspaces/<ai-foundry-name>"
 
 # Assign Cognitive Services OpenAI User role
