@@ -9,7 +9,7 @@ This guide provides comprehensive instructions for setting up the **Conversation
 This application consists of two separate services that run independently:
 
 1. **Backend API** - Python FastAPI server providing REST endpoints
-2. **Frontend** - React-based user interface
+2. **Frontend** - Vite-powered React + TypeScript user interface
 
 > ⚠️ **Critical**: Each service must run in its own terminal/console window
 >
@@ -60,7 +60,7 @@ cd path\to\Conversation-Knowledge-Mining-Solution-Accelerator
 This project uses separate `.env` files in each service directory with different configuration requirements:
 
 • **Backend API**: `src/api/.env` - Azure service endpoints, credentials, and API configuration  
-• **Frontend**: `src/App/.env` - API base URL and React app settings
+• **Frontend**: `src/App/.env` - API base URL and Vite app settings
 
 When copying `.env` samples, always navigate to the specific service directory first.
 
@@ -608,7 +608,7 @@ AZURE_BASIC_LOGGING_LEVEL=INFO
 AZURE_PACKAGE_LOGGING_LEVEL=WARNING
 AZURE_LOGGING_PACKAGES=
 
-# Frontend Layout Configuration
+# Layout Configuration (backend variable served to the frontend via API)
 REACT_APP_LAYOUT_CONFIG=<layout-config-json>
 ```
 
@@ -723,7 +723,7 @@ az account show
 
 > 📋 **Terminal Reminder**: Open a second dedicated terminal window (Terminal 2) for the Frontend. Keep Terminal 1 (Backend API) running. All commands assume you start from the repository root directory.
 
-The Frontend is a React-based web application that provides an interactive interface for exploring conversational insights through natural language queries.
+The Frontend is a Vite-powered React + TypeScript web application that provides an interactive interface for exploring conversational insights through natural language queries.
 
 ### 5.1. Navigate to Frontend Directory
 
@@ -769,12 +769,12 @@ npm install
 ```
 
 This will install all dependencies listed in `package.json`, including:
-- React and React DOM
+- React and React DOM (UI framework)
 - Fluent UI components (@fluentui/react, @fluentui/react-components)
 - Azure MSAL for authentication (@azure/msal-react, @azure/msal-browser)
 - Chart.js and D3 for data visualization
 - Axios for API calls
-- Development tools and testing libraries
+- Vite, TypeScript, and Vitest (development tooling)
 
 > **Note**: The frontend uses Vite with a dev server proxy configured in `vite.config.ts`. The proxy forwards `/api` and `/history` requests to the backend at `http://localhost:8000`.
 > You can also set the `VITE_API_BASE_URL` environment variable in `.env` to configure the backend URL.
@@ -934,13 +934,13 @@ curl http://127.0.0.1:8000/health
 
 • Ensure you're in the correct directory  
 • Verify virtual environment is activated (Python services)  
-• Check that port is not already in use (8000 for API, 3000 for frontend)  
+• Check that port is not already in use (8000 for API, 5173 for frontend)  
 • Review error messages in the terminal  
 • Verify all environment variables are set in `.env` files
 
 **Can't access services?**
 
-• Verify firewall isn't blocking ports 8000 or 3000  
+• Verify firewall isn't blocking ports 8000 or 5173  
 • Try `http://localhost:port` instead of `http://127.0.0.1:port` or vice versa  
 • Ensure services show "startup complete" messages  
 • Check for proxy or VPN interference
@@ -1150,7 +1150,7 @@ az resource list --resource-group <rg-name> --output table
 
 ### Frontend Issues
 
-#### React App Shows Blank Page
+#### Frontend App Shows Blank Page
 
 1. Check browser console (F12) for JavaScript errors
 2. Verify `VITE_API_BASE_URL` in `src/App/.env`
@@ -1211,11 +1211,11 @@ app.add_middleware(
 # Test if ports are accessible
 # Windows:
 Test-NetConnection -ComputerName localhost -Port 8000
-Test-NetConnection -ComputerName localhost -Port 3000
+Test-NetConnection -ComputerName localhost -Port 5173
 
 # Linux/macOS:
 nc -zv localhost 8000
-nc -zv localhost 3000
+nc -zv localhost 5173
 
 # Check if firewall is blocking
 # Windows: Windows Defender Firewall → Allow an app
@@ -1348,7 +1348,7 @@ Once all services are running (as confirmed in Step 6), you can:
    - Backend agents: `src/api/agents/`
    - API routes: `src/api/api/`
    - Services: `src/api/services/`
-   - React components: `src/App/src/components/`
+   - Frontend components: `src/App/src/components/`
 
 ---
 
