@@ -153,7 +153,6 @@ const Dashboard: React.FC = () => {
 
   const onHandlePanelStates = useCallback(
     (panelName: string) => {
-      dispatch(hideCitation());
       setLayoutWidthUpdated((previousFlag) => !previousFlag);
       const nextState = {
         ...panelShowStates,
@@ -165,6 +164,10 @@ const Dashboard: React.FC = () => {
         nextState[panels.DASHBOARD] = true;
       } else if (isHiddenBoth && panelName === panels.DASHBOARD) {
         nextState[panels.CHAT] = true;
+      }
+
+      if (panelName === panels.CHAT && !nextState[panels.CHAT]) {
+        dispatch(hideCitation());
       }
 
       updateLayoutWidths(nextState);
@@ -304,11 +307,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
         {showCitation && currentConversationIdForCitation !== "" && (
-          <div
-            style={{
-              width: `${panelWidths[panels.CHATHISTORY] || 17}%`,
-            }}
-          >
+          <div className="citation-panel-wrapper">
             <CitationPanel activeCitation={activeCitation} />
           </div>
         )}
