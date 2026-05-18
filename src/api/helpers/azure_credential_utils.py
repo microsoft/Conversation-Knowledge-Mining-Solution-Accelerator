@@ -39,3 +39,16 @@ def get_azure_credential(client_id=None):
         return AzureCliCredential()
     else:
         return ManagedIdentityCredential(client_id=client_id)
+
+
+def build_async_azure_credential(client_id=None):
+    """
+    Synchronously builds an async Azure credential suitable for async SDK clients
+    (e.g., azure.cosmos.aio.CosmosClient). Use this from sync constructors that
+    need to hand an async-capable credential to an async client; use
+    get_azure_credential_async() instead from `async with` blocks.
+    """
+    if os.getenv("APP_ENV", "prod").lower() == 'dev':
+        return AioAzureCliCredential()
+    else:
+        return AioManagedIdentityCredential(client_id=client_id)

@@ -18,7 +18,7 @@ gpt-4o:150, gpt-4o-mini:150, gpt-4:150, text-embedding-3-small:80
 ```
 ### 📌 Default Regions:
 ```
-eastus, uksouth, eastus2, northcentralus, swedencentral, westus, westus2, southcentralus, canadacentral
+eastus, eastus2, australiaeast, uksouth, swedencentral, westus, westus3, japaneast, southcentralus, westeurope
 ```
 ### Usage Scenarios:
 - No parameters passed → Default models and capacities will be checked in default regions.

@@ -29,7 +29,7 @@ If you would like to update the solution to leverage your own data please follow
       <Storage-Account-Name> <Storage-Container-Name> \
       <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
       <AI-Search-Name> <Search-Endpoint> \
-      <AI-Foundry-Resource-ID> <CU-Foundry-Resource-ID> \
+      <AI-Foundry-Resource-ID> \
       <OpenAI-Endpoint> <Embedding-Model> <Deployment-Model> \
       <CU-Endpoint> <CU-API-Version> <AI-Agent-Endpoint> <Solution-Name>
     ```

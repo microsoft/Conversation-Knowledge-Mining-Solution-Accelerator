@@ -20,7 +20,7 @@ logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
 
 import pandas as pd
 import pyodbc
-from azure.ai.inference.aio import EmbeddingsClient
+from openai import AsyncOpenAI
 from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
@@ -201,17 +201,20 @@ cu_client = AzureContentUnderstandingClient(
     api_version=CU_API_VERSION,
     token_provider=cu_token_provider
 )
-ANALYZER_ID = "ckm-json"
+ANALYZER_ID = "ckm_analyzer_json"
 
-# Azure AI Foundry (Inference) embeddings client (async)
-inference_endpoint = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/models"
+# Azure OpenAI embeddings endpoint (v1 API - no api-version needed)
+embeddings_base_url = f"https://{urlparse(AI_PROJECT_ENDPOINT).netloc}/openai/v1/"
+embeddings_token_provider = get_bearer_token_provider(
+    AzureCliCredential(process_timeout=30), "https://ai.azure.com/.default"
+)
 
 
 # Utility functions
 async def get_embeddings_async(text: str, embeddings_client):
-    """Get embeddings using async EmbeddingsClient."""
+    """Get embeddings using async OpenAI client."""
     try:
-        resp = await embeddings_client.embed(model=EMBEDDING_MODEL, input=[text])
+        resp = await embeddings_client.embeddings.create(model=EMBEDDING_MODEL, input=text)
         return resp.data[0].embedding
     except Exception as e:
         print(f"Error getting embeddings: {e}")
@@ -324,14 +327,11 @@ async def process_files():
     processed_records = []  # Collect all records for batch insert
 
     # Create embeddings client for entire processing session
-    async with (
-        AsyncAzureCliCredential(process_timeout=30) as async_cred,
-        EmbeddingsClient(
-            endpoint=inference_endpoint,
-            credential=async_cred,
-            credential_scopes=["https://ai.azure.com/.default"],
-        ) as embeddings_client
-    ):
+    embeddings_client = AsyncOpenAI(
+        base_url=embeddings_base_url,
+        api_key=embeddings_token_provider(),
+    )
+    try:
         for path in paths:
             file_client = file_system_client.get_file_client(path.name)
             data_file = file_client.download_file()
@@ -340,10 +340,10 @@ async def process_files():
                 response = cu_client.begin_analyze(ANALYZER_ID, file_location="", file_data=data)
                 result = cu_client.poll_result(response)
                 file_name = path.name.split('/')[-1].replace("%3A", "_")
-                if USE_CASE == 'telecom': 
+                if USE_CASE == 'telecom':
                     start_time = file_name.replace(".json", "")[-19:]
                     timestamp_format = "%Y-%m-%d %H_%M_%S"
-                else: 
+                else:
                     start_time = file_name.replace(".json", "")[-16:]
                     timestamp_format = "%Y-%m-%d%H%M%S"
                 start_timestamp = datetime.strptime(start_time, timestamp_format)
@@ -389,11 +389,14 @@ async def process_files():
         if docs:
             search_client.upload_documents(documents=docs)
 
-    # Batch insert all processed records using optimized SQL script
-    if processed_records:
-        df_processed = pd.DataFrame(processed_records)
-        columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
-        generate_sql_insert_script(df_processed, 'processed_data', columns, 'processed_data_batch_insert.sql')
+        # Batch insert all processed records using optimized SQL script
+        if processed_records:
+            df_processed = pd.DataFrame(processed_records)
+            columns = ['ConversationId', 'EndTime', 'StartTime', 'Content', 'summary', 'satisfied', 'sentiment', 'topic', 'key_phrases', 'complaint']
+            generate_sql_insert_script(df_processed, 'processed_data', columns, 'processed_data_batch_insert.sql')
+    finally:
+        # Close the embeddings client to release the underlying httpx connection pool.
+        await embeddings_client.close()
 
     return conversationIds, counter
 
