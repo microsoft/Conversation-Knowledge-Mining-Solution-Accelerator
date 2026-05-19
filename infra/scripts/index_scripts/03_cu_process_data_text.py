@@ -316,9 +316,33 @@ def create_tables():
 
 create_tables()
 
+def _sanitize_cu_output(text):
+    """Replace non-printable control characters that may appear in CU output.
+
+    When JSON files containing Unicode escape sequences (e.g. \\u2019) are
+    sent as raw binary via the analyzeBinary endpoint, the returned text
+    occasionally contains unexpected control characters instead of the
+    intended Unicode characters. This is a defensive fix that maps those
+    control characters back to their likely intended values.
+    """
+    if not text:
+        return text
+    replacements = {
+        '\u0019': '\u2019',  # right single quotation mark
+        '\u001a': '\u2019',  # right single quotation mark
+        '\u001c': '\u201c',  # left double quotation mark
+        '\u001d': '\u201d',  # right double quotation mark
+        '\u001e': '\u2014',  # em dash
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return text
+
+
 def get_field_value(fields, field_name, default=""):
     field = fields.get(field_name, {})
-    return field.get('valueString', default)
+    value = field.get('valueString', default)
+    return _sanitize_cu_output(value)
 
 # Process files and insert into DB and Search
 async def process_files():
