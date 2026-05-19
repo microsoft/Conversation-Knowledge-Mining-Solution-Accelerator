@@ -90,8 +90,8 @@ setup_environment() {
 
     # Write API base URL to frontend .env
     APP_ENV_FILE="$ROOT_DIR/src/App/.env"
-    echo "REACT_APP_API_BASE_URL=http://127.0.0.1:8000" > "$APP_ENV_FILE"
-    echo "Updated src/App/.env with REACT_APP_API_BASE_URL"
+    echo "VITE_API_BASE_URL=http://127.0.0.1:8000" > "$APP_ENV_FILE"
+    echo "Updated src/App/.env with VITE_API_BASE_URL"
 
     # Add or update APP_ENV="dev" in API .env file
     echo "Checking for existing APP_ENV in src/api/.env..."
