@@ -6,6 +6,32 @@ import time
 from pathlib import Path
 
 
+def sanitize_cu_output(text):
+    """Replace non-printable control characters that may appear in CU output.
+
+    The Content Understanding analyzeBinary API (v2025-11-01) intermittently
+    corrupts Unicode characters by stripping the high byte (e.g. U+2019 becomes
+    U+0019).  This function maps each known corrupted control character back to
+    its intended Unicode equivalent.  The mapping is based on empirical
+    observation of characters corrupted in a single high-byte-stripping pass
+    over the U+201x range.
+
+    The fix is zero-cost when CU output is already correct.
+    """
+    if not text:
+        return text
+    replacements = {
+        '\u0019': '\u2019',  # right single quotation mark
+        '\u001a': '\u201a',  # single low-9 quotation mark
+        '\u001c': '\u201c',  # left double quotation mark
+        '\u001d': '\u201d',  # right double quotation mark
+        '\u001e': '\u2014',  # em dash (empirically observed)
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return text
+
+
 class AzureContentUnderstandingClient:
     def __init__(
         self,
