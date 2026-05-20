@@ -149,8 +149,8 @@ def _extract_schema(cursor) -> dict:
             if isinstance(json.loads(r[0]), list):
                 has_phrases = True
                 break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Skipping malformed key_phrases row: {e}")
 
     fields = []
     for name, info in field_info.items():
@@ -503,8 +503,8 @@ def _exec_chart(cursor, spec, where, params):
                     for p in json.loads(row[0]):
                         if isinstance(p, str) and len(p.strip()) > 1:
                             ctr[p.strip().lower()] += 1
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Skipping malformed key_phrases in chart computation: {e}")
             top = ctr.most_common(15)
             if not top:
                 return None
@@ -595,8 +595,8 @@ def _exec_filters(cursor, filter_specs):
                     "type": spec.get("type", "categorical"),
                     "multi_select": spec.get("multi_select", False),
                     "values": vals})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load filter values for field '{f}': {e}")
     return result
 
 
@@ -698,8 +698,8 @@ class DashboardService:
             logger.warning(f"Dashboard failed: {e}")
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to close connection after dashboard error: {e}")
             return self._empty()
 
     @staticmethod

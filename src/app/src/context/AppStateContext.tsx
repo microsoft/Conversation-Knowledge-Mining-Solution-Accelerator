@@ -1,16 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { loadFromSession } from "../utils/storage";
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  sources?: Array<{ doc_id: string; score: number }>;
-}
+import type { DashboardResponse, ChatMessage } from "../types/api";
 
 interface AppState {
   // Insights cache
-  insights: any | null;
-  setInsights: (data: any) => void;
+  insights: DashboardResponse | null;
+  setInsights: (data: DashboardResponse | null) => void;
 
   // Dashboard headline (LLM-generated, shown in app header)
   dashboardHeadline: string;
@@ -39,12 +34,12 @@ const AppContext = createContext<AppState>({
 export const useAppState = () => useContext(AppContext);
 
 export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [insights, setInsightsRaw] = useState<any | null>(() => loadFromSession("km_insights", null));
+  const [insights, setInsightsRaw] = useState<DashboardResponse | null>(() => loadFromSession("km_insights", null));
   const [dashboardHeadline, setDashboardHeadline] = useState<string>(() => loadFromSession("km_headline", ""));
   const [chatMessages, setChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_chat", []));
   const [exploreChatMessages, setExploreChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_explore_chat", []));
 
-  const setInsights = (data: any) => {
+  const setInsights = (data: DashboardResponse | null) => {
     setInsightsRaw(data);
     try { sessionStorage.setItem("km_insights", JSON.stringify(data)); } catch {}
   };

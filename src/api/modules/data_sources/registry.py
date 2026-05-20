@@ -136,8 +136,8 @@ class DataSourceRegistry:
         try:
             from src.api.storage.sql_service import sql_service
             sql_service.delete_data_source(source_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to delete data source '{source_id}' from SQL: {e}")
         return True
 
     def get(self, source_id: str) -> Optional[DataSourceConfig]:
@@ -164,8 +164,8 @@ class DataSourceRegistry:
         if result["success"]:
             try:
                 columns = adapter.get_schema(config)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to get schema for data source: {e}")
         result["columns"] = [c.model_dump() for c in columns]
         # Auto-detect field mapping from column names
         if columns:

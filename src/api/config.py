@@ -1,6 +1,9 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -9,6 +12,7 @@ class Settings(BaseSettings):
 
     # Azure OpenAI (direct SDK fallback when Foundry IQ is not configured)
     azure_openai_endpoint: str = ""
+    azure_openai_api_version: str = "2024-10-21"
     azure_openai_embedding_deployment: str = "text-embedding-ada-002"
     azure_openai_chat_deployment: str = "gpt-4o"
 
@@ -18,6 +22,8 @@ class Settings(BaseSettings):
 
     # Azure Content Understanding
     azure_content_understanding_endpoint: str = ""
+    azure_content_understanding_api_version: str = "2024-12-01-preview"
+    azure_content_understanding_analyzer_id: str = "km-document"
 
     # Microsoft Entra ID (AAD)
     azure_ad_tenant_id: str = ""
@@ -61,7 +67,29 @@ class Settings(BaseSettings):
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
+    def validate_startup(self) -> list[str]:
+        """Check for missing configuration and return warnings.
+
+        This does NOT block startup — the app can run locally without Azure
+        services. But it logs which features will be unavailable.
+        """
+        warnings = []
+        if not self.azure_foundry_endpoint and not self.azure_openai_endpoint:
+            warnings.append("No LLM endpoint configured (azure_foundry_endpoint or azure_openai_endpoint). Chat and insights will not work.")
+        if not self.azure_search_endpoint:
+            warnings.append("azure_search_endpoint not set. Hybrid search will not work.")
+        if not self.azure_content_understanding_endpoint:
+            warnings.append("azure_content_understanding_endpoint not set. Document extraction will not work.")
+        if not self.azure_sql_server:
+            warnings.append("azure_sql_server not set. Data will only persist in memory.")
+        if not self.azure_storage_account:
+            warnings.append("azure_storage_account not set. Async queue processing disabled; uploads will process in-process.")
+        return warnings
+
 
 @lru_cache()
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    for w in settings.validate_startup():
+        logger.warning(f"[CONFIG] {w}")
+    return settings

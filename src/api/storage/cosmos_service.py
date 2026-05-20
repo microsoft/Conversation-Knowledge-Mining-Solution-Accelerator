@@ -238,8 +238,8 @@ class CosmosService:
             for item in old:
                 try:
                     container.delete_item(item=item["id"], partition_key=session_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to delete message {item.get('id', '?')}: {e}")
 
             # Insert new messages
             for i, msg in enumerate(messages):

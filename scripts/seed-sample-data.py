@@ -428,6 +428,50 @@ def main():
             print(f"\nERROR: Data file not found: {f}")
             sys.exit(1)
 
+    # Clear existing data before seeding
+    print(f"\n{'='*60}")
+    print("Step 0: Clear existing data")
+    print(f"{'='*60}")
+
+    # Clear AI Search index (delete + recreate)
+    try:
+        index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
+        try:
+            index_def = index_client.get_index(INDEX_NAME)
+            index_client.delete_index(INDEX_NAME)
+            print(f"  [OK] Deleted old search index '{INDEX_NAME}'")
+        except Exception:
+            print(f"  [OK] No existing index '{INDEX_NAME}' to clear")
+    except Exception as e:
+        print(f"  [WARN] Could not clear search index: {e}")
+
+    # Clear SQL tables
+    if SQL_SERVER:
+        try:
+            import struct
+            import pyodbc
+            token = credential.get_token("https://database.windows.net/.default")
+            token_bytes = token.token.encode("utf-16-le")
+            token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+            conn_str = (
+                f"Driver={{ODBC Driver 18 for SQL Server}};"
+                f"Server={SQL_SERVER};"
+                f"Database={SQL_DATABASE};"
+                f"Encrypt=yes;TrustServerCertificate=no;"
+            )
+            conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+            cursor = conn.cursor()
+            for table in ["documents", "uploaded_files", "filter_schemas", "enrichment_cache"]:
+                try:
+                    cursor.execute(f"DELETE FROM {table}")
+                except Exception:
+                    pass  # Table may not exist yet
+            conn.commit()
+            conn.close()
+            print(f"  [OK] Cleared SQL tables")
+        except Exception as e:
+            print(f"  [WARN] Could not clear SQL: {e}")
+
     try:
         ensure_search_index()
         upload_search_data()
@@ -467,6 +511,16 @@ def main():
     print(f"  Cosmos DB    : {COSMOS_DATABASE}")
     if SQL_SERVER:
         print(f"  Azure SQL    : {SQL_DATABASE}")
+
+    # Notify running API server to refresh its cache
+    import urllib.request
+    api_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+    try:
+        req = urllib.request.Request(f"{api_url}/api/ingestion/refresh", method="POST")
+        urllib.request.urlopen(req, timeout=5)
+        print(f"\n  [OK] API server cache refreshed")
+    except Exception:
+        print(f"\n  [INFO] Could not reach API at {api_url} — restart the server to pick up new data")
     print()
 
 

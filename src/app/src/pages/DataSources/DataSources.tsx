@@ -30,6 +30,7 @@ import {
   deleteFile,
   uploadDocument,
 } from "../../api/client";
+import type { UploadedFile, DataSourceConfig } from "../../types/api";
 import { useNavigate } from "react-router-dom";
 import "./DataSources.css";
 
@@ -43,10 +44,11 @@ const TYPE_LABELS: Record<string, string> = {
 
 const DataSources: React.FC = () => {
   const navigate = useNavigate();
-  const [sources, setSources] = useState<any[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [sources, setSources] = useState<DataSourceConfig[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSources = useCallback(async () => {
@@ -81,17 +83,17 @@ const DataSources: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await deleteFile(deleteTarget.id); loadSources(); } catch { /* ignore */ }
+    try { await deleteFile(deleteTarget.id); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
     finally { setDeleting(false); setDeleteTarget(null); }
   };
 
   const handleDeleteSource = async (id: string) => {
-    try { await deleteDataSource(id); loadSources(); } catch { /* ignore */ }
+    try { await deleteDataSource(id); loadSources(); } catch (e) { setError(`Failed to delete data source: ${e instanceof Error ? e.message : "Unknown error"}`); }
   };
 
   const handleIngest = async (id: string) => {
     setIngesting(id);
-    try { await ingestDataSource(id); loadSources(); } catch { /* ignore */ }
+    try { await ingestDataSource(id); loadSources(); } catch (e) { setError(`Ingestion failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
     finally { setIngesting(null); }
   };
 
@@ -101,7 +103,7 @@ const DataSources: React.FC = () => {
     try {
       await uploadDocument(Array.from(fileList));
       loadSources();
-    } catch { /* ignore */ }
+    } catch (e) { setError(`Upload failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -123,6 +125,14 @@ const DataSources: React.FC = () => {
 
   return (
     <div className="sourcesPage">
+      {/* Error banner */}
+      {error && (
+        <div style={{ padding: "10px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, color: "#991b1b", fontSize: 13, display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px" }}>
+          <ErrorCircle20Regular />
+          <span style={{ flex: 1 }}>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontWeight: 600 }}>Dismiss</button>
+        </div>
+      )}
       {/* Header with upload button */}
       <div className="sourcesHeader">
         <div>
@@ -259,7 +269,7 @@ const DataSources: React.FC = () => {
                   </Badge>
                 </div>
                 <div className="sourceMeta">
-                  {TYPE_LABELS[src.source_type] || src.source_type} · {src.doc_count.toLocaleString()} rows
+                  {TYPE_LABELS[src.source_type] || src.source_type} · {(src.doc_count ?? 0).toLocaleString()} rows
                 </div>
               </div>
               <div className="sourceActions">

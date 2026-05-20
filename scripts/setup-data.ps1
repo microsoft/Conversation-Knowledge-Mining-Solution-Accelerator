@@ -136,6 +136,24 @@ if ($Scenario) {
         exit 1
     }
 
+    # Update UI config with scenario name
+    $uiConfigPath = Join-Path $projectRoot "src" "app" "src" "config" "ui-config.json"
+    if (Test-Path $uiConfigPath) {
+        $uiConfig = Get-Content $uiConfigPath -Raw | ConvertFrom-Json
+        $uiConfig.useCaseName = $pack.name
+        $uiConfig | ConvertTo-Json -Depth 10 | Set-Content $uiConfigPath -Encoding UTF8
+        Write-Host "Updated UI config: useCaseName = '$($pack.name)'" -ForegroundColor Green
+    }
+
+    # Auto-clear existing data before loading a new scenario
+    Write-Host "Clearing existing data before loading new scenario..." -ForegroundColor Yellow
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $headers | Out-Null
+        Write-Host "Previous data cleared." -ForegroundColor Green
+    } catch {
+        Write-Host "Warning: Could not clear via API (server may not be running) — $_" -ForegroundColor Yellow
+    }
+
     # Contact Center has pre-processed data — use the direct seed path
     if ($pack.has_preprocessed -eq $true) {
         Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow

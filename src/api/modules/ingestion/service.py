@@ -55,6 +55,13 @@ class IngestionService:
         f = self._uploaded_files.get(file_id)
         return f is not None and f.status == "ready"
 
+    def reload(self):
+        """Force re-read from database on next access."""
+        self._loaded_from_db = False
+        self._documents.clear()
+        self._uploaded_files.clear()
+        self._filter_schema = FilterSchema()
+
     def _ensure_loaded(self):
         """Load persisted data from Azure SQL on first access."""
         if self._loaded_from_db:
@@ -80,8 +87,8 @@ class IngestionService:
                         metadata=meta,
                     )
                     self._documents[doc.id] = doc
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to load document {item.get('id', '?')}: {e}")
 
             # Load uploaded files
             files = sql_service.load_all_uploaded_files()
@@ -104,8 +111,8 @@ class IngestionService:
                             if (doc.metadata.source_file or "") == uf.filename
                         ]
                     self._uploaded_files[uf.id] = uf
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to load uploaded file {item.get('id', '?')}: {e}")
 
             # Load filter schema — only if we have files to match it against
             if self._uploaded_files:
@@ -124,8 +131,8 @@ class IngestionService:
                 self._filter_schema = FilterSchema()
                 try:
                     sql_service.save_filter_schema({"domain": "", "dimensions": []})
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to clear stale filter schema: {e}")
 
             if self._documents:
                 logger.info(f"Loaded from Azure SQL: {len(self._documents)} docs, {len(self._uploaded_files)} files")
@@ -142,16 +149,16 @@ class IngestionService:
         try:
             from src.api.storage.sql_service import sql_service
             sql_service.save_document(item["id"], item)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to persist document {item.get('id', '?')}: {e}")
 
     def _persist_file(self, uploaded_file: UploadedFile):
         """Persist uploaded file metadata to Azure SQL."""
         try:
             from src.api.storage.sql_service import sql_service
             sql_service.save_uploaded_file(uploaded_file.dict())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to persist file {uploaded_file.id}: {e}")
 
     def _persist_schema(self):
         """Persist the current filter schema to Azure SQL."""
@@ -574,12 +581,13 @@ class IngestionService:
         return result
 
     def clear(self):
-        """Clear all data from memory and SQL."""
+        """Clear all data from memory, SQL, and AI Search."""
         self._documents.clear()
         self._uploaded_files.clear()
         self._filter_schema = FilterSchema()
+        self._loaded_from_db = False
 
-        # Also clear SQL tables
+        # Clear SQL tables
         try:
             from src.api.storage.sql_service import sql_service
             if sql_service.available:
@@ -594,6 +602,30 @@ class IngestionService:
                 logger.info("Cleared all data from SQL")
         except Exception as e:
             logger.warning(f"Failed to clear SQL tables: {e}")
+
+        # Clear AI Search index
+        try:
+            from src.api.config import get_settings
+            from azure.identity import DefaultAzureCredential
+            from azure.search.documents import SearchClient
+            from azure.search.documents.indexes import SearchIndexClient
+            settings = get_settings()
+            if settings.azure_search_endpoint:
+                cred = DefaultAzureCredential()
+                index_name = settings.azure_search_index_name
+                # Delete and recreate index to clear all documents
+                index_client = SearchIndexClient(
+                    endpoint=settings.azure_search_endpoint, credential=cred
+                )
+                try:
+                    index_def = index_client.get_index(index_name)
+                    index_client.delete_index(index_name)
+                    index_client.create_index(index_def)
+                    logger.info(f"Cleared AI Search index '{index_name}'")
+                except Exception as e:
+                    logger.warning(f"Failed to clear AI Search index: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to clear AI Search: {e}")
 
     def delete_file(self, file_id: str) -> bool:
         """Delete an uploaded file and all its documents."""
@@ -661,8 +693,8 @@ class IngestionService:
                     credential=DefaultAzureCredential(),
                 )
                 client.delete_documents(documents=[{"id": did} for did in doc_ids_to_remove])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to remove documents from AI Search for file '{file_id}': {e}")
 
         logger.info(f"Deleted file '{file_id}' and {len(doc_ids_to_remove)} documents")
         return True

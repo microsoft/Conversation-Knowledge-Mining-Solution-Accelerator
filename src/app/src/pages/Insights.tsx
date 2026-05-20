@@ -5,6 +5,7 @@ import { DonutChart, BarChart, LineChart } from "../components/Charts";
 import { useNavigate } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
+import type { DashboardResponse, KPI, ChartSpec } from "../types/api";
 import s from "./Insights.module.css";
 
 const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec4899", "#0ea5e9", "#f97316"];
@@ -12,7 +13,7 @@ const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec
 const Insights: React.FC = () => {
   const nav = useNavigate();
   const { setDashboardHeadline, insights: cachedData, setInsights } = useAppState();
-  const [data, setData] = useState<any>(cachedData);
+  const [data, setData] = useState<DashboardResponse | null>(cachedData);
   const [loading, setLoading] = useState(!cachedData);
   const [filters, setFilters] = useState<Record<string, string>>({});
 
@@ -40,7 +41,7 @@ const Insights: React.FC = () => {
     load(next);
   };
 
-  const fmt = (kpi: any) => {
+  const fmt = (kpi: KPI) => {
     if (kpi.format === "percentage") return `${kpi.value}%`;
     if (kpi.format === "minutes") return `${kpi.value}mins`;
     return kpi.value?.toLocaleString?.() ?? kpi.value;
@@ -52,7 +53,7 @@ const Insights: React.FC = () => {
     </div></div>
   );
 
-  if (!data || (data.data_context?.total_records ?? data.total_records ?? 0) === 0) return (
+  if (!data || (data.data_context?.total_records ?? 0) === 0) return (
     <div className={s.page}><div className={s.empty}>
       <ChartMultiple24Regular style={{ fontSize: 48 }} />
       <h2>No Data Available</h2><p>Upload documents or connect a data source to see insights.</p>
@@ -68,16 +69,16 @@ const Insights: React.FC = () => {
   const standoutFindings = data.standout_findings || [];
 
   // Flatten all charts into a single list, with donut + word_cloud adjacent
-  const gridCharts = (() => {
-    const all = sections.flatMap((sec: any) =>
-      (sec.charts || []).map((chart: any) => ({ ...chart, sectionId: sec.id }))
+  const gridCharts: ChartSpec[] = (() => {
+    const all: ChartSpec[] = sections.flatMap((sec) =>
+      (sec.charts || []).map((chart) => ({ ...chart, sectionId: sec.id }))
     );
-    const donutIdx = all.findIndex((c: any) => c.visualization === "donut");
-    const wcIdx = all.findIndex((c: any) => c.visualization === "word_cloud");
+    const donutIdx = all.findIndex((c) => c.visualization === "donut");
+    const wcIdx = all.findIndex((c) => c.visualization === "word_cloud");
     if (donutIdx >= 0 && wcIdx >= 0 && Math.abs(donutIdx - wcIdx) > 1) {
       const sorted = [...all];
-      const wc = sorted.splice(sorted.findIndex((c: any) => c.visualization === "word_cloud"), 1)[0];
-      const di = sorted.findIndex((c: any) => c.visualization === "donut");
+      const wc = sorted.splice(sorted.findIndex((c) => c.visualization === "word_cloud"), 1)[0];
+      const di = sorted.findIndex((c) => c.visualization === "donut");
       sorted.splice(di + 1, 0, wc);
       return sorted;
     }

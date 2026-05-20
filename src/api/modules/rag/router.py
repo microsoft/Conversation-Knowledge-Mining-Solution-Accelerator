@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import logging
 
 from src.api.modules.rag.service import rag_service
 from src.api.modules.rag.models import QARequest, QAResponse, ConversationRequest
 from src.api.modules.security.auth import get_current_user
 from src.api.modules.security.models import User
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -39,7 +41,8 @@ async def save_chat(request: SaveChatRequest, user: User = Depends(get_current_u
             )
         return {"saved": success}
     except Exception as e:
-        return {"saved": False, "error": str(e)}
+        logger.warning(f"Failed to save chat session '{request.session_id}': {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save chat: {e}")
 
 
 @router.get("/chat/load/{session_id}")
@@ -49,7 +52,8 @@ async def load_chat(session_id: str, user: User = Depends(get_current_user)):
         from src.api.storage.db_service import db_service
         messages = db_service.get_messages(session_id)
         return {"messages": messages}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to load chat session '{session_id}': {e}")
         return {"messages": []}
 
 
@@ -60,7 +64,8 @@ async def list_chat_sessions(user_id: str = "default", user: User = Depends(get_
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
         return {"sessions": sessions}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to list chat sessions for user '{user_id}': {e}")
         return {"sessions": []}
 
 
@@ -71,7 +76,8 @@ async def delete_chat_session(session_id: str, user_id: str = "default", user: U
         from src.api.storage.db_service import db_service
         success = db_service.delete_session(session_id, user_id)
         return {"deleted": success}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to delete chat session '{session_id}': {e}")
         return {"deleted": False}
 
 

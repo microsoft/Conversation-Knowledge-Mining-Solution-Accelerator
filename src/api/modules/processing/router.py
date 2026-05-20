@@ -1,3 +1,4 @@
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,6 +14,8 @@ from src.api.modules.processing.models import (
 )
 from src.api.modules.security.auth import get_current_user, require_role
 from src.api.modules.security.models import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -62,8 +65,8 @@ async def generate_insights(
             cached = db_service.load_insights(cache_key)
             if cached:
                 return cached
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Cache lookup failed for insights key '{cache_key}': {e}")
 
     try:
         if data_source_id:
@@ -77,8 +80,8 @@ async def generate_insights(
         try:
             from src.api.storage.db_service import db_service
             db_service.save_insights(cache_key, result)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to cache insights for key '{cache_key}': {e}")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Insights generation failed: {e}")
@@ -93,5 +96,6 @@ async def get_cached_insights(user: User = Depends(get_current_user)):
         if cached:
             return cached
         return {"status": "no_cache"}
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Cached insights lookup failed: {e}")
         return {"status": "no_cache"}

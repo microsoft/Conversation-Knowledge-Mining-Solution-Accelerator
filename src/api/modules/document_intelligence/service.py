@@ -7,11 +7,9 @@ from azure.identity import DefaultAzureCredential
 from src.api.config import get_settings
 from src.api.modules.document_intelligence.models import ExtractedDocument
 
-API_VERSION = "2024-12-01-preview"
 SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
 
 # Default CU analyzer template for generic document analysis
-DEFAULT_ANALYZER_ID = "km-document"
 DEFAULT_ANALYZER_TEMPLATE = {
     "scenario": "document",
     "description": "Generic document content extraction",
@@ -100,14 +98,22 @@ class ContentUnderstandingService:
         settings = get_settings()
         return settings.azure_content_understanding_endpoint.rstrip("/")
 
-    def _ensure_analyzer(self, analyzer_id: str = DEFAULT_ANALYZER_ID):
+    def _api_version(self) -> str:
+        return get_settings().azure_content_understanding_api_version
+
+    def _default_analyzer_id(self) -> str:
+        return get_settings().azure_content_understanding_analyzer_id
+
+    def _ensure_analyzer(self, analyzer_id: str | None = None):
         """Create the CU analyzer if it doesn't exist yet."""
+        if analyzer_id is None:
+            analyzer_id = self._default_analyzer_id()
         if analyzer_id in self._analyzers_ensured:
             return
 
         template = AUDIO_ANALYZER_TEMPLATE if analyzer_id == AUDIO_ANALYZER_ID else DEFAULT_ANALYZER_TEMPLATE
         endpoint = self._endpoint()
-        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={API_VERSION}"
+        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={self._api_version()}"
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
 
         with httpx.Client(timeout=30) as client:
@@ -132,8 +138,10 @@ class ContentUnderstandingService:
         logger.info(f"CU Analyzer '{analyzer_id}' ready")
 
     def analyze(
-        self, file: BinaryIO, filename: str, analyzer: str = DEFAULT_ANALYZER_ID
+        self, file: BinaryIO, filename: str, analyzer: str | None = None
     ) -> ExtractedDocument:
+        if analyzer is None:
+            analyzer = self._default_analyzer_id()
         ext = filename.rsplit(".", 1)[-1].lower()
         if ext not in SUPPORTED_EXTENSIONS:
             raise ValueError(f"Unsupported file type: .{ext}")
@@ -159,7 +167,7 @@ class ContentUnderstandingService:
         self._ensure_analyzer(analyzer)
 
         endpoint = self._endpoint()
-        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={API_VERSION}"
+        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
 
         # Send raw bytes directly to CU
         headers = {
@@ -181,12 +189,14 @@ class ContentUnderstandingService:
         return self._parse_result(result, filename, analyzer)
 
     def analyze_url(
-        self, file_url: str, filename: str, analyzer: str = DEFAULT_ANALYZER_ID
+        self, file_url: str, filename: str, analyzer: str | None = None
     ) -> ExtractedDocument:
+        if analyzer is None:
+            analyzer = self._default_analyzer_id()
         self._ensure_analyzer(analyzer)
 
         endpoint = self._endpoint()
-        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={API_VERSION}"
+        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
 
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
         body = {"url": file_url}

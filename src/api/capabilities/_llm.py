@@ -36,6 +36,6 @@ def get_llm_client() -> AzureOpenAI:
             _client = AzureOpenAI(
                 azure_endpoint=settings.azure_openai_endpoint,
                 azure_ad_token_provider=token_provider,
-                api_version="2024-10-21",
+                api_version=settings.azure_openai_api_version,
             )
     return _client

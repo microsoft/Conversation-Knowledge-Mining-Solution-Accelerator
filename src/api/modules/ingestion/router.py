@@ -248,6 +248,13 @@ async def list_uploaded_files(user: User = Depends(get_current_user)):
     return ingestion_service.uploaded_files
 
 
+@router.post("/refresh")
+async def refresh_cache(user: User = Depends(get_current_user)):
+    """Force reload data from database. Use after external seeding."""
+    ingestion_service.reload()
+    return {"status": "refreshed", "files": len(ingestion_service.uploaded_files)}
+
+
 @router.get("/extraction", response_model=FilterSchema)
 async def get_filter_schema(user: User = Depends(get_current_user)):
     """Return the AI-generated filter schema with dimensions and values.
@@ -331,8 +338,8 @@ async def clear_documents(user: User = Depends(get_current_user)):
     try:
         from src.api.modules.insights.service import dashboard_service
         dashboard_service._plan_cache.clear()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to clear insights cache: {e}")
     return {"message": "All documents, files, and filters cleared"}
 
 

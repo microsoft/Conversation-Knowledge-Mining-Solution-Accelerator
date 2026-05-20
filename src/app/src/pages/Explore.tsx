@@ -103,7 +103,7 @@ const Explore: React.FC = () => {
       setFiles(fR.status === "fulfilled" ? fR.value.data.filter((f: any) => f.status === "ready" || !f.status) : []);
       setDataSources(dR.status === "fulfilled" ? dR.value.data.filter((ds: any) => ds.status === "connected") : []);
       if (sR.status === "fulfilled") setSchema(sR.value.data);
-    } catch {} finally { setLoading(false); }
+    } catch (e) { console.warn("Failed to load explore data:", e); } finally { setLoading(false); }
   };
 
   const loadSessions = () => {
@@ -159,7 +159,7 @@ const Explore: React.FC = () => {
       setSessionId(sid);
       setMessages((r.data?.messages || r.data || []).map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })));
       setShowHistory(false);
-    } catch {}
+    } catch (e) { console.warn("Failed to load session:", e); }
   };
 
   const totalRecords = files.reduce((sum, f) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum, d) => sum + (d.doc_count || 0), 0);
