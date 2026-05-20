@@ -580,6 +580,7 @@ jobs:
       BUILD_DOCKER_IMAGE: ${{ github.event.inputs.build_docker_image || 'false' }}
       EXP: ${{ needs.azure-setup.outputs.EXP_ENABLED }}
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
+      ENABLE_SCALABILITY: ${{ inputs.enable_scalability == true && 'true' || 'false' }}
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
       AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.azure_existing_aiproject_resource_id }}
       USE_CASE: ${{ inputs.use_case }}
