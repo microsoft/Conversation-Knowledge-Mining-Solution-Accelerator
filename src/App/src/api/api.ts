@@ -184,13 +184,13 @@ export async function getLayoutConfig(): Promise<{
 }> {
   try {
     return await layoutConfigCache.getOrCreate("layout-config", async () => {
-      const response = await httpClient.get("/api/layout-config");
-      if (!response.ok) {
-        return {
-          appConfig: null,
-          charts: [],
-        };
-      }
+      const response = await retryRequest(async () => {
+        const res = await httpClient.get("/api/layout-config");
+        if (!res.ok) {
+          throw new Error(`Layout config request failed: ${res.status}`);
+        }
+        return res;
+      }, 3, 1000);
 
       const layoutConfigData = await parseResponseJson<{
         appConfig: AppConfig;
