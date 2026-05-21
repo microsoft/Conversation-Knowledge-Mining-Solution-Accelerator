@@ -6,7 +6,7 @@ from azure.ai.projects.aio import AIProjectClient
 from azure.identity.aio import AzureCliCredential
 from azure.ai.projects.models import (
     PromptAgentDefinition,
-    AzureAISearchAgentTool,
+    AzureAISearchTool,
     FunctionTool,
     AzureAISearchToolResource,
     AISearchIndexResource,
@@ -115,7 +115,7 @@ async def main():
                         }
                     ),
                     # Azure AI Search - built-in service tool (no client implementation needed)
-                    AzureAISearchAgentTool(
+                    AzureAISearchTool(
                         azure_ai_search=AzureAISearchToolResource(
                             indexes=[
                                 AISearchIndexResource(

@@ -14,10 +14,10 @@ aiohttp==3.13.5
 # Azure Services
 azure-identity==1.25.3
 azure-search-documents==11.6.0
-azure-ai-projects==2.0.0b3
-azure-ai-agents==1.2.0b5
-agent-framework-core==1.0.0rc2
-agent-framework-azure-ai==1.0.0rc2
+azure-ai-projects==2.1.0
+azure-ai-inference==1.0.0b9
+agent-framework-core==1.3.0
+agent-framework-foundry==1.3.0
 azure-cosmos==4.15.0
 
 # Additional utilities
