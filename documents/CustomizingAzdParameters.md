@@ -11,12 +11,11 @@ By default this template will use the environment name as the prefix to prevent 
 | ----------------------------------------- | ------- | ------------------------ | -------------------------------------------------------------------------- |
 | `AZURE_LOCATION`                          | string  | ` `            | Sets the Azure region for resource deployment.                             |
 | `AZURE_ENV_NAME`                          | string  | `env_name`               | Sets the environment name prefix for all Azure resources.                  |
-| `AZURE_ENV_CU_LOCATION`    | string  | `swedencentral`          | Specifies the region for content understanding resources.                  |
 | `AZURE_ENV_AI_SERVICE_LOCATION`                | string  | `eastus2`                | Specifies the Azure AI service location.                                        |
 | `AZURE_ENV_SECONDARY_LOCATION`                | string  | `eastus2`                | Specifies a secondary Azure region.                                        |
-| `AZURE_ENV_MODEL_DEPLOYMENT_TYPE`     | string  | `GlobalStandard`         | Defines the model deployment type (allowed: `Standard`, `GlobalStandard`). |
-| `AZURE_ENV_GPT_MODEL_NAME`          | string  | `gpt-4o-mini`            | Specifies the GPT model name (e.g., `gpt-4`, `gpt-4o-mini`).               |
-| `AZURE_ENV_GPT_MODEL_VERSION`                 | string  | `2024-07-18`             | Sets the Azure model version (allowed: `2024-08-06`, etc.).                |
+| `AZURE_ENV_MODEL_DEPLOYMENT_TYPE`     | string  | `GlobalStandard`         | Defines the model deployment type (allowed: `Standard`, `GlobalStandard`). **Note:** The `azd` location-picker filters regions using the `usageName` metadata on `aiServiceLocation` in `infra/main.bicep` (currently `OpenAI.GlobalStandard.gpt-4o-mini,150`). If you set this to `Standard`, also edit that metadata to `OpenAI.Standard.gpt-4o-mini,150` so the picker shows the correct subset of regions, since `gpt-4o-mini` Standard (regional) availability differs from Global Standard. |
+| `AZURE_ENV_GPT_MODEL_NAME`          | string  | `gpt-4o-mini`            | Specifies the GPT model name (e.g., `gpt-4o-mini`, `gpt-4.1`, etc.).               |
+| `AZURE_ENV_GPT_MODEL_VERSION`                 | string  | `2024-07-18`             | Sets the Azure model version (e.g., `2024-07-18`, etc.).                |
 | `AZURE_ENV_GPT_MODEL_CAPACITY` | integer | `30`                     | Sets the GPT model capacity.                                               |
 | `AZURE_ENV_EMBEDDING_MODEL_NAME`            | string  | `text-embedding-3-small` | Sets the name of the embedding model to use.                               |
 | `AZURE_ENV_IMAGE_TAG`                      | string  | `latest_afv2`        | Sets the image tag (`latest_afv2`, `dev`, `hotfix`, etc.).   |
