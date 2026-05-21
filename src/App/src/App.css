@@ -1,6 +1,7 @@
 :root {
   --margin-base: 0.8%;
   --gap-base: 0.8%;
+  --header-height: 6vh;
   --button-height: 2rem;
   --header-btn-font-size: 1rem;
   --header-btn-icon-size: 1rem;
@@ -9,9 +10,10 @@
 .main-container {
   display: flex;
   flex-direction: row;
-  height: calc(100vh - 6vh);
+  height: calc(100vh - var(--header-height));
   gap: var(--gap-base);
   margin-inline: var(--margin-base);
+  overflow: hidden;
 }
 
 .main-container > div {
@@ -48,6 +50,19 @@ body {
 
 .header-title span {
   font-weight: 400;
+}
+
+.citation-panel-wrapper {
+  flex: 0 1 20%;
+  min-width: 200px;
+  max-width: 400px;
+  margin-block: var(--margin-base);
+  overflow: hidden;
+}
+
+.citation-panel-wrapper .citationPanel {
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .left-section {

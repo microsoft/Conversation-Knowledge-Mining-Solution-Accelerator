@@ -387,8 +387,22 @@ async def delete_all_conversations(request: Request):
         user_id = authenticated_user["user_principal_id"]
         logger.info("DELETE /history/delete_all called")
 
-        # Get all user conversations
+        # Get all user conversations.
+        # NOTE: After the web page sits idle for >10 minutes, the first call
+        # to Cosmos DB from this long-lived process can fail with a transient
+        # connection-reset / token-expiry error. `history_service.get_conversations`
+        # swallows that exception and returns []. Without the retry below,
+        # "Clear all chat history" would then 404 -> get masked to 500 even
+        # though chats actually exist. Single-conversation delete is unaffected
+        # because it does not pre-list conversations. Retry once before giving up.
         conversations = await history_service.get_conversations(user_id, offset=0, limit=None)
+        if not conversations:
+            logger.info(
+                "delete_all: initial get_conversations returned empty; "
+                "retrying once to recover from possible idle-connection failure"
+            )
+            conversations = await history_service.get_conversations(user_id, offset=0, limit=None)
+
         if not conversations:
             track_event_if_configured("DeleteAllConversationsNotFound", {
                 "user_id": user_id
@@ -413,6 +427,10 @@ async def delete_all_conversations(request: Request):
             status_code=200,
         )
 
+    except HTTPException:
+        # Let FastAPI translate HTTPException to its proper status code
+        # instead of masking it as a 500 below.
+        raise
     except Exception as e:
         logger.exception("Exception in /history/delete_all: %s", str(e))
         track_event_if_configured("AllConversationsDeleteError", {

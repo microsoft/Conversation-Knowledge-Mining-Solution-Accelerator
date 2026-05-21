@@ -113,10 +113,8 @@ either by deleting the resource group in the Portal or running `azd down`.
 | [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry) | Used to orchestrate and build AI workflows that combine Azure AI services. | Free Tier | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
 | [Foundry IQ](https://learn.microsoft.com/en-us/azure/search/search-what-is-azure-search) | Powers vector-based semantic search for retrieving indexed conversation data. | Standard S1; costs scale with document count and replica/partition settings. | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
 | [Azure Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-overview) | Stores transcripts, intermediate outputs, and application assets. | Standard LRS; usage-based cost by storage/operations. | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
-
 | [Azure AI Services (OpenAI)](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/overview) | Enables language understanding, summarization, entity extraction, and chat capabilities using GPT models. | S0 Tier; pricing depends on token volume and model used (e.g., GPT-4o-mini). | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
-| [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/overview) | Hosts microservices and APIs powering the front-end and backend orchestration. | Consumption plan with 0.5 vCPU, 1GiB memory; includes a free usage tier. | [Pricing](https://azure.microsoft.com/pricing/details/container-apps/) |
-| [Azure Container Registry](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-intro) | Stores and serves container images used by Azure Container Apps. | Basic Tier; fixed daily cost per registry. | [Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
+| [Azure App Service](https://learn.microsoft.com/en-us/azure/app-service/overview) | Hosts the front-end web application and backend API as Linux web apps. | Basic B3 (non-WAF) or Premium P1v3 (WAF); fixed cost based on plan tier. | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
 | [Azure Monitor / Log Analytics](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-overview) | Collects and analyzes telemetry and logs from services and containers. | Pay-as-you-go; charges based on data ingestion volume. | [Pricing](https://azure.microsoft.com/pricing/details/monitor/) |
 | [Azure SQL Database](https://learn.microsoft.com/en-us/azure/azure-sql/database/sql-database-paas-overview) | Stores structured data including insights, metadata, and indexed results. | General Purpose Tier; can be provisioned or serverless. Fixed cost if provisioned. | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
 | [Azure Cosmos DB](https://learn.microsoft.com/en-us/azure/cosmos-db/introduction) | Used for fast, globally distributed NoSQL data storage for chat history and vector metadata. | Autoscale or provisioned throughput; fixed minimum cost if provisioned. | [Pricing](https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/) |
@@ -189,7 +187,7 @@ To maintain strong security practices, it is recommended that GitHub repositorie
 Additional security considerations include:
 
 - Enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/en-us/azure/defender-for-cloud) to monitor and secure Azure resources.
-- Using [Virtual Networks](https://learn.microsoft.com/en-us/azure/container-apps/networking?tabs=workload-profiles-env%2Cazure-cli) or [firewall rules](https://learn.microsoft.com/en-us/azure/container-apps/waf-app-gateway) to protect Azure Container Apps from unauthorized access.
+- Using [Virtual Networks](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration) or [access restrictions](https://learn.microsoft.com/en-us/azure/app-service/app-service-ip-restrictions) to protect Azure App Service from unauthorized access.
 
 <br/>
 
