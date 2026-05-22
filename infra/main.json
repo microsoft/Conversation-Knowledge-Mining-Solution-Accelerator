@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.43.8.12551",
-      "templateHash": "1762309424496235679"
+      "templateHash": "18442421312669656903"
     }
   },
   "parameters": {
@@ -325,6 +325,7 @@
     "applicationInsightsResourceName": "[format('appi-{0}', variables('solutionSuffix'))]",
     "bastionHostName": "[format('bas-{0}', variables('solutionSuffix'))]",
     "dataCollectionRulesResourceName": "[format('dcr-{0}', variables('solutionSuffix'))]",
+    "dcrLogAnalyticsDestinationName": "[format('la-{0}-destination', variables('logAnalyticsWorkspaceResourceName'))]",
     "jumpboxVmName": "[take(format('vm-jumpbox-{0}', variables('solutionSuffix')), 15)]",
     "privateDnsZones": [
       "privatelink.cognitiveservices.azure.com",
@@ -9078,7 +9079,7 @@
                 "logAnalytics": [
                   {
                     "workspaceResourceId": "[if(variables('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference('logAnalyticsWorkspace').outputs.resourceId.value)]",
-                    "name": "la--1264800308"
+                    "name": "[variables('dcrLogAnalyticsDestinationName')]"
                   }
                 ]
               },
@@ -9088,7 +9089,7 @@
                     "Microsoft-Perf"
                   ],
                   "destinations": [
-                    "la--1264800308"
+                    "[variables('dcrLogAnalyticsDestinationName')]"
                   ],
                   "transformKql": "source",
                   "outputStream": "Microsoft-Perf"
@@ -9098,7 +9099,7 @@
                     "Microsoft-Event"
                   ],
                   "destinations": [
-                    "la--1264800308"
+                    "[variables('dcrLogAnalyticsDestinationName')]"
                   ],
                   "transformKql": "source",
                   "outputStream": "Microsoft-Event"
@@ -29627,8 +29628,8 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "virtualNetwork"
       ]
@@ -39943,10 +39944,10 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "userAssignedIdentity",
         "virtualNetwork"
       ]
