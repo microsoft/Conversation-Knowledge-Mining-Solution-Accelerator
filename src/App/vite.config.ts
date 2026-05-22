@@ -5,6 +5,11 @@ const backendTarget = process.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 export default defineConfig({
   plugins: [react()],
+  css: {
+    modules: {
+      generateScopedName: "[name]_[local]__[hash:base64:5]",
+    },
+  },
   server: {
     proxy: {
       "/api": {
