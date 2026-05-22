@@ -360,6 +360,7 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
 
 
 var dataCollectionRulesResourceName = 'dcr-${solutionSuffix}'
+var dcrLogAnalyticsDestinationName = 'la-${logAnalyticsWorkspaceResourceName}-destination'
 var dataCollectionRulesLocation = useExistingLogAnalytics
   ? existingLogAnalyticsWorkspace!.location
   : logAnalyticsWorkspace!.outputs.location
@@ -446,7 +447,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
         logAnalytics: [
           {
             workspaceResourceId: logAnalyticsWorkspaceResourceId
-            name: 'la--1264800308'
+            name: dcrLogAnalyticsDestinationName
           }
         ]
       }
@@ -456,7 +457,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
             'Microsoft-Perf'
           ]
           destinations: [
-            'la--1264800308'
+            dcrLogAnalyticsDestinationName
           ]
           transformKql: 'source'
           outputStream: 'Microsoft-Perf'
@@ -466,7 +467,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
             'Microsoft-Event'
           ]
           destinations: [
-            'la--1264800308'
+            dcrLogAnalyticsDestinationName
           ]
           transformKql: 'source'
           outputStream: 'Microsoft-Event'
