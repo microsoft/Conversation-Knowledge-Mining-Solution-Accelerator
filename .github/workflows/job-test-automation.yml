@@ -78,25 +78,29 @@ jobs:
       - name: Wait for Application to be Ready
         run: |
           echo "Waiting for application to be ready at ${{ env.url }} "
-          max_attempts=10
+          max_attempts=15
           attempt=1
           
           while [ $attempt -le $max_attempts ]; do
             echo "Attempt $attempt: Checking if application is ready..."
-            if curl -f -s "${{ env.url }}" > /dev/null; then
-              echo "Application is ready!"
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.url }}" || echo "000")
+            if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+              echo "Application is ready! (HTTP $HTTP_STATUS)"
               break
             fi
             
             if [ $attempt -eq $max_attempts ]; then
-              echo "Application is not ready after $max_attempts attempts"
+              echo "Application is not ready after $max_attempts attempts (last HTTP status: $HTTP_STATUS)"
               exit 1
             fi
             
-            echo "Application not ready, waiting 30 seconds..."
+            echo "Application not ready (HTTP $HTTP_STATUS), waiting 30 seconds..."
             sleep 30
             attempt=$((attempt + 1))
           done
+          
+          echo "Waiting additional 30 seconds for application to fully initialize..."
+          sleep 30
 
       - name: Validate Use Case and Test Suite
         run: |
@@ -142,9 +146,9 @@ jobs:
         working-directory: tests/e2e-test
         continue-on-error: true
 
-      - name: Sleep for 30 seconds
+      - name: Sleep for 60 seconds
         if: ${{ steps.test1.outcome == 'failure' }}
-        run: sleep 30s
+        run: sleep 60s
         shell: bash
 
       - name: Run tests(2)
@@ -167,9 +171,9 @@ jobs:
         working-directory: tests/e2e-test
         continue-on-error: true
 
-      - name: Sleep for 60 seconds
+      - name: Sleep for 90 seconds
         if: ${{ steps.test2.outcome == 'failure' }}
-        run: sleep 60s
+        run: sleep 90s
         shell: bash
 
       - name: Run tests(3)

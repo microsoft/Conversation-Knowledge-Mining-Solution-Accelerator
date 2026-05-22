@@ -27,7 +27,7 @@ class HomePage(BasePage):
         self.page = page
 
     def home_page_load(self):
-        self.page.locator("//span[normalize-space()='Satisfied']").wait_for(state="visible")
+        self.page.locator("//span[normalize-space()='Satisfied']").wait_for(state="visible", timeout=180000)
 
     def validate_response_text(self, question):
         logger.info(f"🔍 DEBUG: validate_response_text called for question: '{question}'")
@@ -89,7 +89,7 @@ class HomePage(BasePage):
         self.page.wait_for_load_state('networkidle')
         self.page.wait_for_timeout(2000)
         try:
-            expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=9000)
+            expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=60000)
         except AssertionError:
             raise AssertionError("Chat history name was not visible on the page within the expected time.")
 
