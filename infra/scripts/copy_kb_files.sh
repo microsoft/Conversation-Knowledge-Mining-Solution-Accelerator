@@ -20,6 +20,19 @@ fi
 
 extractedFolder1="call_transcripts"
 
+# Cleanup function to remove extracted folders on exit (success or failure)
+cleanup_extracted_folders() {
+	if [ -d "$extractedFolder1" ]; then
+		echo "✓ Cleaning up extracted folder: $extractedFolder1"
+		rm -rf "$extractedFolder1"
+	fi
+	if [ "$usecase" == "telecom" ] && [ -n "$extractedFolder2" ] && [ -d "$extractedFolder2" ]; then
+		echo "✓ Cleaning up extracted folder: $extractedFolder2"
+		rm -rf "$extractedFolder2"
+	fi
+}
+trap cleanup_extracted_folders EXIT
+
 
 
 # Validate required parameters
@@ -173,14 +186,3 @@ az storage fs directory create \
 	--file-system "$containerName" \
 	--name custom_transcripts \
 	--auth-mode login --output none 2>/dev/null
-
-# Cleanup extracted folders
-if [ -d "$extractedFolder1" ]; then
-	echo "✓ Cleaning up extracted folder: $extractedFolder1"
-	rm -rf "$extractedFolder1"
-fi
-
-if [ "$usecase" == "telecom" ] && [ -d "$extractedFolder2" ]; then
-	echo "✓ Cleaning up extracted folder: $extractedFolder2"
-	rm -rf "$extractedFolder2"
-fi
