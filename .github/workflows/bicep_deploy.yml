@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - ckm-v2
+    paths:
+      - 'infra/**/*.bicep'
+      - 'infra/**/*.json'
+      - 'infra/scripts/**'
+      - '.github/workflows/bicep_deploy.yml'
 
 permissions:
   contents: read

@@ -242,7 +242,7 @@ class OpenAIAssistant:
                 return json.loads(
                     assistant_message.tool_calls[0].function.arguments, strict=False
                 )
-            except:
+            except Exception:
                 return assistant_message.tool_calls[0].function.arguments
 
     def get_structured_output_answer(
@@ -348,7 +348,6 @@ def generate_scenes(
         scene_generation_prompt = Template(SCENE_GENERATION_PROMPT).substitute(
             descriptions=next_segment_content
         )
-        scence_response = VideoSceneResponse(scenes=[])
         scence_response = openai_assistant.get_structured_output_answer(
             "", scene_generation_prompt, VideoSceneResponse
         )
@@ -433,7 +432,6 @@ def generate_chapters(
     chapter_generation_prompt = Template(CHAPTER_GENERATION_PROMPT).substitute(
         descriptions=scene_descriptions
     )
-    chapter_response = VideoChapterResponse(chapters=[])
     chapter_response = openai_assistant.get_structured_output_answer(
         "", chapter_generation_prompt, VideoChapterResponse
     )
@@ -460,7 +458,6 @@ def aggregate_tags(
     tags_dedup = set(map(lambda x: re.sub(r'^ ', '', x), tags))
     tag_dedup_prompt = Template(DEDUP_PROMPT).substitute(tag_list=tags_dedup)
 
-    tag_response = VideoTagResponse(tags=[])
     tag_response = openai_assistant.get_structured_output_answer(
         "", tag_dedup_prompt, VideoTagResponse
     )

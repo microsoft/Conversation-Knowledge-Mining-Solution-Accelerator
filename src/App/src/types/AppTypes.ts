@@ -1,13 +1,9 @@
-import { ReactNode } from "react";
-
 export type FilterObject = {
   key: string;
   displayValue: string;
 };
 export type FilterMetaData = Record<string, FilterObject[]>;
 export type SelectedFilters = Record<string, string | string[]>;
-
-type Roles = "assistant" | "user" | "error";
 
 export enum Feedback {
   Neutral = "neutral",
@@ -145,16 +141,16 @@ export type HistoryMetaData = {
 
 export type ParsedChunk = {
   error?: string;
-  choices: [
-    {
-      messages: [
-        {
-          content: string;
-          role: string;
-        }
-      ];
-    }
-  ];
+  choices?: Array<{
+    messages?: Array<{
+      content: string;
+      role: string;
+    }>;
+    delta?: {
+      content: string;
+      role: "assistant" | "tool";
+    };
+  }>;
 };
 
 export type ToolMessageContent = {

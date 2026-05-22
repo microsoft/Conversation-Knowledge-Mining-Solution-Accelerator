@@ -24,10 +24,11 @@ param location string
   'australiaeast'
   'eastus'
   'eastus2'
-  'francecentral'
   'japaneast'
+  'southcentralus'
   'swedencentral'
   'uksouth'
+  'westeurope'
   'westus'
   'westus3'
 ])
@@ -36,7 +37,7 @@ param location string
     type: 'location'
     usageName: [
       'OpenAI.GlobalStandard.gpt-4o-mini,150'
-      'OpenAI.GlobalStandard.text-embedding-ada-002,80'
+      'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
 })
@@ -50,16 +51,6 @@ param aiServiceLocation string
   'IT_helpdesk'
 ])
 param usecase string
-
-@minLength(1)
-@description('Optional. Location for the Content Understanding service deployment.')
-@allowed(['swedencentral', 'australiaeast'])
-@metadata({
-  azd: {
-    type: 'location'
-  }
-})
-param contentUnderstandingLocation string = 'swedencentral'
 
 @minLength(1)
 @description('Optional. Secondary location for databases creation (example: eastus2).')
@@ -79,14 +70,11 @@ param gptModelName string = 'gpt-4o-mini'
 @description('Optional. Version of the GPT model to deploy.')
 param gptModelVersion string = '2024-07-18'
 
-@description('Optional. Version of the Azure OpenAI API.')
-param azureOpenAIApiVersion string = '2025-01-01-preview'
-
 @description('Optional. Version of AI Agent API.')
 param azureAiAgentApiVersion string = '2025-05-01'
 
 @description('Optional. Version of Content Understanding API.')
-param azureContentUnderstandingApiVersion string = '2024-12-01-preview'
+param azureContentUnderstandingApiVersion string = '2025-11-01'
 
 // You can increase this, but capacity is limited per model/region, so you will get errors if you go over
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
@@ -97,31 +85,13 @@ param gptDeploymentCapacity int = 150
 @minLength(1)
 @description('Optional. Name of the Text Embedding model to deploy.')
 @allowed([
-  'text-embedding-ada-002'
+  'text-embedding-3-small'
 ])
-param embeddingModel string = 'text-embedding-ada-002'
+param embeddingModel string = 'text-embedding-3-small'
 
 @minValue(10)
 @description('Optional. Capacity of the Embedding Model deployment.')
 param embeddingDeploymentCapacity int = 80
-
-@description('Optional. The Container Registry hostname where the docker images for the backend are located.')
-param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
-@description('Optional. The Container Image Name to deploy on the backend.')
-param backendContainerImageName string = 'km-api'
-
-@description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_waf_2025-12-02_1084'
-
-@description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
-param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
-@description('Optional. The Container Image Name to deploy on the frontend.')
-param frontendContainerImageName string = 'km-app'
-
-@description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_waf_2025-12-02_1084'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -212,6 +182,16 @@ var useExistingLogAnalytics = !empty(existingLogAnalyticsWorkspaceId)
 var logAnalyticsWorkspaceResourceId = useExistingLogAnalytics
   ? existingLogAnalyticsWorkspaceId
   : logAnalyticsWorkspace!.outputs.resourceId
+
+var existingLawSubscription = useExistingLogAnalytics ? split(existingLogAnalyticsWorkspaceId, '/')[2] : ''
+var existingLawResourceGroup = useExistingLogAnalytics ? split(existingLogAnalyticsWorkspaceId, '/')[4] : ''
+var existingLawName = useExistingLogAnalytics ? split(existingLogAnalyticsWorkspaceId, '/')[8] : ''
+
+resource existingLogAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07-01' existing = if (useExistingLogAnalytics) {
+  name: existingLawName
+  scope: resourceGroup(existingLawSubscription, existingLawResourceGroup)
+}
+
 var existingTags = resourceGroup().tags ?? {}
 
 // ========== Resource Group Tag ========== //
@@ -378,6 +358,125 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
   }
 }
 
+
+var dataCollectionRulesResourceName = 'dcr-${solutionSuffix}'
+var dataCollectionRulesLocation = useExistingLogAnalytics
+  ? existingLogAnalyticsWorkspace!.location
+  : logAnalyticsWorkspace!.outputs.location
+module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-rule:0.11.0' = if (enablePrivateNetworking && enableMonitoring) {
+  name: take('avm.res.insights.data-collection-rule.${dataCollectionRulesResourceName}', 64)
+  params: {
+    name: dataCollectionRulesResourceName
+    tags: tags
+    enableTelemetry: enableTelemetry
+    location: dataCollectionRulesLocation
+    dataCollectionRuleProperties: {
+      kind: 'Windows'
+      dataSources: {
+        performanceCounters: [
+          {
+            streams: [
+              'Microsoft-Perf'
+            ]
+            samplingFrequencyInSeconds: 60
+            counterSpecifiers: [
+              '\\Processor Information(_Total)\\% Processor Time'
+              '\\Processor Information(_Total)\\% Privileged Time'
+              '\\Processor Information(_Total)\\% User Time'
+              '\\Processor Information(_Total)\\Processor Frequency'
+              '\\System\\Processes'
+              '\\Process(_Total)\\Thread Count'
+              '\\Process(_Total)\\Handle Count'
+              '\\System\\System Up Time'
+              '\\System\\Context Switches/sec'
+              '\\System\\Processor Queue Length'
+              '\\Memory\\% Committed Bytes In Use'
+              '\\Memory\\Available Bytes'
+              '\\Memory\\Committed Bytes'
+              '\\Memory\\Cache Bytes'
+              '\\Memory\\Pool Paged Bytes'
+              '\\Memory\\Pool Nonpaged Bytes'
+              '\\Memory\\Pages/sec'
+              '\\Memory\\Page Faults/sec'
+              '\\Process(_Total)\\Working Set'
+              '\\Process(_Total)\\Working Set - Private'
+              '\\LogicalDisk(_Total)\\% Disk Time'
+              '\\LogicalDisk(_Total)\\% Disk Read Time'
+              '\\LogicalDisk(_Total)\\% Disk Write Time'
+              '\\LogicalDisk(_Total)\\% Idle Time'
+              '\\LogicalDisk(_Total)\\Disk Bytes/sec'
+              '\\LogicalDisk(_Total)\\Disk Read Bytes/sec'
+              '\\LogicalDisk(_Total)\\Disk Write Bytes/sec'
+              '\\LogicalDisk(_Total)\\Disk Transfers/sec'
+              '\\LogicalDisk(_Total)\\Disk Reads/sec'
+              '\\LogicalDisk(_Total)\\Disk Writes/sec'
+              '\\LogicalDisk(_Total)\\Avg. Disk sec/Transfer'
+              '\\LogicalDisk(_Total)\\Avg. Disk sec/Read'
+              '\\LogicalDisk(_Total)\\Avg. Disk sec/Write'
+              '\\LogicalDisk(_Total)\\Avg. Disk Queue Length'
+              '\\LogicalDisk(_Total)\\Avg. Disk Read Queue Length'
+              '\\LogicalDisk(_Total)\\Avg. Disk Write Queue Length'
+              '\\LogicalDisk(_Total)\\% Free Space'
+              '\\LogicalDisk(_Total)\\Free Megabytes'
+              '\\Network Interface(*)\\Bytes Total/sec'
+              '\\Network Interface(*)\\Bytes Sent/sec'
+              '\\Network Interface(*)\\Bytes Received/sec'
+              '\\Network Interface(*)\\Packets/sec'
+              '\\Network Interface(*)\\Packets Sent/sec'
+              '\\Network Interface(*)\\Packets Received/sec'
+              '\\Network Interface(*)\\Packets Outbound Errors'
+              '\\Network Interface(*)\\Packets Received Errors'
+            ]
+            name: 'perfCounterDataSource60'
+          }
+        ]
+        windowsEventLogs: [
+          {
+            name: 'SecurityAuditEvents'
+            streams: [
+              'Microsoft-Event'
+            ]
+            xPathQueries: [
+              'Security!*[System[(band(Keywords,13510798882111488)) and (EventID != 4624)]]'
+            ]
+          }
+        ]
+      }
+      destinations: {
+        logAnalytics: [
+          {
+            workspaceResourceId: logAnalyticsWorkspaceResourceId
+            name: 'la--1264800308'
+          }
+        ]
+      }
+      dataFlows: [
+        {
+          streams: [
+            'Microsoft-Perf'
+          ]
+          destinations: [
+            'la--1264800308'
+          ]
+          transformKql: 'source'
+          outputStream: 'Microsoft-Perf'
+        }
+        {
+          streams: [
+            'Microsoft-Event'
+          ]
+          destinations: [
+            'la--1264800308'
+          ]
+          transformKql: 'source'
+          outputStream: 'Microsoft-Event'
+        }
+      ]
+    }
+  }
+}
+
+
 // Jumpbox Virtual Machine
 var jumpboxVmName = take('vm-jumpbox-${solutionSuffix}', 15)
 module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enablePrivateNetworking) {
@@ -434,6 +533,18 @@ module jumpboxVM 'br/public:avm/res/compute/virtual-machine:0.21.0' = if (enable
       }
     ]
     enableTelemetry: enableTelemetry
+    extensionMonitoringAgentConfig: enableMonitoring
+      ? {
+          dataCollectionRuleAssociations: [
+            {
+              dataCollectionRuleResourceId: windowsVmDataCollectionRules!.outputs.resourceId
+              name: 'send-${logAnalyticsWorkspaceResourceName}'
+            }
+          ]
+          enabled: true
+          tags: tags
+        }
+      : null
   }
 }
 
@@ -449,6 +560,7 @@ var privateDnsZones = [
   'privatelink.documents.azure.com'
   'privatelink${environment().suffixes.sqlServerHostname}'
   'privatelink.search.windows.net'
+  'privatelink.azurewebsites.net'
 ]
 
 // DNS Zone Index Constants
@@ -463,6 +575,7 @@ var dnsZoneIndex = {
   cosmosDB: 7
   sqlServer: 8
   search: 9
+  webApp: 10
 }
 
 // ===================================================
@@ -520,7 +633,6 @@ module backendUserAssignedIdentity 'br/public:avm/res/managed-identity/user-assi
 // ========== AI Foundry: AI Services ========== //
 // WAF best practices for Open AI: https://learn.microsoft.com/en-us/azure/well-architected/service-guides/azure-openai
 
-var existingOpenAIEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.openai.azure.com/', split(existingAiFoundryAiProjectResourceId, '/')[8]) : ''
 var existingProjEndpoint = !empty(existingAiFoundryAiProjectResourceId) ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(existingAiFoundryAiProjectResourceId, '/')[8], split(existingAiFoundryAiProjectResourceId, '/')[10]) : ''
 var existingAIServicesName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[8] : ''
 var existingAIProjectName = !empty(existingAiFoundryAiProjectResourceId) ? split(existingAiFoundryAiProjectResourceId, '/')[10] : ''
@@ -540,9 +652,7 @@ var aiFoundryAiProjectResourceName = useExistingAiFoundryAiProject
   : 'proj-${solutionSuffix}' 
 
 // NOTE: Required version 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' not available in AVM
-// var aiFoundryAiServicesResourceName = 'aif-${solutionSuffix}'
 var aiFoundryAiServicesAiProjectResourceName = 'proj-${solutionSuffix}'
-var aiFoundryAIservicesEnabled = true
 var aiModelDeployments = [
   {
     name: gptModelName
@@ -563,7 +673,7 @@ var aiModelDeployments = [
       name: 'GlobalStandard'
       capacity: embeddingDeploymentCapacity
     }
-    version: '2'
+    version: '1'
     raiPolicyName: 'Microsoft.Default'
   }
 ]
@@ -578,7 +688,7 @@ resource existingAiFoundryAiServicesProject 'Microsoft.CognitiveServices/account
   parent: existingAiFoundryAiServices
 }
 
-module aiFoundryAiServices 'modules/ai-services.bicep' = if (aiFoundryAIservicesEnabled) {
+module aiFoundryAiServices 'modules/ai-services.bicep' = {
   name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesResourceName}', 64)
   params: {
     name: aiFoundryAiServicesResourceName
@@ -692,79 +802,6 @@ module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.
   }
 }
 
-// AI Foundry: AI Services Content Understanding
-var aiFoundryAiServicesCUResourceName = 'aif-${solutionSuffix}-cu'
-var aiServicesNameCu = 'aisa-${solutionSuffix}-cu'
-module cognitiveServicesCu 'br/public:avm/res/cognitive-services/account:0.14.1' = {
-  name: take('avm.res.cognitive-services.account.${aiFoundryAiServicesCUResourceName}', 64)
-  params: {
-    name: aiServicesNameCu
-    location: contentUnderstandingLocation
-    tags: tags
-    enableTelemetry: enableTelemetry
-    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
-    sku: 'S0'
-    kind: 'AIServices'
-    networkAcls: {
-      defaultAction: 'Allow'
-      virtualNetworkRules: []
-      ipRules: []
-    }
-    managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
-    disableLocalAuth: true
-    customSubDomainName: aiServicesNameCu
-    apiProperties: {
-      // staticsEnabled: false
-    }
-    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
-    privateEndpoints: []
-    roleAssignments: [
-      {
-        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
-        principalId: userAssignedIdentity.outputs.principalId
-        principalType: 'ServicePrincipal'
-      }
-    ]
-  }
-}
-
-// ========== AI Services CU: Separate Private Endpoint ========== //
-module cognitiveServicesCuPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.1' = if (enablePrivateNetworking) {
-  name: take('pep-${aiFoundryAiServicesCUResourceName}-deployment', 64)
-  params: {
-    name: 'pep-${aiFoundryAiServicesCUResourceName}'
-    customNetworkInterfaceName: 'nic-${aiFoundryAiServicesCUResourceName}'
-    location: location
-    tags: tags
-    privateLinkServiceConnections: [
-      {
-        name: 'pep-${aiFoundryAiServicesCUResourceName}-connection'
-        properties: {
-          privateLinkServiceId: cognitiveServicesCu.outputs.resourceId
-          groupIds: ['account']
-        }
-      }
-    ]
-    privateDnsZoneGroup: {
-      privateDnsZoneGroupConfigs: [
-        {
-          name: 'ai-services-cu-dns-zone-cognitiveservices'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-cu-dns-zone-openai'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.openAI]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-cu-dns-zone-aiservices'
-          privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.aiServices]!.outputs.resourceId
-        }
-      ]
-    }
-    subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
-  }
-}
-
 // ========== AVM WAF ========== //
 // ========== AI Foundry: AI Search ========== //
 var aiSearchName = 'srch-${solutionSuffix}'
@@ -784,6 +821,7 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
   params: {
     // Required parameters
     name: aiSearchName
+    location: location
     enableTelemetry: enableTelemetry
     diagnosticSettings: enableMonitoring ? [
       {
@@ -859,6 +897,9 @@ module searchServiceUpdate 'br/public:avm/res/search/search-service:0.12.0' = {
       ]
     : []
   }
+  dependsOn: [
+    searchService
+  ]
 }
 
 // ========== Search Service to AI Services Role Assignment ========== //
@@ -955,6 +996,7 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
     allowSharedKeyAccess: true
     allowBlobPublicAccess: false
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    requireInfrastructureEncryption: true
     privateEndpoints: enablePrivateNetworking
       ? [
           {
@@ -1328,10 +1370,6 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           ENABLE_ORYX_BUILD: 'true'
           PYTHONUNBUFFERED: '1'
           REACT_APP_LAYOUT_CONFIG: reactAppLayoutConfig
-          AZURE_OPENAI_DEPLOYMENT_MODEL: gptModelName
-          AZURE_OPENAI_ENDPOINT: !empty(existingOpenAIEndpoint) ? existingOpenAIEndpoint : 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
-          AZURE_OPENAI_API_VERSION: azureOpenAIApiVersion
-          AZURE_OPENAI_RESOURCE: aiFoundryAiServices.outputs.name
           AZURE_AI_AGENT_ENDPOINT: !empty(existingProjEndpoint) ? existingProjEndpoint : aiFoundryAiServices.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_AGENT_API_VERSION: azureAiAgentApiVersion
           AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME: gptModelName
@@ -1361,12 +1399,28 @@ module webSiteBackend 'modules/web-sites.bicep' = {
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
       }
     ]
+    e2eEncryptionEnabled: true
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     // WAF aligned configuration for Private Networking
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-${backendWebSiteResourceName}'
+            customNetworkInterfaceName: 'nic-${backendWebSiteResourceName}'
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.webApp]!.outputs.resourceId }
+              ]
+            }
+            service: 'sites'
+            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+          }
+        ]
+      : []
   }
 }
 
@@ -1394,13 +1448,15 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
         properties: {
           SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
           ENABLE_ORYX_BUILD: 'true'
-          REACT_APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          REACT_APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
           WEBSITE_NODE_DEFAULT_VERSION: '~20'
-          APP_API_BASE_URL: 'https://api-${solutionSuffix}.azurewebsites.net'
+          APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
+          BACKEND_API_HOST: enablePrivateNetworking ? 'api-${solutionSuffix}.azurewebsites.net' : ''
         }
         applicationInsightResourceId: enableMonitoring ? applicationInsights!.outputs.resourceId : null
       }
     ]
+    e2eEncryptionEnabled: true
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     vnetImagePullEnabled: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
@@ -1418,9 +1474,6 @@ output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Contains Resource Group Location.')
 output RESOURCE_GROUP_LOCATION string = location
-
-@description('Contains Azure Content Understanding Location.')
-output AZURE_CONTENT_UNDERSTANDING_LOCATION string = contentUnderstandingLocation
 
 // @description('Contains Azure Secondary Location.')
 // output AZURE_SECONDARY_LOCATION string = secondaryLocation
@@ -1465,25 +1518,22 @@ output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
 output AZURE_COSMOSDB_ENABLE_FEEDBACK string = 'True'
 
 @description('Contains Azure OpenAI deployment model name.')
-output AZURE_OPENAI_DEPLOYMENT_MODEL string = gptModelName
+output AZURE_ENV_GPT_MODEL_NAME string = gptModelName
 
 @description('Contains Azure OpenAI deployment model capacity.')
-output AZURE_OPENAI_DEPLOYMENT_MODEL_CAPACITY int = gptDeploymentCapacity
+output AZURE_ENV_GPT_MODEL_CAPACITY int = gptDeploymentCapacity
 
 @description('Contains Azure OpenAI endpoint URL.')
 output AZURE_OPENAI_ENDPOINT string = 'https://${aiFoundryAiServices.outputs.name}.openai.azure.com/'
 
 @description('Contains Azure OpenAI model deployment type.')
-output AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE string = deploymentType
+output AZURE_ENV_MODEL_DEPLOYMENT_TYPE string = deploymentType
 
 @description('Contains Azure OpenAI embedding model name.')
-output AZURE_OPENAI_EMBEDDING_MODEL string = embeddingModel
+output AZURE_ENV_EMBEDDING_MODEL_NAME string = embeddingModel
 
 @description('Contains Azure OpenAI embedding model capacity.')
-output AZURE_OPENAI_EMBEDDING_MODEL_CAPACITY int = embeddingDeploymentCapacity
-
-@description('Contains Azure OpenAI API version.')
-output AZURE_OPENAI_API_VERSION string = azureOpenAIApiVersion
+output AZURE_ENV_EMBEDDING_DEPLOYMENT_CAPACITY int = embeddingDeploymentCapacity
 
 @description('Contains Content Understanding API version.')
 output AZURE_CONTENT_UNDERSTANDING_API_VERSION string = azureContentUnderstandingApiVersion
@@ -1527,11 +1577,11 @@ output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 @description('Contains Azure Container Registry name.')
 output ACR_NAME string = acrName
 
-@description('Contains Azure environment image tag.')
-output AZURE_ENV_IMAGETAG string = backendContainerImageTag
+@description('Contains Azure environment image tag. Not used in custom deployment (uses source code, not containers).')
+output AZURE_ENV_IMAGE_TAG string = 'not-applicable'
 
 @description('Contains existing AI project resource ID.')
-output AZURE_EXISTING_AI_PROJECT_RESOURCE_ID string = existingAiFoundryAiProjectResourceId
+output AZURE_EXISTING_AIPROJECT_RESOURCE_ID string = existingAiFoundryAiProjectResourceId
 
 @description('Contains Application Insights connection string.')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? applicationInsights!.outputs.connectionString : ''
@@ -1551,11 +1601,8 @@ output STORAGE_CONTAINER_NAME string = 'data'
 @description('Resource ID of the AI Foundry.')
 output AI_FOUNDRY_RESOURCE_ID string = aiFoundryAiServices.outputs.resourceId
 
-@description('Resource ID of the Content Understanding AI Foundry.')
-output CU_FOUNDRY_RESOURCE_ID string = cognitiveServicesCu.outputs.resourceId
-
 @description('Azure OpenAI Content Understanding endpoint URL.')
-output AZURE_OPENAI_CU_ENDPOINT string = cognitiveServicesCu.outputs.endpoint
+output AZURE_OPENAI_CU_ENDPOINT string = aiFoundryAiServices.outputs.endpoints['Content Understanding']
 
 @description('Contains API application name.')
 output API_APP_NAME string = 'api-${solutionSuffix}'

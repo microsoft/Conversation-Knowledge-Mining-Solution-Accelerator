@@ -36,3 +36,6 @@ with open(ithelpdesk_json_file_path, 'r') as file:
 # Backward compatibility - keep 'questions' as alias for telecom_questions
 questions = telecom_questions
 
+# Public exports
+__all__ = ['URL', 'API_URL', 'telecom_questions', 'ithelpdesk_questions', 'questions']
+

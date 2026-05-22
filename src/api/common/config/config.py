@@ -19,12 +19,6 @@ class Config:
         self.driver = "{ODBC Driver 18 for SQL Server}"
         self.mid_id = os.getenv("SQLDB_USER_MID")
 
-        # Azure OpenAI configuration
-        self.azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.azure_openai_deployment_model = os.getenv("AZURE_OPENAI_DEPLOYMENT_MODEL")
-        self.azure_openai_api_version = os.getenv("AZURE_OPENAI_API_VERSION")
-        self.azure_openai_resource = os.getenv("AZURE_OPENAI_RESOURCE")
-
         # Azure AI Search configuration
         self.azure_ai_search_endpoint = os.getenv("AZURE_AI_SEARCH_ENDPOINT")
         self.azure_ai_search_api_key = os.getenv("AZURE_AI_SEARCH_API_KEY")

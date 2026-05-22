@@ -5,7 +5,6 @@ Contains base page object class with common methods
 from config.constants import *
 import json
 from dotenv import load_dotenv
-import os
 import uuid
 import time
 
@@ -22,13 +21,11 @@ class BasePage:
 
     def validate_response_status(self,questions):
         load_dotenv()
-        WEB_URL = os.getenv("web_url")
         
         url = f"{API_URL}/api/chat"
        
 
         user_message_id = str(uuid.uuid4())
-        assistant_message_id = str(uuid.uuid4())
         conversation_id = str(uuid.uuid4())
 
         payload = {

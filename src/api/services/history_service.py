@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
+from helpers.azure_credential_utils import get_azure_credential_async, build_async_azure_credential
 
 from agent_framework.azure import AzureAIProjectAgentProvider
 
@@ -28,7 +28,6 @@ class HistoryService:
             and self.azure_cosmosdb_conversations_container
         )
 
-        self.azure_openai_deployment_name = config.azure_openai_deployment_model
         self.azure_client_id = config.azure_client_id
         self.title_agent_name = config.title_agent_name
 
@@ -47,7 +46,7 @@ class HistoryService:
 
             return CosmosConversationClient(
                 cosmosdb_endpoint=cosmos_endpoint,
-                credential=get_azure_credential(client_id=self.azure_client_id),
+                credential=build_async_azure_credential(client_id=self.azure_client_id),
                 database_name=self.azure_cosmosdb_database,
                 container_name=self.azure_cosmosdb_conversations_container,
                 enable_message_feedback=self.azure_cosmosdb_enable_feedback,

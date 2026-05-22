@@ -2,6 +2,13 @@
 
 # Reusing an Existing Microsoft Foundry Project
 To configure your environment to use an existing Microsoft Foundry Project, follow these steps:
+
+> **⚠️ Region requirement**
+>
+> The existing Foundry project must reside in a region that supports **both** the GPT model deployed by this accelerator (default `gpt-4o-mini` with `GlobalStandard` deployment type) **and** Azure AI Content Understanding (GA).<br>
+> Supported regions: `australiaeast`, `eastus`, `eastus2`, `japaneast`, `southcentralus`, `swedencentral`, `uksouth`, `westeurope`, `westus`, `westus3`.<br>
+> If the existing project is in a different region, deployment will fail or the application will not work correctly.
+
 ---
 ### 1. Go to Azure Portal
 Go to https://portal.azure.com
@@ -36,7 +43,7 @@ In the left-hand menu of the project blade:
 ### 6. Set the Foundry Project Resource ID in Your Environment
 Run the following command in your terminal
 ```bash
-azd env set AZURE_EXISTING_AI_PROJECT_RESOURCE_ID '<Existing AI Project Resource ID>'
+azd env set AZURE_EXISTING_AIPROJECT_RESOURCE_ID '<Existing AI Project Resource ID>'
 ```
 Replace `<Existing AI Project Resource ID>` with the value obtained from Step 5.
 

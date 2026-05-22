@@ -16,7 +16,7 @@ on:
         type: string
         default: "GoldenPath-Testing"
         description: "Test suite to run: 'Smoke-Testing', 'GoldenPath-Testing' "
-      AZURE_ENV_USE_CASE:
+      USE_CASE:
         required: false
         type: string
         default: "telecom"
@@ -38,7 +38,7 @@ env:
   api_url: ${{ inputs.KMGENERIC_URL_API}}
   accelerator_name: "KMGeneric"
   test_suite: ${{ inputs.TEST_SUITE }}
-  azure_env_use_case: ${{ inputs.AZURE_ENV_USE_CASE }}
+  use_case: ${{ inputs.USE_CASE }}
 
 jobs:
   test:
@@ -100,15 +100,15 @@ jobs:
 
       - name: Validate Use Case and Test Suite
         run: |
-          echo "Validating use case: '${{ env.azure_env_use_case }}'"
+          echo "Validating use case: '${{ env.use_case }}'"
           echo "Validating test suite: '${{ env.test_suite }}'"
           
           # Validate use case
-          if [ -z "${{ env.azure_env_use_case }}" ]; then
-            echo "ERROR: AZURE_ENV_USE_CASE is empty or not provided"
+          if [ -z "${{ env.use_case }}" ]; then
+            echo "ERROR: USE_CASE is empty or not provided"
             exit 1
-          elif [ "${{ env.azure_env_use_case }}" != "telecom" ] && [ "${{ env.azure_env_use_case }}" != "IT_helpdesk" ]; then
-            echo "ERROR: Invalid AZURE_ENV_USE_CASE '${{ env.azure_env_use_case }}'. Must be 'telecom' or 'IT_helpdesk'"
+          elif [ "${{ env.use_case }}" != "telecom" ] && [ "${{ env.use_case }}" != "IT_helpdesk" ]; then
+            echo "ERROR: Invalid USE_CASE '${{ env.use_case }}'. Must be 'telecom' or 'IT_helpdesk'"
             exit 1
           fi
           
@@ -121,18 +121,18 @@ jobs:
             exit 1
           fi
           
-          echo "✅ Use case '${{ env.azure_env_use_case }}' and test suite '${{ env.test_suite }}' are valid"
+          echo "✅ Use case '${{ env.use_case }}' and test suite '${{ env.test_suite }}' are valid"
 
       - name: Run tests(1)
         id: test1
         run: |
-          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+          if [ "${{ env.use_case }}" == "telecom" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
             fi
-          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+          elif [ "${{ env.use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
@@ -151,13 +151,13 @@ jobs:
         if: ${{ steps.test1.outcome == 'failure' }}
         id: test2
         run: |
-          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+          if [ "${{ env.use_case }}" == "telecom" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
             fi
-          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+          elif [ "${{ env.use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
@@ -176,13 +176,13 @@ jobs:
         if: ${{ steps.test2.outcome == 'failure' }}
         id: test3
         run: |
-          if [ "${{ env.azure_env_use_case }}" == "telecom" ]; then
+          if [ "${{ env.use_case }}" == "telecom" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then
               xvfb-run pytest tests/test_telecom_gp_tc.py tests/test_telecom_smoke_tc.py --headed --html=report/report.html --self-contained-html
             fi
-          elif [ "${{ env.azure_env_use_case }}" == "IT_helpdesk" ]; then
+          elif [ "${{ env.use_case }}" == "IT_helpdesk" ]; then
             if [ "${{ env.test_suite }}" == "GoldenPath-Testing" ]; then
               xvfb-run pytest tests/test_ithelpdesk_gp_tc.py --headed --html=report/report.html --self-contained-html
             elif [ "${{ env.test_suite }}" == "Smoke-Testing" ]; then

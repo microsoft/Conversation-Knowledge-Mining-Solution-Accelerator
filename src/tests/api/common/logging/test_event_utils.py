@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
 from common.logging.event_utils import track_event_if_configured  

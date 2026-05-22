@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 class KMGenericPage(BasePage):
     def __init__(self, page):
+        super().__init__(page)
         self.page = page
 
     def open_url(self):

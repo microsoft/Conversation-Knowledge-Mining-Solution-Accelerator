@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 
 # ---- Import service under test ----
 from services.history_service import HistoryService
-from azure.ai.agents.models import MessageRole
 
 
 @pytest.fixture
@@ -16,7 +15,6 @@ def mock_config_instance():
     config.azure_cosmosdb_conversations_container = "test-container"
     config.azure_cosmosdb_enable_feedback = True
     # Azure AI Foundry SDK configuration
-    config.azure_openai_deployment_model = "gpt-4o-mini"  # Still needed for model parameter
     config.azure_client_id = "test-client-id"
     config.ai_project_endpoint = "https://test-aif.services.ai.azure.com/api/projects/test-project"
     config.ai_project_api_version = "2025-05-01"
@@ -47,7 +45,6 @@ class TestHistoryService:
         assert history_service.use_chat_history_enabled == mock_config_instance.use_chat_history_enabled
         assert history_service.azure_cosmosdb_database == mock_config_instance.azure_cosmosdb_database
         assert history_service.azure_cosmosdb_account == mock_config_instance.azure_cosmosdb_account
-        assert history_service.azure_openai_deployment_name == mock_config_instance.azure_openai_deployment_model
         assert history_service.ai_project_endpoint == mock_config_instance.ai_project_endpoint
         assert history_service.ai_project_api_version == mock_config_instance.ai_project_api_version
         assert history_service.solution_name == mock_config_instance.solution_name
@@ -127,7 +124,7 @@ class TestHistoryService:
         mock_project_client.agents.runs.create_and_process.return_value = mock_run
         
         with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
-            with patch("services.history_service.get_azure_credential"):
+            with patch("services.history_service.get_azure_credential_async"):
                 result = await history_service.generate_title(conversation_messages)
                 assert result == "Test message"  # Should fall back to truncated user message
 

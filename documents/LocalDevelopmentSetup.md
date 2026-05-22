@@ -293,6 +293,46 @@ Create `.vscode/settings.json` and copy the following JSON:
 
 ---
 
+### Running with Automated Script
+
+For convenience, you can use the provided startup scripts that handle environment setup and start both backend and frontend services automatically. This is the quickest way to get up and running locally.
+
+> **Note**: You must complete **Step 1 (Prerequisites)** and **Step 2 (Development Tools Setup)** before using the automated scripts.
+
+#### Windows (Command Prompt or PowerShell):
+
+```cmd
+cd src
+.\start.cmd
+```
+
+#### macOS/Linux/WSL:
+
+```bash
+cd src
+chmod +x start.sh
+./start.sh
+```
+
+### What the Scripts Do
+
+The startup scripts automatically handle:
+- Environment variable configuration
+- Azure authentication
+- Azure RBAC role assignments (Cosmos DB, SQL Server, AI Foundry, AI Search)
+- Python virtual environment setup
+- Backend dependency installation
+- Frontend dependency installation
+- Starting both backend and frontend servers
+
+> **Note**: The script includes a 30-second wait for the backend to initialize before starting the frontend. If you see connection errors initially, wait a moment and reload the page.
+
+---
+
+## Running Backend and Frontend Manually
+
+If you prefer more control over the setup process, follow the steps below to configure and run each service individually.
+
 ## Step 3: Azure Authentication Setup
 
 Before configuring services, authenticate with Azure:
@@ -385,13 +425,17 @@ az role assignment create \
 ```
 
 #### Cosmos DB Access
-
 ```bash
+# Get your principal ID
+PRINCIPAL_ID=$(az ad signed-in-user show --query id -o tsv)
+
 # Assign Cosmos DB Built-in Data Contributor role
-az role assignment create \
-  --role "Cosmos DB Built-in Data Contributor" \
-  --assignee $PRINCIPAL_ID \
-  --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
+az cosmosdb sql role assignment create \
+  --resource-group <resource-group-name> \
+  --account-name <cosmos-db-account-name> \
+  --role-definition-name "Cosmos DB Built-in Data Contributor" \
+  --principal-id $PRINCIPAL_ID \
+  --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-db-account-name>
 ```
 
 #### Azure Storage Access
@@ -528,7 +572,7 @@ AZURE_AI_PROJECT_CONN_STRING=<ai-project-connection-string>
 AZURE_AI_AGENT_API_VERSION=2024-11-01-preview
 AZURE_AI_PROJECT_NAME=<ai-project-name>
 AZURE_AI_FOUNDRY_NAME=<ai-foundry-resource-name>
-AZURE_EXISTING_AI_PROJECT_RESOURCE_ID=<ai-project-resource-id>
+AZURE_EXISTING_AIPROJECT_RESOURCE_ID=<ai-project-resource-id>
 AZURE_AI_AGENT_ENDPOINT=<ai-agent-endpoint>
 AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME=<agent-model-deployment>
 
@@ -543,14 +587,6 @@ AZURE_AI_SEARCH_ENDPOINT=<search-endpoint>
 AZURE_AI_SEARCH_INDEX=call_transcripts_index
 AZURE_AI_SEARCH_CONNECTION_NAME=<search-connection-name>
 AZURE_AI_SEARCH_NAME=<search-service-name>
-
-# Azure OpenAI Configuration
-AZURE_OPENAI_DEPLOYMENT_MODEL=<model-deployment-name>
-AZURE_OPENAI_ENDPOINT=<openai-endpoint>
-AZURE_OPENAI_MODEL_DEPLOYMENT_TYPE=<deployment-type>
-AZURE_OPENAI_EMBEDDING_MODEL=<embedding-model-name>
-AZURE_OPENAI_API_VERSION=2024-08-01-preview
-AZURE_OPENAI_RESOURCE=<openai-resource-name>
 
 # Cosmos DB Configuration
 AZURE_COSMOSDB_ACCOUNT=<cosmos-account-name>

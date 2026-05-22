@@ -24,7 +24,8 @@ const ChatChart: React.FC<ChartProps> = ({ chartContent }) => {
   const chartRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (chartRef.current && chartContent.data && chartContent?.type) {
+    const canvasElement = chartRef.current;
+    if (canvasElement && chartContent.data && chartContent?.type) {
       ChartJS.register(...registerables);
 
       const chartConfigData = {
@@ -59,7 +60,8 @@ const ChatChart: React.FC<ChartProps> = ({ chartContent }) => {
         }
       }
 
-      const myChart = new ChartJS(chartRef.current, chartConfigData);
+      const myChart = new ChartJS(canvasElement, chartConfigData);
+      const parentElement = canvasElement.parentElement;
 
       const resizeObserver = new ResizeObserver(() => {
         requestAnimationFrame(() => {
@@ -70,16 +72,13 @@ const ChatChart: React.FC<ChartProps> = ({ chartContent }) => {
         });
       });
 
-      if (chartRef?.current?.parentElement !== null) {
-        resizeObserver.observe(chartRef.current.parentElement);
+      if (parentElement) {
+        resizeObserver.observe(parentElement);
       }
 
       return () => {
-        if (
-          chartRef?.current !== null &&
-          chartRef?.current?.parentElement !== null
-        ) {
-          resizeObserver.unobserve(chartRef?.current?.parentElement);
+        if (parentElement) {
+          resizeObserver.unobserve(parentElement);
         }
         if (myChart.destroy) {
           myChart.destroy();

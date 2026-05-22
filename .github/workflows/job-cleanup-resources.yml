@@ -29,8 +29,8 @@ on:
         description: 'Azure Location'
         required: true
         type: string
-      azure_env_openai_location:
-        description: 'Azure OpenAI Location'
+      azure_env_ai_service_location:
+        description: 'Azure AI Service Location'
         required: true
         type: string
       env_name:
@@ -50,7 +50,7 @@ jobs:
     env:
       RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
       AZURE_LOCATION: ${{ inputs.azure_location }}
-      AZURE_ENV_OPENAI_LOCATION: ${{ inputs.azure_env_openai_location }}
+      AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.azure_env_ai_service_location }}
       ENV_NAME: ${{ inputs.env_name }}
       IMAGE_TAG: ${{ inputs.image_tag }}
     steps:
