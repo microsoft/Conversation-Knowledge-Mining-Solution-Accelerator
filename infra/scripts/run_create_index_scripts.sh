@@ -191,6 +191,13 @@ if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisp
     fi
 fi
 
+# Cleanup intermediate sql_files directory
+sql_files_dir="${pythonScriptPath}sql_files"
+if [ -d "$sql_files_dir" ]; then
+    echo "✓ Cleaning up intermediate SQL files"
+    rm -rf "$sql_files_dir"
+fi
+
 # Check for any errors and exit if any occurred
 if [ "$error_flag" = true ]; then
     echo "One or more scripts failed. Please check the logs above."

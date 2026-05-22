@@ -173,3 +173,14 @@ az storage fs directory create \
 	--file-system "$containerName" \
 	--name custom_transcripts \
 	--auth-mode login --output none 2>/dev/null
+
+# Cleanup extracted folders
+if [ -d "$extractedFolder1" ]; then
+	echo "✓ Cleaning up extracted folder: $extractedFolder1"
+	rm -rf "$extractedFolder1"
+fi
+
+if [ "$usecase" == "telecom" ] && [ -d "$extractedFolder2" ]; then
+	echo "✓ Cleaning up extracted folder: $extractedFolder2"
+	rm -rf "$extractedFolder2"
+fi
