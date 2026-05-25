@@ -95,19 +95,26 @@ class HomePage(BasePage):
         chat_title_locator = self.page.locator(self.CHAT_HISTORY_NAME).first
         try:
             expect(chat_title_locator).to_be_visible(timeout=30000)
-        except AssertionError:
+        except Exception as first_err:
             # Retry once: close and reopen the panel in case the list didn't populate.
             logger.warning("Chat history items not visible on first attempt, retrying...")
             try:
-                if self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).is_visible():
-                    self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
-                    self.page.wait_for_timeout(2000)
+                # Best-effort close: ignore any errors here so retry can still proceed.
+                try:
+                    if self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).is_visible():
+                        self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
+                        self.page.wait_for_timeout(2000)
+                except Exception as close_err:
+                    logger.warning(f"Best-effort close of chat history panel failed: {close_err}")
+
                 self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
                 self.page.wait_for_load_state('networkidle')
                 self.page.wait_for_timeout(3000)
                 expect(chat_title_locator).to_be_visible(timeout=30000)
-            except AssertionError:
-                raise AssertionError("Chat history name was not visible on the page within the expected time.")
+            except Exception as retry_err:
+                raise AssertionError(
+                    "Chat history name was not visible on the page within the expected time."
+                ) from retry_err
 
     def delete_chat_history(self):
         self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
