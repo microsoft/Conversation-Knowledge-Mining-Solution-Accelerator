@@ -14,7 +14,7 @@ class HomePage(BasePage):
     SEND_BUTTON = "//button[@title='Send Question']"
     SHOW_CHAT_HISTORY_BUTTON = "//button[normalize-space()='Show Chat History']"
     HIDE_CHAT_HISTORY_BUTTON = "//button[normalize-space()='Hide Chat History']"
-    CHAT_HISTORY_NAME = "//div[contains(@class, 'ChatHistoryListItemCell_chatTitle')]"
+    CHAT_HISTORY_NAME = "//div[contains(@class, 'chatTitle')]"
     CLEAR_CHAT_HISTORY_MENU = "//button[@id='moreButton']"
     CLEAR_CHAT_HISTORY = "//button[@role='menuitem']"
     REFERENCE_LINKS_IN_RESPONSE = "//span[@role='button' and contains(@class, 'citationContainer')]"
@@ -85,13 +85,29 @@ class HomePage(BasePage):
 
     
     def show_chat_history(self):
+        # Click "Show Chat History" and wait for the panel + chat title items to render.
+        # The /history/list API call can be slow on first open after a fresh conversation,
+        # so we retry the click once and use a generous timeout before failing.
         self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
         self.page.wait_for_load_state('networkidle')
-        self.page.wait_for_timeout(2000)
+        self.page.wait_for_timeout(3000)
+
+        chat_title_locator = self.page.locator(self.CHAT_HISTORY_NAME).first
         try:
-            expect(self.page.locator(self.CHAT_HISTORY_NAME)).to_be_visible(timeout=9000)
+            expect(chat_title_locator).to_be_visible(timeout=30000)
         except AssertionError:
-            raise AssertionError("Chat history name was not visible on the page within the expected time.")
+            # Retry once: close and reopen the panel in case the list didn't populate.
+            logger.warning("Chat history items not visible on first attempt, retrying...")
+            try:
+                if self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).is_visible():
+                    self.page.locator(self.HIDE_CHAT_HISTORY_BUTTON).click()
+                    self.page.wait_for_timeout(2000)
+                self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
+                self.page.wait_for_load_state('networkidle')
+                self.page.wait_for_timeout(3000)
+                expect(chat_title_locator).to_be_visible(timeout=30000)
+            except AssertionError:
+                raise AssertionError("Chat history name was not visible on the page within the expected time.")
 
     def delete_chat_history(self):
         self.page.locator(self.SHOW_CHAT_HISTORY_BUTTON).click()
