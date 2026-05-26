@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { Provider } from "react-redux";
 import "./index.css";
 import App from "./App";
-import reportWebVitals from "./reportWebVitals";
+
 import { initializeIcons } from "@fluentui/react";
 import { store } from "./state/store";
 
@@ -18,5 +18,3 @@ root.render(
     <App />
   </Provider>
 );
-
-reportWebVitals();

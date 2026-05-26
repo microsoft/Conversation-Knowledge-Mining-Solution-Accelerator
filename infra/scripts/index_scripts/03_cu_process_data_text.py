@@ -31,7 +31,7 @@ from azure.storage.filedatalake import DataLakeServiceClient
 
 from agent_framework.azure import AzureAIProjectAgentProvider
 
-from content_understanding_client import AzureContentUnderstandingClient
+from content_understanding_client import AzureContentUnderstandingClient, sanitize_cu_output
 
 # Get parameters from command line
 p = argparse.ArgumentParser()
@@ -314,11 +314,14 @@ def create_tables():
     conn.commit()
 
 
+
 create_tables()
+
 
 def get_field_value(fields, field_name, default=""):
     field = fields.get(field_name, {})
-    return field.get('valueString', default)
+    value = field.get('valueString', default)
+    return sanitize_cu_output(value)
 
 # Process files and insert into DB and Search
 async def process_files():
