@@ -97,12 +97,10 @@ def create_search_index():
 
     # Delete the index if it already exists
     try:
-        index_client.get_index(INDEX_NAME)
-    except ResourceNotFoundError:
-        pass
-    else:
         index_client.delete_index(INDEX_NAME)
         print(f"✗ Existing search index '{INDEX_NAME}' deleted")
+    except ResourceNotFoundError:
+        pass
 
     # Define and create the index
     index = SearchIndex(
