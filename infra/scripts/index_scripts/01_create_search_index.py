@@ -16,6 +16,7 @@ from azure.search.documents.indexes.models import (
     VectorSearch,
     VectorSearchProfile,
 )
+from azure.core.exceptions import ResourceNotFoundError
 
 # Get parameters from command line
 p = argparse.ArgumentParser()
@@ -95,8 +96,11 @@ def create_search_index():
     semantic_search = SemanticSearch(configurations=[semantic_config])
 
     # Delete the index if it already exists
-    index_names = [index.name for index in index_client.list_indexes()]
-    if INDEX_NAME in index_names:
+    try:
+        index_client.get_index(INDEX_NAME)
+    except ResourceNotFoundError:
+        pass
+    else:
         index_client.delete_index(INDEX_NAME)
         print(f"✗ Existing search index '{INDEX_NAME}' deleted")
 
