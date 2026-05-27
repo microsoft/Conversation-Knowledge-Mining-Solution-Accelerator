@@ -94,6 +94,12 @@ def create_search_index():
     # Create the semantic settings with the configuration
     semantic_search = SemanticSearch(configurations=[semantic_config])
 
+    # Delete the index if it already exists
+    index_names = [index.name for index in index_client.list_indexes()]
+    if INDEX_NAME in index_names:
+        index_client.delete_index(INDEX_NAME)
+        print(f"✗ Existing search index '{INDEX_NAME}' deleted")
+
     # Define and create the index
     index = SearchIndex(
         name=INDEX_NAME,
@@ -102,7 +108,7 @@ def create_search_index():
         semantic_search=semantic_search
     )
 
-    result = index_client.create_or_update_index(index)
+    result = index_client.create_index(index)
     print(f"✓ Search index '{result.name}' created")
 
 
