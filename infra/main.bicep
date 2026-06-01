@@ -377,6 +377,7 @@ module bastionHost 'br/public:avm/res/network/bastion-host:0.8.2' = if (enablePr
 
 
 var dataCollectionRulesResourceName = 'dcr-${solutionSuffix}'
+var dcrLogAnalyticsDestinationName = 'la-${logAnalyticsWorkspaceResourceName}-destination'
 var dataCollectionRulesLocation = useExistingLogAnalytics
   ? existingLogAnalyticsWorkspace!.location
   : logAnalyticsWorkspace!.outputs.location
@@ -463,7 +464,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
         logAnalytics: [
           {
             workspaceResourceId: logAnalyticsWorkspaceResourceId
-            name: 'la--1264800308'
+            name: dcrLogAnalyticsDestinationName
           }
         ]
       }
@@ -473,7 +474,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
             'Microsoft-Perf'
           ]
           destinations: [
-            'la--1264800308'
+            dcrLogAnalyticsDestinationName
           ]
           transformKql: 'source'
           outputStream: 'Microsoft-Perf'
@@ -483,7 +484,7 @@ module windowsVmDataCollectionRules 'br/public:avm/res/insights/data-collection-
             'Microsoft-Event'
           ]
           destinations: [
-            'la--1264800308'
+            dcrLogAnalyticsDestinationName
           ]
           transformKql: 'source'
           outputStream: 'Microsoft-Event'
@@ -729,12 +730,12 @@ module aiFoundryAiServices 'modules/ai-services.bicep' = {
     managedIdentities: { userAssignedResourceIds: [userAssignedIdentity!.outputs.resourceId] } //To create accounts or projects, you must enable a managed identity on your resource
     roleAssignments: [
       {
-        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Foundry User
         principalId: userAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }
       {
-        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Azure AI User
+        roleDefinitionIdOrName: '53ca6127-db72-4b80-b1b0-d745d6d5456d' // Foundry User
         principalId: backendUserAssignedIdentity.outputs.principalId
         principalType: 'ServicePrincipal'
       }

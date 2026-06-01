@@ -6,6 +6,35 @@ import time
 from pathlib import Path
 
 
+# Module-level constant: corrupted control-char → intended Unicode mapping.
+# The CU analyzeBinary API (v2025-11-01) intermittently strips the high byte
+# from Unicode characters (e.g. U+2019 → U+0019). This dict maps each known
+# corrupted control character back to its intended equivalent.
+_CU_REPLACEMENTS = {
+    '\u0014': '\u2014',  # em dash
+    '\u0019': '\u2019',  # right single quotation mark
+    '\u001a': '\u201a',  # single low-9 quotation mark
+    '\u001c': '\u201c',  # left double quotation mark
+    '\u001d': '\u201d',  # right double quotation mark
+    '\u001e': '\u201e',  # double low-9 quotation mark
+}
+_CU_BAD_CHARS = set(_CU_REPLACEMENTS.keys())
+
+
+def sanitize_cu_output(text):
+    """Replace corrupted control characters that CU may emit.
+
+    Returns *text* unchanged (no-op) when none of the known corrupted
+    characters are present.  The replacement mapping is allocated once
+    at module level to avoid per-call overhead.
+    """
+    if not text or _CU_BAD_CHARS.isdisjoint(text):
+        return text
+    for bad, good in _CU_REPLACEMENTS.items():
+        text = text.replace(bad, good)
+    return text
+
+
 class AzureContentUnderstandingClient:
     def __init__(
         self,

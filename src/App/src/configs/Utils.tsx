@@ -167,7 +167,7 @@ export const segregateItems = (items: Conversation[]) => {
 
 export async function loadConfig() {
   const DEFAULT_CONFIG_PATH = "./config/config.json";
-  const configPath = process.env.REACT_APP_CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const configPath = import.meta.env.VITE_CONFIG_PATH || DEFAULT_CONFIG_PATH;
   if (!configPath) {
     throw new Error("Config path is not defined in the environment variables.");
   }
