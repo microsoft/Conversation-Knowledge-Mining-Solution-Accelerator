@@ -20,7 +20,7 @@ jobs:
       - name: Set timestamp
         run: echo "HHMM=$(date -u +'%H%M')" >> $GITHUB_ENV
 
-      - uses: microsoft/template-validation-action@v0.4.4
+      - uses: microsoft/template-validation-action@v0.4.3
         with:
           validateAzd: ${{ vars.TEMPLATE_VALIDATE_AZD }}
           validateTests: ${{ vars.TEMPLATE_VALIDATE_TESTS }}
