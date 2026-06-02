@@ -17,7 +17,6 @@ from typing import AsyncGenerator
 from common.logging.event_utils import track_event_if_configured
 from common.logging.llm_token_telemetry import (
     TokenUsageScope,
-    extract_usage_from_stream_chunk,
     extract_usage_from_dict,
 )
 from telemetry import token_emitter

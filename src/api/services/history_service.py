@@ -86,7 +86,7 @@ class HistoryService:
                 result = await agent.run(final_prompt)
                 title = str(result.text).strip() if result is not None else "New Conversation"
                 logger.info("Title generated successfully: '%s'", title)
-                
+
                 # Extract and emit token usage for title agent
                 token_usage = extract_usage(result)
                 if token_usage and token_usage.has_any:
@@ -99,7 +99,7 @@ class HistoryService:
                         conversation_id=conversation_id,
                         user_id=user_id,
                     )
-                
+
                 return title
 
         except Exception as e:
