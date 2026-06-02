@@ -219,7 +219,7 @@ jobs:
         uses: Azure/setup-azd@v2
           
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -333,7 +333,7 @@ jobs:
           echo "✅ ODBC Driver 18 for SQL Server installed successfully."
 
       - name: Re-authenticate with Azure (refresh OIDC token)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -350,7 +350,7 @@ jobs:
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.run_create_agents_scripts.outcome == 'failure'
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -366,7 +366,7 @@ jobs:
           echo "✅ Create agents scripts completed successfully on retry."
 
       - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -383,7 +383,7 @@ jobs:
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
         if: steps.process_sample_data.outcome == 'failure'
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

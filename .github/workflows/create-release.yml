@@ -19,7 +19,7 @@ jobs:
       with:
         ref: ${{ github.sha }}
 
-    - uses: codfish/semantic-release-action@v4
+    - uses: codfish/semantic-release-action@v5
       id: semantic
       with:
         tag-format: 'v${version}'
