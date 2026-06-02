@@ -295,15 +295,21 @@ def extract_realtime_usage(response_obj: Any) -> Optional[TokenUsage]:
     in_details = _get(usage, "input_token_details") or {}
     out_details = _get(usage, "output_token_details") or {}
 
+    def _opt_int(val: Any) -> Optional[int]:
+        """Return int if value is present, None otherwise (preserves Optional semantics)."""
+        if val is None:
+            return None
+        return _to_int(val)
+
     record = TokenUsage(
         input_tokens=inp,
         output_tokens=out,
         total_tokens=tot,
-        input_audio_tokens=_to_int(_get(in_details, "audio_tokens")),
-        input_text_tokens=_to_int(_get(in_details, "text_tokens")),
-        input_cached_tokens=_to_int(_get(in_details, "cached_tokens")),
-        output_audio_tokens=_to_int(_get(out_details, "audio_tokens")),
-        output_text_tokens=_to_int(_get(out_details, "text_tokens")),
+        input_audio_tokens=_opt_int(_get(in_details, "audio_tokens")),
+        input_text_tokens=_opt_int(_get(in_details, "text_tokens")),
+        input_cached_tokens=_opt_int(_get(in_details, "cached_tokens")),
+        output_audio_tokens=_opt_int(_get(out_details, "audio_tokens")),
+        output_text_tokens=_opt_int(_get(out_details, "text_tokens")),
     )
     if record.has_any or any(
         v for v in (
@@ -710,6 +716,10 @@ class TokenUsageEmitter:
             **dimensions,
         )
 
+        safe_dims = dict(dimensions)
+        if "user_id" in safe_dims:
+            safe_dims["user_id"] = self._apply_user_id_hash(safe_dims["user_id"])
+
         self._log.info(
             "[TOKEN USAGE] agent=%s model=%s input=%d output=%d total=%d %s",
             agent_name,
@@ -717,7 +727,7 @@ class TokenUsageEmitter:
             usage.input_tokens,
             usage.output_tokens,
             usage.total_tokens,
-            " ".join(f"{k}={v}" for k, v in dimensions.items() if v),
+            " ".join(f"{k}={v}" for k, v in safe_dims.items() if v),
         )
 
 
@@ -773,7 +783,7 @@ class TokenUsageScope(AbstractContextManager):
         """Extract usage from any supported shape and add to the running total."""
         start_ns = time.perf_counter_ns()
         try:
-            found = extract_usage(source) or extract_usage_from_stream_chunk(source)
+            found = extract_usage_from_stream_chunk(source)
         except Exception as exc:
             logger.debug("TokenUsageScope.add failed: %s", exc, exc_info=True)
             return None

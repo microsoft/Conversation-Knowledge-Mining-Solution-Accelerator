@@ -186,7 +186,7 @@ class ChatService:
                             conversation_id, thread_conversation_id)
                 model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
 
-                token_scope = TokenUsageScope(
+                with TokenUsageScope(
                     token_emitter,
                     agent_name=self.orchestrator_agent_name or "orchestrator",
                     model_deployment_name=model_deployment,
@@ -195,47 +195,43 @@ class ChatService:
                     conversation_id=conversation_id,
                     user_id=user_id,
                     team_name=os.getenv("TEAM_NAME", "default"),
-                )
+                ) as token_scope:
+                    async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                        # Collect citations from Azure AI Search responses
+                        for content in getattr(chunk, "contents", []):
+                            annotations = getattr(content, "annotations", [])
+                            if annotations:
+                                citations.extend(annotations)
 
-                async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
-                    # Collect citations from Azure AI Search responses
-                    for content in getattr(chunk, "contents", []):
-                        annotations = getattr(content, "annotations", [])
-                        if annotations:
-                            citations.extend(annotations)
+                        # Extract token usage from streaming chunks (typically in final chunk)
+                        token_scope.add(chunk)
 
-                    # Extract token usage from streaming chunks (typically in final chunk)
-                    token_scope.add(chunk)
+                        chunk_text = str(chunk.text) if chunk.text else ""
 
-                    chunk_text = str(chunk.text) if chunk.text else ""
+                        # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                        chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
 
-                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
+                        if chunk_text:
+                            complete_response += chunk_text
+                            yield ("assistant", chunk_text)
 
-                    if chunk_text:
-                        complete_response += chunk_text
-                        yield ("assistant", chunk_text)
-
-                # If streaming chunks didn't include usage, attempt to retrieve from thread runs
-                if not token_scope.usage.has_any:
-                    try:
-                        openai_client = project_client.get_openai_client()
-                        runs = await openai_client.conversations.runs.list(
-                            conversation_id=thread_conversation_id, limit=1, order="desc"
-                        )
-                        if runs and runs.data:
-                            last_run = runs.data[0]
-                            run_usage = getattr(last_run, "usage", None)
-                            if run_usage:
-                                usage_found = extract_usage_from_dict(run_usage)
-                                if usage_found:
-                                    token_scope.add_usage(usage_found)
-                                    logger.info("Token usage retrieved from run: %s", usage_found)
-                    except Exception as usage_err:
-                        logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
-
-                # Emit all token events via the scope's __exit__
-                token_scope.__exit__(None, None, None)
+                    # If streaming chunks didn't include usage, attempt to retrieve from thread runs
+                    if not token_scope.usage.has_any:
+                        try:
+                            openai_client = project_client.get_openai_client()
+                            runs = await openai_client.conversations.runs.list(
+                                conversation_id=thread_conversation_id, limit=1, order="desc"
+                            )
+                            if runs and runs.data:
+                                last_run = runs.data[0]
+                                run_usage = getattr(last_run, "usage", None)
+                                if run_usage:
+                                    usage_found = extract_usage_from_dict(run_usage)
+                                    if usage_found:
+                                        token_scope.add_usage(usage_found)
+                                        logger.info("Token usage retrieved from run: %s", usage_found)
+                        except Exception as usage_err:
+                            logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
