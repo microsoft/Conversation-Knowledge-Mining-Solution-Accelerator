@@ -7,7 +7,8 @@ from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
-from common.logging.token_usage_utils import extract_token_usage, emit_all_token_events
+from common.logging.llm_token_telemetry import extract_usage
+from telemetry import token_emitter
 
 from agent_framework.azure import AzureAIProjectAgentProvider
 
@@ -87,13 +88,14 @@ class HistoryService:
                 logger.info("Title generated successfully: '%s'", title)
                 
                 # Extract and emit token usage for title agent
-                token_usage = extract_token_usage(result)
-                if token_usage.get("total_tokens", 0) > 0:
+                token_usage = extract_usage(result)
+                if token_usage and token_usage.has_any:
                     model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
-                    emit_all_token_events(
+                    token_emitter.emit_all(
                         agent_name=self.title_agent_name or "title_agent",
                         model_deployment_name=model_deployment,
                         usage=token_usage,
+                        emit_user_event=True,
                         conversation_id=conversation_id,
                         user_id=user_id,
                     )

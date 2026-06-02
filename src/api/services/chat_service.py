@@ -15,10 +15,12 @@ import re
 from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
-from common.logging.token_usage_utils import (
-    extract_token_usage_from_stream_chunk,
-    emit_all_token_events,
+from common.logging.llm_token_telemetry import (
+    TokenUsageScope,
+    extract_usage_from_stream_chunk,
+    extract_usage_from_dict,
 )
+from telemetry import token_emitter
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
@@ -183,7 +185,19 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
-                accumulated_token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+                model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
+
+                token_scope = TokenUsageScope(
+                    token_emitter,
+                    agent_name=self.orchestrator_agent_name or "orchestrator",
+                    model_deployment_name=model_deployment,
+                    emit_user_event=True,
+                    emit_team_event=True,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    team_name=os.getenv("TEAM_NAME", "default"),
+                )
+
                 async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
@@ -192,9 +206,7 @@ class ChatService:
                             citations.extend(annotations)
 
                     # Extract token usage from streaming chunks (typically in final chunk)
-                    chunk_token_usage = extract_token_usage_from_stream_chunk(chunk)
-                    if chunk_token_usage["total_tokens"] > 0:
-                        accumulated_token_usage = chunk_token_usage
+                    token_scope.add(chunk)
 
                     chunk_text = str(chunk.text) if chunk.text else ""
 
@@ -205,11 +217,8 @@ class ChatService:
                         complete_response += chunk_text
                         yield ("assistant", chunk_text)
 
-                # Emit token usage events after streaming completes
-                # Try to get token usage from the thread run via OpenAI client
-                model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
-                if accumulated_token_usage["total_tokens"] == 0:
-                    # Streaming chunks didn't include usage; attempt to retrieve from thread runs
+                # If streaming chunks didn't include usage, attempt to retrieve from thread runs
+                if not token_scope.usage.has_any:
                     try:
                         openai_client = project_client.get_openai_client()
                         runs = await openai_client.conversations.runs.list(
@@ -219,31 +228,15 @@ class ChatService:
                             last_run = runs.data[0]
                             run_usage = getattr(last_run, "usage", None)
                             if run_usage:
-                                from common.logging.token_usage_utils import extract_token_usage_from_dict
-                                accumulated_token_usage = extract_token_usage_from_dict(run_usage)
-                                logger.info("Token usage retrieved from run: %s", accumulated_token_usage)
+                                usage_found = extract_usage_from_dict(run_usage)
+                                if usage_found:
+                                    token_scope.add_usage(usage_found)
+                                    logger.info("Token usage retrieved from run: %s", usage_found)
                     except Exception as usage_err:
                         logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
 
-                # If still no usage from SDK, estimate from response content
-                if accumulated_token_usage["total_tokens"] == 0 and complete_response:
-                    # Rough estimation: ~4 chars per token for English text
-                    estimated_output = max(1, len(complete_response) // 4)
-                    estimated_input = max(1, len(query) // 4) if query else 1
-                    accumulated_token_usage = {
-                        "input_tokens": estimated_input,
-                        "output_tokens": estimated_output,
-                        "total_tokens": estimated_input + estimated_output,
-                    }
-                    logger.info("Token usage estimated from content length: %s", accumulated_token_usage)
-
-                emit_all_token_events(
-                    agent_name=self.orchestrator_agent_name or "orchestrator",
-                    model_deployment_name=model_deployment,
-                    usage=accumulated_token_usage,
-                    conversation_id=conversation_id,
-                    user_id=user_id,
-                )
+                # Emit all token events via the scope's __exit__
+                token_scope.__exit__(None, None, None)
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
