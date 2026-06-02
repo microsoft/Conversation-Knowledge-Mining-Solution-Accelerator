@@ -15,9 +15,10 @@ import re
 from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
-from common.logging.token_usage_utils import (
-    extract_token_usage_from_stream_chunk,
-    emit_all_token_events,
+from telemetry import token_emitter
+from common.logging.llm_token_telemetry import (
+    TokenUsageScope,
+    extract_usage_from_stream_chunk,
 )
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
@@ -183,67 +184,68 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
-                accumulated_token_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-                async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
-                    # Collect citations from Azure AI Search responses
-                    for content in getattr(chunk, "contents", []):
-                        annotations = getattr(content, "annotations", [])
-                        if annotations:
-                            citations.extend(annotations)
-
-                    # Extract token usage from streaming chunks (typically in final chunk)
-                    chunk_token_usage = extract_token_usage_from_stream_chunk(chunk)
-                    if chunk_token_usage["total_tokens"] > 0:
-                        accumulated_token_usage = chunk_token_usage
-
-                    chunk_text = str(chunk.text) if chunk.text else ""
-
-                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
-
-                    if chunk_text:
-                        complete_response += chunk_text
-                        yield ("assistant", chunk_text)
-
-                # Emit token usage events after streaming completes
-                # Try to get token usage from the thread run via OpenAI client
                 model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
-                if accumulated_token_usage["total_tokens"] == 0:
-                    # Streaming chunks didn't include usage; attempt to retrieve from thread runs
-                    try:
-                        openai_client = project_client.get_openai_client()
-                        runs = await openai_client.conversations.runs.list(
-                            conversation_id=thread_conversation_id, limit=1, order="desc"
-                        )
-                        if runs and runs.data:
-                            last_run = runs.data[0]
-                            run_usage = getattr(last_run, "usage", None)
-                            if run_usage:
-                                from common.logging.token_usage_utils import extract_token_usage_from_dict
-                                accumulated_token_usage = extract_token_usage_from_dict(run_usage)
-                                logger.info("Token usage retrieved from run: %s", accumulated_token_usage)
-                    except Exception as usage_err:
-                        logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
 
-                # If still no usage from SDK, estimate from response content
-                if accumulated_token_usage["total_tokens"] == 0 and complete_response:
-                    # Rough estimation: ~4 chars per token for English text
-                    estimated_output = max(1, len(complete_response) // 4)
-                    estimated_input = max(1, len(query) // 4) if query else 1
-                    accumulated_token_usage = {
-                        "input_tokens": estimated_input,
-                        "output_tokens": estimated_output,
-                        "total_tokens": estimated_input + estimated_output,
-                    }
-                    logger.info("Token usage estimated from content length: %s", accumulated_token_usage)
-
-                emit_all_token_events(
+                with TokenUsageScope(
+                    token_emitter,
                     agent_name=self.orchestrator_agent_name or "orchestrator",
                     model_deployment_name=model_deployment,
-                    usage=accumulated_token_usage,
-                    conversation_id=conversation_id,
+                    emit_user_event=True,
+                    emit_team_event=True,
                     user_id=user_id,
-                )
+                    conversation_id=conversation_id,
+                    team_name=os.getenv("TEAM_NAME", "default"),
+                ) as token_scope:
+                    async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                        # Collect citations from Azure AI Search responses
+                        for content in getattr(chunk, "contents", []):
+                            annotations = getattr(content, "annotations", [])
+                            if annotations:
+                                citations.extend(annotations)
+
+                        # Extract token usage from streaming chunks (typically in final chunk)
+                        chunk_usage = extract_usage_from_stream_chunk(chunk)
+                        if chunk_usage:
+                            token_scope.add_usage(chunk_usage)
+
+                        chunk_text = str(chunk.text) if chunk.text else ""
+
+                        # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                        chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
+
+                        if chunk_text:
+                            complete_response += chunk_text
+                            yield ("assistant", chunk_text)
+
+                    # If streaming didn't yield usage, try to get from thread run
+                    if not token_scope.usage.has_any:
+                        try:
+                            openai_client = project_client.get_openai_client()
+                            runs = await openai_client.conversations.runs.list(
+                                conversation_id=thread_conversation_id, limit=1, order="desc"
+                            )
+                            if runs and runs.data:
+                                last_run = runs.data[0]
+                                run_usage = getattr(last_run, "usage", None)
+                                if run_usage:
+                                    from common.logging.llm_token_telemetry import extract_usage_from_dict
+                                    usage_record = extract_usage_from_dict(run_usage)
+                                    if usage_record:
+                                        token_scope.add_usage(usage_record)
+                                        logger.info("Token usage retrieved from run: %s", usage_record)
+                        except Exception as usage_err:
+                            logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
+
+                    # If still no usage, estimate from response content
+                    if not token_scope.usage.has_any and complete_response:
+                        from common.logging.llm_token_telemetry import TokenUsage
+                        estimated_output = max(1, len(complete_response) // 4)
+                        estimated_input = max(1, len(query) // 4) if query else 1
+                        token_scope.add_usage(TokenUsage(
+                            input_tokens=estimated_input,
+                            output_tokens=estimated_output,
+                            total_tokens=estimated_input + estimated_output,
+                        ))
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
