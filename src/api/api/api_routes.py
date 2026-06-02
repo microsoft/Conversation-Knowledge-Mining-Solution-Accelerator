@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+from urllib.parse import unquote
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import requests
@@ -219,7 +220,7 @@ async def fetch_azure_search_content_endpoint(request: Request):
                 if response.status_code == 200:
                     data = response.json()
                     content = data.get("content", "")
-                    title = data.get("sourceurl", "")
+                    title = unquote(data.get("sourceurl", ""))
                     logger.info("Azure Search content fetched successfully: url=%s", url)
                     return {"content": content, "title": title}
                 else:
