@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: amannn/action-semantic-pull-request@v6
         with:
-          headerPattern: '^(\w*)(?:\(([\w$.\-*/ ]*)\))?\s*:\s*(.*)$'
+          headerPattern: '^(\w+)(?:\(([\w$.\-*/ ]*)\))?\s*:\s*(.*)$'
           headerPatternCorrespondence: type, scope, subject
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
