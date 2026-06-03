@@ -74,13 +74,13 @@ fi
 
 # Note: Environment variables are now passed as parameters from process_sample_data.sh
 
-### Assign Azure AI User role to the signed in user for AI Foundry ###
+### Assign Foundry User role to the signed in user for AI Foundry ###
 role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --assignee $signed_user_id --query "[].roleDefinitionId" -o tsv)
 if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Azure AI User role for AI Foundry"
+    echo "✓ Assigning Foundry User role for AI Foundry"
     MSYS_NO_PATHCONV=1 az role assignment create --assignee $signed_user_id --role 53ca6127-db72-4b80-b1b0-d745d6d5456d --scope $aif_resource_id --output none
     if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Azure AI User role for AI Foundry"
+        echo "✗ Failed to assign Foundry User role for AI Foundry"
         exit 1
     fi
 fi
@@ -189,6 +189,13 @@ if [ -n "$backendManagedIdentityClientId" ] && [ -n "$backendManagedIdentityDisp
             error_flag=true
         fi
     fi
+fi
+
+# Cleanup intermediate sql_files directory
+sql_files_dir="${pythonScriptPath}sql_files"
+if [ -d "$sql_files_dir" ]; then
+    echo "✓ Cleaning up intermediate SQL files"
+    rm -rf "$sql_files_dir"
 fi
 
 # Check for any errors and exit if any occurred
