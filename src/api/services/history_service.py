@@ -1,4 +1,5 @@
 import logging
+import os
 import uuid
 from typing import Optional
 from fastapi import HTTPException, status
@@ -6,6 +7,8 @@ from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from helpers.azure_credential_utils import get_azure_credential_async, build_async_azure_credential
+from common.logging.llm_token_telemetry import extract_usage
+from telemetry import token_emitter
 
 from agent_framework.azure import AzureAIProjectAgentProvider
 
@@ -55,7 +58,7 @@ class HistoryService:
             logger.exception("Failed to initialize CosmosDB client")
             raise
 
-    async def generate_title(self, conversation_messages):
+    async def generate_title(self, conversation_messages, conversation_id: str = "", user_id: str = ""):
         # Filter user messages and prepare content
         user_messages = [{"role": msg["role"], "content": msg["content"]}
                          for msg in conversation_messages if msg["role"] == "user"]
@@ -83,6 +86,20 @@ class HistoryService:
                 result = await agent.run(final_prompt)
                 title = str(result.text).strip() if result is not None else "New Conversation"
                 logger.info("Title generated successfully: '%s'", title)
+
+                # Extract and emit token usage for title agent
+                token_usage = extract_usage(result)
+                if token_usage and token_usage.has_any:
+                    model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
+                    token_emitter.emit_all(
+                        agent_name=self.title_agent_name or "title_agent",
+                        model_deployment_name=model_deployment,
+                        usage=token_usage,
+                        emit_user_event=True,
+                        conversation_id=conversation_id,
+                        user_id=user_id,
+                    )
+
                 return title
 
         except Exception as e:
@@ -104,7 +121,7 @@ class HistoryService:
         conversation = await cosmos_conversation_client.get_conversation(user_id, conversation_id)
         if not conversation:
             logger.info("Conversation %s not found, creating new conversation", conversation_id)
-            title = await self.generate_title(messages)
+            title = await self.generate_title(messages, conversation_id=conversation_id, user_id=user_id)
             conversation = await cosmos_conversation_client.create_conversation(
                 user_id=user_id, conversation_id=conversation_id, title=title
             )

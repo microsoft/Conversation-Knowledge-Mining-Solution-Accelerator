@@ -15,6 +15,11 @@ import re
 from typing import AsyncGenerator
 
 from common.logging.event_utils import track_event_if_configured
+from common.logging.llm_token_telemetry import (
+    TokenUsageScope,
+    extract_usage_from_dict,
+)
+from telemetry import token_emitter
 from helpers.azure_credential_utils import get_azure_credential_async
 from common.database.sqldb_service import SQLTool, get_db_connection as get_sqldb_connection
 
@@ -179,21 +184,54 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
-                async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
-                    # Collect citations from Azure AI Search responses
-                    for content in getattr(chunk, "contents", []):
-                        annotations = getattr(content, "annotations", [])
-                        if annotations:
-                            citations.extend(annotations)
+                model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME") or os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT", "unknown")
 
-                    chunk_text = str(chunk.text) if chunk.text else ""
+                with TokenUsageScope(
+                    token_emitter,
+                    agent_name=self.orchestrator_agent_name or "orchestrator",
+                    model_deployment_name=model_deployment,
+                    emit_user_event=True,
+                    emit_team_event=True,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    team_name=os.getenv("TEAM_NAME", "default"),
+                ) as token_scope:
+                    async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                        # Collect citations from Azure AI Search responses
+                        for content in getattr(chunk, "contents", []):
+                            annotations = getattr(content, "annotations", [])
+                            if annotations:
+                                citations.extend(annotations)
 
-                    # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
-                    chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
+                        # Extract token usage from streaming chunks (typically in final chunk)
+                        token_scope.add(chunk)
 
-                    if chunk_text:
-                        complete_response += chunk_text
-                        yield ("assistant", chunk_text)
+                        chunk_text = str(chunk.text) if chunk.text else ""
+
+                        # Replace complete citation markers like 【4:0†source】 or 【4:0 source】 with [1], [2], etc.
+                        chunk_text = re.sub(r'【\d+:\d+†?[^】]*】', replace_citation_marker, chunk_text)
+
+                        if chunk_text:
+                            complete_response += chunk_text
+                            yield ("assistant", chunk_text)
+
+                    # If streaming chunks didn't include usage, attempt to retrieve from thread runs
+                    if not token_scope.usage.has_any:
+                        try:
+                            openai_client = project_client.get_openai_client()
+                            runs = await openai_client.conversations.runs.list(
+                                conversation_id=thread_conversation_id, limit=1, order="desc"
+                            )
+                            if runs and runs.data:
+                                last_run = runs.data[0]
+                                run_usage = getattr(last_run, "usage", None)
+                                if run_usage:
+                                    usage_found = extract_usage_from_dict(run_usage)
+                                    if usage_found:
+                                        token_scope.add_usage(usage_found)
+                                        logger.info("Token usage retrieved from run: %s", usage_found)
+                        except Exception as usage_err:
+                            logger.debug("Could not retrieve token usage from thread run: %s", usage_err)
 
                 logger.info("Streaming complete for conversation %s: response_length=%d, citation_count=%d",
                             conversation_id, len(complete_response), len(citations))
