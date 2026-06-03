@@ -57,7 +57,7 @@
       "value": "${USE_CASE}"
     },
     "enableMonitoring": {
-      "value": "${enableMonitoring}"
+      "value": "${AZURE_ENV_ENABLE_MONITORING=false}"
     }
   }
 }

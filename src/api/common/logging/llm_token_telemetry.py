@@ -718,7 +718,10 @@ class TokenUsageEmitter:
 
         safe_dims = dict(dimensions)
         if "user_id" in safe_dims:
-            safe_dims["user_id"] = self._apply_user_id_hash(safe_dims["user_id"])
+            if self._user_id_hasher is not None:
+                safe_dims["user_id"] = self._apply_user_id_hash(safe_dims["user_id"])
+            else:
+                safe_dims.pop("user_id", None)
 
         self._log.info(
             "[TOKEN USAGE] agent=%s model=%s input=%d output=%d total=%d %s",

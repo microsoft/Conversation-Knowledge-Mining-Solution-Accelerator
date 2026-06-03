@@ -6,10 +6,9 @@ from fastapi import HTTPException, status
 from azure.ai.projects.aio import AIProjectClient
 from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
-from helpers.azure_credential_utils import get_azure_credential, get_azure_credential_async
+from helpers.azure_credential_utils import get_azure_credential_async, build_async_azure_credential
 from common.logging.llm_token_telemetry import extract_usage
 from telemetry import token_emitter
-from helpers.azure_credential_utils import get_azure_credential_async, build_async_azure_credential
 
 from agent_framework.azure import AzureAIProjectAgentProvider
 
