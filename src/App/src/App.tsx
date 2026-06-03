@@ -166,10 +166,14 @@ const Dashboard: React.FC = () => {
         nextState[panels.CHAT] = true;
       }
 
+      if (panelName === panels.CHAT && !nextState[panels.CHAT]) {
+        dispatch(hideCitation());
+      }
+
       updateLayoutWidths(nextState);
       setPanelShowStates(nextState);
     },
-    [panelShowStates, updateLayoutWidths]
+    [dispatch, panelShowStates, updateLayoutWidths]
   );
 
   const getHistoryListData = useCallback(async () => {
@@ -302,6 +306,11 @@ const Dashboard: React.FC = () => {
             />
           </div>
         )}
+        {showCitation && currentConversationIdForCitation !== "" && (
+          <div className="citation-panel-wrapper">
+            <CitationPanel activeCitation={activeCitation} />
+          </div>
+        )}
         {panelShowStates[panels.CHAT] &&
           panelShowStates[panels.CHATHISTORY] && (
             <div
@@ -321,11 +330,6 @@ const Dashboard: React.FC = () => {
               />
             </div>
           )}
-        {showCitation && currentConversationIdForCitation !== "" && (
-          <div className="citation-panel-wrapper">
-            <CitationPanel activeCitation={activeCitation} />
-          </div>
-        )}
       </div>
     </FluentProvider>
   );
