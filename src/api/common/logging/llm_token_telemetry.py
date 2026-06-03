@@ -169,8 +169,8 @@ def _get(obj: Any, key: str, default: Any = None) -> Any:
 
 
 def _is_iterable(obj: Any) -> bool:
-    """True only for real iterables (lists/tuples/sets/generators), NOT for
-    arbitrary objects that happen to expose ``__iter__``."""
+    """True for real iterables (lists/tuples/sets/generators) and objects
+    exposing ``__iter__``, but NOT for strings, bytes, or mappings."""
     if obj is None:
         return False
     if isinstance(obj, (list, tuple, set, frozenset)):
