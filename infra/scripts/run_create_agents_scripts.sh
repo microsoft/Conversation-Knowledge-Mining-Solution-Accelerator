@@ -284,7 +284,7 @@ else
     exit 1
 fi
 
-# Check if the principal has Azure AI User role on the AI Foundry
+# Check if the principal has Foundry User role on the AI Foundry
 role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
   --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
   --scope "$aiFoundryResourceId" \
@@ -292,18 +292,18 @@ role_assignment=$(MSYS_NO_PATHCONV=1 az role assignment list \
   --query "[].roleDefinitionId" -o tsv)
 
 if [ -z "$role_assignment" ]; then
-    echo "✓ Assigning Azure AI User role for AI Foundry"
+    echo "✓ Assigning Foundry User role for AI Foundry"
     MSYS_NO_PATHCONV=1 az role assignment create \
       --assignee "$signed_user_id" \
       --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
       --scope "$aiFoundryResourceId" \
       --output none
     if [ $? -ne 0 ]; then
-        echo "✗ Failed to assign Azure AI User role for AI Foundry"
+        echo "✗ Failed to assign Foundry User role for AI Foundry"
         exit 1
     fi
 else
-    echo "✓ Principal already has the Azure AI User role"
+    echo "✓ Principal already has the Foundry User role"
 fi
 
 
