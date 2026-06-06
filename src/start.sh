@@ -90,8 +90,8 @@ setup_environment() {
 
     # Write API base URL to frontend .env
     APP_ENV_FILE="$ROOT_DIR/src/App/.env"
-    echo "REACT_APP_API_BASE_URL=http://127.0.0.1:8000" > "$APP_ENV_FILE"
-    echo "Updated src/App/.env with REACT_APP_API_BASE_URL"
+    echo "VITE_API_BASE_URL=http://127.0.0.1:8000" > "$APP_ENV_FILE"
+    echo "Updated src/App/.env with VITE_API_BASE_URL"
 
     # Add or update APP_ENV="dev" in API .env file
     echo "Checking for existing APP_ENV in src/api/.env..."
@@ -163,8 +163,8 @@ setup_environment() {
         --output tsv >/dev/null 2>&1
     echo "Azure SQL Server AAD admin role assigned successfully."
 
-    # Assign Azure AI User role
-    echo "Checking Azure AI User role assignment..."
+    # Assign Foundry User role
+    echo "Checking Foundry User role assignment..."
     if [ -z "$EXISTING_AI_PROJECT_RESOURCE_ID" ]; then
         echo "Using AI Foundry account scope..."
         echo "AI Foundry Name: $AI_FOUNDRY_NAME"
@@ -195,15 +195,15 @@ setup_environment() {
             --query "[0].id" -o tsv)
         
         if [ -n "$aiUserRoleExists" ]; then
-            echo "User already has the Azure AI User role."
+            echo "User already has the Foundry User role."
         else
-            echo "Assigning Azure AI User role to AI Foundry account..."
+            echo "Assigning Foundry User role to AI Foundry account..."
             az role assignment create \
                 --assignee "$signed_user_id" \
                 --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
                 --scope "$foundryExists" \
                 --output none
-            echo "Azure AI User role assigned successfully."
+            echo "Foundry User role assigned successfully."
         fi
     else
         echo "Extracting foundry scope from existing AI project resource ID..."
@@ -223,15 +223,15 @@ setup_environment() {
             --query "[0].id" -o tsv)
         
         if [ -n "$aiUserRoleExists" ]; then
-            echo "User already has the Azure AI User role."
+            echo "User already has the Foundry User role."
         else
-            echo "Assigning Azure AI User role to foundry account..."
+            echo "Assigning Foundry User role to foundry account..."
             az role assignment create \
                 --assignee "$signed_user_id" \
                 --role "53ca6127-db72-4b80-b1b0-d745d6d5456d" \
                 --scope "$FOUNDRY_SCOPE" \
                 --output none
-            echo "Azure AI User role assigned successfully."
+            echo "Foundry User role assigned successfully."
         fi
     fi
 
