@@ -105,11 +105,13 @@ async def main():
 
     # Azure Search setup
     search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, credential)
-    index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
 
-    # Delete the search index
+    # Delete the search index (best-effort; it may not exist yet)
     search_index_client = SearchIndexClient(SEARCH_ENDPOINT, credential)
-    search_index_client.delete_index(INDEX_NAME)
+    try:
+        search_index_client.delete_index(INDEX_NAME)
+    except Exception as e:
+        print(f"Warning: Could not delete index '{INDEX_NAME}': {e}")
 
 
     # Create the search index
@@ -728,9 +730,9 @@ async def main():
             cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
             conn.commit()
 
-            cursor.close()
-            conn.close()
-            print("✓ Data processing completed")
+        cursor.close()
+        conn.close()
+        print("✓ Data processing completed")
 
     finally:
         # Delete the agents after processing is complete

@@ -91,7 +91,6 @@ async def main():
 
     # Azure Search setup
     search_client = SearchClient(SEARCH_ENDPOINT, INDEX_NAME, credential)
-    index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
 
     # SQL Server setup
     try:
@@ -110,16 +109,6 @@ async def main():
         connection_string = f"DRIVER={driver};SERVER={SQL_SERVER};DATABASE={SQL_DATABASE};"
         conn = pyodbc.connect(connection_string, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
         cursor = conn.cursor()
-
-    # SQL data type mapping for pandas to SQL conversion
-    sql_data_types = {
-        'int64': 'INT',
-        'float64': 'DECIMAL(10,2)',
-        'object': 'NVARCHAR(MAX)',
-        'bool': 'BIT',
-        'datetime64[ns]': 'DATETIME2(6)',
-        'timedelta[ns]': 'TIME'
-    }
 
 
     # Helper function to generate and execute optimized SQL insert scripts
@@ -632,9 +621,9 @@ async def main():
             cursor.execute("UPDATE [dbo].[processed_data_key_phrases] SET StartTime = FORMAT(DATEADD(DAY, ?, StartTime), 'yyyy-MM-dd HH:mm:ss')", (days_difference,))
             conn.commit()
 
-            cursor.close()
-            conn.close()
-            print("✓ Data processing completed")
+        cursor.close()
+        conn.close()
+        print("✓ Data processing completed")
 
     finally:
         # Delete the agents after processing is complete
