@@ -659,7 +659,6 @@ async def main():
         except Exception as e:
             print(f"Warning: Could not close credential: {e}")
 
-    
 
 if __name__ == "__main__":
     asyncio.run(main())
