@@ -42,20 +42,22 @@
 
 ## Tech stack & why
 
-| Component | Product | Why |
-|-----------|---------|-----|
-| Backend API | **FastAPI** | Async-native, auto-generated OpenAPI docs, dependency injection |
-| Frontend | **React + Fluent UI 2** | Microsoft design system, accessible components, TypeScript |
-| LLM (chat + insights) | **Azure OpenAI GPT-4o** | Best available model for grounded Q&A and reasoning |
-| Embeddings | **text-embedding-ada-002** | Proven embedding model, 1536 dims, good cost/quality ratio |
-| Vector + keyword search | **Azure AI Search** | Hybrid search (BM25 + HNSW) in one service, managed |
-| Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
-| Agent orchestration | **Azure AI Foundry** | Managed agent service with tool support |
-| LLM client layer | **Foundry IQ (`azure-ai-projects`)** | All model access (chat, embeddings) goes through a single Foundry Project. Centralizes governance, tracing, and quotas. Falls back to direct Azure OpenAI SDK when not configured. |
-| Structured data | **Azure SQL Database** | Metadata, enrichment cache, data source configs |
-| Chat history | **Azure Cosmos DB** | Low-latency session storage |
-| File + queue storage | **Azure Blob + Queue** | Raw file storage + async job queue for the processing pipeline |
-| Auth | **App Service EasyAuth** | Zero-code Azure AD integration |
+| Layer | Technology |
+|-------|------------|
+| Backend API | **FastAPI (Python 3.11)** |
+| Frontend | **React 18 + Fluent UI React v9** |
+| LLM — chat + insights | **Azure OpenAI GPT-4o** |
+| Embeddings | **text-embedding-ada-002** |
+| Search | **Azure AI Search** |
+| Document extraction | **Azure Content Understanding** |
+| Agent orchestration | **Azure AI Agent Service (via AI Foundry)** |
+| Pipeline engine | **Custom YAML pipeline engine** |
+| Structured data | **Azure SQL Database** |
+| Session store | **Azure Cosmos DB (NoSQL API)** |
+| Object storage | **Azure Blob Storage** |
+| Async job queue | **Azure Queue Storage** |
+| Auth | **Microsoft Entra ID via App Service EasyAuth** |
+| IaC | **Bicep + Azure Developer CLI (`azd`)** |
 
 ---
 
