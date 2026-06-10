@@ -299,6 +299,9 @@ output API_APP_URL string = isAvm ? avmDeployment!.outputs.API_APP_URL : bicepDe
 @description('Backend API App Service name.')
 output API_APP_NAME string = isAvm ? avmDeployment!.outputs.API_APP_NAME : bicepDeployment!.outputs.API_APP_NAME
 
+@description('API App Service principal ID.')
+output API_APP_PRINCIPAL_ID string = isAvm ? avmDeployment!.outputs.API_APP_PRINCIPAL_ID : bicepDeployment!.outputs.API_APP_PRINCIPAL_ID
+
 @description('Contains Application Insights connection string.')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = isAvm ? avmDeployment!.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING : bicepDeployment!.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING
 

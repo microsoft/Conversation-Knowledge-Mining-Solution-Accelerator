@@ -323,7 +323,7 @@ module storage_account './modules/data/storage-account.bicep' = {
     location: location
     tags: {}
     containers: [
-      { name: 'default', publicAccess: 'None' }
+      { name: 'data', publicAccess: 'None' }
     ]
   }
   scope: resourceGroup(resourceGroup().name)
@@ -390,7 +390,51 @@ var reactAppLayoutConfig = '''{
         "CHATHISTORY": 20
       }
     }
-  }
+  },
+  "charts": [
+    {
+      "id": "SATISFIED",
+      "name": "Satisfied",
+      "type": "card",
+      "layout": { "row": 1, "column": 1, "height": 11 }
+    },
+    {
+      "id": "TOTAL_CALLS",
+      "name": "Total Calls",
+      "type": "card",
+      "layout": { "row": 1, "column": 2, "span": 1 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME",
+      "name": "Average Handling Time",
+      "type": "card",
+      "layout": { "row": 1, "column": 3, "span": 1 }
+    },
+    {
+      "id": "SENTIMENT",
+      "name": "Topics Overview",
+      "type": "donutchart",
+      "layout": { "row": 2, "column": 1, "width": 40, "height": 44.5 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME_BY_TOPIC",
+      "name": "Average Handling Time By Topic",
+      "type": "bar",
+      "layout": { "row": 2, "column": 2, "row-span": 2, "width": 60 }
+    },
+    {
+      "id": "TOPICS",
+      "name": "Trending Topics",
+      "type": "table",
+      "layout": { "row": 3, "column": 1, "span": 2 }
+    },
+    {
+      "id": "KEY_PHRASES",
+      "name": "Key Phrases",
+      "type": "wordcloud",
+      "layout": { "row": 3, "column": 2, "height": 44.5 }
+    }
+  ]
 }'''
 
 // ========== Backend Deployment ========== //
@@ -485,7 +529,10 @@ output AGENT_NAME_CONVERSATION string = ''
 output AGENT_NAME_TITLE string = ''
 
 @description('Backend API App Service name')
-output API_APP_NAME string = 'api-${solutionSuffix}'
+output API_APP_NAME string = backend_docker!.outputs.name
+
+@description('API App Service principal ID')
+output API_APP_PRINCIPAL_ID string = backend_docker!.outputs.identityPrincipalId
 
 @description('Contains API application URL.')
 output API_APP_URL string = backend_docker!.outputs.appUrl
