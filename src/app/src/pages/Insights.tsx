@@ -35,7 +35,6 @@ const Insights: React.FC = () => {
         try { sessionStorage.setItem("km_headline", JSON.stringify(r.data.headline)); } catch {}
       }
     } catch (e) {
-      console.error("Failed to load dashboard:", e);
       setError("Failed to load dashboard. Please try again.");
     }
     finally { setLoading(false); setRefreshing(false); }

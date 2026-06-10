@@ -237,7 +237,7 @@ const DataExplorer: React.FC = () => {
       const res = await getAvailableFilters();
       setFilters(res.data);
     } catch (e) {
-      console.warn("Failed to load filters:", e);
+      // silently ignore
     }
   };
 
@@ -252,7 +252,6 @@ const DataExplorer: React.FC = () => {
       const res = await getDocuments(params);
       setDocs(res.data);
     } catch (e) {
-      console.warn("Failed to load documents:", e);
       setDocs([]);
     } finally {
       setLoading(false);
@@ -289,7 +288,7 @@ const DataExplorer: React.FC = () => {
       setSummary(sumRes.data.summary);
       setEntities(entRes.data.entities);
     } catch (e) {
-      console.warn("Extraction failed:", e);
+      // silently ignore
     } finally {
       setExtracting(false);
     }

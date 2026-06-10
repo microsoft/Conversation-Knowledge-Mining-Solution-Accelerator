@@ -10,6 +10,7 @@ from src.api.modules.data_sources.base import (
     ColumnInfo,
     DataSourceConfig,
     FieldMapping,
+    validate_table_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,8 @@ class FabricDataSource(BaseExternalDataSource):
         try:
             conn = self._get_connection(config)
             cursor = conn.cursor()
-            table = config.table_or_query
-            if table.strip().upper().startswith("SELECT"):
-                cursor.execute(f"SELECT COUNT(*) FROM ({table}) AS q")
-            else:
-                cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
+            table = validate_table_name(config.table_or_query)
+            cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
             count = cursor.fetchone()[0]
             conn.close()
             return {"success": True, "row_count": count, "message": f"Connected to Fabric. {count} rows found."}
@@ -70,11 +68,8 @@ class FabricDataSource(BaseExternalDataSource):
         try:
             conn = self._get_connection(config)
             cursor = conn.cursor()
-            table = config.table_or_query
-            if table.strip().upper().startswith("SELECT"):
-                cursor.execute(f"SELECT TOP 0 * FROM ({table}) AS q")
-            else:
-                cursor.execute(f"SELECT TOP 0 * FROM [{table}]")
+            table = validate_table_name(config.table_or_query)
+            cursor.execute(f"SELECT TOP 0 * FROM [{table}]")
             columns = [
                 ColumnInfo(
                     name=desc[0],
@@ -95,7 +90,7 @@ class FabricDataSource(BaseExternalDataSource):
             conn = self._get_connection(config)
             cursor = conn.cursor()
             mapping = config.field_mapping
-            table = config.table_or_query
+            table = validate_table_name(config.table_or_query)
 
             select_cols = [mapping.id_field, mapping.text_field]
             if mapping.title_field:
@@ -106,10 +101,7 @@ class FabricDataSource(BaseExternalDataSource):
                 select_cols.append(src_col)
             select_str = ", ".join(f"[{c}]" for c in select_cols)
 
-            if table.strip().upper().startswith("SELECT"):
-                sql = f"SELECT TOP {top_k} {select_str} FROM ({table}) AS q WHERE [{mapping.text_field}] LIKE ?"
-            else:
-                sql = f"SELECT TOP {top_k} {select_str} FROM [{table}] WHERE [{mapping.text_field}] LIKE ?"
+            sql = f"SELECT TOP {top_k} {select_str} FROM [{table}] WHERE [{mapping.text_field}] LIKE ?"
 
             cursor.execute(sql, (f"%{query}%",))
             rows = cursor.fetchall()
@@ -133,11 +125,8 @@ class FabricDataSource(BaseExternalDataSource):
         try:
             conn = self._get_connection(config)
             cursor = conn.cursor()
-            table = config.table_or_query
-            if table.strip().upper().startswith("SELECT"):
-                cursor.execute(f"SELECT TOP {count} * FROM ({table}) AS q")
-            else:
-                cursor.execute(f"SELECT TOP {count} * FROM [{table}]")
+            table = validate_table_name(config.table_or_query)
+            cursor.execute(f"SELECT TOP {count} * FROM [{table}]")
             rows = cursor.fetchall()
             col_names = [desc[0] for desc in cursor.description]
             conn.close()
@@ -158,11 +147,8 @@ class FabricDataSource(BaseExternalDataSource):
         try:
             conn = self._get_connection(config)
             cursor = conn.cursor()
-            table = config.table_or_query
-            if table.strip().upper().startswith("SELECT"):
-                cursor.execute(f"SELECT * FROM ({table}) AS q")
-            else:
-                cursor.execute(f"SELECT * FROM [{table}]")
+            table = validate_table_name(config.table_or_query)
+            cursor.execute(f"SELECT * FROM [{table}]")
             col_names = [desc[0] for desc in cursor.description]
 
             while True:

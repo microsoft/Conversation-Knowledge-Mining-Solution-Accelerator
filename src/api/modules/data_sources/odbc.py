@@ -9,6 +9,7 @@ from src.api.modules.data_sources.base import (
     ColumnInfo,
     DataSourceConfig,
     FieldMapping,
+    validate_table_name,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,11 +38,8 @@ class OdbcDataSource(BaseExternalDataSource):
         try:
             conn = self._get_connection(config)
             cursor = conn.cursor()
-            table = config.table_or_query
-            if table.strip().upper().startswith("SELECT"):
-                cursor.execute(f"SELECT COUNT(*) FROM ({table}) AS q")
-            else:
-                cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
+            table = validate_table_name(config.table_or_query)
+            cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
             count = cursor.fetchone()[0]
             conn.close()
             return {"success": True, "row_count": count, "message": f"Connected via ODBC. {count} rows found."}

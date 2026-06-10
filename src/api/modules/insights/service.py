@@ -673,8 +673,10 @@ def _exec_filters(cursor, filter_specs):
 
 class DashboardService:
     _plan_cache: dict[str, dict] = {}
+    _plan_cache_ts: dict[str, float] = {}
     _schema_cache: dict | None = None
     _schema_hash: str | None = None
+    _CACHE_TTL_SEC = 3600  # 1 hour
 
     def _get_connection(self):
         settings = get_settings()
@@ -715,11 +717,15 @@ class DashboardService:
             else:
                 schema = self._schema_cache
 
-            # Plan (cached, validated)
+            # Plan (cached, validated, with TTL)
             key = self._schema_hash
-            if refresh or key not in self._plan_cache:
+            import time
+            cache_expired = (key in self._plan_cache_ts and
+                             time.time() - self._plan_cache_ts.get(key, 0) > self._CACHE_TTL_SEC)
+            if refresh or key not in self._plan_cache or cache_expired:
                 raw_plan = _plan(schema)
                 self._plan_cache[key] = _validate_plan(raw_plan, schema)
+                self._plan_cache_ts[key] = time.time()
             plan = self._plan_cache[key]
             if not plan:
                 conn.close()

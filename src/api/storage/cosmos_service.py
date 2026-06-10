@@ -286,7 +286,8 @@ class CosmosService:
             container = self._db.get_container_client(self.INSIGHTS_CONTAINER)
             item = container.read_item(item=dataset_id, partition_key=dataset_id)
             return item.get("insights")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to load insights for {dataset_id}: {e}")
             return None
 
     def delete_insights(self, dataset_id: str) -> bool:
@@ -297,7 +298,8 @@ class CosmosService:
             container = self._db.get_container_client(self.INSIGHTS_CONTAINER)
             container.delete_item(item=dataset_id, partition_key=dataset_id)
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to delete insights for {dataset_id}: {e}")
             return False
 
     # ══════════════════════════════════════════════
@@ -312,7 +314,8 @@ class CosmosService:
             container = self._db.get_container_client(self.ENRICHMENT_CONTAINER)
             item = container.read_item(item=doc_hash, partition_key=doc_hash)
             return item.get("enrichment")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get enrichment for {doc_hash}: {e}")
             return None
 
     def save_enrichment(self, doc_hash: str, filename: str, enrichment: dict) -> bool:
@@ -409,7 +412,8 @@ class CosmosService:
             container = self._db.get_container_client(self.SCHEMA_CONTAINER)
             item = container.read_item(item="global_schema", partition_key="global_schema")
             return item
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to load filter schema: {e}")
             return None
 
 

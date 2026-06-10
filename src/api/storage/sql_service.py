@@ -179,6 +179,16 @@ class AzureSqlService:
                 updated_at DATETIME2 DEFAULT GETUTCDATE()
             )
         """)
+
+        # ── Indexes for frequently queried columns ──
+        for idx_sql in [
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_documents_source_file') CREATE INDEX IX_documents_source_file ON documents(source_file)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_chat_messages_session_id') CREATE INDEX IX_chat_messages_session_id ON chat_messages(session_id)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_chat_sessions_user_id') CREATE INDEX IX_chat_sessions_user_id ON chat_sessions(user_id)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_external_data_sources_status') CREATE INDEX IX_external_data_sources_status ON external_data_sources(status)",
+        ]:
+            cursor.execute(idx_sql)
+
         conn.commit()
         conn.close()
 
@@ -235,13 +245,16 @@ class AzureSqlService:
             self._refresh_token()
             return False
 
-    def load_all_documents(self) -> list[dict]:
+    def load_all_documents(self, limit: int = 1000, offset: int = 0) -> list[dict]:
         if not self.available:
             return []
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, doc_type, text_content, summary, entities, key_phrases, topics, metadata FROM documents")
+            cursor.execute(
+                "SELECT id, doc_type, text_content, summary, entities, key_phrases, topics, metadata "
+                "FROM documents ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
+                [offset, limit])
             rows = cursor.fetchall()
             conn.close()
             results = []
@@ -447,7 +460,8 @@ class AzureSqlService:
             count = cursor.fetchone()[0]
             conn.close()
             return count
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get document count: {e}")
             return 0
 
     def get_document_types(self) -> dict[str, int]:
@@ -460,7 +474,8 @@ class AzureSqlService:
             rows = cursor.fetchall()
             conn.close()
             return {r[0]: r[1] for r in rows}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to get document types: {e}")
             return {}
 
     # ══════════════════════════════════════════════
@@ -499,7 +514,8 @@ class AzureSqlService:
             if row and row[0]:
                 return json.loads(row[0])
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to load insights: {e}")
             return None
 
     # ══════════════════════════════════════════════

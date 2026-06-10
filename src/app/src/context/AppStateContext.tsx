@@ -18,6 +18,10 @@ interface AppState {
   // Explore chat cache
   exploreChatMessages: ChatMessage[];
   setExploreChatMessages: (msgs: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => void;
+
+  // Explore data cache (files, data sources, schema)
+  exploreData: { files: any[]; dataSources: any[]; schema: any } | null;
+  setExploreData: (d: { files: any[]; dataSources: any[]; schema: any } | null) => void;
 }
 
 const AppContext = createContext<AppState>({
@@ -29,6 +33,8 @@ const AppContext = createContext<AppState>({
   setChatMessages: () => {},
   exploreChatMessages: [],
   setExploreChatMessages: () => {},
+  exploreData: null,
+  setExploreData: () => {},
 });
 
 export const useAppState = () => useContext(AppContext);
@@ -38,6 +44,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [dashboardHeadline, setDashboardHeadline] = useState<string>(() => loadFromSession("km_headline", ""));
   const [chatMessages, setChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_chat", []));
   const [exploreChatMessages, setExploreChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_explore_chat", []));
+  const [exploreData, setExploreDataRaw] = useState<{ files: any[]; dataSources: any[]; schema: any } | null>(() => loadFromSession("km_explore_data", null));
 
   const setInsights = (data: DashboardResponse | null) => {
     setInsightsRaw(data);
@@ -60,12 +67,18 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
   };
 
+  const setExploreData = (d: { files: any[]; dataSources: any[]; schema: any } | null) => {
+    setExploreDataRaw(d);
+    try { sessionStorage.setItem("km_explore_data", JSON.stringify(d)); } catch {}
+  };
+
   return (
     <AppContext.Provider value={{
       insights, setInsights,
       dashboardHeadline, setDashboardHeadline,
       chatMessages, setChatMessages,
       exploreChatMessages, setExploreChatMessages,
+      exploreData, setExploreData,
     }}>
       {children}
     </AppContext.Provider>

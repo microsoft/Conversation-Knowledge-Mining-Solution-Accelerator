@@ -74,9 +74,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS: restrict to frontend hostname in production, allow localhost for dev
+_settings = get_settings()
+_allowed_origins = []
+if _settings.app_frontend_hostname:
+    _allowed_origins.append(_settings.app_frontend_hostname)
+    # Also allow without trailing slash
+    _allowed_origins.append(_settings.app_frontend_hostname.rstrip("/"))
+if not _allowed_origins or _settings.app_env in ("", "development", "local"):
+    _allowed_origins = ["http://localhost:3000", "http://localhost:8080"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*", "X-Request-ID"],

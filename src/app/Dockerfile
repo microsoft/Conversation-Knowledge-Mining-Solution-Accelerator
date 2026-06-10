@@ -16,5 +16,10 @@ RUN npm install -g serve
 WORKDIR /app
 COPY --from=build /app/build ./build
 
+# Non-root user
+RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+USER appuser
+
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:3000/ || exit 1
 CMD ["serve", "-s", "build", "-l", "3000"]

@@ -8,6 +8,7 @@ To add a new data source type:
 """
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Iterator, Optional
@@ -15,6 +16,20 @@ from typing import Iterator, Optional
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+# Whitelist for table/view names — blocks SQL injection
+_TABLE_NAME_RE = re.compile(r'^[\w][\w.\[\]"` ]{0,127}$')
+
+
+def validate_table_name(name: str) -> str:
+    """Validate and return a safe table/view name. Raises ValueError on injection attempts."""
+    name = name.strip()
+    if not name:
+        raise ValueError("Table name cannot be empty")
+    if _TABLE_NAME_RE.match(name) and not any(kw in name.upper() for kw in
+            ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "EXEC ", "EXECUTE ", "--", ";", "/*")):
+        return name
+    raise ValueError(f"Invalid table name: {name!r}")
 
 
 class DataSourceType(str, Enum):

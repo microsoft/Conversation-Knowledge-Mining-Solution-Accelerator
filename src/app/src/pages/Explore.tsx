@@ -68,10 +68,11 @@ const Explore: React.FC = () => {
   const navigate = useNavigate();
 
   // Data context
-  const [files, setFiles] = useState<any[]>([]);
-  const [dataSources, setDataSources] = useState<any[]>([]);
-  const [schema, setSchema] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { exploreChatMessages, setExploreChatMessages, exploreData, setExploreData } = useAppState();
+  const [files, setFiles] = useState<any[]>(exploreData?.files ?? []);
+  const [dataSources, setDataSources] = useState<any[]>(exploreData?.dataSources ?? []);
+  const [schema, setSchema] = useState<any>(exploreData?.schema ?? null);
+  const [loading, setLoading] = useState(!exploreData);
 
   // Selection & filters
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
@@ -79,7 +80,6 @@ const Explore: React.FC = () => {
   const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
 
   // Chat
-  const { exploreChatMessages, setExploreChatMessages } = useAppState();
   const messages = exploreChatMessages;
   const setMessages = setExploreChatMessages;
   const [chatInput, setChatInput] = useState("");
@@ -93,7 +93,10 @@ const Explore: React.FC = () => {
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  useEffect(() => { loadData(); loadSessions(); }, [location.key]);
+  useEffect(() => {
+    if (!exploreData) loadData();
+    loadSessions();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -101,10 +104,14 @@ const Explore: React.FC = () => {
       const [fR, dR, sR] = await Promise.allSettled([
         getUploadedFiles(), listDataSources(), getExtractionInfo(),
       ]);
-      setFiles(fR.status === "fulfilled" ? fR.value.data.filter((f: any) => f.status === "ready" || !f.status) : []);
-      setDataSources(dR.status === "fulfilled" ? dR.value.data.filter((ds: any) => ds.status === "connected") : []);
-      if (sR.status === "fulfilled") setSchema(sR.value.data);
-    } catch (e) { console.warn("Failed to load explore data:", e); } finally { setLoading(false); }
+      const newFiles = fR.status === "fulfilled" ? fR.value.data.filter((f: any) => f.status === "ready" || !f.status) : [];
+      const newDS = dR.status === "fulfilled" ? dR.value.data.filter((ds: any) => ds.status === "connected") : [];
+      const newSchema = sR.status === "fulfilled" ? sR.value.data : null;
+      setFiles(newFiles);
+      setDataSources(newDS);
+      if (newSchema) setSchema(newSchema);
+      setExploreData({ files: newFiles, dataSources: newDS, schema: newSchema });
+    } catch (e) { /* silently ignore */ } finally { setLoading(false); }
   };
 
   const loadSessions = () => {
@@ -160,7 +167,7 @@ const Explore: React.FC = () => {
       setSessionId(sid);
       setMessages((r.data?.messages || r.data || []).map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })));
       setShowHistory(false);
-    } catch (e) { console.warn("Failed to load session:", e); }
+    } catch (e) { /* silently ignore */ }
   };
 
   const totalRecords = files.reduce((sum, f) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum, d) => sum + (d.doc_count || 0), 0);
