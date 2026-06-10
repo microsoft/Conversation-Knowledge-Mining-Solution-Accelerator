@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Text, Badge, Spinner, Caption1 } from "@fluentui/react-components";
+import { Text, Badge, Spinner, Caption1, Button } from "@fluentui/react-components";
 import {
   Send24Regular, Sparkle20Regular, Add20Regular, Chat20Regular,
   Database20Regular, DocumentText20Regular, Delete20Regular,
   ChevronDown20Regular, ChevronRight20Regular, Dismiss12Regular,
-  Checkmark20Regular,
+  Checkmark20Regular, ArrowUpload24Regular,
 } from "@fluentui/react-icons";
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources,
   saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
 import { renderMarkdown } from "../utils/markdown";
+import { SkeletonText, SkeletonChat } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
@@ -44,13 +45,12 @@ const PROMPTS = [
 
 /* ── Source display helpers ── */
 const getSourceLabel = (src: any, index: number): string => {
-  if (src.source_file) {
-    // Strip path and extension for a clean filename
-    const name = src.source_file.split(/[/\\]/).pop() || src.source_file;
+  const file = src.source_file || src.metadata?.source_file;
+  if (file) {
+    const name = file.split(/[/\\]/).pop() || file;
     return name;
   }
   if (src.title) return src.title;
-  // Fallback: show a short label instead of raw UUID
   return `Source ${index + 1}`;
 };
 
@@ -65,6 +65,7 @@ const getSourceSnippet = (text: string, maxLen = 120): string => {
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Data context
   const [files, setFiles] = useState<any[]>([]);
@@ -218,9 +219,21 @@ const Explore: React.FC = () => {
                 <Caption1>{ds.doc_count?.toLocaleString()}</Caption1>
               </div>
             ))}
-            {files.length === 0 && dataSources.length === 0 && (
-              <div style={{ fontSize: 11, color: "#94a3b8" }}>No data loaded</div>
-            )}
+            {loading ? (
+              <SkeletonText lines={4} />
+            ) : files.length === 0 && dataSources.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: "12px 0" }}>
+                <p style={{ margin: "0 0 8px" }}>No data loaded yet</p>
+                <Button
+                  size="small"
+                  appearance="primary"
+                  icon={<ArrowUpload24Regular />}
+                  onClick={() => navigate("/")}
+                >
+                  Upload data
+                </Button>
+              </div>
+            ) : null}
             {selectedDocIds.size > 0 && (
               <button onClick={() => setSelectedDocIds(new Set())}
                 style={{ border: "none", background: "none", cursor: "pointer", fontSize: 11,

@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 import logging
+import uuid
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.api.config import get_settings
 
@@ -19,6 +22,25 @@ from src.api.modules.data_sources.router import router as data_sources_router
 from src.api.modules.insights.router import router as insights_router
 
 logger = logging.getLogger(__name__)
+
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to every request for end-to-end tracing."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        request.state.request_id = request_id
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            logger.error(f"[{request_id}] Unhandled error on {request.method} {request.url.path}: {exc}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "INTERNAL_SERVER_ERROR", "request_id": request_id},
+                headers={"X-Request-ID": request_id},
+            )
+        response.headers["X-Request-ID"] = request_id
+        return response
 
 
 @asynccontextmanager
@@ -57,8 +79,10 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
+app.add_middleware(RequestIdMiddleware)
 
 # Register module routers
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])

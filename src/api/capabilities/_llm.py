@@ -37,5 +37,6 @@ def get_llm_client() -> AzureOpenAI:
                 azure_endpoint=settings.azure_openai_endpoint,
                 azure_ad_token_provider=token_provider,
                 api_version=settings.azure_openai_api_version,
+                timeout=settings.llm_request_timeout_sec,
             )
     return _client

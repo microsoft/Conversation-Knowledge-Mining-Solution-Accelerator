@@ -26,5 +26,45 @@
       "data_types": ["json", "wav"],
       "has_preprocessed": false
     }
+  },
+  "data_sources": {
+    "azure_search": {
+      "name": "Azure AI Search",
+      "description": "Connect an existing Azure AI Search index",
+      "fields": ["endpoint", "table"],
+      "prompts": {
+        "endpoint": "Search endpoint (e.g. https://my-search.search.windows.net)",
+        "table": "Index name"
+      }
+    },
+    "fabric": {
+      "name": "Microsoft Fabric",
+      "description": "Connect a Fabric Lakehouse or Warehouse via SQL endpoint",
+      "fields": ["endpoint", "database", "table"],
+      "prompts": {
+        "endpoint": "SQL endpoint (e.g. your-server.database.fabric.microsoft.com)",
+        "database": "Lakehouse/Warehouse name",
+        "table": "Table name"
+      }
+    },
+    "sql": {
+      "name": "SQL Database",
+      "description": "Connect a SQL database via ODBC connection string",
+      "fields": ["connection_string", "table"],
+      "prompts": {
+        "connection_string": "ODBC connection string",
+        "table": "Table name"
+      }
+    },
+    "synapse": {
+      "name": "Azure Synapse Analytics",
+      "description": "Connect a Synapse dedicated SQL pool",
+      "fields": ["endpoint", "database", "table"],
+      "prompts": {
+        "endpoint": "Synapse endpoint (e.g. your-workspace.sql.azuresynapse.net)",
+        "database": "Dedicated pool name",
+        "table": "Table name"
+      }
+    }
   }
 }

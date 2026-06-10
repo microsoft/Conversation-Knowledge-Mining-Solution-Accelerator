@@ -90,14 +90,14 @@ class CosmosService:
     # Chat Sessions
     # ══════════════════════════════════════════════
 
-    def create_session(self, user_id: str, title: str = "New Chat") -> Optional[dict]:
+    def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         """Create a new chat session. Returns session metadata."""
         if not self.available:
             return None
         try:
             container = self._db.get_container_client(self.SESSIONS_CONTAINER)
             session = {
-                "id": str(uuid.uuid4()),
+                "id": session_id or str(uuid.uuid4()),
                 "user_id": user_id,
                 "title": title,
                 "message_count": 0,

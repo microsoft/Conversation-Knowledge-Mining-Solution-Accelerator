@@ -141,23 +141,34 @@ class RAGService:
             )
 
             docs = []
+            seen = {}  # doc_id -> index in docs (dedup chunks from same document)
             for r in results:
                 doc_id = r.get("doc_id", r["id"])
                 # Strip chunk suffix to get base doc ID
                 if "_c" in doc_id:
                     doc_id = doc_id.split("_c")[0]
+                score = r.get("@search.score", 0)
+                if doc_id in seen:
+                    # Keep the higher-scoring chunk's text, accumulate score context
+                    existing = docs[seen[doc_id]]
+                    if score > existing["score"]:
+                        existing["text"] = r.get("text", "")
+                        existing["summary"] = r.get("summary", "")
+                        existing["score"] = score
+                    continue
+                seen[doc_id] = len(docs)
                 docs.append({
                     "doc_id": doc_id,
                     "text": r.get("text", ""),
                     "summary": r.get("summary", ""),
                     "type": r.get("type", "unknown"),
                     "source_file": r.get("source_file", ""),
-                    "score": r.get("@search.score", 0),
+                    "score": score,
                 })
             return docs
         except Exception as e:
-            logger.warning(f"Azure AI Search failed: {e}")
-            return []
+            logger.error(f"Azure AI Search failed: {e}", exc_info=True)
+            raise RuntimeError(f"Search service unavailable") from e
 
     def _search_in_memory(self, query: str, top_k: int = 5,
                           document_ids: Optional[list[str]] = None) -> list[dict]:
@@ -303,14 +314,29 @@ class RAGService:
                 document_ids = matching_ids
 
         # 2. Search: try Azure AI Search first, then external data sources, then in-memory
-        search_docs = self._search_azure_ai_search(question, top_k, document_ids)
+        try:
+            search_docs = self._search_azure_ai_search(question, top_k, document_ids)
+        except RuntimeError:
+            logger.warning("Azure AI Search unavailable, falling back to in-memory search")
+            search_docs = []
 
         # Also search external live-query data sources
         external_docs = self._search_external_data_sources(question, top_k)
         if external_docs:
             search_docs.extend(external_docs)
-            search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
-            search_docs = search_docs[:top_k]
+
+        # Deduplicate by doc_id (keep highest score per document)
+        seen = {}
+        deduped = []
+        for doc in search_docs:
+            did = doc["doc_id"]
+            if did in seen:
+                if doc.get("score", 0) > deduped[seen[did]].get("score", 0):
+                    deduped[seen[did]] = doc
+                continue
+            seen[did] = len(deduped)
+            deduped.append(doc)
+        search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
 
         if not search_docs:
             logger.info("AI Search returned no results, falling back to in-memory search")

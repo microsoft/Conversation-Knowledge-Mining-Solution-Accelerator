@@ -83,10 +83,10 @@ Upload (instant response)
   Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
 
 - **Bring Your Own Index**
-  Connect an existing Azure AI Search index and immediately chat with it — no upload needed.
+  Connect an existing Azure AI Search index during post-deployment setup and immediately chat with it — no upload needed.
 
 - **Bring Your Own Data**
-  Connect external databases (Microsoft Fabric, SQL, Azure Synapse, ODBC) with auto-detected field mapping and one-click ingestion.
+  Connect external databases (Microsoft Fabric, SQL, Azure Synapse) during post-deployment setup with auto-detected field mapping and one-click ingestion.
 
 
 </details>
@@ -125,24 +125,22 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
    ```bash
    azd up
    ```
+   After provisioning, the post-deployment script will:
+   - Set up the AI agent automatically
+   - Present an interactive menu to choose a scenario pack or connect a data source
 
-4. Create the AI agent:
+   You can also run the data setup separately:
    ```bash
-   ./infra/scripts/setup-agent.ps1
-   ```
+   # Run interactively to choose from a menu
+   ./scripts/setup-data.ps1
 
-5. Load a scenario pack (or bring your own data):
-   ```bash
-   # Pick one of the built-in scenario packs
+   # Or specify directly
    ./scripts/setup-data.ps1 -Scenario contact-center
    ./scripts/setup-data.ps1 -Scenario mortgage-application
    ./scripts/setup-data.ps1 -Scenario telecom-analysis
-
-   # Or run interactively to choose from a menu
-   ./scripts/setup-data.ps1
    ```
 
-6. (Optional) Configure authentication:
+4. (Optional) Configure authentication:
    - Go to Azure Portal → App Service → **Authentication** → **Add identity provider** → **Microsoft**
 
 > ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
@@ -151,14 +149,32 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 
 ## Scenario Packs
 
-After deploying with `azd up`, seed one of three built-in scenario packs — or skip them entirely and bring your own data. Each pack ships with sample data in the `data/` folder.
+After deploying with `azd up`, the post-deployment script presents an interactive menu to seed data. You can choose a built-in scenario pack, connect an external data source, or skip and upload documents from the web UI later.
+
+All options are defined in [`data/config/scenarios.json`](data/config/scenarios.json) and can be extended.
+
+### Built-in Scenarios
 
 | # | Scenario | Data folder | Sample data | What users see |
 |---|----------|-------------|-------------|----------------|
 | 1 | **Contact Center** | `data/ContactCenter_usecase/` | JSON call transcripts (5 conversations) + pre-processed search index data | Sentiment trends, topic clusters, agent performance, Q&A over conversations |
 | 2 | **Mortgage Application** | `data/MortgageApplication_usecase/` | PDF documents (housing reports, purchase contracts, NPL reports) | Document summarization, clause extraction, risk analysis, Q&A over mortgage docs |
 | 3 | **Telecom Analysis** | `data/telecom_analysis_usecase/` | JSON call transcripts (5) + WAV audio recordings (5) | Call analysis, audio transcription, sentiment breakdowns, topic clustering |
-| 4 | **Bring Your Own Data** | — | None | Upload files through the Home page, point to a folder with `./scripts/setup-data.ps1 -DataPath path/to/files`, or connect an external data source (Fabric, SQL, Synapse, ODBC, Azure AI Search) |
+
+### Connect External Data Sources
+
+These options are also available in the post-deployment menu. No data movement — the app queries your source at runtime.
+
+| # | Source | What you provide |
+|---|--------|-----------------|
+| 4 | **Azure AI Search** | Search endpoint + index name |
+| 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
+| 6 | **SQL Database** | ODBC connection string + table name |
+| 7 | **Azure Synapse Analytics** | Synapse endpoint + database + table name |
+
+### Bring Your Own Data
+
+Upload files directly from the web UI after deployment. Supported formats: PDF, DOCX, images, JSON, CSV, TXT, and audio (WAV, MP3).
 
 > ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
 
@@ -199,8 +215,8 @@ Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/g
 | [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration, centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
 | [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
 | [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
-| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Structured data, metadata, and enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
-| [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Chat history storage | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
+| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Primary database — structured data, chat history, metadata, enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
+| [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Optional alternative database — set `DATABASE_PROVIDER=cosmos` in `.env` | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
 
 ---
 
@@ -234,64 +250,12 @@ This solution addresses those challenges by enabling:
 | Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
 | Agent orchestration | **Azure AI Foundry** | Managed agent service with tool support |
 | LLM client layer | **Foundry IQ (`azure-ai-projects`)** | All model access goes through a single Foundry Project for centralized governance, tracing, and quotas |
-| Structured data | **Azure SQL Database** | Metadata, enrichment cache, data source configs |
-| Chat history | **Azure Cosmos DB** | Low-latency session storage |
+| Structured data | **Azure SQL Database** (default) | Primary database — metadata, chat history, enrichment cache, data source configs |
+| Structured data (alt) | **Azure Cosmos DB** (optional) | Alternative database — set `DATABASE_PROVIDER=cosmos` |
 | File + queue storage | **Azure Blob + Queue** | Raw file storage + async job queue for the processing pipeline |
 | Auth | **App Service EasyAuth** | Zero-code Azure AD integration |
 
-### Project Structure
 
-```
-infra/                              # Azure Bicep infrastructure
-├── main.bicep                      # Main deployment template
-├── main.parameters.json            # Parameter defaults
-├── modules/                        # 12 reusable Bicep modules
-└── scripts/                        # Deployment & setup scripts
-    ├── setup-agent.ps1             # Create AI Foundry agents
-    ├── seed-data.ps1               # Load sample data
-    ├── deploy.ps1                  # Deployment helper
-    └── teardown.ps1                # Resource cleanup
-
-scripts/                            # Operational scripts
-├── connect-data.ps1/.py            # External data source setup
-├── seed-sample-data.ps1/.py        # Sample data loader
-├── setup-data.ps1                  # Scenario pack loader (interactive or -Scenario flag)
-└── setup-agent.ps1                 # AI agent creation
-
-data/                               # Scenario pack sample data
-├── config/scenarios.json           # Scenario definitions
-├── ContactCenter_usecase/          # JSON call transcripts
-├── MortgageApplication_usecase/    # PDF documents
-└── telecom_analysis_usecase/       # JSON transcripts + WAV audio
-
-src/api/
-├── main.py                         # FastAPI app + lifespan + 9 module routers
-├── config.py                       # Pydantic settings from .env
-├── capabilities/                   # 11 pluggable processing capabilities
-│   ├── classify.py, summarize.py, extract_entities.py, filter.py,
-│   │   generate.py, search.py, select.py, embed.py, transform.py
-│   ├── executor.py                 # Step executor for pipeline engine
-│   └── _llm.py                     # LLM base capability
-├── modules/
-│   ├── ingestion/                  # Document upload + two-stage queue pipeline
-│   ├── document_intelligence/      # Azure Content Understanding extraction
-│   ├── embeddings/                 # Embedding generation + cache
-│   ├── rag/                        # Hybrid search (keyword + vector) → GPT-4o
-│   ├── processing/                 # Insights report generation
-│   ├── pipelines/                  # YAML-defined configurable pipeline engine
-│   ├── data_sources/               # External connectors (Fabric, SQL, Synapse, ODBC, AI Search)
-│   ├── insights/                   # LLM-planned dashboard engine
-│   └── security/                   # EasyAuth + role-based access control
-└── storage/                        # SQL, Cosmos DB, Blob, Vector, Chat stores
-
-src/app/
-├── src/
-│   ├── pages/                      # Home, Explore, Insights, DataSources, Pipelines, DataExplorer
-│   ├── components/                 # Layout, Charts, ChatInterface, SearchPanel
-│   ├── api/                        # Backend API client
-│   ├── context/                    # App state (React Context)
-│   └── config/                     # UI config + prompts
-```
 
 ### Security Guidelines
 

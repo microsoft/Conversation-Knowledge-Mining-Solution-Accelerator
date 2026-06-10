@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import logging
 
 from src.api.modules.rag.service import rag_service
@@ -41,8 +42,8 @@ async def save_chat(request: SaveChatRequest, user: User = Depends(get_current_u
             )
         return {"saved": success}
     except Exception as e:
-        logger.warning(f"Failed to save chat session '{request.session_id}': {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to save chat: {e}")
+        logger.error(f"Failed to save chat session '{request.session_id}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to save chat session. Please try again.")
 
 
 @router.get("/chat/load/{session_id}")
@@ -86,7 +87,8 @@ async def ask_question(request: QARequest, user: User = Depends(get_current_user
     """Ask a question against the knowledge base or an external index."""
     try:
         doc_ids = request.document_ids if request.chat_scope == "documents" else None
-        return rag_service.answer_question(
+        return await asyncio.to_thread(
+            rag_service.answer_question,
             question=request.question,
             top_k=request.top_k,
             filters=request.filters,
@@ -95,7 +97,8 @@ async def ask_question(request: QARequest, user: User = Depends(get_current_user
             external_index_id=request.external_index_id if request.chat_scope == "external" else None,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG query failed: {e}")
+        logger.error(f"RAG query failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred while processing your question. Please try again.")
 
 
 @router.post("/conversation", response_model=QAResponse)
@@ -104,8 +107,10 @@ async def conversation(request: ConversationRequest, user: User = Depends(get_cu
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     try:
         doc_ids = request.document_ids if request.chat_scope == "documents" else None
-        return rag_service.answer_conversation(
-            messages=messages, top_k=request.top_k, filters=request.filters, document_ids=doc_ids
+        return await asyncio.to_thread(
+            rag_service.answer_conversation,
+            messages=messages, top_k=request.top_k, filters=request.filters, document_ids=doc_ids,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Conversation failed: {e}")
+        logger.error(f"Conversation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An error occurred during the conversation. Please try again.")

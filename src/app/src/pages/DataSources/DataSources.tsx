@@ -137,7 +137,7 @@ const DataSources: React.FC = () => {
       <div className="sourcesHeader">
         <div>
           <h1>Sources</h1>
-          <p>Your uploaded files and connected databases</p>
+          <p>Your uploaded files</p>
         </div>
         <div className="sourcesHeaderActions">
           <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.csv,.json"

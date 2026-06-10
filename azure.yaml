@@ -18,15 +18,29 @@ hooks:
           $_ -replace '^(\w+)="(.*)"$', '$1=$2'
         } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
 
-        Write-Host "Web app URL: "
-        Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
-
-        Write-Host "`nNext steps:"
-        Write-Host "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)" -ForegroundColor Cyan
+        # ── Step 1: Create AI agent ──
         Write-Host ""
-        Write-Host "  Then connect your data (choose one):" -ForegroundColor Yellow
-        Write-Host "  2a. Run: ./scripts/seed-sample-data.ps1   (seed sample call transcripts)" -ForegroundColor Cyan
-        Write-Host "  2b. Run: ./scripts/connect-data.ps1       (connect your own data source)" -ForegroundColor Cyan
+        Write-Host "Setting up AI agent..." -ForegroundColor Yellow
+        & ./infra/scripts/setup-agent.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "WARNING: Agent setup failed — you can retry later with: ./infra/scripts/setup-agent.ps1" -ForegroundColor Yellow
+        }
+
+        # ── Step 2: Choose use case or data source ──
+        Write-Host ""
+        & ./scripts/setup-data.ps1
+
+        # ── Done ──
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "  Deployment complete!" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        $webUrl = azd env get-value SERVICE_FRONTEND_URI 2>$null
+        if ($webUrl) {
+          Write-Host ""
+          Write-Host "  Open: $webUrl" -ForegroundColor Cyan
+        }
+        Write-Host ""
       continueOnError: false
       interactive: true
     posix:
@@ -36,14 +50,22 @@ hooks:
         echo "Writing .env file..."
         azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
 
-        echo "Web app URL: "
-        echo $WEB_APP_URL
-
-        echo "\nNext steps:"
-        echo "  1. Run: ./infra/scripts/setup-agent.ps1    (create AI agent)"
         echo ""
-        echo "  Then connect your data (choose one):"
-        echo "  2a. Run: ./scripts/seed-sample-data.ps1   (seed sample call transcripts)"
-        echo "  2b. Run: ./scripts/connect-data.ps1       (connect your own data source)"
+        echo "Setting up AI agent..."
+        pwsh -File ./infra/scripts/setup-agent.ps1 || echo "WARNING: Agent setup failed — retry with: ./infra/scripts/setup-agent.ps1"
+
+        echo ""
+        pwsh -File ./scripts/setup-data.ps1
+
+        echo ""
+        echo "========================================"
+        echo "  Deployment complete!"
+        echo "========================================"
+        WEB_URL=$(azd env get-value SERVICE_FRONTEND_URI 2>/dev/null)
+        if [ -n "$WEB_URL" ]; then
+          echo ""
+          echo "  Open: $WEB_URL"
+        fi
+        echo ""
       continueOnError: false
       interactive: true

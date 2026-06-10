@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     azure_sql_server: str = ""
     azure_sql_database: str = "km-db"
 
+    # Database provider: "sql" (default) or "cosmos"
+    database_provider: str = "sql"
+
     # Pipeline
     enable_auto_pipeline_selection: bool = True
     pipeline_default_timeout: int = 30
@@ -59,6 +62,20 @@ class Settings(BaseSettings):
     app_frontend_hostname: str = ""
     data_dir: str = os.path.join(os.path.dirname(__file__), "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
+
+    # Limits
+    max_upload_file_size_mb: int = 100
+    max_json_documents_per_upload: int = 10000
+    max_concurrent_uploads: int = 10
+
+    # Timeouts
+    llm_request_timeout_sec: int = 60
+    sql_connection_timeout_sec: int = 30
+    queue_poll_interval_sec: int = 5
+
+    # Chunking
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
 
     # External Data Sources
     enable_external_data_sources: bool = True
@@ -80,8 +97,10 @@ class Settings(BaseSettings):
             warnings.append("azure_search_endpoint not set. Hybrid search will not work.")
         if not self.azure_content_understanding_endpoint:
             warnings.append("azure_content_understanding_endpoint not set. Document extraction will not work.")
-        if not self.azure_sql_server:
+        if not self.azure_sql_server and self.database_provider == "sql":
             warnings.append("azure_sql_server not set. Data will only persist in memory.")
+        if not self.azure_cosmos_endpoint and self.database_provider == "cosmos":
+            warnings.append("azure_cosmos_endpoint not set but database_provider is 'cosmos'. Chat and insights will not persist.")
         if not self.azure_storage_account:
             warnings.append("azure_storage_account not set. Async queue processing disabled; uploads will process in-process.")
         return warnings

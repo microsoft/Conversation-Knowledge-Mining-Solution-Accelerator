@@ -127,7 +127,7 @@ const Home: React.FC = () => {
         <div className={s.heroLeft}>
           <div className={s.heroTitle}>Turn your data into answers and insights</div>
           <div className={s.heroSub}>
-            Your connected data source is ready to explore. Upload additional documents to enrich your knowledge base.
+            Upload additional documents to enrich your knowledge base.
           </div>
         </div>
 
@@ -178,11 +178,19 @@ const Home: React.FC = () => {
             <>
               <Database24Regular style={{ color: "#94a3b8", fontSize: 24 }} />
               <Text weight="semibold" size={400} style={{ color: "#64748b" }}>
-                No data source connected
+                No data loaded yet
               </Text>
               <Text size={200} style={{ color: "#94a3b8" }}>
-                Run the post-deployment script to connect a data source, or upload documents below.
+                Upload files to get started, or run a scenario pack from the command line.
               </Text>
+              <Button
+                appearance="primary"
+                size="medium"
+                icon={<ArrowUpload24Regular />}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload files
+              </Button>
             </>
           )}
         </div>
@@ -265,7 +273,31 @@ const Home: React.FC = () => {
       </div>
 
       <div className={s.content}>
-        {/* Value section */}
+        {/* Getting started section — shown when no data exists */}
+        {!hasData && (
+          <div>
+            <div className={s.sectionLabel}>Getting started</div>
+            <div className={s.valueGrid}>
+              <div className={s.valueCard} style={{ cursor: "pointer" }} onClick={() => fileInputRef.current?.click()}>
+                <div className={s.valueIcon} style={{ backgroundColor: "#dbeafe" }}>
+                  <ArrowUpload24Regular style={{ color: "#2563eb" }} />
+                </div>
+                <div className={s.valueTitle}>Upload files</div>
+                <div className={s.valueDesc}>Drag & drop PDFs, Word docs, JSON, CSV, images, or audio files. They'll be processed automatically.</div>
+              </div>
+              <div className={s.valueCard}>
+                <div className={s.valueIcon} style={{ backgroundColor: "#d1fae5" }}>
+                  <TextBulletListSquare20Regular style={{ color: "#059669" }} />
+                </div>
+                <div className={s.valueTitle}>Load a scenario pack</div>
+                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario or connect an external data source.</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Value section — shown when data already exists */}
+        {hasData && (
         <div>
           <div className={s.sectionLabel}>What you can do</div>
           <div className={s.valueGrid}>
@@ -292,7 +324,9 @@ const Home: React.FC = () => {
             </div>
           </div>
         </div>
+        )}
       </div>
+
     </div>
   );
 };

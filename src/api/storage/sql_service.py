@@ -34,6 +34,7 @@ class AzureSqlService:
             import pyodbc
             from azure.identity import DefaultAzureCredential
             import struct
+            import time
 
             credential = DefaultAzureCredential()
             token = credential.get_token("https://database.windows.net/.default")
@@ -49,6 +50,7 @@ class AzureSqlService:
                 f"Encrypt=yes;TrustServerCertificate=no;"
             )
             self._token_struct = token_struct
+            self._token_acquired_at = time.time()
 
             # Create tables
             self._create_tables()
@@ -60,17 +62,23 @@ class AzureSqlService:
 
     def _get_connection(self):
         import pyodbc
+        import time
+        # Refresh token if it's older than 50 minutes (tokens expire after 60 min)
+        if hasattr(self, '_token_acquired_at') and (time.time() - self._token_acquired_at) > 3000:
+            self._refresh_token()
         conn = pyodbc.connect(self._conn_str, attrs_before={1256: self._token_struct})
         return conn
 
     def _refresh_token(self):
         """Refresh the AAD token for long-running connections."""
         import struct
+        import time
         from azure.identity import DefaultAzureCredential
         credential = DefaultAzureCredential()
         token = credential.get_token("https://database.windows.net/.default")
         token_bytes = token.token.encode("utf-16-le")
         self._token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+        self._token_acquired_at = time.time()
 
     def _create_tables(self):
         conn = self._get_connection()

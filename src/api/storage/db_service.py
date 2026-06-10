@@ -1,7 +1,7 @@
-"""Unified database service — uses Azure SQL for all storage.
+"""Unified database service — routes to Azure SQL or Cosmos DB based on config.
 
-All chat sessions, messages, insights, documents, files, filters,
-and enrichment cache are stored in Azure SQL.
+Set DATABASE_PROVIDER=sql (default) or DATABASE_PROVIDER=cosmos in .env.
+Azure SQL is the primary database. Cosmos DB is available as an alternative.
 """
 
 import logging
@@ -11,25 +11,36 @@ logger = logging.getLogger(__name__)
 
 
 class DbService:
-    """Thin wrapper routing to sql_service (data) and chat_store (chat)."""
+    """Thin wrapper routing to the configured database backend."""
 
     def __init__(self):
-        self._service = None
         self._chat = None
+        self._data = None
+        self._provider = None
 
     def _ensure_init(self):
-        if self._service is not None:
+        if self._provider is not None:
             return
-        from src.api.storage.sql_service import sql_service
-        from src.api.storage.chat_store import chat_store
-        self._service = sql_service
-        self._chat = chat_store
-        logger.info("Database backend: Azure SQL")
+        from src.api.config import get_settings
+        settings = get_settings()
+        self._provider = settings.database_provider.lower()
+
+        if self._provider == "cosmos":
+            from src.api.storage.cosmos_service import cosmos_service
+            self._chat = cosmos_service
+            self._data = cosmos_service
+            logger.info("Database backend: Cosmos DB")
+        else:
+            from src.api.storage.sql_service import sql_service
+            from src.api.storage.chat_store import chat_store
+            self._chat = chat_store
+            self._data = sql_service
+            logger.info("Database backend: Azure SQL")
 
     @property
     def available(self) -> bool:
         self._ensure_init()
-        return self._service.available if self._service else False
+        return self._data.available if self._data else False
 
     # ── Chat Sessions ──
 
@@ -69,11 +80,11 @@ class DbService:
 
     def save_insights(self, cache_key: str, insights: dict) -> bool:
         self._ensure_init()
-        return self._service.save_insights(cache_key, insights)
+        return self._data.save_insights(cache_key, insights)
 
     def load_insights(self, cache_key: str) -> Optional[dict]:
         self._ensure_init()
-        return self._service.load_insights(cache_key)
+        return self._data.load_insights(cache_key)
 
 
 db_service = DbService()

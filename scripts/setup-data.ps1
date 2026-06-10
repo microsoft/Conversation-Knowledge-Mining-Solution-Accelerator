@@ -4,15 +4,13 @@
     Post-deployment data setup for Knowledge Mining.
 .DESCRIPTION
     Unified script to load data into the app after deployment. Supports:
-      1. Load a built-in scenario pack (contact-center, mortgage-application, telecom-analysis)
-      2. Upload files from a custom folder (JSON, WAV, PDF, DOCX, etc.)
-      3. Connect an external data source (Azure AI Search, Fabric, SQL, Synapse)
+      - Load a built-in scenario pack (defined in data/config/scenarios.json)
+      - Connect an external data source (Azure AI Search, Fabric, SQL, Synapse)
+      - Upload files from a local folder via -DataPath (used internally by scenarios)
 
     Scenario packs ship with sample data under data/<scenario_folder>/.
-    Raw files are processed through the Content Understanding pipeline:
-      WAV/MP3 → transcribed → chunked → embedded → indexed
-      JSON    → transformed → loaded → enriched → indexed
-      PDF/DOCX → extracted → chunked → embedded → indexed
+    Raw files are processed through the Content Understanding pipeline.
+    Documents can also be uploaded from the web UI after deployment.
 
 .EXAMPLE
     # Interactive — choose scenario or data source
@@ -22,9 +20,6 @@
     ./scripts/setup-data.ps1 -Scenario contact-center
     ./scripts/setup-data.ps1 -Scenario mortgage-application
     ./scripts/setup-data.ps1 -Scenario telecom-analysis
-
-    # Upload files from a custom folder
-    ./scripts/setup-data.ps1 -DataPath "path/to/my/data"
 
     # Connect Azure AI Search index
     ./scripts/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
@@ -60,6 +55,10 @@ Write-Host ""
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
+# ── Load scenarios config (used by interactive menu and scenario resolution) ──
+$configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
+$scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
+
 # ── Resolve backend URL ──
 if ($BackendUrl -eq "http://localhost:8000") {
     $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
@@ -81,46 +80,69 @@ $headers = @{ Authorization = "Bearer $token" }
 
 # ── Interactive mode if no params ──
 if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
+    # Build menu dynamically from scenarios.json
+    $menuItems = [System.Collections.ArrayList]::new()
+
+    # Add scenarios
+    foreach ($key in $scenarioConfig.scenarios.PSObject.Properties.Name) {
+        $s = $scenarioConfig.scenarios.$key
+        $null = $menuItems.Add(@{ type = "scenario"; key = $key; name = $s.name; description = $s.description })
+    }
+
+    # Add data sources
+    if ($scenarioConfig.data_sources) {
+        foreach ($key in $scenarioConfig.data_sources.PSObject.Properties.Name) {
+            $ds = $scenarioConfig.data_sources.$key
+            $null = $menuItems.Add(@{ type = "data_source"; key = $key; name = $ds.name; description = $ds.description })
+        }
+    }
+
+    # Add fixed options
+    $null = $menuItems.Add(@{ type = "skip"; key = "skip"; name = "Skip"; description = "Set up data later (you can upload documents from the web UI)" })
+
     Write-Host "Choose how to load data:" -ForegroundColor White
     Write-Host ""
-    Write-Host "  1. Contact Center       — IT helpdesk call transcripts (JSON)" -ForegroundColor White
-    Write-Host "  2. Mortgage Application  — Housing reports & contracts (PDF)" -ForegroundColor White
-    Write-Host "  3. Telecom Analysis      — Call transcripts & audio (JSON + WAV)" -ForegroundColor White
-    Write-Host "  4. Upload from a folder  — Bring your own files" -ForegroundColor White
-    Write-Host "  5. Connect external source — AI Search, Fabric, SQL, Synapse" -ForegroundColor White
-    Write-Host ""
-    $choice = Read-Host "Enter choice (1-5)"
 
-    switch ($choice) {
-        "1" { $Scenario = "contact-center" }
-        "2" { $Scenario = "mortgage-application" }
-        "3" { $Scenario = "telecom-analysis" }
-        "4" {
-            $DataPath = Read-Host "Path to data folder (e.g., data/my_files)"
-            if (-not [System.IO.Path]::IsPathRooted($DataPath)) {
-                $DataPath = Join-Path $projectRoot $DataPath
-            }
-        }
-        "5" {
+    for ($i = 0; $i -lt $menuItems.Count; $i++) {
+        $item = $menuItems[$i]
+        $num = $i + 1
+        $label = if ($item.type -eq "data_source") { "$($item.name) (connect)" } else { $item.name }
+        Write-Host "  $num. $label" -ForegroundColor White
+        Write-Host "     $($item.description)" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+
+    $maxChoice = $menuItems.Count
+    do {
+        $choice = Read-Host "Enter choice (1-$maxChoice)"
+        $valid = $choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $maxChoice
+        if (-not $valid) { Write-Host "Please enter a number between 1 and $maxChoice." -ForegroundColor Yellow }
+    } while (-not $valid)
+
+    $selected = $menuItems[[int]$choice - 1]
+
+    switch ($selected.type) {
+        "scenario" { $Scenario = $selected.key }
+        "data_source" {
             Write-Host ""
-            & (Join-Path $PSScriptRoot "connect-data.ps1")
+            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
             exit $LASTEXITCODE
         }
-        default {
-            Write-Host "Invalid choice." -ForegroundColor Red
-            exit 1
+        "skip" {
+            Write-Host "Skipped. You can upload documents from the web UI." -ForegroundColor Yellow
+            exit 0
         }
     }
 }
 
 # ── Resolve scenario to data path ──
 if ($Scenario) {
-    $scenarioConfig = Get-Content (Join-Path $projectRoot "data" "config" "scenarios.json") -Raw | ConvertFrom-Json
     $pack = $scenarioConfig.scenarios.$Scenario
 
     if (-not $pack) {
+        $available = ($scenarioConfig.scenarios.PSObject.Properties.Name) -join ", "
         Write-Host "ERROR: Unknown scenario '$Scenario'." -ForegroundColor Red
-        Write-Host "Available: contact-center, mortgage-application, telecom-analysis" -ForegroundColor Yellow
+        Write-Host "Available: $available" -ForegroundColor Yellow
         exit 1
     }
 

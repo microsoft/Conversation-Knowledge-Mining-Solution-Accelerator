@@ -48,9 +48,15 @@ async def upload_json(
     if not file.filename.endswith(".json"):
         raise HTTPException(status_code=400, detail="Only .json files accepted")
     content = await file.read()
+    settings = get_settings()
+    max_bytes = settings.max_upload_file_size_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
     data = json.loads(content)
     if not isinstance(data, list):
         raise HTTPException(status_code=400, detail="JSON must be an array of documents")
+    if len(data) > settings.max_json_documents_per_upload:
+        raise HTTPException(status_code=413, detail=f"Too many documents. Maximum is {settings.max_json_documents_per_upload}.")
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
     background_tasks.add_task(ingestion_service.finalize_ingestion, data, file.filename or "uploaded.json")
     background_tasks.add_task(_trigger_auto_pipeline)
@@ -69,6 +75,11 @@ async def upload_document(
     from src.api.modules.ingestion.azure_storage import azure_storage_service
     from src.api.modules.ingestion.queue_service import queue_service, EXTRACTION_QUEUE
 
+    settings = get_settings()
+    max_bytes = settings.max_upload_file_size_mb * 1024 * 1024
+    if len(files) > settings.max_concurrent_uploads:
+        raise HTTPException(status_code=413, detail=f"Too many files. Maximum is {settings.max_concurrent_uploads} per request.")
+
     # Validate all files and read their content
     file_contents: list[tuple[str, str, bytes]] = []
     for file in files:
@@ -80,6 +91,8 @@ async def upload_document(
                 detail=f"Unsupported file type: .{ext}. Accepted: {', '.join(sorted(DOCUMENT_EXTENSIONS))}",
             )
         content = await file.read()
+        if len(content) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"{filename} is too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
         file_contents.append((filename, ext, content))
 
     # Save raw files to blob storage and create "processing" file records

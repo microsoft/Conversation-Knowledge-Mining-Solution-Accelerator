@@ -59,6 +59,58 @@ class EmbeddingsService:
             dimensions=len(embedding),
         )
 
+    def generate_embeddings_batch(self, texts: list[str], batch_size: int = 100) -> list[list[float]]:
+        """Generate embeddings for multiple texts using batch API calls.
+        Returns a list of embedding vectors in the same order as input texts.
+        Uses cache to avoid re-embedding identical chunks."""
+        import hashlib
+        import logging
+
+        logger = logging.getLogger(__name__)
+        settings = get_settings()
+        client = self._get_client()
+
+        results: list[list[float]] = [[] for _ in texts]
+        uncached_indices: list[int] = []
+        uncached_texts: list[str] = []
+
+        # Check cache first
+        for i, text in enumerate(texts):
+            cache_key = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+            if cache_key in self._embedding_cache:
+                results[i] = self._embedding_cache[cache_key]
+            else:
+                uncached_indices.append(i)
+                uncached_texts.append(text)
+
+        if not uncached_texts:
+            return results
+
+        # Batch API calls
+        for batch_start in range(0, len(uncached_texts), batch_size):
+            batch = uncached_texts[batch_start:batch_start + batch_size]
+            try:
+                response = client.embeddings.create(
+                    input=batch,
+                    model=settings.azure_openai_embedding_deployment,
+                )
+                for j, emb_data in enumerate(response.data):
+                    idx = uncached_indices[batch_start + j]
+                    results[idx] = emb_data.embedding
+                    # Cache
+                    cache_key = hashlib.sha256(batch[j].encode("utf-8")).hexdigest()[:16]
+                    if len(self._embedding_cache) < 10000:
+                        self._embedding_cache[cache_key] = emb_data.embedding
+            except Exception as e:
+                logger.warning(f"Batch embedding failed for batch starting at {batch_start}: {e}")
+                # Fill with zero vectors for failed batch
+                for j in range(len(batch)):
+                    idx = uncached_indices[batch_start + j]
+                    if not results[idx]:
+                        results[idx] = [0.0] * 1536
+
+        return results
+
     def index_documents(self, doc_ids: Optional[list[str]] = None) -> IndexResult:
         """Generate embeddings for ingested documents and store locally."""
         errors: list[str] = []

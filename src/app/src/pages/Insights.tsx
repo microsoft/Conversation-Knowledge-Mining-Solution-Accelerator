@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Button, Spinner, Dropdown, Option } from "@fluentui/react-components";
-import { ArrowSync24Regular, ChartMultiple24Regular } from "@fluentui/react-icons";
+import { ArrowSync24Regular, ChartMultiple24Regular, ErrorCircle24Regular } from "@fluentui/react-icons";
 import { DonutChart, BarChart, LineChart } from "../components/Charts";
 import { useNavigate } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import type { DashboardResponse, KPI, ChartSpec } from "../types/api";
+import { SkeletonCards } from "../components/Skeleton";
 import s from "./Insights.module.css";
 
 const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec4899", "#0ea5e9", "#f97316"];
@@ -15,10 +16,12 @@ const Insights: React.FC = () => {
   const { setDashboardHeadline, insights: cachedData, setInsights } = useAppState();
   const [data, setData] = useState<DashboardResponse | null>(cachedData);
   const [loading, setLoading] = useState(!cachedData);
+  const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
 
   const load = async (f?: Record<string, string>, refresh = false) => {
     setLoading(true);
+    setError(null);
     try {
       const r = await getDashboard(f, refresh);
       setData(r.data);
@@ -27,7 +30,10 @@ const Insights: React.FC = () => {
         setDashboardHeadline(r.data.headline);
         try { sessionStorage.setItem("km_headline", JSON.stringify(r.data.headline)); } catch {}
       }
-    } catch { /* handled by loading state */ }
+    } catch (e) {
+      console.error("Failed to load dashboard:", e);
+      setError("Failed to load dashboard. Please try again.");
+    }
     finally { setLoading(false); }
   };
 
@@ -49,14 +55,26 @@ const Insights: React.FC = () => {
 
   if (loading && !data) return (
     <div className={s.page}><div className={s.loading}>
-      <Spinner size="large" /><h3>Analyzing your data...</h3>
+      <Spinner size="medium" />
+      <h3 style={{ margin: 0, color: "#475569", fontWeight: 600 }}>Analyzing your data...</h3>
+      <p style={{ margin: 0, fontSize: 13, color: "#94a3b8" }}>Generating insights and visualizations</p>
+      <SkeletonCards count={6} />
+    </div></div>
+  );
+
+  if (error && !data) return (
+    <div className={s.page}><div className={s.empty}>
+      <ErrorCircle24Regular style={{ fontSize: 48, color: "#dc2626" }} />
+      <h2>Something went wrong</h2><p>{error}</p>
+      <Button appearance="primary" onClick={() => load()}>Try again</Button>
     </div></div>
   );
 
   if (!data || (data.data_context?.total_records ?? 0) === 0) return (
     <div className={s.page}><div className={s.empty}>
       <ChartMultiple24Regular style={{ fontSize: 48 }} />
-      <h2>No Data Available</h2><p>Upload documents or connect a data source to see insights.</p>
+      <h2>No Data Available</h2><p>Upload documents to see insights.</p>
+      <Button appearance="primary" onClick={() => nav("/")}>Upload data</Button>
     </div></div>
   );
 

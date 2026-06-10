@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class QueueWorker:
     """Polls both queues and processes documents through the two-stage pipeline."""
 
+    MAX_RETRIES = 3
+
     def __init__(self, poll_interval: int = 5, max_concurrent: int = 4):
         self._poll_interval = poll_interval
         self._max_concurrent = max_concurrent
@@ -88,7 +90,7 @@ class QueueWorker:
                     for msg in messages:
                         try:
                             payload = json.loads(msg.content)
-                            futures.append(pool.submit(handler, msg, payload))
+                            futures.append(pool.submit(self._handle_with_retry, queue_name, handler, msg, payload))
                         except json.JSONDecodeError:
                             logger.warning(f"Invalid message in {queue_name}, deleting")
                             queue_service.delete(queue_name, msg)
@@ -102,6 +104,39 @@ class QueueWorker:
                 except Exception as e:
                     logger.error(f"Poll error for {queue_name}: {e}")
                     self._wait()
+
+    def _handle_with_retry(self, queue_name: str, handler, msg, payload: dict):
+        """Wrap a handler with exponential backoff retry logic."""
+        import time
+        retry_count = payload.get("_retry_count", 0)
+        try:
+            handler(msg, payload)
+        except Exception as e:
+            if retry_count < self.MAX_RETRIES:
+                backoff = 2 ** retry_count  # 1s, 2s, 4s
+                logger.warning(
+                    f"[{queue_name}] Retrying ({retry_count + 1}/{self.MAX_RETRIES}) "
+                    f"after {backoff}s for {payload.get('filename', 'unknown')}: {e}"
+                )
+                time.sleep(backoff)
+                # Re-enqueue with incremented retry count
+                payload["_retry_count"] = retry_count + 1
+                queue_service.delete(queue_name, msg)
+                queue_service.enqueue(queue_name, payload)
+            else:
+                logger.error(
+                    f"[{queue_name}] Permanent failure after {self.MAX_RETRIES} retries "
+                    f"for {payload.get('filename', 'unknown')}: {e}"
+                )
+                queue_service.delete(queue_name, msg)
+                # Mark file as failed
+                file_id = payload.get("file_id")
+                if file_id:
+                    from src.api.modules.ingestion.service import ingestion_service
+                    ingestion_service._update_file_status(
+                        file_id, "failed",
+                        error=f"Failed after {self.MAX_RETRIES} retries: {e}"
+                    )
 
     def _wait(self):
         """Sleep between polls, checking for stop signal."""
@@ -221,18 +256,11 @@ class QueueWorker:
             chunks = chunk_text(text)
             logger.info(f"[enrichment] {filename}: {len(chunks)} chunks")
 
-            # Step 2: Generate embeddings
+            # Step 2: Generate embeddings (batched)
             embeddings_service = EmbeddingsService()
-            embeddings: list[list[float]] = []
             settings = get_settings()
 
-            for chunk in chunks:
-                try:
-                    emb = embeddings_service.generate_embedding(chunk)
-                    embeddings.append(emb.embedding)
-                except Exception as e:
-                    logger.warning(f"[enrichment] Embedding failed for chunk: {e}")
-                    embeddings.append([0.0] * 1536)  # Zero vector as fallback
+            embeddings = embeddings_service.generate_embeddings_batch(chunks)
 
             # Step 3: Index chunks + embeddings in Azure AI Search
             indexed = azure_storage_service.index_chunks(

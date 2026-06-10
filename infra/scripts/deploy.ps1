@@ -13,7 +13,15 @@
 param(
     [string]$EnvironmentName = "",
     [string]$Location = "",
-    [string]$Subscription = ""
+    [string]$Subscription = "",
+
+    [ValidateSet("contact-center", "mortgage-application", "telecom-analysis")]
+    [string]$Scenario = "",
+
+    [ValidateSet("azure_search", "fabric", "sql", "synapse")]
+    [string]$ExternalSource = "",
+
+    [switch]$SkipDataSetup
 )
 
 Write-Host ""
@@ -55,16 +63,36 @@ azd up
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Green
-    Write-Host "  Deployment Complete!" -ForegroundColor Green
+    Write-Host "  Infrastructure Deployed!" -ForegroundColor Green
     Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Frontend: $(azd env get-value SERVICE_FRONTEND_URI)" -ForegroundColor Cyan
     Write-Host "Backend:  $(azd env get-value SERVICE_BACKEND_URI)" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Next steps:" -ForegroundColor Yellow
-    Write-Host "  1. Open the frontend URL in your browser"
-    Write-Host "  2. Upload documents or connect an existing index"
-    Write-Host "  3. (Optional) Run: python infra/scripts/create_agent.py"
+
+    # Post-deploy: agent setup + data setup happen automatically via azd postprovision hook.
+    # If running this script directly (outside azd), run them now:
+    $hookRan = $env:AZD_HOOK_NAME
+    if (-not $hookRan) {
+        Write-Host "Running post-deployment setup..." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Agent setup
+        & (Join-Path $PSScriptRoot "setup-agent.ps1")
+
+        # Data setup — use param if provided, otherwise prompt
+        if (-not $SkipDataSetup) {
+            $setupScript = Join-Path $PSScriptRoot ".." ".." "scripts" "setup-data.ps1"
+            if ($Scenario) {
+                & $setupScript -Scenario $Scenario
+            } elseif ($ExternalSource) {
+                & $setupScript -ExternalSource $ExternalSource
+            } else {
+                & $setupScript
+            }
+        }
+    }
+
     Write-Host ""
 } else {
     Write-Host ""
