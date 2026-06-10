@@ -15,11 +15,16 @@ const Insights: React.FC = () => {
   const { setDashboardHeadline, insights: cachedData, setInsights } = useAppState();
   const [data, setData] = useState<DashboardResponse | null>(cachedData);
   const [loading, setLoading] = useState(!cachedData);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
 
   const load = async (f?: Record<string, string>, refresh = false) => {
-    setLoading(true);
+    if (data && !refresh) {
+      setRefreshing(true); // filter change — keep existing data visible
+    } else {
+      setLoading(true); // initial load or re-generate — show skeleton
+    }
     setError(null);
     try {
       const r = await getDashboard(f, refresh);
@@ -33,7 +38,7 @@ const Insights: React.FC = () => {
       console.error("Failed to load dashboard:", e);
       setError("Failed to load dashboard. Please try again.");
     }
-    finally { setLoading(false); }
+    finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => { if (!cachedData) load(); }, []);
@@ -152,15 +157,15 @@ const Insights: React.FC = () => {
 
   return (
     <div className={s.page}>
-      <div className={s.content}>
+      <div className={s.content} style={refreshing ? { opacity: 0.5, pointerEvents: "none", transition: "opacity 0.2s" } : undefined}>
         {/* ── Dataset header ── */}
         <div className={s.datasetHeader}>
           <div style={{ flex: 1 }}>
             <div className={s.datasetTitle}>{data.headline || "Data Insights"}</div>
           </div>
           <Button appearance="subtle" size="small" icon={<ArrowSync24Regular />}
-            onClick={() => load(filters, true)} disabled={loading}>
-            {loading ? "Analyzing..." : "Re-generate"}
+            onClick={() => load(filters, true)} disabled={loading || refreshing}>
+            {loading ? "Analyzing..." : refreshing ? "Updating..." : "Re-generate"}
           </Button>
         </div>
 
@@ -197,13 +202,15 @@ const Insights: React.FC = () => {
               <Dropdown key={f.field} placeholder={f.label}
                 value={filters[f.field] || "All"}
                 onOptionSelect={(_, opt) => applyFilter(f.field, opt?.optionValue || "")}
-                size="small" style={{ minWidth: 140 }}>
+                size="small" style={{ minWidth: 150 }}>
                 <Option value="_all" text={`All ${f.label}`}>All {f.label}</Option>
                 {f.values.map((v: string) => <Option key={v} value={v} text={v}>{v}</Option>)}
               </Dropdown>
             ))}
             {Object.keys(filters).length > 0 && (
-              <Button size="small" appearance="subtle" onClick={() => { setFilters({}); load({}); }}>Clear</Button>
+              <Button size="small" appearance="subtle" onClick={() => { setFilters({}); load({}); }}>
+                Clear {Object.keys(filters).length > 1 ? `(${Object.keys(filters).length})` : ""}
+              </Button>
             )}
           </div>
         )}

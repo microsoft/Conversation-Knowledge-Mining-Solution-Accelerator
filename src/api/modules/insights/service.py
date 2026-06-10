@@ -295,6 +295,11 @@ LABEL QUALITY RULES (critical for user clarity):
 - Each KPI must measure something distinct — no two KPIs should show the same metric differently
 - For bar charts, if a field has more than 6 unique values, use horizontal_bar instead of bar
 - Limit distribution and rate_by_dimension charts to the top 10 values — do not show all categories
+- Filters MUST be orthogonal (independent) — NEVER include fields that measure the same concept (e.g. sentiment and satisfaction both measure customer perception — pick ONE). A good filter set slices data along completely different axes (e.g. time + agent + category)
+- NEVER use topic, key_phrases, or high-cardinality text fields as filters — they have too many values and belong in charts (word_cloud, horizontal_bar), not filters
+- Always include a time-based filter if ANY time/datetime field exists in the schema (type: "date_range")
+- Choose 2-4 filters total: 1 time filter (if available) + 1-3 categorical filters on low-cardinality independent dimensions
+- Filters must work well both individually and combined — each filter should meaningfully narrow the data
 - Return ONLY valid JSON"""
 
 
@@ -387,7 +392,21 @@ def _build_where(filters: dict | None, params: list) -> str:
     clauses = ["1=1"]
     if filters:
         for field, value in filters.items():
-            if _SAFE.match(field):
+            # Year filter (virtual field: realfield__year)
+            if field.endswith("__year"):
+                real = field[:-6]
+                if _SAFE.match(real):
+                    clauses.append(
+                        f"YEAR(TRY_CAST(JSON_VALUE(metadata, '$.{real}') AS DATE)) = ?")
+                    params.append(int(value))
+            # Month filter (virtual field: realfield__month)
+            elif field.endswith("__month"):
+                real = field[:-7]
+                if _SAFE.match(real):
+                    clauses.append(
+                        f"FORMAT(TRY_CAST(JSON_VALUE(metadata, '$.{real}') AS DATE), 'MMMM') = ?")
+                    params.append(value)
+            elif _SAFE.match(field):
                 clauses.append(f"JSON_VALUE(metadata, '$.{field}') = ?")
                 params.append(value)
     return " AND ".join(clauses)
@@ -599,18 +618,50 @@ def _exec_filters(cursor, filter_specs):
         f = spec.get("field", "")
         if not _SAFE.match(f):
             continue
+        ftype = spec.get("type", "categorical")
         try:
-            cursor.execute(
-                f"SELECT DISTINCT JSON_VALUE(metadata,'$.{f}') FROM documents "
-                f"WHERE JSON_VALUE(metadata,'$.{f}') IS NOT NULL ORDER BY 1")
-            vals = [r[0] for r in cursor.fetchall() if r[0]]
-            if 2 <= len(vals) <= 30:
-                result.append({
-                    "field": f,
-                    "label": spec.get("label", f.replace("_", " ").title()),
-                    "type": spec.get("type", "categorical"),
-                    "multi_select": spec.get("multi_select", False),
-                    "values": vals})
+            if ftype == "date_range":
+                # Generate Year and Month dropdowns from actual data
+                cursor.execute(
+                    f"SELECT DISTINCT YEAR(TRY_CAST(JSON_VALUE(metadata,'$.{f}') AS DATE)) "
+                    f"FROM documents WHERE JSON_VALUE(metadata,'$.{f}') IS NOT NULL "
+                    f"AND TRY_CAST(JSON_VALUE(metadata,'$.{f}') AS DATE) IS NOT NULL "
+                    f"ORDER BY 1 DESC")
+                years = [str(r[0]) for r in cursor.fetchall() if r[0]]
+                if years:
+                    result.append({
+                        "field": f + "__year",
+                        "label": "Year",
+                        "type": "year",
+                        "multi_select": False,
+                        "values": years})
+
+                cursor.execute(
+                    f"SELECT DISTINCT MONTH(TRY_CAST(JSON_VALUE(metadata,'$.{f}') AS DATE)), "
+                    f"FORMAT(TRY_CAST(JSON_VALUE(metadata,'$.{f}') AS DATE), 'MMMM') "
+                    f"FROM documents WHERE JSON_VALUE(metadata,'$.{f}') IS NOT NULL "
+                    f"AND TRY_CAST(JSON_VALUE(metadata,'$.{f}') AS DATE) IS NOT NULL "
+                    f"ORDER BY 1")
+                months = [r[1] for r in cursor.fetchall() if r[0] and r[1]]
+                if len(months) >= 2:
+                    result.append({
+                        "field": f + "__month",
+                        "label": "Month",
+                        "type": "month",
+                        "multi_select": False,
+                        "values": months})
+            else:
+                cursor.execute(
+                    f"SELECT DISTINCT JSON_VALUE(metadata,'$.{f}') FROM documents "
+                    f"WHERE JSON_VALUE(metadata,'$.{f}') IS NOT NULL ORDER BY 1")
+                vals = [r[0] for r in cursor.fetchall() if r[0]]
+                if 2 <= len(vals) <= 30:
+                    result.append({
+                        "field": f,
+                        "label": spec.get("label", f.replace("_", " ").title()),
+                        "type": "categorical",
+                        "multi_select": spec.get("multi_select", False),
+                        "values": vals})
         except Exception as e:
             logger.warning(f"Failed to load filter values for field '{f}': {e}")
     return result
@@ -622,6 +673,8 @@ def _exec_filters(cursor, filter_specs):
 
 class DashboardService:
     _plan_cache: dict[str, dict] = {}
+    _schema_cache: dict | None = None
+    _schema_hash: str | None = None
 
     def _get_connection(self):
         settings = get_settings()
@@ -648,13 +701,22 @@ class DashboardService:
             return self._empty()
         try:
             cursor = conn.cursor()
-            schema = _extract_schema(cursor)
-            if schema["total_records"] == 0:
-                conn.close()
-                return self._empty()
+
+            # Schema: reuse cached if not refreshing
+            if refresh or self._schema_cache is None:
+                schema = _extract_schema(cursor)
+                if schema["total_records"] == 0:
+                    conn.close()
+                    return self._empty()
+                self._schema_cache = schema
+                self._schema_hash = hashlib.md5(
+                    json.dumps(schema, sort_keys=True, default=str).encode()
+                ).hexdigest()
+            else:
+                schema = self._schema_cache
 
             # Plan (cached, validated)
-            key = hashlib.md5(json.dumps(schema, sort_keys=True, default=str).encode()).hexdigest()
+            key = self._schema_hash
             if refresh or key not in self._plan_cache:
                 raw_plan = _plan(schema)
                 self._plan_cache[key] = _validate_plan(raw_plan, schema)
