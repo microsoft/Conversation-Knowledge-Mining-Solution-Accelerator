@@ -1,6 +1,6 @@
 // ============================================================================
 // main.bicep — Orchestrator
-// Description: Pure orchestrator for Agentic Applications for UDF
+// Description: Pure orchestrator for Conversation Knowledge Mining solution. Calls modules to deploy resources.
 //              All resource names are derived from params — no hardcoded names.
 //              This file only calls modules; no inline resource definitions.
 //              Supports WAF-aligned deployment via feature flags.
@@ -191,7 +191,7 @@ var createdBy = contains(deployerInfo, 'userPrincipalName') ? split(deployerInfo
 var useExistingAIProject = !empty(existingFoundryProjectResourceId)
 var useChatHistoryEnabledSetting = useChatHistoryEnabled ? 'True' : 'False'
 
-// Tags: merge caller-supplied tags with standard metadata (matching old infra)
+// ========== Tags: merge caller-supplied tags with standard metadata (matching old infra) ========== //
 var existingTags = resourceGroup().tags ?? {}
 var resourceTags = union(existingTags, tags, {
   TemplateName: 'KM-Generic'
@@ -201,7 +201,7 @@ var resourceTags = union(existingTags, tags, {
   UseCase: usecase
 })
 
-// WAF: Region pairs for redundancy (Log Analytics replication)
+// ========== WAF: Region pairs for redundancy (Log Analytics replication) ========== //
 var replicaRegionPairs = {
   australiaeast: 'australiasoutheast'
   centralus: 'westus'
@@ -216,7 +216,7 @@ var replicaRegionPairs = {
 }
 var replicaLocation = replicaRegionPairs[location]
 
-// WAF: Region pairs for Cosmos DB zone-redundant HA
+// ========== WAF: Region pairs for Cosmos DB zone-redundant HA ========== //
 var cosmosDbHaRegionPairs = {
   australiaeast: 'uksouth' //'southeastasia'
   centralus: 'eastus2'
@@ -231,10 +231,10 @@ var cosmosDbHaRegionPairs = {
 }
 var cosmosDbHaLocation = cosmosDbHaRegionPairs[location]
 
-// WAF: Diagnostic settings helper — reused across modules
+// ========== WAF: Diagnostic settings helper — reused across modules ========== //
 var monitoringDiagnosticSettings = enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : []
 
-// WAF: Private DNS zones for private endpoints
+// ========== WAF: Private DNS zones for private endpoints ========== //
 var privateDnsZones = [
   'privatelink.cognitiveservices.azure.com'
   'privatelink.openai.azure.com'
@@ -262,10 +262,10 @@ var dnsZoneIndex = {
   webApp: 10
 }
 
-// Resource naming (parameterized — no abbreviations.json dependency)
+// ========== Resource naming (parameterized — no abbreviations.json dependency) ========== //
 // Resource names for generic modules are now derived inside each module from solutionName/solutionSuffix.
 
-// Model deployments configuration
+// ========== Model deployments configuration ========== //
 var aiModelDeployments = [
   {
     name: gptModelName
@@ -306,6 +306,7 @@ resource existingLogAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces
   scope: resourceGroup(split(existingLogAnalyticsWorkspaceId, '/')[2], split(existingLogAnalyticsWorkspaceId, '/')[4])
 }
 
+ //  ========== Log Analytics Workspace module ========== //
 module log_analytics './modules/monitoring/log-analytics.bicep' = if (enableMonitoring && !useExistingLogAnalytics) {
   name: take('module.log-analytics.${solutionName}', 64)
   params: {
@@ -339,7 +340,7 @@ module log_analytics './modules/monitoring/log-analytics.bicep' = if (enableMoni
   }
 }
 
-// Resolve workspace resource ID and name — existing or new
+// ========== Resolve workspace resource ID and name — existing or new ========== //
 var logAnalyticsWorkspaceResourceId = useExistingLogAnalytics
   ? existingLogAnalyticsWorkspace.id
   : (enableMonitoring ? log_analytics!.outputs.resourceId : '')
@@ -347,6 +348,7 @@ var logAnalyticsWorkspaceName = useExistingLogAnalytics
   ? split(existingLogAnalyticsWorkspaceId, '/')[8]
   : (enableMonitoring ? log_analytics!.outputs.name : '')
 
+// ========== App Insights module ========== //
 module app_insights './modules/monitoring/app-insights.bicep' = if (enableMonitoring) {
   name: take('module.app-insights.${solutionName}', 64)
   params: {
@@ -377,7 +379,7 @@ module virtualNetwork './modules/networking/virtual-network.bicep' = if (enableP
   }
 }
 
-// Bastion Host — secure access to jumpbox VM
+// ========== Bastion Host — secure access to jumpbox VM ========== //
 module bastionHost './modules/networking/bastion-host.bicep' = if (enablePrivateNetworking) {
   name: take('module.bastion-host.${solutionName}', 64)
   params: {
@@ -391,7 +393,7 @@ module bastionHost './modules/networking/bastion-host.bicep' = if (enablePrivate
   }
 }
 
-// WAF: Maintenance Configuration for VM patching
+// ========== WAF: Maintenance Configuration for VM patching ========== //
 module maintenanceConfiguration './modules/compute/maintenance-configuration.bicep' = if (enablePrivateNetworking) {
   name: take('module.maintenance-configuration.${solutionName}', 64)
   params: {
@@ -402,7 +404,7 @@ module maintenanceConfiguration './modules/compute/maintenance-configuration.bic
   }
 }
 
-// WAF: Data Collection Rules for VM monitoring
+// ========== WAF: Data Collection Rules for VM monitoring ========== //
 var dataCollectionRulesLocation = useExistingLogAnalytics
   ? existingLogAnalyticsWorkspace!.location
   : (enableMonitoring ? log_analytics!.outputs.location : location)
@@ -417,7 +419,7 @@ module windowsVmDataCollectionRules './modules/monitoring/data-collection-rule.b
   }
 }
 
-// WAF: Proximity Placement Group for VM
+// ========== WAF: Proximity Placement Group for VM ========== //
 var virtualMachineAvailabilityZone = 1
 module proximityPlacementGroup './modules/compute/proximity-placement-group.bicep' = if (enablePrivateNetworking) {
   name: take('module.proximity-placement-group.${solutionName}', 64)
@@ -431,8 +433,8 @@ module proximityPlacementGroup './modules/compute/proximity-placement-group.bice
   }
 }
 
-// Jumpbox VM — administration access when private networking is enabled
-// Login is via Microsoft Entra ID through Azure Bastion (not local credentials)
+// ========== Jumpbox VM — administration access when private networking is enabled ========== //
+// ========== Login is via Microsoft Entra ID through Azure Bastion (not local credentials) ========== //
 module virtualMachine './modules/compute/virtual-machine.bicep' = if (enablePrivateNetworking) {
   name: take('module.virtual-machine.${solutionName}', 64)
   params: {
@@ -470,7 +472,7 @@ module virtualMachine './modules/compute/virtual-machine.bicep' = if (enablePriv
   }
 }
 
-// Private DNS Zones — one per service, linked to VNet
+// ========== Private DNS Zones — one per service, linked to VNet ========== //
 @batchSize(5)
 module privateDnsZoneDeployments './modules/networking/private-dns-zone.bicep' = [
   for (zone, i) in privateDnsZones: if (enablePrivateNetworking) {
@@ -493,7 +495,7 @@ module privateDnsZoneDeployments './modules/networking/private-dns-zone.bicep' =
 // Module: AI Services (conditional — skip if using existing project)
 // ============================================================================
 
-// Existing AI Foundry reference (for cross-subscription support when using existing project)
+// ========== Existing AI Foundry reference (for cross-subscription support when using existing project) ========== //
 var aiFoundryResourceGroupName = useExistingAIProject
   ? split(existingFoundryProjectResourceId, '/')[4]
   : resourceGroup().name
@@ -518,7 +520,7 @@ var existingProjectEndpoint = existingHasProjectSegment
   : ''
 
 
-// Reference existing AI Foundry project (identity only)
+// ========== Reference existing AI Foundry project (identity only) ========== //
 module existing_project_setup './modules/ai/existing-project-setup.bicep' = if (useExistingAIProject) {
   name: take('module.existing-project-setup.${solutionName}', 64)
   scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
@@ -528,7 +530,7 @@ module existing_project_setup './modules/ai/existing-project-setup.bicep' = if (
   }
 }
 
-// Deploy new AI Services account + AI Foundry project (no connections, no deployments)
+// ========== Deploy new AI Services account + AI Foundry project (no connections, no deployments) ========== //
 module ai_foundry_project './modules/ai/ai-foundry-project.bicep' = if (!useExistingAIProject) {
   name: take('module.ai-foundry-project.${solutionName}', 64)
   params: {
@@ -557,7 +559,7 @@ module ai_foundry_project './modules/ai/ai-foundry-project.bicep' = if (!useExis
 var azureOpenAiCuEndpoint = useExistingAIProject ? existing_project_setup!.outputs.azureOpenAiCuEndpoint : ai_foundry_project!.outputs.azureOpenAiCuEndpoint
 var projectEndpoint = useExistingAIProject ? existing_project_setup!.outputs.projectEndpoint : ai_foundry_project!.outputs.projectEndpoint
 
-// AI Search connection (single call for both existing and new paths)
+// ========== AI Search connection (single call for both existing and new paths) ========== //
 module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
   name: take('module.foundry-search-conn.${solutionName}', 64)
   scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
@@ -575,46 +577,7 @@ module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
   }
 }
 
-// Storage Blob connection (single call for both existing and new paths)
-module foundry_storage_connection './modules/ai/ai-foundry-connection.bicep' = {
-  name: take('module.foundry-storage-conn.${solutionName}', 64)
-  scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
-  params: {
-    solutionName: solutionSuffix
-    aiServicesAccountName: aiFoundryResourceName
-    projectName: aiProjectResourceName
-    category: 'AzureBlob'
-    target: storage_account!.outputs.blobEndpoint
-    authType: 'AAD'
-    metadata: {
-      ResourceId: storage_account!.outputs.resourceId
-      AccountName: storage_account!.outputs.name
-      ContainerName: 'default'
-    }
-  }
-}
-
-// Application Insights connection (skip if using existing Foundry project which already has one)
-module foundry_appi_connection './modules/ai/ai-foundry-connection.bicep' = if (enableMonitoring && !useExistingAIProject) {
-  name: take('module.foundry-appi-conn.${solutionName}', 64)
-  scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
-  params: {
-    solutionName: solutionSuffix
-    aiServicesAccountName: aiFoundryResourceName
-    projectName: aiProjectResourceName
-    category: 'AppInsights'
-    target: app_insights!.outputs.resourceId
-    authType: 'ApiKey'
-    isDefault: true
-    credentialsKey: app_insights!.outputs.instrumentationKey
-    metadata: {
-      ApiType: 'Azure'
-      ResourceId: app_insights!.outputs.resourceId
-    }
-  }
-}
-
-// Model deployments (single loop for both existing and new paths)
+// ========== Model deployments (single loop for both existing and new paths) ========== //
 @batchSize(1)
 module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for (deployment, i) in aiModelDeployments: {
   name: take('module.model-deployment-${i}.${solutionName}', 64)
@@ -630,7 +593,7 @@ module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for
   }
 }]
 
-// Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition
+// ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
 module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
   name: take('module.pe-ai-foundry.${solutionName}', 64)
   dependsOn: [privateDnsZoneDeployments]
@@ -667,6 +630,7 @@ module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' 
   }
 }
 
+// ========== AI Search service (called by Foundry connection module, so deployed after the project) ========== //
 module ai_search './modules/ai/ai-search.bicep' = {
   name: take('module.ai-search.${solutionName}', 64)
   params: {
@@ -702,7 +666,7 @@ module storage_account './modules/data/storage-account.bicep' = {
   name: take('module.storage-account.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: azureAiServiceLocation
+    location: location
     tags: tags
     enableTelemetry: enableTelemetry
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
@@ -725,6 +689,7 @@ module storage_account './modules/data/storage-account.bicep' = {
   }
 }
 
+// ========== Cosmos DB module with single container for conversation history, partitioned by user ID ========== //
 module cosmosDBModule './modules/data/cosmos-db-nosql.bicep' = {
   name: take('module.cosmos-db-nosql.${solutionName}', 64)
   params: {
@@ -749,6 +714,7 @@ module cosmosDBModule './modules/data/cosmos-db-nosql.bicep' = {
   }
 }
 
+// ========== SQL Database module ========== //
 module sqlDBModule './modules/data/sql-database.bicep' = {
   name: take('module.sql-db.${solutionName}', 64)
   params: {

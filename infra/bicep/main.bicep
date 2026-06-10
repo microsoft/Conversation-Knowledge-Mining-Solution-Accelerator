@@ -1,4 +1,12 @@
 // ========== main.bicep ========== //
+
+// ============================================================================
+// main.bicep — Orchestrator
+// Description: Pure orchestrator for Conversation Knowledge Mining solution. Calls modules to deploy resources.
+//              All resource names are derived from params — no hardcoded names.
+//              This file only calls modules; no inline resource definitions.
+// ============================================================================
+
 targetScope = 'resourceGroup'
 
 // ============================================================================
@@ -142,8 +150,6 @@ param createdBy string = contains(deployer(), 'userPrincipalName') ? split(deplo
 // Variables
 // ============================================================================
 
-var solutionLocation = empty(location) ? resourceGroup().location : location
-
 var solutionSuffix = toLower(trim(replace(
   replace(
     replace(replace(replace(replace('${solutionName}${solutionUniqueText}', '-', ''), '_', ''), '.', ''), '/', ''),
@@ -274,45 +280,6 @@ module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
   }
 }
 
-// Storage Blob connection (single call for both existing and new paths)
-module foundry_storage_connection './modules/ai/ai-foundry-connection.bicep' = {
-  name: take('module.foundry-storage-conn.${solutionName}', 64)
-  scope: resourceGroup(aiServiceSubscription, aiServiceResourceGroup)
-  params: {
-    solutionName: solutionSuffix
-    aiServicesAccountName: aiFoundryResourceName
-    projectName: aiProjectResourceName
-    category: 'AzureBlob'
-    target: storage_account!.outputs.blobEndpoint
-    authType: 'AAD'
-    metadata: {
-      ResourceId: storage_account!.outputs.resourceId
-      AccountName: storage_account!.outputs.name
-      ContainerName: 'default'
-    }
-  }
-}
-
-// Application Insights connection (skip if using existing Foundry project which already has one)
-module foundry_appi_connection './modules/ai/ai-foundry-connection.bicep' = if (!useExistingAIProject) {
-  name: take('module.foundry-appi-conn.${solutionName}', 64)
-  scope: resourceGroup(aiServiceSubscription, aiServiceResourceGroup)
-  params: {
-    solutionName: solutionSuffix
-    aiServicesAccountName: aiFoundryResourceName
-    projectName: aiProjectResourceName
-    category: 'AppInsights'
-    target: app_insights.outputs.resourceId
-    authType: 'ApiKey'
-    isDefault: true
-    credentialsKey: app_insights.outputs.instrumentationKey
-    metadata: {
-      ApiType: 'Azure'
-      ResourceId: app_insights.outputs.resourceId
-    }
-  }
-}
-
 // Model deployments (single loop for both existing and new paths)
 @batchSize(1)
 module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for (deployment, i) in aiModelDeployments: {
@@ -329,6 +296,7 @@ module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for
   }
 }]
 
+// ========== AI Search module ========== //
 module ai_search './modules/ai/ai-search.bicep' = {
   name: take('module.ai-search.${solutionName}', 64)
   params: {
@@ -352,7 +320,7 @@ module storage_account './modules/data/storage-account.bicep' = {
   name: take('module.storage-account.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: azureAiServiceLocation
+    location: location
     tags: {}
     containers: [
       { name: 'default', publicAccess: 'None' }
@@ -390,11 +358,12 @@ module sqlDBModule './modules/data/sql-database.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
+// ========== App Service Plan module ========== //
 module hostingplan './modules/compute/app-service-plan.bicep' = {
   name: take('module.app-service-plan.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: solutionLocation
+    location: location
     skuName: appServicePlanSku
   }
 }
@@ -402,6 +371,8 @@ module hostingplan './modules/compute/app-service-plan.bicep' = {
 // ========== Compute image names ========== //
 var backendApiImageName = 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
 var frontendImageName = 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+
+// ========== React app layout config (example of passing complex config via app settings) ========== //
 var reactAppLayoutConfig = '''{
   "appConfig": {
     "THREE_COLUMN": {
@@ -428,7 +399,7 @@ module backend_docker './modules/compute/app-service.bicep' = {
   params: {
     solutionName: solutionSuffix
     name: 'api-${solutionSuffix}'
-    location: solutionLocation
+    location: location
     serverFarmResourceId: hostingplan!.outputs.resourceId
     linuxFxVersion: backendApiImageName
     appSettings: {
@@ -467,7 +438,7 @@ module frontend_docker './modules/compute/app-service.bicep' = {
   params: {
     solutionName: solutionSuffix
     name: 'app-${solutionSuffix}'
-    location: solutionLocation
+    location: location
     serverFarmResourceId: hostingplan!.outputs.resourceId
     linuxFxVersion: frontendImageName
     appSettings: {
@@ -478,6 +449,7 @@ module frontend_docker './modules/compute/app-service.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
+// ========== Role Assignments (centralized)  ========== //
 module role_assignments './modules/identity/role-assignments.bicep' = {
   name: take('module.role-assignments.${solutionName}', 64)
   params: {
@@ -498,9 +470,7 @@ module role_assignments './modules/identity/role-assignments.bicep' = {
   scope: resourceGroup(resourceGroup().name)
 }
 
-// ============================================================================
-// Outputs
-// ============================================================================
+ // ========== Outputs ========== //
 
 @description('Contains Azure Container Registry name.')
 output ACR_NAME string = containerRegistryName
@@ -611,7 +581,7 @@ output DISPLAY_CHART_DEFAULT string = 'False'
 output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 
 @description('Contains Resource Group Location.')
-output RESOURCE_GROUP_LOCATION string = solutionLocation
+output RESOURCE_GROUP_LOCATION string = location
 
 @description('Name of the deployed resource group')
 output RESOURCE_GROUP_NAME string = resourceGroup().name
