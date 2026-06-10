@@ -1,14 +1,14 @@
 // ============================================================================
-// Module: Azure Event Grid
-// Description: Deploys Azure Event Grid Topic
-// API: Microsoft.EventGrid/topics@2024-06-01-preview
+// Module: Azure Event Grid System Topic
+// Description: Deploys Azure Event Grid System Topic
+// API: Microsoft.EventGrid/systemTopics@2025-07-15-preview
 // ============================================================================
 
 @description('Solution name suffix used to derive the resource name.')
 param solutionName string
 
-@description('Name of the Event Grid topic.')
-param name string = 'egt-${solutionName}'
+@description('Name of the Event Grid System Topic.')
+param name string = 'evgt-${solutionName}'
 
 @description('Azure region for the resource.')
 param location string
@@ -16,43 +16,54 @@ param location string
 @description('Tags to apply to the resource.')
 param tags object = {}
 
-@description('Public network access setting.')
-@allowed(['Enabled', 'Disabled'])
-param publicNetworkAccess string = 'Enabled'
+@description('Resource ID of the source that publishes events (e.g., Storage Account resource ID).')
+param source string
 
-@description('Disable local (key-based) authentication.')
-param disableLocalAuth bool = false
+@description('The type of the event source. E.g., Microsoft.Storage.StorageAccounts.')
+param topicType string
 
-@description('Event subscriptions to create on the topic.')
+@description('Event subscriptions to create on the system topic.')
 param eventSubscriptions array = []
+
+@description('Managed identities configuration. E.g., { systemAssigned: false, userAssignedResourceIds: [] }.')
+param managedIdentities object = {}
 
 // ============================================================================
 // Resource
 // ============================================================================
-resource eventGridTopic 'Microsoft.EventGrid/topics@2024-06-01-preview' = {
+resource eventGridSystemTopic 'Microsoft.EventGrid/systemTopics@2025-07-15-preview' = {
   name: name
   location: location
   tags: tags
-  identity: {
-    type: 'SystemAssigned'
-  }
+  identity: !empty(managedIdentities) ? {
+    type: (managedIdentities.?systemAssigned ?? false) && !empty(managedIdentities.?userAssignedResourceIds ?? [])
+      ? 'SystemAssigned,UserAssigned'
+      : (managedIdentities.?systemAssigned ?? false) ? 'SystemAssigned' : 'UserAssigned'
+    userAssignedIdentities: !empty(managedIdentities.?userAssignedResourceIds ?? [])
+      ? reduce(managedIdentities.userAssignedResourceIds, {}, (cur, next) => union(cur, { '${next}': {} }))
+      : null
+  } : null
   properties: {
-    publicNetworkAccess: publicNetworkAccess
-    disableLocalAuth: disableLocalAuth
+    source: source
+    topicType: topicType
   }
 }
 
 // ============================================================================
 // Event Subscriptions
 // ============================================================================
-resource eventGridSubscriptions 'Microsoft.EventGrid/topics/eventSubscriptions@2024-06-01-preview' = [
+resource systemTopicSubscriptions 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2025-07-15-preview' = [
   for sub in eventSubscriptions: {
     name: sub.name
-    parent: eventGridTopic
+    parent: eventGridSystemTopic
     properties: {
       destination: sub.destination
       filter: sub.?filter ?? {}
       eventDeliverySchema: sub.?eventDeliverySchema ?? 'EventGridSchema'
+      retryPolicy: sub.?retryPolicy ?? {
+        maxDeliveryAttempts: 30
+        eventTimeToLiveInMinutes: 1440
+      }
     }
   }
 ]
@@ -60,11 +71,11 @@ resource eventGridSubscriptions 'Microsoft.EventGrid/topics/eventSubscriptions@2
 // ============================================================================
 // Outputs
 // ============================================================================
-@description('Name of the Event Grid topic.')
-output name string = eventGridTopic.name
+@description('Name of the Event Grid System Topic.')
+output name string = eventGridSystemTopic.name
 
-@description('Resource ID of the Event Grid topic.')
-output resourceId string = eventGridTopic.id
+@description('Resource ID of the Event Grid System Topic.')
+output resourceId string = eventGridSystemTopic.id
 
-@description('Endpoint of the Event Grid topic.')
-output endpoint string = eventGridTopic.properties.endpoint
+@description('System-assigned principal ID (if enabled).')
+output systemAssignedMIPrincipalId string = (managedIdentities.?systemAssigned ?? false) ? eventGridSystemTopic.identity.principalId : ''

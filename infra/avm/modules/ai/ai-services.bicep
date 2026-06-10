@@ -116,3 +116,6 @@ output resourceId string = aiService.outputs.resourceId
 
 @description('Endpoint of the AI Services account.')
 output endpoint string = aiService.outputs.endpoint
+
+@description('System-assigned identity principal ID.')
+output identityPrincipalId string = aiService.outputs.?systemAssignedMIPrincipalId ?? ''
