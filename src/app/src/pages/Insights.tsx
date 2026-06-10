@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Button, Spinner, Dropdown, Option } from "@fluentui/react-components";
+import { Button, Spinner, Dropdown, Option, Skeleton, SkeletonItem } from "@fluentui/react-components";
 import { ArrowSync24Regular, ChartMultiple24Regular, ErrorCircle24Regular } from "@fluentui/react-icons";
 import { DonutChart, BarChart, LineChart } from "../components/Charts";
 import { useNavigate } from "react-router-dom";
 import { getDashboard } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import type { DashboardResponse, KPI, ChartSpec } from "../types/api";
-import { SkeletonCards } from "../components/Skeleton";
 import s from "./Insights.module.css";
 
 const WORD_COLORS = ["#2563eb", "#7c3aed", "#059669", "#dc2626", "#f59e0b", "#ec4899", "#0ea5e9", "#f97316"];
@@ -53,13 +52,61 @@ const Insights: React.FC = () => {
     return kpi.value?.toLocaleString?.() ?? kpi.value;
   };
 
-  if (loading && !data) return (
-    <div className={s.page}><div className={s.loading}>
-      <Spinner size="medium" />
-      <h3 style={{ margin: 0, color: "#475569", fontWeight: 600 }}>Analyzing your data...</h3>
-      <p style={{ margin: 0, fontSize: 13, color: "#94a3b8" }}>Generating insights and visualizations</p>
-      <SkeletonCards count={6} />
-    </div></div>
+  const SkeletonDashboard = () => (
+    <div className={s.content}>
+      <Skeleton aria-label="Loading insights">
+        <div className={s.datasetHeader}>
+          <div style={{ flex: 1 }}>
+            <SkeletonItem shape="rectangle" size={20} style={{ width: 220 }} />
+          </div>
+          <SkeletonItem shape="rectangle" size={32} style={{ width: 110, borderRadius: 6 }} />
+        </div>
+      </Skeleton>
+
+      <Skeleton>
+        <div className={s.insightsRow}>
+          <div className={s.insightsCard}>
+            <SkeletonItem shape="rectangle" size={16} style={{ width: 120, marginBottom: 12 }} />
+            <SkeletonItem shape="rectangle" size={12} style={{ width: "90%", marginBottom: 8 }} />
+            <SkeletonItem shape="rectangle" size={12} style={{ width: "75%", marginBottom: 8 }} />
+            <SkeletonItem shape="rectangle" size={12} style={{ width: "60%" }} />
+          </div>
+          <div className={s.insightsCard}>
+            <SkeletonItem shape="rectangle" size={16} style={{ width: 140, marginBottom: 12 }} />
+            <SkeletonItem shape="rectangle" size={12} style={{ width: "85%", marginBottom: 8 }} />
+            <SkeletonItem shape="rectangle" size={12} style={{ width: "70%" }} />
+          </div>
+        </div>
+      </Skeleton>
+
+      <Skeleton>
+        <div className={s.kpiRow}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={s.kpi}>
+              <SkeletonItem shape="rectangle" size={12} style={{ width: 80, marginBottom: 8 }} />
+              <SkeletonItem shape="rectangle" size={28} style={{ width: 60 }} />
+            </div>
+          ))}
+        </div>
+      </Skeleton>
+
+      <Skeleton>
+        <div className={s.dashboardGrid}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={s.gridItem}>
+              <div className={s.chartCard}>
+                <SkeletonItem shape="rectangle" size={16} style={{ width: 160, marginBottom: 16 }} />
+                <SkeletonItem shape="rectangle" size={16} style={{ width: "100%", height: 180, borderRadius: 8 }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Skeleton>
+    </div>
+  );
+
+  if (loading) return (
+    <div className={s.page}><SkeletonDashboard /></div>
   );
 
   if (error && !data) return (
@@ -110,13 +157,6 @@ const Insights: React.FC = () => {
         <div className={s.datasetHeader}>
           <div style={{ flex: 1 }}>
             <div className={s.datasetTitle}>{data.headline || "Data Insights"}</div>
-            <div className={s.datasetMeta}>
-              {ctx.total_records?.toLocaleString()} records
-              {data.summary && <> &middot; {data.summary}</>}
-              {ctx.filtered_records !== undefined && ctx.filtered_records !== ctx.total_records && (
-                <span> &middot; Showing {ctx.filtered_records.toLocaleString()} filtered</span>
-              )}
-            </div>
           </div>
           <Button appearance="subtle" size="small" icon={<ArrowSync24Regular />}
             onClick={() => load(filters, true)} disabled={loading}>
@@ -183,7 +223,7 @@ const Insights: React.FC = () => {
         {/* ── All charts in 2-column grid ── */}
         {gridCharts.length > 0 && (
           <div className={s.dashboardGrid}>
-            {gridCharts.map((chart: any, i: number) => {
+            {gridCharts.filter(isValidChart).map((chart: any, i: number) => {
               const isWide = chart.visualization === "driver_table" ||
                              chart.visualization === "table";
               return (
@@ -215,6 +255,20 @@ const Insights: React.FC = () => {
 };
 
 /* ═══════════════════════════════════════════
+   Chart validation — skip broken/empty charts
+   ═══════════════════════════════════════════ */
+const isValidChart = (chart: any): boolean => {
+  if (!chart?.visualization || !chart?.title) return false;
+  const d = chart.data;
+  if (!d) return false;
+  // Array-based charts (bar, donut, line, table, word_cloud, horizontal_bar)
+  if (Array.isArray(d)) return d.length > 0;
+  // Driver table
+  if (chart.visualization === "driver_table") return d.factors?.length > 0;
+  return true;
+};
+
+/* ═══════════════════════════════════════════
    Generic chart renderer — no business logic
    ═══════════════════════════════════════════ */
 const ChartCard: React.FC<{ chart: any }> = ({ chart }) => {
@@ -229,7 +283,7 @@ const ChartCard: React.FC<{ chart: any }> = ({ chart }) => {
         {chart.description && <div className={s.cardDesc}>{chart.description}</div>}
         <table className={s.driverTable}>
           <thead>
-            <tr><th>Dimension</th><th>Value</th><th>Rate</th><th>vs Baseline ({d.baseline}%)</th><th>Count</th></tr>
+            <tr><th>Dimension</th><th>Value</th><th>{d.outcome_label || "Rate"}</th><th>vs Baseline ({d.baseline}%)</th><th>Count</th></tr>
           </thead>
           <tbody>
             {d.factors.map((f: any, j: number) => (

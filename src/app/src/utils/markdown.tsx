@@ -64,13 +64,22 @@ export function renderMarkdown(text: string): React.ReactNode {
       continue;
     }
 
-    flushList();
-
-    // Empty line
+    // Empty line — but don't break lists if the next non-empty line continues the list
     if (!trimmed) {
+      if (listItems.length > 0) {
+        const next = lines.slice(i + 1).find(l => l.trim() !== "");
+        const nextIsNumbered = next && /^\s*\d+[.):]\s+/.test(next);
+        const nextIsBullet = next && /^\s*[-•*]\s+/.test(next);
+        if ((isNumbered && nextIsNumbered) || (!isNumbered && nextIsBullet)) {
+          continue; // stay in list mode — LLMs often put blank lines between items
+        }
+      }
+      flushList();
       if (elements.length > 0) elements.push(<div key={`sp-${i}`} style={{ height: 8 }} />);
       continue;
     }
+
+    flushList();
     // Headers
     if (trimmed.startsWith("### ")) {
       elements.push(<div key={i} style={{ fontSize: 14, fontWeight: 600, margin: "10px 0 4px", color: "#0f172a" }}>{inlineFormat(trimmed.slice(4))}</div>);

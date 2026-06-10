@@ -283,6 +283,18 @@ RULES:
 - Include drivers only if a clear outcome field (semantic_type=outcome) exists
 - Include text_analysis only if has_key_phrases is true
 - Include trend only if time fields exist
+
+LABEL QUALITY RULES (critical for user clarity):
+- KPI labels MUST be self-explanatory without seeing the data. Bad: "Sentiment Distribution: 55.9%". Good: "Positive Sentiment Rate"
+- KPI labels should describe WHAT is being measured, not the chart type
+- For rate KPIs, the label must include which value is being counted (e.g. "Positive Outcome Rate" not "Outcome Rate")
+- Chart titles must describe the specific analysis, not generic categories (e.g. "Satisfaction by Topic" not "Rate by Dimension")
+- Chart descriptions should explain why the insight matters to a decision-maker in plain language
+- For driver analysis, outcome_label must be a clear phrase like "Customer Satisfaction" not a raw field name
+- Avoid jargon, abbreviations, and raw field names in any user-facing label
+- Each KPI must measure something distinct — no two KPIs should show the same metric differently
+- For bar charts, if a field has more than 6 unique values, use horizontal_bar instead of bar
+- Limit distribution and rate_by_dimension charts to the top 10 values — do not show all categories
 - Return ONLY valid JSON"""
 
 
@@ -447,17 +459,19 @@ def _exec_chart(cursor, spec, where, params):
         if it == "distribution":
             f = spec["field"]
             cursor.execute(
-                f"SELECT JSON_VALUE(metadata,'$.{f}'),COUNT(*) FROM documents WHERE {where} "
+                f"SELECT TOP 10 JSON_VALUE(metadata,'$.{f}'),COUNT(*) FROM documents WHERE {where} "
                 f"AND JSON_VALUE(metadata,'$.{f}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{f}') ORDER BY COUNT(*) DESC", list(params))
             data = [{"label": r[0], "value": r[1]} for r in cursor.fetchall() if r[0]]
             n = sum(d["value"] for d in data)
+            if len(data) > 6:
+                base["visualization"] = "horizontal_bar"
             return _with_confidence({**base, "data": data, "field": f}, n) if len(data) >= 2 else None
 
         if it == "rate_by_dimension":
             of, df, pos = spec["outcome_field"], spec["dimension_field"], spec["positive_value"]
             cursor.execute(
-                f"SELECT JSON_VALUE(metadata,'$.{df}'),"
+                f"SELECT TOP 10 JSON_VALUE(metadata,'$.{df}'),"
                 f"SUM(CASE WHEN JSON_VALUE(metadata,'$.{of}')=? THEN 1 ELSE 0 END),COUNT(*) "
                 f"FROM documents WHERE {where} AND JSON_VALUE(metadata,'$.{df}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{df}') ORDER BY COUNT(*) DESC",
@@ -465,6 +479,8 @@ def _exec_chart(cursor, spec, where, params):
             data = [{"label": r[0], "value": round(r[1]*100.0/r[2], 1), "positive": r[1], "total": r[2]}
                     for r in cursor.fetchall() if r[0] and r[2] > 0]
             n = sum(d["total"] for d in data)
+            if len(data) > 6:
+                base["visualization"] = "horizontal_bar"
             return _with_confidence({**base, "data": data}, n) if len(data) >= 2 else None
 
         if it == "duration_by_dimension":
