@@ -4,11 +4,11 @@ Deploy once, bring your data, start asking questions. This solution accelerator 
 
 <div align="center">
 
-[**SOLUTION OVERVIEW**](#solution-overview)  |  [**GETTING STARTED**](#getting-started)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS USE CASE**](#business-use-case)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS USE CASE**](#business-use-case)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
 
 </div>
 
-> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Agent Service](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md).
+> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards.
 
 ---
 
@@ -59,34 +59,35 @@ Upload (instant response)
 ### Key Features
 
 <details open>
-<summary>Click to expand key features</summary>
+<summary>Click to learn more about the key features this solution enables</summary>
 
-- **Natural language chat**
-  Ask questions about your data in plain English. The system combines keyword and semantic search to find the most relevant content, then generates answers with inline source citations so you can verify every response.
+- **Chat-based insights discovery**
+  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
 
-- **Multi-format document processing**
-  Upload PDFs, Word documents, images, spreadsheets, JSON, CSV, plain text, and audio files. The platform automatically extracts text, tables, handwriting, and form fields — no manual preparation required.
+- **Multi-modal information processing**
+  Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
 
-- **Background processing**
-  Uploads return instantly. Extraction, enrichment, and indexing happen in the background with automatic retries, so large batches never block the user interface.
+- **Async document processing**
+  Two-stage queue pipeline: upload returns instantly, extraction and enrichment run in the background via Azure Queue Storage with automatic retries.
 
-- **Auto-generated dashboards**
-  The system reads your data, determines which charts and KPIs are most relevant, and builds a dashboard automatically. Every dataset gets a tailored view — no pre-configured templates.
+- **LLM-planned insights dashboard**
+  The system analyzes your data schema, uses an LLM to plan which charts and KPIs are relevant, then computes exact numbers via SQL. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. Adapts to any dataset — no hardcoded charts.
 
-- **Configurable pipelines**
-  Define processing workflows in YAML with pluggable steps: classify, summarize, extract entities, filter, embed, transform, and more. Pipelines can trigger automatically on upload or run on demand.
+- **Configurable processing pipelines**
+  YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
 
-- **Dynamic filters**
-  Filter panels are generated from your data's actual fields and values. Different datasets produce different filters — nothing is hardcoded.
+- **Dynamic filter generation**
+  Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels.
 
 - **Document explorer**
-  Browse and search your entire document library. Open any document to view its content, request an on-the-fly summary, or extract entities such as people, places, and topics.
+  Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
 
 - **Bring Your Own Index**
-  Already have an Azure AI Search index? Connect it during setup and start chatting immediately — no re-upload or re-indexing needed.
+  Connect an existing Azure AI Search index during post-deployment setup and immediately chat with it — no upload needed.
 
-- **Bring Your Own Data Source**
-  Connect external databases — Microsoft Fabric, SQL Server, or Azure Synapse — with automatic field mapping and one-click ingestion. The app queries your source at runtime, so data stays where it is.
+- **Bring Your Own Data**
+  Connect external databases (Microsoft Fabric, SQL, Azure Synapse) during post-deployment setup with auto-detected field mapping and one-click ingestion.
+
 
 </details>
 
@@ -103,15 +104,13 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 
 ---
 
-## Getting Started
+## Quick Deploy
 
 ### Prerequisites
 
-- Azure subscription with permissions to create resource groups, resources, and assign roles (Contributor + Role Based Access Control at subscription level)
+- Azure subscription with permissions to create resource groups, resources, and assign roles
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) >= 1.18.0
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — required only for local `docker-compose` development, not for `azd up`
-
-> ⚠️ **Check Azure OpenAI Quota:** Ensure sufficient GPT-4o and text-embedding-ada-002 quota is available in your target region before deploying.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for container-based deployment)
 
 ### How to Deploy
 
@@ -168,7 +167,7 @@ These options are also available in the post-deployment menu. No data movement �
 
 | # | Source | What you provide |
 |---|--------|-----------------|
-| 4 | **Foundry IQ** | AI Foundry project connection + search index name |
+| 4 | **Azure AI Search** | Search endpoint + index name |
 | 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
 | 6 | **SQL Database** | ODBC connection string + table name |
 | 7 | **Azure Synapse Analytics** | Synapse endpoint + database + table name |
@@ -181,7 +180,31 @@ Upload files directly from the web UI after deployment. Supported formats: PDF, 
 
 ---
 
-## Resources
+### Local Development
+
+**Backend:**
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r src/api/requirements.txt
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Frontend:**
+```bash
+cd src/app
+npm install
+REACT_APP_API_BASE_URL=http://localhost:8000/api npm start
+```
+
+**Docker:**
+```bash
+docker-compose up --build
+```
+
+> **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
+
+### Azure Services and Costs
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a region where the following services are available.
 
@@ -217,57 +240,22 @@ This solution addresses those challenges by enabling:
 
 ### Tech Stack
 
-| Component | Product |
-|-----------|---------|
-| Backend API | **FastAPI** |
-| Frontend | **React + Fluent UI 2** |
-| LLM (chat + insights) | **Azure OpenAI GPT-4o** |
-| Embeddings | **text-embedding-ada-002** |
-| Vector + keyword search | **Azure AI Search** |
-| Document extraction | **Azure Content Understanding** |
-| Agent orchestration | **Azure AI Foundry** |
-| LLM client layer | **Foundry IQ (`azure-ai-projects`)** |
-| Structured data | **Azure SQL Database** (default) |
-| Structured data (alt) | **Azure Cosmos DB** (optional) |
-| File + queue storage | **Azure Blob + Queue** |
-| Auth | **App Service EasyAuth** |
+| Component | Product | Why |
+|-----------|---------|-----|
+| Backend API | **FastAPI** | Async-native, auto-generated OpenAPI docs, dependency injection |
+| Frontend | **React + Fluent UI 2** | Microsoft design system, accessible components, TypeScript |
+| LLM (chat + insights) | **Azure OpenAI GPT-4o** | model for grounded Q&A and reasoning |
+| Embeddings | **text-embedding-ada-002** | Proven embedding model, 1536 dims, good cost/quality ratio |
+| Vector + keyword search | **Azure AI Search** | Hybrid search (BM25 + HNSW) in one service, managed |
+| Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
+| Agent orchestration | **Azure AI Foundry** | Managed agent service with tool support |
+| LLM client layer | **Foundry IQ (`azure-ai-projects`)** | All model access goes through a single Foundry Project for centralized governance, tracing, and quotas |
+| Structured data | **Azure SQL Database** (default) | Primary database — metadata, chat history, enrichment cache, data source configs |
+| Structured data (alt) | **Azure Cosmos DB** (optional) | Alternative database — set `DATABASE_PROVIDER=cosmos` |
+| File + queue storage | **Azure Blob + Queue** | Raw file storage + async job queue for the processing pipeline |
+| Auth | **App Service EasyAuth** | Zero-code Azure AD integration |
 
 
-
-### Local Development
-
-**Backend:**
-```bash
-python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate      # macOS / Linux
-pip install -r src/api/requirements.txt
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-**Frontend:**
-```bash
-cd src/app
-npm install
-npm start
-```
-
-To point the frontend at a local backend, set the environment variable before starting:
-```powershell
-# PowerShell (Windows)
-$env:REACT_APP_API_BASE_URL = "http://localhost:8000/api"; npm start
-```
-```bash
-# Bash (macOS / Linux)
-REACT_APP_API_BASE_URL=http://localhost:8000/api npm start
-```
-
-**Docker:**
-```bash
-docker-compose up --build
-```
-
-> **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
 
 ### Security Guidelines
 
@@ -276,7 +264,7 @@ This solution uses [Managed Identity](https://learn.microsoft.com/entra/identity
 To maintain strong security practices:
 - Enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) in your repository
 - Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/) to monitor Azure resources
-- Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) or [access restrictions](https://learn.microsoft.com/azure/app-service/app-service-ip-restrictions) for production deployments
+- Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) for production deployments
 
 ---
 
@@ -298,8 +286,8 @@ This release is an artificial intelligence (AI) system that generates text in re
 
 While the system is designed to ground all responses in the uploaded documents, AI-generated outputs may occasionally contain inaccuracies. Users are responsible for verifying the accuracy and suitability of any content generated by the system.
 
-To the extent that the Software includes components or code used in or derived from Microsoft products or services, including without limitation Microsoft Azure Services (collectively, "Microsoft Products and Services"), you must also comply with the Product Terms applicable to such Microsoft Products and Services. You acknowledge and agree that the license governing the Software does not grant you a license or other right to use Microsoft Products and Services.
+To the extent that the Software includes components or code used in or derived from Microsoft products or services, you must also comply with the Product Terms applicable to such Microsoft Products and Services.
 
-You must also comply with all domestic and international export laws and regulations that apply to the Software, which include restrictions on destinations, end users, and end use. For further information on export restrictions, visit https://aka.ms/exporting.
+You must also comply with all domestic and international export laws and regulations that apply to the Software. For further information on export restrictions, visit https://aka.ms/exporting.
 
 BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY.

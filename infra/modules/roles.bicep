@@ -174,7 +174,7 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
   name: storageName
 }
 
-resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existing = {
+resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existing = if (!empty(cosmosName)) {
   name: cosmosName
 }
 

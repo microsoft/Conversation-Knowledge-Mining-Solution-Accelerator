@@ -119,8 +119,8 @@ param dynamicThrottlingEnabled bool = false
 @description('Optional. Resource migration token.')
 param migrationToken string?
 
-@description('Optional. Restore a soft-deleted cognitive service at deployment time. Will fail if no such soft-deleted resource exists.')
-param restore bool = false
+@description('Optional. Restore a soft-deleted cognitive service at deployment time. Defaults to true so re-deployments succeed when a previous azd down left a soft-deleted resource.')
+param restore bool = true
 
 @description('Optional. Restrict outbound network access.')
 param restrictOutboundNetworkAccess bool = true
@@ -236,7 +236,7 @@ resource cognitiveServiceNew 'Microsoft.CognitiveServices/accounts@2025-06-01' =
 
 var existingCognitiveServiceDetails = split(existingFoundryProjectResourceId, '/')
 
-resource cognitiveServiceExisting 'Microsoft.CognitiveServices/accounts@2025-09-01' existing = if(useExistingService) {
+resource cognitiveServiceExisting 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = if(useExistingService) {
   name: existingCognitiveServiceDetails[8]
   scope: resourceGroup(existingCognitiveServiceDetails[2], existingCognitiveServiceDetails[4])
 }
