@@ -226,6 +226,7 @@ module avmDeployment './avm/main.bicep' = if (isAvm) {
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
     imageTag: imageTag
     containerRegistryName: containerRegistryName
+    appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname
     backendContainerImageName: backendContainerImageName
     backendContainerImageTag: backendContainerImageTag
@@ -250,6 +251,7 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     solutionName: solutionName
     solutionUniqueText: solutionUniqueText
     location: location
+    tags: tags
     secondaryLocation: secondaryLocation
     azureAiServiceLocation: azureAiServiceLocation
     usecase: usecase
@@ -264,6 +266,7 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
     imageTag: imageTag
     containerRegistryName: containerRegistryName
+    appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname
     backendContainerImageName: backendContainerImageName
     backendContainerImageTag: backendContainerImageTag
@@ -308,17 +311,14 @@ output APPLICATIONINSIGHTS_CONNECTION_STRING string = isAvm ? avmDeployment!.out
 @description('Contains Application Insights Instrumentation Key.')
 output APPINSIGHTS_INSTRUMENTATIONKEY string = isAvm ? avmDeployment!.outputs.APPINSIGHTS_INSTRUMENTATIONKEY : bicepDeployment!.outputs.APPINSIGHTS_INSTRUMENTATIONKEY
 
-@description('Azure AI Agent API Version.')
+@description('Contains Azure AI Agent API Version.')
 output AZURE_AI_AGENT_API_VERSION string = isAvm ? avmDeployment!.outputs.AZURE_AI_AGENT_API_VERSION : bicepDeployment!.outputs.AZURE_AI_AGENT_API_VERSION
 
-@description('Azure AI Agent endpoint.')
+@description('Contains Azure AI Agent endpoint.')
 output AZURE_AI_AGENT_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_AI_AGENT_ENDPOINT : bicepDeployment!.outputs.AZURE_AI_AGENT_ENDPOINT
 
 @description('Contains Azure AI Foundry service name.')
 output AZURE_AI_FOUNDRY_NAME string = isAvm ? avmDeployment!.outputs.AZURE_AI_FOUNDRY_NAME : bicepDeployment!.outputs.AZURE_AI_FOUNDRY_NAME
-
-@description('Contains AI Project Connection String.')
-output AZURE_AI_PROJECT_CONN_STRING string = isAvm ? avmDeployment!.outputs.AZURE_AI_PROJECT_CONN_STRING : bicepDeployment!.outputs.AZURE_AI_PROJECT_CONN_STRING
 
 @description('AI Foundry project name.')
 output AZURE_AI_PROJECT_NAME string = isAvm ? avmDeployment!.outputs.AZURE_AI_PROJECT_NAME : bicepDeployment!.outputs.AZURE_AI_PROJECT_NAME

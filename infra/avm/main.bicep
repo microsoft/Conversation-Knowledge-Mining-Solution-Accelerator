@@ -556,8 +556,14 @@ module ai_foundry_project './modules/ai/ai-foundry-project.bicep' = if (!useExis
   }
 }
 
+// ========== AI outputs (ternary: existing vs new) ========== //
+var aiFoundryEndpoint = useExistingAIProject ? existing_project_setup!.outputs.endpoint : ai_foundry_project!.outputs.endpoint
 var azureOpenAiCuEndpoint = useExistingAIProject ? existing_project_setup!.outputs.azureOpenAiCuEndpoint : ai_foundry_project!.outputs.azureOpenAiCuEndpoint
 var projectEndpoint = useExistingAIProject ? existing_project_setup!.outputs.projectEndpoint : ai_foundry_project!.outputs.projectEndpoint
+var aiFoundryName = useExistingAIProject ? existing_project_setup!.outputs.name : ai_foundry_project!.outputs.name
+var aiProjectName = useExistingAIProject ? existing_project_setup!.outputs.projectName : ai_foundry_project!.outputs.projectName
+var aiFoundryResourceId = useExistingAIProject ? existing_project_setup!.outputs.resourceId : ai_foundry_project!.outputs.resourceId
+var aiProjectPrincipalId = useExistingAIProject ? existing_project_setup!.outputs.projectIdentityPrincipalId : ai_foundry_project!.outputs.projectIdentityPrincipalId
 
 // ========== AI Search connection (single call for both existing and new paths) ========== //
 module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
@@ -891,16 +897,15 @@ module role_assignments './modules/identity/role-assignments.bicep' = {
   name: take('module.role-assignments.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    aiProjectPrincipalId: (!useExistingAIProject) ? ai_foundry_project!.outputs.projectIdentityPrincipalId : ''
-    aiSearchPrincipalId: ai_search.outputs.identityPrincipalId
-    aiSearchResourceId: ai_search.outputs.resourceId
-    storageAccountResourceId: storage_account.outputs.resourceId
-    cosmosDbAccountName: cosmosDBModule!.outputs.name
-    backendAppServicePrincipalId: backend_docker!.outputs.identityPrincipalId
-    aiFoundryResourceId: !useExistingAIProject ? ai_foundry_project!.outputs.resourceId : ''
     useExistingAIProject: useExistingAIProject
     existingFoundryProjectResourceId: existingFoundryProjectResourceId
-    existingAiProjectPrincipalId: useExistingAIProject ? existing_project_setup!.outputs.aiProjectPrincipalId : ''
+    aiFoundryResourceId: !useExistingAIProject ? aiFoundryResourceId : ''
+    aiSearchResourceId: ai_search.outputs.resourceId
+    storageAccountResourceId: storage_account.outputs.resourceId
+    aiProjectPrincipalId: aiProjectPrincipalId
+    aiSearchPrincipalId: ai_search.outputs.identityPrincipalId
+    backendAppServicePrincipalId: backend_docker!.outputs.identityPrincipalId
+    cosmosDbAccountName: cosmosDBModule!.outputs.name
   }
 }
 
@@ -911,8 +916,8 @@ module role_assignments './modules/identity/role-assignments.bicep' = {
 @description('Contains Azure Container Registry name.')
 output ACR_NAME string = containerRegistryName
 
-@description('AI Foundry resource ID.')
-output AI_FOUNDRY_RESOURCE_ID string = !useExistingAIProject ? ai_foundry_project!.outputs.resourceId : existingFoundryProjectResourceId
+@description('Azure AI Foundry resource ID for role assignments')
+output AI_FOUNDRY_RESOURCE_ID string = aiFoundryResourceId
 
 @description('Contains Conversation Agent name.')
 output AGENT_NAME_CONVERSATION string = ''
@@ -920,7 +925,7 @@ output AGENT_NAME_CONVERSATION string = ''
 @description('Contains Title Agent name.')
 output AGENT_NAME_TITLE string = ''
 
-@description('Backend API App Service name.')
+@description('Backend API App Service name')
 output API_APP_NAME string = backend_docker!.outputs.name
 
 @description('API App Service principal ID')
@@ -930,45 +935,42 @@ output API_APP_PRINCIPAL_ID string = backend_docker!.outputs.identityPrincipalId
 output API_APP_URL string = backend_docker!.outputs.appUrl
 
 @description('Contains Application Insights connection string.')
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? app_insights!.outputs.connectionString : ''
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = app_insights.outputs.connectionString
 
 @description('Contains Application Insights Instrumentation Key.')
-output APPINSIGHTS_INSTRUMENTATIONKEY string = enableMonitoring ? app_insights!.outputs.instrumentationKey : ''
+output APPINSIGHTS_INSTRUMENTATIONKEY string = app_insights.outputs.instrumentationKey
 
 @description('Contains Azure AI Agent API Version.')
 output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
 
-@description('Azure AI Agent endpoint.')
-output AZURE_AI_AGENT_ENDPOINT string = !useExistingAIProject ? ai_foundry_project!.outputs.projectEndpoint : existingProjectEndpoint
+@description('Azure AI Agent service endpoint URL')
+output AZURE_AI_AGENT_ENDPOINT string = projectEndpoint
 
 @description('Contains Azure AI Foundry service name.')
-output AZURE_AI_FOUNDRY_NAME string = !useExistingAIProject ? ai_foundry_project!.outputs.name : aiFoundryResourceName
+output AZURE_AI_FOUNDRY_NAME string = aiFoundryName
 
-@description('Contains AI Project Connection String.')
-output AZURE_AI_PROJECT_CONN_STRING string = !useExistingAIProject ? ai_foundry_project!.outputs.endpoint : existingProjectEndpoint
+@description('Azure AI Foundry project name')
+output AZURE_AI_PROJECT_NAME string = aiProjectName
 
-@description('AI Foundry project name.')
-output AZURE_AI_PROJECT_NAME string = !useExistingAIProject ? ai_foundry_project!.outputs.projectName : (existingHasProjectSegment ? split(existingFoundryProjectResourceId, '/')[10] : '')
-
-@description('AI Search connection name.')
+@description('AI Foundry connection name for Azure AI Search')
 output AZURE_AI_SEARCH_CONNECTION_NAME string = foundry_search_connection.outputs.connectionName
 
-@description('Azure AI Search endpoint.')
+@description('Azure AI Search service endpoint URL')
 output AZURE_AI_SEARCH_ENDPOINT string = ai_search.outputs.endpoint
 
-@description('Azure AI Search index name.')
+@description('Azure AI Search index name for document search')
 output AZURE_AI_SEARCH_INDEX string = 'call_transcripts_index'
 
-@description('Azure AI Search service name.')
+@description('Azure AI Search service resource name')
 output AZURE_AI_SEARCH_NAME string = ai_search.outputs.name
 
-@description('Cosmos DB account name.')
+@description('Cosmos DB account name for conversation history storage')
 output AZURE_COSMOSDB_ACCOUNT string = cosmosDBModule!.outputs.name
 
-@description('Cosmos DB container name.')
+@description('Cosmos DB container name for storing conversations')
 output AZURE_COSMOSDB_CONVERSATIONS_CONTAINER string = 'conversations'
 
-@description('Cosmos DB database name.')
+@description('Cosmos DB database name for conversation history')
 output AZURE_COSMOSDB_DATABASE string = 'db_conversation_history'
 
 @description('Contains Azure Cosmos DB feedback enablement setting.')
@@ -986,7 +988,7 @@ output AZURE_ENV_EMBEDDING_MODEL_NAME string = embeddingModel
 @description('Contains Azure OpenAI deployment model capacity.')
 output AZURE_ENV_GPT_MODEL_CAPACITY int = gptDeploymentCapacity
 
-@description('GPT model deployment name.')
+@description('GPT model deployment name (e.g., gpt-4o-mini)')
 output AZURE_ENV_GPT_MODEL_NAME string = gptModelName
 
 @description('Contains Azure environment image tag.')
@@ -995,17 +997,17 @@ output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
 @description('Contains Azure OpenAI model deployment type.')
 output AZURE_ENV_MODEL_DEPLOYMENT_TYPE string = deploymentType
 
-@description('Model deployment name for AI Agent.')
+@description('Model deployment name used by Azure AI Agent')
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 
-@description('Azure OpenAI service endpoint URL.')
-output AZURE_OPENAI_ENDPOINT string = !useExistingAIProject ? ai_foundry_project!.outputs.endpoint : existingOpenAIEndpoint
+@description('Azure OpenAI service endpoint URL')
+output AZURE_OPENAI_ENDPOINT string = aiFoundryEndpoint
 
 @description('Azure OpenAI Content Understanding endpoint URL.')
 output AZURE_OPENAI_CU_ENDPOINT string = azureOpenAiCuEndpoint
 
 @description('Contains Azure OpenAI resource name.')
-output AZURE_OPENAI_RESOURCE string = !useExistingAIProject ? ai_foundry_project!.outputs.name : aiFoundryResourceName
+output AZURE_OPENAI_RESOURCE string = aiFoundryName
 
 @description('Client ID of the backend API user-assigned managed identity.')
 output BACKEND_USER_MID string = ''
@@ -1025,7 +1027,7 @@ output REACT_APP_LAYOUT_CONFIG string = reactAppLayoutConfig
 @description('Contains Resource Group Location.')
 output RESOURCE_GROUP_LOCATION string = location
 
-@description('Name of the deployed resource group.')
+@description('Name of the deployed resource group')
 output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Contains SQL database name.')
@@ -1034,7 +1036,7 @@ output SQLDB_DATABASE string = sqlDBModule!.outputs.databaseName
 @description('Contains SQL server name.')
 output SQLDB_SERVER string = sqlDBModule!.outputs.serverFqdn
 
-@description('Solution suffix used for naming resources.')
+@description('Solution suffix used for naming resources')
 output SOLUTION_NAME string = solutionSuffix
 
 @description('Name of the Storage Account.')
@@ -1049,8 +1051,8 @@ output USE_AI_PROJECT_CLIENT string = 'False'
 @description('Industry Use Case.')
 output USE_CASE string = usecase
 
-@description('Chat history enabled flag.')
+@description('Flag indicating whether chat history storage is enabled')
 output USE_CHAT_HISTORY_ENABLED string = useChatHistoryEnabledSetting
 
-@description('Frontend web application URL.')
+@description('Frontend web application URL')
 output WEB_APP_URL string = frontend_docker!.outputs.appUrl

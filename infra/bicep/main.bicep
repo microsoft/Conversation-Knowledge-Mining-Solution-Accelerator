@@ -27,6 +27,9 @@ param solutionUniqueText string = substring(uniqueString(subscription().id, reso
 @allowed(['australiaeast','centralus','eastasia','eastus2','japaneast','northeurope','southeastasia','uksouth'])
 param location string
 
+@description('Optional. Tags to apply to all resources.')
+param tags object = {}
+
 @description('Optional. Secondary location for database resources (example: eastus2).')
 param secondaryLocation string = 'eastus2'
 
@@ -166,20 +169,21 @@ var existingTags = resourceGroup().tags ?? {}
 
 var useChatHistoryEnabledSetting = useChatHistoryEnabled ? 'True' : 'False'
 
-// ========== Resource Group Tag ========== //
-resource resourceGroupTags 'Microsoft.Resources/tags@2023-07-01' = {
+// Tags: merge existing RG tags with standard metadata
+var resourceTags = union(existingTags, tags, {
+  TemplateName: 'Unified Data Analysis Agents'
+  CreatedBy: createdBy
+  DeploymentName: deployment().name
+  Type: 'Non-WAF'
+})
+
+// ============================================================================
+// Resource Group Tags
+// ============================================================================
+resource resourceGroupTags 'Microsoft.Resources/tags@2024-11-01' = {
   name: 'default'
   properties: {
-   tags: union(
-      existingTags,
-      {
-        TemplateName: 'KM-Generic'
-        UseCase: usecase
-        CreatedBy: createdBy
-        DeploymentName: deployment().name
-        Type: 'Non-WAF'
-      }
-    )
+    tags: resourceTags
   }
 }
 
@@ -249,13 +253,13 @@ module ai_foundry_project './modules/ai/ai-foundry-project.bicep' = if (empty(ex
 var useExistingAIProject = !empty(existingFoundryProjectResourceId)
 var aiFoundryResourceName = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[8] : ai_foundry_project!.outputs.name
 var aiProjectResourceName = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[10] : ai_foundry_project!.outputs.projectName
-var aiServiceSubscription = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[2] : subscription().subscriptionId
-var aiServiceResourceGroup = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[4] : resourceGroup().name
+var aiFoundrySubscriptionId = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[2] : subscription().subscriptionId
+var aiFoundryResourceGroupName = useExistingAIProject ? split(existingFoundryProjectResourceId, '/')[4] : resourceGroup().name
 
-// Reference existing AI Foundry project (identity only)
+// Reference existing AI Foundry project (reads runtime properties: endpoints, identities)
 module existing_project_setup './modules/ai/existing-project-setup.bicep' = if (useExistingAIProject) {
   name: take('module.existing-project-setup.${solutionName}', 64)
-  scope: resourceGroup(aiServiceSubscription, aiServiceResourceGroup)
+  scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
   params: {
     name: aiFoundryResourceName
     projectName: aiProjectResourceName
@@ -265,7 +269,7 @@ module existing_project_setup './modules/ai/existing-project-setup.bicep' = if (
 // AI Search connection (single call for both existing and new paths)
 module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
   name: take('module.foundry-search-conn.${solutionName}', 64)
-  scope: resourceGroup(aiServiceSubscription, aiServiceResourceGroup)
+  scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
   params: {
     solutionName: solutionSuffix
     aiServicesAccountName: aiFoundryResourceName
@@ -284,7 +288,7 @@ module foundry_search_connection './modules/ai/ai-foundry-connection.bicep' = {
 @batchSize(1)
 module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for (deployment, i) in aiModelDeployments: {
   name: take('module.model-deployment-${i}.${solutionName}', 64)
-  scope: resourceGroup(aiServiceSubscription, aiServiceResourceGroup)
+  scope: resourceGroup(aiFoundrySubscriptionId, aiFoundryResourceGroupName)
   params: {
     aiServicesAccountName: aiFoundryResourceName
     deploymentName: deployment.name
@@ -307,13 +311,13 @@ module ai_search './modules/ai/ai-search.bicep' = {
 }
 
 // ========== AI outputs (ternary: existing vs new) ========== //
-var aiFoundryEndpoint = useExistingAIProject ? existing_project_setup!.outputs.aiFoundryEndpoint : ai_foundry_project!.outputs.endpoint
+var aiFoundryEndpoint = useExistingAIProject ? existing_project_setup!.outputs.endpoint : ai_foundry_project!.outputs.endpoint
 var azureOpenAiCuEndpoint = useExistingAIProject ? existing_project_setup!.outputs.azureOpenAiCuEndpoint : ai_foundry_project!.outputs.azureOpenAiCuEndpoint
 var projectEndpoint = useExistingAIProject ? existing_project_setup!.outputs.projectEndpoint : ai_foundry_project!.outputs.projectEndpoint
-var aiFoundryName = useExistingAIProject ? existing_project_setup!.outputs.aiServicesAccountName : ai_foundry_project!.outputs.name
-var aiProjectName = useExistingAIProject ? existing_project_setup!.outputs.aiProjectName : ai_foundry_project!.outputs.projectName
-var aiFoundryResourceId = useExistingAIProject ? existing_project_setup!.outputs.aiFoundryResourceId : ai_foundry_project!.outputs.resourceId
-var aiProjectPrincipalId = useExistingAIProject ? existing_project_setup!.outputs.aiProjectPrincipalId : ai_foundry_project!.outputs.projectIdentityPrincipalId
+var aiFoundryName = useExistingAIProject ? existing_project_setup!.outputs.name : ai_foundry_project!.outputs.name
+var aiProjectName = useExistingAIProject ? existing_project_setup!.outputs.projectName : ai_foundry_project!.outputs.projectName
+var aiFoundryResourceId = useExistingAIProject ? existing_project_setup!.outputs.resourceId : ai_foundry_project!.outputs.resourceId
+var aiProjectPrincipalId = useExistingAIProject ? existing_project_setup!.outputs.projectIdentityPrincipalId : ai_foundry_project!.outputs.projectIdentityPrincipalId
 
 // ========== Storage Account module ========== //
 module storage_account './modules/data/storage-account.bicep' = {
@@ -352,7 +356,7 @@ module sqlDBModule './modules/data/sql-database.bicep' = {
     name: 'sql-${solutionSuffix}'
     databaseName: 'sqldb-${solutionSuffix}'
     location: secondaryLocation
-    tags: existingTags
+    tags: resourceTags
     deployerPrincipalId: deployingUserPrincipalId
   }
   scope: resourceGroup(resourceGroup().name)
@@ -509,7 +513,6 @@ module role_assignments './modules/identity/role-assignments.bicep' = {
     deployerPrincipalType: deployingUserPrincipalType
     backendAppServicePrincipalId: backend_docker!.outputs.identityPrincipalId
     cosmosDbAccountName: cosmosDBModule!.outputs.name
-    existingAiProjectPrincipalId: !empty(existingFoundryProjectResourceId) ? existing_project_setup!.outputs.aiProjectPrincipalId : ''
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -551,9 +554,6 @@ output AZURE_AI_AGENT_ENDPOINT string = projectEndpoint
 
 @description('Contains Azure AI Foundry service name.')
 output AZURE_AI_FOUNDRY_NAME string = aiFoundryName
-
-@description('Contains AI Project Connection String.')
-output AZURE_AI_PROJECT_CONN_STRING string = useExistingAIProject ? projectEndpoint : aiFoundryEndpoint
 
 @description('Azure AI Foundry project name')
 output AZURE_AI_PROJECT_NAME string = aiProjectName
@@ -620,6 +620,9 @@ output BACKEND_USER_MID string = ''
 
 @description('Display name of the backend API user-assigned managed identity.')
 output BACKEND_USER_MID_NAME string = ''
+
+@description('WAF deployment type (AVM only).')
+output DEPLOYMENT_TYPE string = 'N/A'
 
 @description('Contains default chart display setting.')
 output DISPLAY_CHART_DEFAULT string = 'False'
