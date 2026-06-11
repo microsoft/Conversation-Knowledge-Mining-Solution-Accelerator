@@ -615,12 +615,6 @@ output AZURE_OPENAI_CU_ENDPOINT string = azureOpenAiCuEndpoint
 @description('Contains Azure OpenAI resource name.')
 output AZURE_OPENAI_RESOURCE string = aiFoundryName
 
-@description('Client ID of the backend API user-assigned managed identity.')
-output BACKEND_USER_MID string = ''
-
-@description('Display name of the backend API user-assigned managed identity.')
-output BACKEND_USER_MID_NAME string = ''
-
 @description('WAF deployment type (AVM only).')
 output DEPLOYMENT_TYPE string = 'N/A'
 

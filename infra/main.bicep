@@ -380,12 +380,6 @@ output AZURE_OPENAI_CU_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_OP
 @description('Contains Azure OpenAI resource name.')
 output AZURE_OPENAI_RESOURCE string = isAvm ? avmDeployment!.outputs.AZURE_OPENAI_RESOURCE : bicepDeployment!.outputs.AZURE_OPENAI_RESOURCE
 
-@description('Client ID of the backend API user-assigned managed identity.')
-output BACKEND_USER_MID string = isAvm ? avmDeployment!.outputs.BACKEND_USER_MID : bicepDeployment!.outputs.BACKEND_USER_MID
-
-@description('Display name of the backend API user-assigned managed identity.')
-output BACKEND_USER_MID_NAME string = isAvm ? avmDeployment!.outputs.BACKEND_USER_MID_NAME : bicepDeployment!.outputs.BACKEND_USER_MID_NAME
-
 @description('Deployment flavor used.')
 output DEPLOYMENT_FLAVOR string = deploymentFlavor
 

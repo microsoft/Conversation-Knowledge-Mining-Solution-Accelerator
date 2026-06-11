@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "1243517000851311132"
+      "templateHash": "11016799214470800441"
     }
   },
   "parameters": {
@@ -3642,20 +3642,6 @@
         "description": "Contains Azure OpenAI resource name."
       },
       "value": "[if(variables('useExistingAIProject'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundrySubscriptionId'), variables('aiFoundryResourceGroupName')), 'Microsoft.Resources/deployments', take(format('module.existing-project-setup.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.name.value, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.ai-foundry-project.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.name.value)]"
-    },
-    "BACKEND_USER_MID": {
-      "type": "string",
-      "metadata": {
-        "description": "Client ID of the backend API user-assigned managed identity."
-      },
-      "value": ""
-    },
-    "BACKEND_USER_MID_NAME": {
-      "type": "string",
-      "metadata": {
-        "description": "Display name of the backend API user-assigned managed identity."
-      },
-      "value": ""
     },
     "DEPLOYMENT_TYPE": {
       "type": "string",
