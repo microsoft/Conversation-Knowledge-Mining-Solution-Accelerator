@@ -509,17 +509,6 @@ var aiProjectResourceName = useExistingAIProject
   ? (length(split(existingFoundryProjectResourceId, '/')) > 10 ? split(existingFoundryProjectResourceId, '/')[10] : '')
   : ai_foundry_project!.outputs.projectName
 
-// Construct endpoints from existing resource ID
-// Expected format: /subscriptions/.../providers/Microsoft.CognitiveServices/accounts/{account}/projects/{project}
-var existingHasProjectSegment = useExistingAIProject && length(split(existingFoundryProjectResourceId, '/')) > 10
-var existingOpenAIEndpoint = useExistingAIProject
-  ? format('https://{0}.openai.azure.com/', split(existingFoundryProjectResourceId, '/')[8])
-  : ''
-var existingProjectEndpoint = existingHasProjectSegment
-  ? format('https://{0}.services.ai.azure.com/api/projects/{1}', split(existingFoundryProjectResourceId, '/')[8], split(existingFoundryProjectResourceId, '/')[10])
-  : ''
-
-
 // ========== Reference existing AI Foundry project (identity only) ========== //
 module existing_project_setup './modules/ai/existing-project-setup.bicep' = if (useExistingAIProject) {
   name: take('module.existing-project-setup.${solutionName}', 64)
@@ -599,42 +588,42 @@ module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for
   }
 }]
 
-// ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
-module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
-  name: take('module.pe-ai-foundry.${solutionName}', 64)
-  dependsOn: [privateDnsZoneDeployments]
-  params: {
-    name: 'pep-aif-${solutionSuffix}'
-    location: location
-    tags: tags
-    subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
-    privateLinkServiceConnections: [
-      {
-        name: 'pep-aif-${solutionSuffix}'
-        properties: {
-          privateLinkServiceId: ai_foundry_project!.outputs.resourceId
-          groupIds: ['account']
-        }
-      }
-    ]
-    privateDnsZoneGroup: {
-      privateDnsZoneGroupConfigs: [
-        {
-          name: 'ai-services-dns-zone-cognitiveservices'
-          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-dns-zone-openai'
-          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.openAI]!.outputs.resourceId
-        }
-        {
-          name: 'ai-services-dns-zone-aiservices'
-          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.aiServices]!.outputs.resourceId
-        }
-      ]
-    }
-  }
-}
+// // ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
+// module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
+//   name: take('module.pe-ai-foundry.${solutionName}', 64)
+//   dependsOn: [privateDnsZoneDeployments]
+//   params: {
+//     name: 'pep-aif-${solutionSuffix}'
+//     location: location
+//     tags: tags
+//     subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
+//     privateLinkServiceConnections: [
+//       {
+//         name: 'pep-aif-${solutionSuffix}'
+//         properties: {
+//           privateLinkServiceId: ai_foundry_project!.outputs.resourceId
+//           groupIds: ['account']
+//         }
+//       }
+//     ]
+//     privateDnsZoneGroup: {
+//       privateDnsZoneGroupConfigs: [
+//         {
+//           name: 'ai-services-dns-zone-cognitiveservices'
+//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+//         }
+//         {
+//           name: 'ai-services-dns-zone-openai'
+//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.openAI]!.outputs.resourceId
+//         }
+//         {
+//           name: 'ai-services-dns-zone-aiservices'
+//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.aiServices]!.outputs.resourceId
+//         }
+//       ]
+//     }
+//   }
+// }
 
 // ========== AI Search service (called by Foundry connection module, so deployed after the project) ========== //
 module ai_search './modules/ai/ai-search.bicep' = {
