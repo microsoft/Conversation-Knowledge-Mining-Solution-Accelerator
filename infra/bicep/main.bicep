@@ -52,7 +52,7 @@ param azureAiServiceLocation string
   'telecom'
   'IT_helpdesk'
 ])
-param usecase string = 'telecom'
+param usecase string
 
 @description('Optional. Location for AI Search service deployment.')
 param searchServiceLocation string = location

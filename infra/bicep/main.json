@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "4682995066136692949"
+      "templateHash": "1243517000851311132"
     }
   },
   "parameters": {
@@ -86,7 +86,6 @@
     },
     "usecase": {
       "type": "string",
-      "defaultValue": "telecom",
       "allowedValues": [
         "telecom",
         "IT_helpdesk"
