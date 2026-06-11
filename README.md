@@ -59,35 +59,34 @@ Upload (instant response)
 ### Key Features
 
 <details open>
-<summary>Click to learn more about the key features this solution enables</summary>
+<summary>Click to expand key features</summary>
 
-- **Chat-based insights discovery**
-  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
+- **Natural language chat**
+  Ask questions about your data in plain English. The system combines keyword and semantic search to find the most relevant content, then generates answers with inline source citations so you can verify every response.
 
-- **Multi-modal information processing**
-  Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
+- **Multi-format document processing**
+  Upload PDFs, Word documents, images, spreadsheets, JSON, CSV, plain text, and audio files. The platform automatically extracts text, tables, handwriting, and form fields — no manual preparation required.
 
-- **Async document processing**
-  Two-stage queue pipeline: upload returns instantly, extraction and enrichment run in the background via Azure Queue Storage with automatic retries.
+- **Background processing**
+  Uploads return instantly. Extraction, enrichment, and indexing happen in the background with automatic retries, so large batches never block the user interface.
 
-- **LLM-planned insights dashboard**
-  The system analyzes your data schema, uses an LLM to plan which charts and KPIs are relevant, then computes exact numbers via SQL. Adapts to any dataset — no hardcoded charts.
+- **Auto-generated dashboards**
+  The system reads your data, determines which charts and KPIs are most relevant, and builds a dashboard automatically. Every dataset gets a tailored view — no pre-configured templates.
 
-- **Configurable processing pipelines**
-  YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
+- **Configurable pipelines**
+  Define processing workflows in YAML with pluggable steps: classify, summarize, extract entities, filter, embed, transform, and more. Pipelines can trigger automatically on upload or run on demand.
 
-- **Dynamic filter generation**
-  Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels.
+- **Dynamic filters**
+  Filter panels are generated from your data's actual fields and values. Different datasets produce different filters — nothing is hardcoded.
 
 - **Document explorer**
-  Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
+  Browse and search your entire document library. Open any document to view its content, request an on-the-fly summary, or extract entities such as people, places, and topics.
 
 - **Bring Your Own Index**
-  Connect an existing Azure AI Search index during post-deployment setup and immediately chat with it — no upload needed.
+  Already have an Azure AI Search index? Connect it during setup and start chatting immediately — no re-upload or re-indexing needed.
 
-- **Bring Your Own Data**
-  Connect external databases (Microsoft Fabric, SQL, Azure Synapse) during post-deployment setup with auto-detected field mapping and one-click ingestion.
-
+- **Bring Your Own Data Source**
+  Connect external databases — Microsoft Fabric, SQL Server, or Azure Synapse — with automatic field mapping and one-click ingestion. The app queries your source at runtime, so data stays where it is.
 
 </details>
 
