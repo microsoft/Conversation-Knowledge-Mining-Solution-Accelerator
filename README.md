@@ -169,7 +169,7 @@ These options are also available in the post-deployment menu. No data movement â
 
 | # | Source | What you provide |
 |---|--------|-----------------|
-| 4 | **Azure AI Search** | Search endpoint + index name |
+| 4 | **Foundry IQ** | AI Foundry project connection + search index name |
 | 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
 | 6 | **SQL Database** | ODBC connection string + table name |
 | 7 | **Azure Synapse Analytics** | Synapse endpoint + database + table name |
@@ -278,15 +278,6 @@ To maintain strong security practices:
 - Enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) in your repository
 - Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/) to monitor Azure resources
 - Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) or [access restrictions](https://learn.microsoft.com/azure/app-service/app-service-ip-restrictions) for production deployments
-
-### Cross References
-
-Check out similar solution accelerators:
-
-| Accelerator | Description |
-|-------------|-------------|
-| [Document Knowledge Mining](https://github.com/microsoft/Document-Knowledge-Mining-Solution-Accelerator) | Identify relevant documents, summarize unstructured information, and generate document templates. |
-| [Content Processing](https://github.com/microsoft/content-processing-solution-accelerator) | Extract data from multi-modal content, map it to schemas with confidence scoring and user validation. |
 
 ---
 

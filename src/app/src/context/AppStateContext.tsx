@@ -22,6 +22,10 @@ interface AppState {
   // Explore data cache (files, data sources, schema)
   exploreData: { files: any[]; dataSources: any[]; schema: any } | null;
   setExploreData: (d: { files: any[]; dataSources: any[]; schema: any } | null) => void;
+
+  // Home data cache (data sources, uploaded files)
+  homeData: { dataSources: any[]; uploadedFiles: any[] } | null;
+  setHomeData: (d: { dataSources: any[]; uploadedFiles: any[] } | null) => void;
 }
 
 const AppContext = createContext<AppState>({
@@ -35,6 +39,8 @@ const AppContext = createContext<AppState>({
   setExploreChatMessages: () => {},
   exploreData: null,
   setExploreData: () => {},
+  homeData: null,
+  setHomeData: () => {},
 });
 
 export const useAppState = () => useContext(AppContext);
@@ -45,6 +51,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [chatMessages, setChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_chat", []));
   const [exploreChatMessages, setExploreChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_explore_chat", []));
   const [exploreData, setExploreDataRaw] = useState<{ files: any[]; dataSources: any[]; schema: any } | null>(() => loadFromSession("km_explore_data", null));
+  const [homeData, setHomeDataRaw] = useState<{ dataSources: any[]; uploadedFiles: any[] } | null>(() => loadFromSession("km_home_data", null));
 
   const setInsights = (data: DashboardResponse | null) => {
     setInsightsRaw(data);
@@ -72,6 +79,11 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
     try { sessionStorage.setItem("km_explore_data", JSON.stringify(d)); } catch {}
   };
 
+  const setHomeData = (d: { dataSources: any[]; uploadedFiles: any[] } | null) => {
+    setHomeDataRaw(d);
+    try { sessionStorage.setItem("km_home_data", JSON.stringify(d)); } catch {}
+  };
+
   return (
     <AppContext.Provider value={{
       insights, setInsights,
@@ -79,6 +91,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
       chatMessages, setChatMessages,
       exploreChatMessages, setExploreChatMessages,
       exploreData, setExploreData,
+      homeData, setHomeData,
     }}>
       {children}
     </AppContext.Provider>

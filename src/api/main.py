@@ -1,10 +1,14 @@
 from contextlib import asynccontextmanager
 import logging
+import time
 import uuid
+from collections import defaultdict
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.api.config import get_settings
@@ -22,6 +26,38 @@ from src.api.modules.data_sources.router import router as data_sources_router
 from src.api.modules.insights.router import router as insights_router
 
 logger = logging.getLogger(__name__)
+
+
+# ── Rate Limiter ──────────────────────────────────────────────
+_RATE_LIMIT = 60          # max requests per window
+_RATE_WINDOW_SEC = 60     # window size in seconds
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+_EXEMPT_PATHS = frozenset({"/", "/api/health", "/openapi.json", "/docs", "/redoc"})
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Sliding-window rate limiter keyed by client IP."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in _EXEMPT_PATHS:
+            return await call_next(request)
+
+        client_ip = (
+            request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            or (request.client.host if request.client else "unknown")
+        )
+        now = time.monotonic()
+        cutoff = now - _RATE_WINDOW_SEC
+        bucket = _rate_buckets[client_ip] = [t for t in _rate_buckets[client_ip] if t > cutoff]
+
+        if len(bucket) >= _RATE_LIMIT:
+            return JSONResponse(
+                status_code=429,
+                content={"error": "RATE_LIMIT_EXCEEDED", "detail": f"Max {_RATE_LIMIT} requests per {_RATE_WINDOW_SEC}s"},
+                headers={"Retry-After": str(_RATE_WINDOW_SEC)},
+            )
+        bucket.append(now)
+        return await call_next(request)
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -93,6 +129,7 @@ app.add_middleware(
     expose_headers=["X-Request-ID"],
 )
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 # Register module routers
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
@@ -107,5 +144,69 @@ app.include_router(insights_router, prefix="/api/insights", tags=["Insights Dash
 
 
 @app.get("/", tags=["Health"])
-async def health_check():
+async def root():
     return {"status": "healthy", "service": "Knowledge Mining Platform"}
+
+
+@app.get("/api/health", tags=["Health"])
+async def health_check():
+    """Deep health check — verifies SQL, Cosmos, and Search connectivity."""
+    checks: dict[str, str] = {}
+    healthy = True
+
+    # SQL
+    try:
+        from src.api.storage.sql_service import sql_service
+        checks["sql"] = "ok" if sql_service.available else "unavailable"
+        if not sql_service.available:
+            healthy = False
+    except Exception as e:
+        checks["sql"] = f"error: {e}"
+        healthy = False
+
+    # Azure AI Search
+    try:
+        settings = get_settings()
+        checks["search"] = "configured" if settings.azure_search_endpoint else "not configured"
+    except Exception as e:
+        checks["search"] = f"error: {e}"
+
+    # Cosmos
+    try:
+        from src.api.storage.cosmos_service import cosmos_service
+        checks["cosmos"] = "ok" if cosmos_service.available else "unavailable"
+    except Exception as e:
+        checks["cosmos"] = f"error: {e}"
+
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={"status": "healthy" if healthy else "degraded", "checks": checks, "version": app.version},
+    )
+
+
+# ── Structured error handlers ────────────────────────────────
+_STATUS_LABELS = {
+    400: "BAD_REQUEST", 401: "UNAUTHORIZED", 403: "FORBIDDEN",
+    404: "NOT_FOUND", 409: "CONFLICT", 413: "PAYLOAD_TOO_LARGE",
+    429: "RATE_LIMIT_EXCEEDED", 500: "INTERNAL_SERVER_ERROR", 503: "SERVICE_UNAVAILABLE",
+}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    rid = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": _STATUS_LABELS.get(exc.status_code, f"HTTP_{exc.status_code}"), "detail": exc.detail, "request_id": rid},
+        headers={"X-Request-ID": rid} if rid else {},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    rid = getattr(request.state, "request_id", None)
+    return JSONResponse(
+        status_code=422,
+        content={"error": "VALIDATION_ERROR", "detail": exc.errors(), "request_id": rid},
+        headers={"X-Request-ID": rid} if rid else {},
+    )

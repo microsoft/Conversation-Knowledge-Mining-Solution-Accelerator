@@ -30,24 +30,25 @@ import s from "./Home.module.css";
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setDashboardHeadline, setInsights } = useAppState();
+  const { setDashboardHeadline, setInsights, homeData, setHomeData } = useAppState();
 
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [uploadDone, setUploadDone] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  const [dataSources, setDataSources] = useState<any[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
-  const [loadingSources, setLoadingSources] = useState(true);
+  const [dataSources, setDataSources] = useState<any[]>(homeData?.dataSources ?? []);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>(homeData?.uploadedFiles ?? []);
+  const [loadingSources, setLoadingSources] = useState(!homeData);
 
-  const loadStatus = () => {
+  const loadStatus = (force = false) => {
     Promise.allSettled([listDataSources(), getUploadedFiles()])
       .then(([srcRes, filesRes]) => {
         const sources = srcRes.status === "fulfilled" ? srcRes.value.data || [] : [];
         const files = filesRes.status === "fulfilled" ? filesRes.value.data || [] : [];
         setDataSources(sources);
         setUploadedFiles(files);
+        setHomeData({ dataSources: sources, uploadedFiles: files });
         if (sources.length > 0 && sources[0].name) {
           setDashboardHeadline(sources[0].name);
         }
@@ -60,7 +61,7 @@ const Home: React.FC = () => {
       .finally(() => setLoadingSources(false));
   };
 
-  useEffect(() => { loadStatus(); }, []);
+  useEffect(() => { if (!homeData) loadStatus(); }, []);
 
   // Auto-refresh while any file is still processing
   const processingFiles = uploadedFiles.filter((f: any) => f.status === "processing");
