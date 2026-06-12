@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "11016799214470800441"
+      "templateHash": "7922094761518438897"
     }
   },
   "parameters": {
@@ -167,13 +167,6 @@
         "description": "Optional. Capacity of the Embedding Model deployment."
       }
     },
-    "imageTag": {
-      "type": "string",
-      "defaultValue": "latest_afv2_2026-03-10_1326",
-      "metadata": {
-        "description": "Optional. Docker image tag for app deployments."
-      }
-    },
     "containerRegistryName": {
       "type": "string",
       "defaultValue": "kmcontainerreg",
@@ -197,7 +190,7 @@
     },
     "backendContainerImageTag": {
       "type": "string",
-      "defaultValue": "[parameters('imageTag')]",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. Backend container image tag."
       }
@@ -218,7 +211,7 @@
     },
     "frontendContainerImageTag": {
       "type": "string",
-      "defaultValue": "[parameters('imageTag')]",
+      "defaultValue": "latest_afv2_2026-03-10_1326",
       "metadata": {
         "description": "Optional. Frontend container image tag."
       }
@@ -1639,7 +1632,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "1975611088752225629"
+              "templateHash": "2631611108118541891"
             }
           },
           "parameters": {
@@ -1708,6 +1701,13 @@
                 "description": "Allow shared key access."
               }
             },
+            "enableHierarchicalNamespace": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable hierarchical namespace (Data Lake Storage Gen2)."
+              }
+            },
             "containers": {
               "type": "array",
               "defaultValue": [
@@ -1738,6 +1738,7 @@
                 "allowSharedKeyAccess": "[parameters('allowSharedKeyAccess')]",
                 "minimumTlsVersion": "TLS1_2",
                 "supportsHttpsTrafficOnly": true,
+                "isHnsEnabled": "[parameters('enableHierarchicalNamespace')]",
                 "encryption": {
                   "services": {
                     "blob": {

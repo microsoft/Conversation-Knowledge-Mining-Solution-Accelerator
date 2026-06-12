@@ -367,10 +367,10 @@ module virtualNetwork './modules/networking/virtual-network.bicep' = if (enableP
   name: take('module.virtual-network.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    location: location
+        location: location
     tags: tags
     enableTelemetry: enableTelemetry
-    addressPrefixes: ['10.0.0.0/8']
+    addressPrefixes: ['10.0.0.0/20'] // 4096 addresses (enough for 8 /23 subnets or 16 /24)
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceResourceId
     resourceSuffix: solutionSuffix
   }
@@ -588,15 +588,16 @@ module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for
 // // ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
 // module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
 //   name: take('module.pe-ai-foundry.${solutionName}', 64)
-//   dependsOn: [privateDnsZoneDeployments]
+//   dependsOn: [model_deployments,foundry_search_connection,privateDnsZoneDeployments]
 //   params: {
 //     name: 'pep-aif-${solutionSuffix}'
 //     location: location
 //     tags: tags
 //     subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
+//     customNetworkInterfaceName: 'nic-aif-${solutionSuffix}'
 //     privateLinkServiceConnections: [
 //       {
-//         name: 'pep-aif-${solutionSuffix}'
+//         name: 'pep-aif-${solutionSuffix}-connection'
 //         properties: {
 //           privateLinkServiceId: ai_foundry_project!.outputs.resourceId
 //           groupIds: ['account']
@@ -628,6 +629,7 @@ module ai_search './modules/ai/ai-search.bicep' = {
   params: {
     solutionName: solutionSuffix
     location: searchServiceLocation
+    skuName: 'standard'
     tags: tags
     enableTelemetry: enableTelemetry
     // Temporarily public — Foundry Agent runtime runs outside the VNET and cannot resolve private DNS for AI Search.
@@ -678,7 +680,15 @@ module storage_account './modules/data/storage-account.bicep' = {
     privateEndpointSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.backendSubnetResourceId : ''
     privateDnsZoneResourceIds: enablePrivateNetworking ? [
       privateDnsZoneDeployments[dnsZoneIndex.storageBlob]!.outputs.resourceId
+      privateDnsZoneDeployments[dnsZoneIndex.storageQueue]!.outputs.resourceId
+      privateDnsZoneDeployments[dnsZoneIndex.storageFile]!.outputs.resourceId
+      privateDnsZoneDeployments[dnsZoneIndex.storageDfs]!.outputs.resourceId
     ] : []
+    networkAcls: {
+      bypass: 'AzureServices, Logging, Metrics'
+      defaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
+      virtualNetworkRules: []
+    }
   }
 }
 
@@ -738,7 +748,7 @@ module hostingplan './modules/compute/app-service-plan.bicep' = {
     location: location
     tags: tags
     enableTelemetry: enableTelemetry
-    skuName: (enableScalability || enableRedundancy) ? 'P1v4' : appServicePlanSku
+    skuName: (enableScalability || enableRedundancy) ? 'P1v3' : appServicePlanSku
     skuCapacity: enableScalability ? 3 : 1
     zoneRedundant: enableRedundancy
     diagnosticSettings: monitoringDiagnosticSettings
@@ -822,7 +832,23 @@ module backend_docker './modules/compute/app-service.bicep' = {
     serverFarmResourceId: hostingplan!.outputs.resourceId
     linuxFxVersion: backendApiImageName
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webserverfarmSubnetResourceId : ''
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
+    imagePullTraffic: enablePrivateNetworking ? true : false
+    contentShareTraffic: enablePrivateNetworking ? true : false
+    privateEndpoints: enablePrivateNetworking ? [
+      {
+        name: 'pep-api-${solutionSuffix}'
+        customNetworkInterfaceName: 'nic-api-${solutionSuffix}'
+        subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
+        service: 'sites'
+        privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                { privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.webApp]!.outputs.resourceId }
+              ]
+            }
+      }
+    ] : []
     diagnosticSettings: monitoringDiagnosticSettings
     appSettings: {
       AGENT_NAME_CONVERSATION: ''
@@ -865,6 +891,9 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     enableTelemetry: enableTelemetry
     serverFarmResourceId: hostingplan!.outputs.resourceId
     linuxFxVersion: frontendImageName
+    vnetRouteAllEnabled: enablePrivateNetworking ? true : false
+    imagePullTraffic: enablePrivateNetworking ? true : false
+    contentShareTraffic: enablePrivateNetworking ? true : false
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webserverfarmSubnetResourceId : ''
     publicNetworkAccess: 'Enabled'
     diagnosticSettings: monitoringDiagnosticSettings

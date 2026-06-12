@@ -221,7 +221,6 @@ module avmDeployment './avm/main.bicep' = if (isAvm) {
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     azureAiAgentApiVersion: azureAiAgentApiVersion
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
-    imageTag: imageTag
     containerRegistryName: containerRegistryName
     appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname
@@ -261,7 +260,6 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     azureAiAgentApiVersion: azureAiAgentApiVersion
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
-    imageTag: imageTag
     containerRegistryName: containerRegistryName
     appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname

@@ -17,9 +17,6 @@ param location string
 @description('Tags to apply to the resource.')
 param tags object = {}
 
-@description('Enable hierarchical namespace (Data Lake Storage Gen2).')
-param enableHierarchicalNamespace bool = false
-
 @description('Storage account SKU.')
 param skuName string = 'Standard_LRS'
 
@@ -35,6 +32,9 @@ param allowBlobPublicAccess bool = false
 
 @description('Allow shared key access.')
 param allowSharedKeyAccess bool = true
+
+@description('Enable hierarchical namespace (Data Lake Storage Gen2).')
+param enableHierarchicalNamespace bool = false
 
 @description('Optional. Enable/Disable usage telemetry for module.')
 param enableTelemetry bool = true
@@ -88,13 +88,13 @@ module storage 'br/public:avm/res/storage/storage-account:0.32.0' = {
     name: name
     location: location
     tags: tags
-    enableHierarchicalNamespace: enableHierarchicalNamespace
     enableTelemetry: enableTelemetry
     skuName: skuName
     kind: kind
     accessTier: accessTier
     allowBlobPublicAccess: allowBlobPublicAccess
     allowSharedKeyAccess: allowSharedKeyAccess
+    enableHierarchicalNamespace: enableHierarchicalNamespace
     minimumTlsVersion: 'TLS1_2'
     supportsHttpsTrafficOnly: true
     requireInfrastructureEncryption: true
