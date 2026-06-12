@@ -36,7 +36,7 @@ param location string
   azd: {
     type: 'location'
     usageName: [
-      'OpenAI.GlobalStandard.gpt-4o-mini,150'
+      'OpenAI.GlobalStandard.gpt-4o-mini,50'
       'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
@@ -80,7 +80,7 @@ param azureContentUnderstandingApiVersion string = '2025-11-01'
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
 @minValue(10)
 @description('Optional. Capacity of the GPT deployment.')
-param gptDeploymentCapacity int = 150
+param gptDeploymentCapacity int = 50
 
 @minLength(1)
 @description('Optional. Name of the Text Embedding model to deploy.')
