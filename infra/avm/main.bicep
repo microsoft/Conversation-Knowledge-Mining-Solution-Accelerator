@@ -127,9 +127,6 @@ param azureContentUnderstandingApiVersion string = '2025-11-01'
 // Parameters — Compute
 // ============================================================================
 
-@description('Optional. Docker image tag for app deployments.')
-param imageTag string = 'latest_afv2'
-
 @description('Optional. Name of the Azure Container Registry.')
 param containerRegistryName string = 'kmcontainerreg'
 
@@ -140,7 +137,7 @@ param backendContainerRegistryHostname string = '${containerRegistryName}.azurec
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. Backend container image tag.')
-param backendContainerImageTag string = imageTag
+param backendContainerImageTag string = 'latest_afv2'
 
 @description('Optional. Container Registry hostname where the frontend image is located.')
 param frontendContainerRegistryHostname string = '${containerRegistryName}.azurecr.io'
@@ -149,7 +146,7 @@ param frontendContainerRegistryHostname string = '${containerRegistryName}.azure
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. Frontend container image tag.')
-param frontendContainerImageTag string = imageTag
+param frontendContainerImageTag string = 'latest_afv2'
 
 @allowed(['F1', 'D1', 'B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P1', 'P2', 'P3', 'P1v3', 'P1v4'])
 @description('Optional. App Service Plan SKU.')
