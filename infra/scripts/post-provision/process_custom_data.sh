@@ -15,8 +15,8 @@ fileSystem="${4}"
 # SQL Database
 sqlServerName="${5}"
 SqlDatabaseName="${6}"
-backendUserMidClientId="${7}"
-backendUserMidDisplayName="${8}"
+apiAppPrincipleId="${7}"
+apiAppName="${8}"
 
 # AI Search
 aiSearchName="${9}"
@@ -280,8 +280,8 @@ get_values_from_azd_env() {
 	fileSystem=$(azd env get-value STORAGE_CONTAINER_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	sqlServerName=$(azd env get-value SQLDB_SERVER 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	SqlDatabaseName=$(azd env get-value SQLDB_DATABASE 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	backendUserMidClientId=$(azd env get-value BACKEND_USER_MID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
-	backendUserMidDisplayName=$(azd env get-value BACKEND_USER_MID_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	apiAppPrincipleId=$(azd env get-value API_APP_PRINCIPAL_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
+	apiAppName=$(azd env get-value API_APP_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aiSearchName=$(azd env get-value AZURE_AI_SEARCH_NAME 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	aif_resource_id=$(azd env get-value AI_FOUNDRY_RESOURCE_ID 2>&1 | grep -E '^[a-zA-Z0-9._/-]+$')
 	searchEndpoint=$(azd env get-value AZURE_AI_SEARCH_ENDPOINT 2>&1 | grep -E '^https?://[a-zA-Z0-9._/-]+$')
@@ -297,7 +297,7 @@ get_values_from_azd_env() {
 	sqlServerName="${sqlServerName%.database.windows.net}"
 	
 	# Validate that we extracted all required values
-	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$backendUserMidClientId" ] || [ -z "$backendUserMidDisplayName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$solutionName" ]; then
+	if [ -z "$resourceGroupName" ] || [ -z "$storageAccountName" ] || [ -z "$fileSystem" ] || [ -z "$sqlServerName" ] || [ -z "$SqlDatabaseName" ] || [ -z "$apiAppPrincipleId" ] || [ -z "$apiAppName" ] || [ -z "$aiSearchName" ] || [ -z "$aif_resource_id" ] || [ -z "$solutionName" ]; then
 		echo "Error: One or more required values could not be retrieved from azd environment."
 		return 1
 	fi
@@ -336,8 +336,8 @@ get_values_from_az_deployment() {
 	fileSystem=$(extract_value "storageContainerName" "STORAGE_CONTAINER_NAME")
 	sqlServerName=$(extract_value "sqlDBServer" "SQLDB_SERVER")
 	SqlDatabaseName=$(extract_value "sqlDBDatabase" "SQLDB_DATABASE")
-	backendUserMidClientId=$(extract_value "backendUserMid" "BACKEND_USER_MID")
-	backendUserMidDisplayName=$(extract_value "backendUserMidName" "BACKEND_USER_MID_NAME")
+	apiAppPrincipleId=$(extract_value "apiAppPrincipalId" "API_APP_PRINCIPAL_ID")
+	apiAppName=$(extract_value "apiAppName" "API_APP_NAME")
 	aiSearchName=$(extract_value "azureAISearchName" "AZURE_AI_SEARCH_NAME")
 	searchEndpoint=$(extract_value "azureAISearchEndpoint" "AZURE_AI_SEARCH_ENDPOINT")
 	aif_resource_id=$(extract_value "aiFoundryResourceId" "AI_FOUNDRY_RESOURCE_ID")
@@ -358,8 +358,8 @@ get_values_from_az_deployment() {
 		["fileSystem"]="STORAGE_CONTAINER_NAME"
 		["sqlServerName"]="SQLDB_SERVER"
 		["SqlDatabaseName"]="SQLDB_DATABASE"
-		["backendUserMidClientId"]="BACKEND_USER_MID"
-		["backendUserMidDisplayName"]="BACKEND_USER_MID_NAME"
+		["apiAppPrincipleId"]="API_APP_PRINCIPAL_ID"
+		["apiAppName"]="API_APP_NAME"
 		["aiSearchName"]="AZURE_AI_SEARCH_NAME"
 		["aif_resource_id"]="AI_FOUNDRY_RESOURCE_ID"
 		["searchEndpoint"]="AZURE_AI_SEARCH_ENDPOINT"
@@ -449,7 +449,7 @@ echo ""
 echo ""
 
 # Check if all required parameters are provided
-if [ -n "$resourceGroupName" ] && [ -n "$azSubscriptionId" ] && [ -n "$storageAccountName" ] && [ -n "$fileSystem" ] && [ -n "$sqlServerName" ] && [ -n "$SqlDatabaseName" ] && [ -n "$backendUserMidClientId" ] && [ -n "$backendUserMidDisplayName" ] && [ -n "$aiSearchName" ] && [ -n "$searchEndpoint" ] && [ -n "$aif_resource_id" ] && [ -n "$openaiEndpoint" ] && [ -n "$embeddingModel" ] && [ -n "$deploymentModel" ] && [ -n "$cuEndpoint" ] && [ -n "$cuApiVersion" ] && [ -n "$aiAgentEndpoint" ] && [ -n "$solutionName" ]; then
+if [ -n "$resourceGroupName" ] && [ -n "$azSubscriptionId" ] && [ -n "$storageAccountName" ] && [ -n "$fileSystem" ] && [ -n "$sqlServerName" ] && [ -n "$SqlDatabaseName" ] && [ -n "$apiAppPrincipleId" ] && [ -n "$apiAppName" ] && [ -n "$aiSearchName" ] && [ -n "$searchEndpoint" ] && [ -n "$aif_resource_id" ] && [ -n "$openaiEndpoint" ] && [ -n "$embeddingModel" ] && [ -n "$deploymentModel" ] && [ -n "$cuEndpoint" ] && [ -n "$cuApiVersion" ] && [ -n "$aiAgentEndpoint" ] && [ -n "$solutionName" ]; then
     # All parameters provided - use them directly
     echo "All parameters provided via command line."
     # Strip FQDN suffix from SQL server name if present
@@ -497,8 +497,8 @@ echo "Storage Account Name: $storageAccountName"
 echo "Storage Container Name: $fileSystem"
 echo "SQL Server Name: $sqlServerName"
 echo "SQL Database Name: $SqlDatabaseName"
-echo "Backend User-Assigned Managed Identity Display Name: $backendUserMidDisplayName"
-echo "Backend User-Assigned Managed Identity Client ID: $backendUserMidClientId"
+echo "API App Principal ID: $apiAppPrincipleId"
+echo "API App Name: $apiAppName"
 echo "AI Search Service Name: $aiSearchName"
 echo "AI Foundry Resource ID: $aif_resource_id"
 echo "Search Endpoint: $searchEndpoint"
