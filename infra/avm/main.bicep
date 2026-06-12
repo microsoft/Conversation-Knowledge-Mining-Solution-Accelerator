@@ -663,6 +663,7 @@ module storage_account './modules/data/storage-account.bicep' = {
     solutionName: solutionSuffix
     location: location
     tags: tags
+    enableHierarchicalNamespace: true
     enableTelemetry: enableTelemetry
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     diagnosticSettings: monitoringDiagnosticSettings
