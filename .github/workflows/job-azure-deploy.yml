@@ -349,17 +349,20 @@ jobs:
           chmod +x infra/scripts/checkquota_km.sh
           infra/scripts/checkquota_km.sh
 
-          if [[ "${QUOTA_FAILED:-false}" == "true" ]]; then
+          quota_failed="$(grep -E '^QUOTA_FAILED=' "$GITHUB_ENV" | tail -n 1 | cut -d'=' -f2-)"
+          valid_region="$(grep -E '^VALID_REGION=' "$GITHUB_ENV" | tail -n 1 | cut -d'=' -f2-)"
+
+          if [[ "${quota_failed:-false}" == "true" ]]; then
             echo "❌ Quota check failed: no region has required model quota."
             exit 1
           fi
 
-          if [[ -z "${VALID_REGION:-}" ]]; then
+          if [[ -z "${valid_region:-}" ]]; then
             echo "❌ Quota check did not provide VALID_REGION."
             exit 1
           fi
 
-          echo "✅ Quota check passed. Selected region: ${VALID_REGION}"
+          echo "✅ Quota check passed. Selected region: ${valid_region}"
 
       - name: Set Quota Failure Output
         id: quota_failure_output
