@@ -90,9 +90,18 @@ async def upload_document(
                 status_code=400,
                 detail=f"Unsupported file type: .{ext}. Accepted: {', '.join(sorted(DOCUMENT_EXTENSIONS))}",
             )
-        content = await file.read()
-        if len(content) > max_bytes:
-            raise HTTPException(status_code=413, detail=f"{filename} is too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
+        # Stream-read with early size check to avoid buffering oversized files
+        chunks = []
+        total = 0
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB at a time
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > max_bytes:
+                raise HTTPException(status_code=413, detail=f"{filename} is too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
+            chunks.append(chunk)
+        content = b"".join(chunks)
         file_contents.append((filename, ext, content))
 
     # Save raw files to blob storage and create "processing" file records
@@ -158,33 +167,54 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
             ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")
             return
 
+        # Capture CU-extracted fields instead of discarding them
+        cu_fields = {}
+        if extracted.fields:
+            if extracted.fields.get("summary", {}).get("valueString"):
+                cu_fields["summary"] = extracted.fields["summary"]["valueString"]
+            if extracted.fields.get("topic", {}).get("valueString"):
+                cu_fields["topic"] = extracted.fields["topic"]["valueString"]
+            if extracted.fields.get("keyPhrases", {}).get("valueString"):
+                cu_fields["key_phrases"] = [
+                    kp.strip() for kp in extracted.fields["keyPhrases"]["valueString"].split(",")
+                    if kp.strip()
+                ]
+
+        metadata = {
+            "source_file": filename,
+            "source_type": ext,
+            "page_count": str(extracted.page_count),
+        }
+        if cu_fields.get("summary"):
+            metadata["summary"] = cu_fields["summary"]
+        if cu_fields.get("topic"):
+            metadata["topic"] = cu_fields["topic"]
+        if cu_fields.get("key_phrases"):
+            metadata["key_phrases"] = ", ".join(cu_fields["key_phrases"])
+
         doc_data = {
             "id": file_id,
             "type": ext,
             "text": extracted.markdown,
-            "metadata": {
-                "source_file": filename,
-                "source_type": ext,
-                "page_count": str(extracted.page_count),
-            },
+            "metadata": metadata,
         }
+        if cu_fields.get("summary"):
+            doc_data["summary"] = cu_fields["summary"]
+        if cu_fields.get("key_phrases"):
+            doc_data["key_phrases"] = cu_fields["key_phrases"]
+        if cu_fields.get("topic"):
+            doc_data["topics"] = [cu_fields["topic"]]
 
         ingestion_service.load_json_data([doc_data], filename=filename)
 
-        # Stage 2: Chunk + Embed + Index
+        # Stage 2: Chunk + Embed + Index (batch embeddings for speed)
         chunks = chunk_text(extracted.markdown)
         try:
             from src.api.modules.embeddings.service import EmbeddingsService
             from src.api.modules.ingestion.azure_storage import azure_storage_service
 
             emb_service = EmbeddingsService()
-            embeddings = []
-            for chunk in chunks:
-                try:
-                    emb = emb_service.generate_embedding(chunk)
-                    embeddings.append(emb.embedding)
-                except Exception:
-                    embeddings.append([0.0] * 1536)
+            embeddings = emb_service.generate_embeddings_batch(chunks)
 
             azure_storage_service.index_chunks(
                 doc_id=file_id, chunks=chunks, embeddings=embeddings,

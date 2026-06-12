@@ -299,21 +299,30 @@ if ($DataPath) {
         }
     }
 
-    # ── Audio files ──
+    # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {
         Write-Host ""
         Write-Host "Uploading $($audioFiles.Count) audio files (transcription via Content Understanding)..." -ForegroundColor Yellow
+
+        # Upload in batches of 5 (API limit: max_concurrent_uploads)
+        $batchSize = 5
         $success = 0; $failed = 0
-        foreach ($f in $audioFiles) {
-            Write-Host "  $($f.Name)..." -NoNewline
+        for ($i = 0; $i -lt $audioFiles.Count; $i += $batchSize) {
+            $batch = $audioFiles[$i..([Math]::Min($i + $batchSize - 1, $audioFiles.Count - 1))]
+            $form = @{}
+            $fileItems = @()
+            foreach ($f in $batch) {
+                $fileItems += Get-Item $f.FullName
+                Write-Host "  $($f.Name)" -ForegroundColor White
+            }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = Get-Item $f.FullName } -Headers $headers | Out-Null
-                Write-Host " done" -ForegroundColor Green
-                $success++
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                $success += $batch.Count
+                Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
-                Write-Host " FAILED" -ForegroundColor Red
-                $failed++
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+                $failed += $batch.Count
             }
         }
         Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
@@ -322,21 +331,29 @@ if ($DataPath) {
         }
     }
 
-    # ── Document files ──
+    # ── Document files (batch upload) ──
     if ($docFiles.Count -gt 0) {
         Write-Host ""
         Write-Host "Uploading $($docFiles.Count) document files..." -ForegroundColor Yellow
+
+        # Upload in batches of 5
+        $batchSize = 5
         $success = 0; $failed = 0
-        foreach ($f in $docFiles) {
-            Write-Host "  $($f.Name)..." -NoNewline
+        for ($i = 0; $i -lt $docFiles.Count; $i += $batchSize) {
+            $batch = $docFiles[$i..([Math]::Min($i + $batchSize - 1, $docFiles.Count - 1))]
+            $fileItems = @()
+            foreach ($f in $batch) {
+                $fileItems += Get-Item $f.FullName
+                Write-Host "  $($f.Name)" -ForegroundColor White
+            }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = Get-Item $f.FullName } -Headers $headers | Out-Null
-                Write-Host " done" -ForegroundColor Green
-                $success++
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                $success += $batch.Count
+                Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
-                Write-Host " FAILED" -ForegroundColor Red
-                $failed++
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+                $failed += $batch.Count
             }
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })

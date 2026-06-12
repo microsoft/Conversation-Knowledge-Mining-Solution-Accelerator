@@ -74,7 +74,7 @@ export const uploadDocument = (files: File | File[]) => {
   fileArray.forEach((f) => formData.append("files", f));
   return apiClient.post("/ingestion/upload/document", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    timeout: 60000,
+    timeout: 300000,
   });
 };
 

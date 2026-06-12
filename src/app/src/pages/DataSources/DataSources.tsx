@@ -97,11 +97,20 @@ const DataSources: React.FC = () => {
     finally { setIngesting(null); }
   };
 
+  const MAX_FILE_SIZE_MB = 100;
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    const oversized = files.filter((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
+    if (oversized.length > 0) {
+      setError(`${oversized.map((f) => f.name).join(", ")} exceeded the ${MAX_FILE_SIZE_MB} MB limit.`);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     try {
-      await uploadDocument(Array.from(fileList));
+      await uploadDocument(files);
       loadSources();
     } catch (e) { setError(`Upload failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
     if (fileInputRef.current) fileInputRef.current.value = "";

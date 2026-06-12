@@ -98,5 +98,15 @@ class QueueService:
             logger.error(f"Failed to delete from {queue_name}: {e}")
             return False
 
+    def update_visibility(self, queue_name: str, message, visibility_timeout: int) -> bool:
+        """Extend the visibility timeout for a message being processed."""
+        try:
+            client = self._get_client(queue_name)
+            client.update_message(message, visibility_timeout=visibility_timeout)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update visibility for {queue_name}: {e}")
+            return False
+
 
 queue_service = QueueService()

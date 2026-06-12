@@ -282,8 +282,25 @@ class ContentUnderstandingService:
         if not doc.markdown.strip():
             return doc
 
+        # If CU already extracted summary/topics/keyPhrases, use them directly
+        # This avoids a redundant LLM call for data CU already provided
+        if doc.fields:
+            cu_summary = doc.fields.get("summary", {}).get("valueString", "")
+            cu_topic = doc.fields.get("topic", {}).get("valueString", "")
+            cu_phrases = doc.fields.get("keyPhrases", {}).get("valueString", "")
+            if cu_summary or cu_topic or cu_phrases:
+                if cu_summary and not doc.summary:
+                    doc.summary = cu_summary
+                if cu_topic and not doc.topics:
+                    doc.topics = [cu_topic]
+                if cu_phrases and not doc.key_phrases:
+                    doc.key_phrases = [kp.strip() for kp in cu_phrases.split(",") if kp.strip()]
+                import logging
+                logging.getLogger(__name__).info(f"Using CU-extracted fields for {doc.filename}, skipping LLM enrichment")
+                return doc
+
         # Generate content hash for cache lookup
-        text = doc.markdown[:3000]
+        text = doc.markdown[:5000]
         content_hash = hashlib.sha256(text.encode()).hexdigest()[:16]
 
         # Check SQL cache first
@@ -360,15 +377,24 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
         settings = get_settings()
         client = get_llm_client()
 
-        # Build snippets — shorter for large batches
-        max_snippet = 200 if len(documents) > 20 else 500
+        # Build snippets — use more text for better enrichment quality
+        max_snippet = 500 if len(documents) > 20 else 1500
         snippets = []
         for doc in documents:
             text = doc.get("text", "")
             if isinstance(text, list):
                 text = "\n".join(f"{s.get('speaker','')}: {s.get('text','')}" for s in text)
             snippet = text[:max_snippet] + ("..." if len(text) > max_snippet else "")
-            snippets.append({"id": doc["id"], "type": doc.get("type", ""), "text": snippet})
+
+            # Include CU-extracted fields when available for richer context
+            entry = {"id": doc["id"], "type": doc.get("type", ""), "text": snippet}
+            if doc.get("summary"):
+                entry["summary"] = doc["summary"]
+            if doc.get("key_phrases"):
+                entry["key_phrases"] = doc["key_phrases"]
+            if doc.get("topics"):
+                entry["topics"] = doc["topics"]
+            snippets.append(entry)
 
         # Process in chunks of 25 to avoid token limits
         CHUNK_SIZE = 25
@@ -386,6 +412,7 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
 1. For each document, extract:
    - summary (1 sentence)
    - keywords (3-5 specific terms)
+   NOTE: Some documents already have "summary", "key_phrases", or "topics" from prior extraction. Use those as-is and refine only if needed.
 
 2. For the dataset, generate a FILTER SCHEMA:
    - Identify 4-8 filter dimensions (infer from content, NOT hardcoded)

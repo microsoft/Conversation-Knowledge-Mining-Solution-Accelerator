@@ -178,6 +178,75 @@ Upload files directly from the web UI after deployment. Supported formats: PDF, 
 
 > ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
 
+### Adding Custom Scenarios and Data Sources
+
+All scenario packs and external data source options are defined in [`data/config/scenarios.json`](data/config/scenarios.json). The setup menu is generated dynamically from this file — no code changes are required to add new options.
+
+#### Add a new scenario pack
+
+1. Create a folder under `data/` for your data (e.g. `data/Insurance_usecase/`)
+2. Add your files — JSON transcripts, PDFs, DOCX, images, etc.
+3. Add an entry to the `scenarios` object in `data/config/scenarios.json`:
+
+```json
+"insurance-claims": {
+  "name": "Insurance Claims",
+  "description": "Claims documents — fraud detection, severity classification, processing time analysis",
+  "data_folder": "Insurance_usecase",
+  "data_types": ["pdf", "docx"],
+  "has_preprocessed": false
+}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Display name shown in the setup menu |
+| `description` | Yes | One-line description shown below the menu option |
+| `data_folder` | Yes | Subfolder name under `data/` containing your files |
+| `data_types` | Yes | Array of file extensions (e.g. `["json"]`, `["pdf", "docx"]`) |
+| `has_preprocessed` | Yes | Set to `true` if your data includes pre-computed embeddings and enrichments |
+| `preprocessed_files` | Only if `has_preprocessed` is `true` | Object with paths to `search_index`, `processed_data`, and `key_phrases` files |
+
+If you have pre-enriched data (embeddings, sentiments, topics already computed), set `has_preprocessed: true` and specify the file paths:
+
+```json
+"my-scenario": {
+  "name": "My Scenario",
+  "description": "Pre-enriched dataset with embeddings",
+  "data_folder": "MyData_usecase",
+  "data_types": ["json"],
+  "has_preprocessed": true,
+  "preprocessed_files": {
+    "search_index": "sample_search_index_data.json",
+    "processed_data": "sample_processed_data.json",
+    "key_phrases": "sample_processed_data_key_phrases.json"
+  }
+}
+```
+
+#### Add a new external data source
+
+Add an entry to the `data_sources` object. The `fields` array defines what the user is prompted for, and `prompts` provides the help text:
+
+```json
+"cosmosdb": {
+  "name": "Azure Cosmos DB",
+  "description": "Connect a Cosmos DB container",
+  "fields": ["endpoint", "database", "container"],
+  "prompts": {
+    "endpoint": "Cosmos endpoint (e.g. https://my-account.documents.azure.com)",
+    "database": "Database name",
+    "container": "Container name"
+  }
+}
+```
+
+After editing `scenarios.json`, run the setup script to see your new options:
+
+```bash
+./scripts/setup-data.ps1
+```
+
 ---
 
 ### Local Development

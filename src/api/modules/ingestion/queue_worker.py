@@ -69,6 +69,10 @@ class QueueWorker:
         self._threads.clear()
         logger.info("Queue workers stopped")
 
+    # Scale visibility timeout based on expected processing time
+    _BASE_VISIBILITY_SEC = 600
+    _MAX_VISIBILITY_SEC = 3600  # 1 hour max for very large files
+
     def _poll_loop(self, queue_name: str, handler):
         """Main polling loop for a single queue."""
         from concurrent.futures import ThreadPoolExecutor
@@ -79,7 +83,7 @@ class QueueWorker:
                     messages = list(queue_service.receive(
                         queue_name,
                         max_messages=self._max_concurrent,
-                        visibility_timeout=600,
+                        visibility_timeout=self._BASE_VISIBILITY_SEC,
                     ))
 
                     if not messages:
@@ -192,26 +196,70 @@ class QueueWorker:
                 queue_service.delete(EXTRACTION_QUEUE, message)
                 return
 
+            # Extract CU-enriched fields instead of discarding them
+            cu_fields = {}
+            if extracted.fields:
+                if extracted.fields.get("summary", {}).get("valueString"):
+                    cu_fields["summary"] = extracted.fields["summary"]["valueString"]
+                if extracted.fields.get("topic", {}).get("valueString"):
+                    cu_fields["topic"] = extracted.fields["topic"]["valueString"]
+                if extracted.fields.get("keyPhrases", {}).get("valueString"):
+                    cu_fields["key_phrases"] = [
+                        kp.strip() for kp in extracted.fields["keyPhrases"]["valueString"].split(",")
+                        if kp.strip()
+                    ]
+
+            base_metadata = {
+                "source_file": filename,
+                "source_type": ext,
+                "page_count": str(extracted.page_count),
+            }
+            # Merge CU fields into metadata so they flow through the whole pipeline
+            if cu_fields.get("summary"):
+                base_metadata["summary"] = cu_fields["summary"]
+            if cu_fields.get("topic"):
+                base_metadata["topic"] = cu_fields["topic"]
+            if cu_fields.get("key_phrases"):
+                base_metadata["key_phrases"] = ", ".join(cu_fields["key_phrases"])
+
             # Save extracted document to ingestion service
             doc_data = {
                 "id": file_id,
                 "type": ext,
                 "text": extracted.markdown,
-                "metadata": {
-                    "source_file": filename,
-                    "source_type": ext,
-                    "page_count": str(extracted.page_count),
-                },
+                "metadata": base_metadata,
             }
+            if cu_fields.get("summary"):
+                doc_data["summary"] = cu_fields["summary"]
+            if cu_fields.get("key_phrases"):
+                doc_data["key_phrases"] = cu_fields["key_phrases"]
+            if cu_fields.get("topic"):
+                doc_data["topics"] = [cu_fields["topic"]]
+
             ingestion_service.load_json_data([doc_data], filename=filename)
 
-            # Enqueue for Stage 2: enrichment
+            # Store extracted text in blob (avoids 64 KB queue message limit)
+            text_blob_path = f"extracted/{file_id}/content.txt"
+            try:
+                container = blob_client.get_container_client(settings.azure_storage_container)
+                tb = container.get_blob_client(text_blob_path)
+                tb.upload_blob(extracted.markdown.encode("utf-8"), overwrite=True)
+            except Exception as e:
+                logger.error(f"[extraction] Failed to store extracted text for {filename}: {e}")
+                raise
+
+            if cu_fields:
+                logger.info(f"[extraction] CU fields captured for {filename}: {list(cu_fields.keys())}")
+
+            # Enqueue for Stage 2: enrichment (reference only, no inline text)
             enrichment_msg = {
                 "file_id": file_id,
                 "filename": filename,
                 "ext": ext,
-                "text": extracted.markdown,
-                "metadata": doc_data["metadata"],
+                "text_blob_path": text_blob_path,
+                "text_length": len(extracted.markdown),
+                "metadata": base_metadata,
+                "cu_fields": cu_fields,
             }
             queue_service.enqueue(ENRICHMENT_QUEUE, enrichment_msg)
 
@@ -236,8 +284,30 @@ class QueueWorker:
 
         file_id = payload["file_id"]
         filename = payload["filename"]
-        text = payload["text"]
         metadata = payload.get("metadata", {})
+
+        # Read text from blob (or inline for backwards-compat with old messages)
+        text = payload.get("text", "")
+        text_blob_path = payload.get("text_blob_path")
+        if text_blob_path and not text:
+            try:
+                settings = get_settings()
+                blob_client = azure_storage_service._get_blob_client()
+                container = blob_client.get_container_client(settings.azure_storage_container)
+                blob = container.get_blob_client(text_blob_path)
+                text = blob.download_blob().readall().decode("utf-8")
+            except Exception as e:
+                logger.error(f"[enrichment] Failed to read extracted text for {filename}: {e}")
+                raise
+
+        # Extend visibility timeout for large documents
+        text_length = payload.get("text_length", len(text))
+        if text_length > 50_000:
+            try:
+                extra_sec = min(text_length // 1000, self._MAX_VISIBILITY_SEC - self._BASE_VISIBILITY_SEC)
+                queue_service.update_visibility(ENRICHMENT_QUEUE, message, self._BASE_VISIBILITY_SEC + extra_sec)
+            except Exception:
+                pass  # Non-critical
 
         # Skip if already fully processed
         if ingestion_service.is_already_processed(file_id):
@@ -272,12 +342,21 @@ class QueueWorker:
             logger.info(f"[enrichment] {filename}: {indexed} chunks indexed")
 
             # Step 4: Run AI enrichment (summary, keywords, filters)
+            cu_fields = payload.get("cu_fields", {})
             doc_data = {
                 "id": file_id,
                 "type": payload.get("ext", ""),
                 "text": text,
                 "metadata": metadata,
             }
+            # Forward CU-extracted fields so _track_file can reuse them
+            if cu_fields.get("summary"):
+                doc_data["summary"] = cu_fields["summary"]
+            if cu_fields.get("key_phrases"):
+                doc_data["key_phrases"] = cu_fields["key_phrases"]
+            if cu_fields.get("topic"):
+                doc_data["topics"] = [cu_fields["topic"]]
+
             ingestion_service.finalize_ingestion([doc_data], filename)
 
             # Mark as ready
