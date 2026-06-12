@@ -117,7 +117,10 @@ const Explore: React.FC = () => {
   };
 
   const loadSessions = () => {
-    listChatSessions().then(r => setSessions(r.data?.sessions || r.data || [])).catch(() => {});
+    listChatSessions().then(r => {
+      const raw = r.data?.sessions || r.data;
+      setSessions(Array.isArray(raw) ? raw : []);
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -167,7 +170,8 @@ const Explore: React.FC = () => {
     try {
       const r = await loadChatHistory(sid);
       setSessionId(sid);
-      setMessages((r.data?.messages || r.data || []).map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })));
+      const rawMsgs = r.data?.messages || r.data;
+      setMessages(Array.isArray(rawMsgs) ? rawMsgs.map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })) : []);
       setShowHistory(false);
     } catch (e) { /* silently ignore */ }
   };

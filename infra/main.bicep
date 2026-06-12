@@ -271,7 +271,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
           AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
           API_APP_NAME: backendWebSiteResourceName
-          APP_FRONTEND_HOSTNAME: '${frontendWebSiteResourceName}.azurewebsites.net'
+          APP_FRONTEND_HOSTNAME: 'https://${frontendWebSiteResourceName}.azurewebsites.net'
           APP_ENV: 'Prod'
         }
       }

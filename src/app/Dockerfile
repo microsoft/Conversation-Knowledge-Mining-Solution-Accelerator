@@ -15,6 +15,7 @@ FROM node:22-bookworm-slim
 RUN npm install -g serve
 WORKDIR /app
 COPY --from=build /app/build ./build
+COPY serve.json ./
 
 # Non-root user
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app

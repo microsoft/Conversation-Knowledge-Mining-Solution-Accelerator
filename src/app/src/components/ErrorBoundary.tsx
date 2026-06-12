@@ -24,6 +24,12 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   handleReset = () => {
+    // Clear potentially corrupted cached data
+    try {
+      sessionStorage.removeItem("km_home_data");
+      sessionStorage.removeItem("km_explore_data");
+      sessionStorage.removeItem("km_insights");
+    } catch {}
     this.setState({ hasError: false, error: null });
   };
 
