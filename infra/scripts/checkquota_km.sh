@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -u
+
 # List of Azure regions to check for quota (update as needed)
 IFS=', ' read -ra REGIONS <<< "$AZURE_REGIONS"
 
@@ -27,6 +29,11 @@ if ! az account set --subscription "$SUBSCRIPTION_ID"; then
 fi
 echo "✅ Azure subscription set successfully."
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ ERROR: jq is required for quota parsing but was not found."
+    exit 1
+fi
+
 # Define models and their minimum required capacities
 declare -A MIN_CAPACITY=(
     ["OpenAI.GlobalStandard.gpt-4o-mini"]=$GPT_MIN_CAPACITY #km generic
@@ -38,7 +45,7 @@ for REGION in "${REGIONS[@]}"; do
     echo "----------------------------------------"
     echo "🔍 Checking region: $REGION"
 
-    QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json)
+    QUOTA_INFO=$(az cognitiveservices usage list --location "$REGION" --output json 2>/dev/null || true)
     if [ -z "$QUOTA_INFO" ]; then
         echo "⚠️ WARNING: Failed to retrieve quota for region $REGION. Skipping."
         continue
@@ -46,25 +53,24 @@ for REGION in "${REGIONS[@]}"; do
 
     INSUFFICIENT_QUOTA=false
     for MODEL in "${!MIN_CAPACITY[@]}"; do
-        MODEL_INFO=$(echo "$QUOTA_INFO" | awk -v model="\"value\": \"$MODEL\"" '
-            BEGIN { RS="},"; FS="," }
-            $0 ~ model { print $0 }
+        MODEL_INFO=$(echo "$QUOTA_INFO" | jq -r --arg model "$MODEL" '
+            [.[]
+              | select(.name.value == $model)
+              | {
+                  currentValue: ((.currentValue // 0) | floor),
+                  limit: ((.limit // 0) | floor)
+                }
+            ] | first // empty
         ')
 
-        if [ -z "$MODEL_INFO" ]; then
+        if [ -z "$MODEL_INFO" ] || [ "$MODEL_INFO" = "null" ]; then
             echo "⚠️ WARNING: No quota information found for model: $MODEL in $REGION. Skipping."
             INSUFFICIENT_QUOTA=true
             continue
         fi
 
-        CURRENT_VALUE=$(echo "$MODEL_INFO" | awk -F': ' '/"currentValue"/ {print $2}' | tr -d ',' | tr -d ' ')
-        LIMIT=$(echo "$MODEL_INFO" | awk -F': ' '/"limit"/ {print $2}' | tr -d ',' | tr -d ' ')
-
-        CURRENT_VALUE=${CURRENT_VALUE:-0}
-        LIMIT=${LIMIT:-0}
-
-        CURRENT_VALUE=$(echo "$CURRENT_VALUE" | cut -d'.' -f1)
-        LIMIT=$(echo "$LIMIT" | cut -d'.' -f1)
+        CURRENT_VALUE=$(echo "$MODEL_INFO" | jq -r '.currentValue // 0')
+        LIMIT=$(echo "$MODEL_INFO" | jq -r '.limit // 0')
 
         AVAILABLE=$((LIMIT - CURRENT_VALUE))
 
@@ -90,6 +96,7 @@ if [ -z "$VALID_REGION" ]; then
     exit 0
 else
     echo "✅ Final Region: $VALID_REGION"
+    echo "QUOTA_FAILED=false" >> "$GITHUB_ENV"
     echo "VALID_REGION=$VALID_REGION" >> "$GITHUB_ENV"
     exit 0
 fi
