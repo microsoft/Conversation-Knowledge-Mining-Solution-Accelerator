@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "7922094761518438897"
+      "templateHash": "3465965418629910031"
     }
   },
   "parameters": {
@@ -1623,6 +1623,9 @@
                 "publicAccess": "None"
               }
             ]
+          },
+          "enableHierarchicalNamespace": {
+            "value": true
           }
         },
         "template": {

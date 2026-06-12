@@ -326,6 +326,7 @@ module storage_account './modules/data/storage-account.bicep' = {
     containers: [
       { name: 'data', publicAccess: 'None' }
     ]
+    enableHierarchicalNamespace: true
   }
   scope: resourceGroup(resourceGroup().name)
 }
