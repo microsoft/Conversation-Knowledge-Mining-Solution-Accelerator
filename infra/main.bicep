@@ -93,6 +93,8 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
     projectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
     projectDescription: 'Knowledge Mining AI Foundry Project'
     publicNetworkAccess: 'Enabled'
+    restrictOutboundNetworkAccess: false
+    disableLocalAuth: false
     deployments: [
       {
         name: chatDeploymentName
@@ -103,7 +105,7 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
         }
         sku: {
           name: 'GlobalStandard'
-          capacity: 30
+          capacity: 10
         }
       }
       {
@@ -115,7 +117,7 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
         }
         sku: {
           name: 'Standard'
-          capacity: 120
+          capacity: 30
         }
       }
     ]
@@ -138,6 +140,8 @@ module cuServices 'modules/ai-services.bicep' = {
     sku: 'S0'
     customSubDomainName: cuResourceName
     publicNetworkAccess: 'Enabled'
+    restrictOutboundNetworkAccess: false
+    disableLocalAuth: false
     deployments: []
   }
 }

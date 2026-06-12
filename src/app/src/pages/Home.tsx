@@ -44,8 +44,8 @@ const Home: React.FC = () => {
   const loadStatus = (force = false) => {
     Promise.allSettled([listDataSources(), getUploadedFiles()])
       .then(([srcRes, filesRes]) => {
-        const sources = srcRes.status === "fulfilled" ? srcRes.value.data || [] : [];
-        const files = filesRes.status === "fulfilled" ? filesRes.value.data || [] : [];
+        const sources = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : [];
+        const files = filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : [];
         setDataSources(sources);
         setUploadedFiles(files);
         setHomeData({ dataSources: sources, uploadedFiles: files });

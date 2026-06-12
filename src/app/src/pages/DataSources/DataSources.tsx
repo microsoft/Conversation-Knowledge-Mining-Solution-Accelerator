@@ -57,8 +57,8 @@ const DataSources: React.FC = () => {
         listDataSources(),
         getUploadedFiles(),
       ]);
-      setSources(srcRes.status === "fulfilled" ? srcRes.value.data : []);
-      setUploadedFiles(filesRes.status === "fulfilled" ? filesRes.value.data : []);
+      setSources(srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : []);
+      setUploadedFiles(filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : []);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);

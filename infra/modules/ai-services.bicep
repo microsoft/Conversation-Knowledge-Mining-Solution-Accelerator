@@ -106,7 +106,7 @@ param allowedFqdnList array?
 param apiProperties object?
 
 @description('Optional. Allow only Azure AD authentication. Should be enabled for security reasons.')
-param disableLocalAuth bool = true
+param disableLocalAuth bool = false
 
 import { customerManagedKeyType } from 'br/public:avm/utl/types/avm-common-types:0.5.1'
 @description('Optional. The customer managed key definition.')
@@ -123,7 +123,7 @@ param migrationToken string?
 param restore bool = true
 
 @description('Optional. Restrict outbound network access.')
-param restrictOutboundNetworkAccess bool = true
+param restrictOutboundNetworkAccess bool = false
 
 @description('Optional. The storage accounts for this resource.')
 param userOwnedStorage array?

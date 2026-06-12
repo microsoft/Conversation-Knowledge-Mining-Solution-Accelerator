@@ -104,8 +104,10 @@ const Explore: React.FC = () => {
       const [fR, dR, sR] = await Promise.allSettled([
         getUploadedFiles(), listDataSources(), getExtractionInfo(),
       ]);
-      const newFiles = fR.status === "fulfilled" ? fR.value.data.filter((f: any) => f.status === "ready" || !f.status) : [];
-      const newDS = dR.status === "fulfilled" ? dR.value.data.filter((ds: any) => ds.status === "connected") : [];
+      const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
+      const newFiles = rawFiles.filter((f: any) => f.status === "ready" || !f.status);
+      const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : [];
+      const newDS = rawDS.filter((ds: any) => ds.status === "connected");
       const newSchema = sR.status === "fulfilled" ? sR.value.data : null;
       setFiles(newFiles);
       setDataSources(newDS);
