@@ -3,7 +3,7 @@ WORKDIR /home/node/app
 
 COPY ./package*.json ./  
   
-RUN npm ci --omit=dev 
+RUN npm ci --include=dev
  
 COPY . .  
  
@@ -11,7 +11,7 @@ RUN npm run build
   
 FROM nginx:alpine  
 
-COPY --from=build /home/node/app/build /usr/share/nginx/html  
+COPY --from=build /home/node/app/dist /usr/share/nginx/html  
 
 COPY env.sh /docker-entrypoint.d/env.sh
 RUN chmod +x /docker-entrypoint.d/env.sh

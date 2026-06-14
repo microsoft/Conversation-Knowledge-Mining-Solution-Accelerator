@@ -93,15 +93,11 @@ class TestHistoryService:
         # Mock agent
         mock_agent = MagicMock()
         mock_agent.run = AsyncMock(return_value=mock_result)
-        
-        # Mock provider
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
 
         with patch("services.history_service.get_azure_credential_async", new_callable=AsyncMock) as mock_get_cred:
             mock_get_cred.return_value = mock_credential
             with patch("services.history_service.AIProjectClient", return_value=mock_project_client):
-                with patch("services.history_service.AzureAIProjectAgentProvider", return_value=mock_provider):
+                with patch("services.history_service.FoundryAgent", return_value=mock_agent):
                     result = await history_service.generate_title(conversation_messages)
                     assert result == "Billing Help Request"
                     mock_agent.run.assert_called_once()
