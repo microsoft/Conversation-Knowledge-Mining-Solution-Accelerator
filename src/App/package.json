@@ -37,10 +37,10 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/chart.js": "^4.0.1",
     "@types/lodash-es": "^4.17.12",
-    "@vitejs/plugin-react": "^4.5.2",
+    "@vitejs/plugin-react": "^6.0.2",
     "jsdom": "^26.1.0",
     "typescript": "^5.7.0",
-    "vite": "^6.3.5",
+    "vite": "^8.0.16",
     "vitest": "^4.1.0"
   },
   "scripts": {
