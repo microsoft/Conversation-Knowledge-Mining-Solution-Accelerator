@@ -27,7 +27,7 @@ from agent_framework_foundry import FoundryAgent
 # Restore Azure AI Search per-document URL enrichment on streaming citations
 # (regression at agent-framework GA; tracked upstream as microsoft/agent-framework#5995).
 # Must be imported BEFORE the first FoundryAgent.run() call.
-from services._patches import agent_framework_search_citations as _  # noqa: F401 - patch applied for side effects on import
+import services._patches.agent_framework_search_citations  # noqa: F401 - patch applied for side effects on import
 
 from cachetools import TTLCache
 
