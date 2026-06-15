@@ -18,13 +18,13 @@ If you would like to update the solution to leverage your own data please follow
 4. Navigate to the terminal and run the `process_custom_data.sh` script to process the new data into the solution with the following commands:
     
     ```bash
-    bash ./infra/scripts/process_custom_data.sh
+    bash ./infra/scripts/post-provision/process_custom_data.sh
     ```
     
     If you don't have `azd env` then you need to pass parameters along with the command. Parameters are grouped by service for clarity. The command will look like the following:
 
     ```bash
-    bash ./infra/scripts/process_custom_data.sh \
+    bash ./infra/scripts/post-provision/process_custom_data.sh \
       <Resource-Group-Name> <Azure-Subscription-ID> \
       <Storage-Account-Name> <Storage-Container-Name> \
       <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \

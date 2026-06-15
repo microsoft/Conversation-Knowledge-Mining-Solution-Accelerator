@@ -357,13 +357,13 @@ az login --use-device-code
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh
 ```
 
 **If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh \
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh \
    <resource-group> \
    <project-endpoint> <solution-name> <gpt-model-name> \
    <ai-foundry-resource-id> <api-app-name> \
@@ -384,13 +384,13 @@ bash ./infra/scripts/run_create_agents_scripts.sh \
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh
+bash ./infra/scripts/post-provision/process_sample_data.sh
 ```
 
 **If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh \
+bash ./infra/scripts/post-provision/process_sample_data.sh \
   <Resource-Group-Name> <Azure-Subscription-ID> \
   <Storage-Account-Name> <Storage-Container-Name> \
   <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \

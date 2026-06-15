@@ -104,7 +104,7 @@ az login
 Run the bash script from the output of the AVM deployment:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh <Resource-Group-Name>
 ```
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
@@ -112,7 +112,7 @@ bash ./infra/scripts/run_create_agents_scripts.sh <Resource-Group-Name>
 Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh \
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh \
   <Resource-Group-Name> <Project-Endpoint> <Solution-Name> \
   <GPT-Model-Name> <AI-Foundry-Resource-ID> <API-App-Name> \
   <AI-Search-Connection-Name> <AI-Search-Index>
@@ -125,7 +125,7 @@ bash ./infra/scripts/run_create_agents_scripts.sh \
 Run the bash script from the output of the AVM deployment:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
+bash ./infra/scripts/post-provision/process_sample_data.sh <Resource-Group-Name>
 ```
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
@@ -133,7 +133,7 @@ bash ./infra/scripts/process_sample_data.sh <Resource-Group-Name>
 Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh \
+bash ./infra/scripts/post-provision/process_sample_data.sh \
   <Resource-Group-Name> <Azure-Subscription-ID> \
   <Storage-Account-Name> <Storage-Container-Name> \
   <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
@@ -199,7 +199,7 @@ To replace the sample data with your own conversational data, follow these steps
 Run the processing script to integrate your data into the solution:
 
 ```bash
-bash ./infra/scripts/process_custom_data.sh <Resource-Group-Name>
+bash ./infra/scripts/post-provision/process_custom_data.sh <Resource-Group-Name>
 ```
 
 > ⚠️ **Important**: Replace `<Resource-Group-Name>` with your actual resource group name from the deployment.
@@ -207,7 +207,7 @@ bash ./infra/scripts/process_custom_data.sh <Resource-Group-Name>
 Alternatively, If you don't have `azd env` configured, pass the required parameters:
 
 ```bash
-bash ./infra/scripts/process_custom_data.sh \
+bash ./infra/scripts/post-provision/process_custom_data.sh \
   <Resource-Group-Name> <Azure-Subscription-ID> \
   <Storage-Account-Name> <Storage-Container-Name> \
   <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
