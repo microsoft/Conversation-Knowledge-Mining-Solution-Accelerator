@@ -585,43 +585,43 @@ module model_deployments './modules/ai/ai-foundry-model-deployment.bicep' = [for
   }
 }]
 
-// // ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
-// module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
-//   name: take('module.pe-ai-foundry.${solutionName}', 64)
-//   dependsOn: [model_deployments,foundry_search_connection,privateDnsZoneDeployments]
-//   params: {
-//     name: 'pep-aif-${solutionSuffix}'
-//     location: location
-//     tags: tags
-//     subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
-//     customNetworkInterfaceName: 'nic-aif-${solutionSuffix}'
-//     privateLinkServiceConnections: [
-//       {
-//         name: 'pep-aif-${solutionSuffix}-connection'
-//         properties: {
-//           privateLinkServiceId: ai_foundry_project!.outputs.resourceId
-//           groupIds: ['account']
-//         }
-//       }
-//     ]
-//     privateDnsZoneGroup: {
-//       privateDnsZoneGroupConfigs: [
-//         {
-//           name: 'ai-services-dns-zone-cognitiveservices'
-//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
-//         }
-//         {
-//           name: 'ai-services-dns-zone-openai'
-//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.openAI]!.outputs.resourceId
-//         }
-//         {
-//           name: 'ai-services-dns-zone-aiservices'
-//           privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.aiServices]!.outputs.resourceId
-//         }
-//       ]
-//     }
-//   }
-// }
+// ========== Separate PE for AI Foundry to avoid AccountProvisioningStateInvalid race condition ========== //
+module aifoundry_private_endpoint './modules/networking/private-endpoint.bicep' = if (!useExistingAIProject && enablePrivateNetworking) {
+  name: take('module.pe-ai-foundry.${solutionName}', 64)
+  dependsOn: [model_deployments,foundry_search_connection,privateDnsZoneDeployments]
+  params: {
+    name: 'pep-aif-${solutionSuffix}'
+    location: location
+    tags: tags
+    subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
+    customNetworkInterfaceName: 'nic-aif-${solutionSuffix}'
+    privateLinkServiceConnections: [
+      {
+        name: 'pep-aif-${solutionSuffix}-connection'
+        properties: {
+          privateLinkServiceId: ai_foundry_project!.outputs.resourceId
+          groupIds: ['account']
+        }
+      }
+    ]
+    privateDnsZoneGroup: {
+      privateDnsZoneGroupConfigs: [
+        {
+          name: 'ai-services-dns-zone-cognitiveservices'
+          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.cognitiveServices]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-openai'
+          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.openAI]!.outputs.resourceId
+        }
+        {
+          name: 'ai-services-dns-zone-aiservices'
+          privateDnsZoneResourceId: privateDnsZoneDeployments[dnsZoneIndex.aiServices]!.outputs.resourceId
+        }
+      ]
+    }
+  }
+}
 
 // ========== AI Search service (called by Foundry connection module, so deployed after the project) ========== //
 module ai_search './modules/ai/ai-search.bicep' = {
