@@ -118,6 +118,33 @@ param frontendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
 @description('Optional. App Service Plan SKU (used by AVM flavors).')
 param appServicePlanSku string = 'B3'
 
+@description('Kind of web app.')
+param kind string = 'app,linux,container'
+
+@description('Optional. Docker image name for the backend API (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides backend image settings if provided.')
+param backendLinuxFxVersion string = ''
+
+@description('Optional. Docker image name for the frontend web app (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides frontend image settings if provided.')
+param frontendLinuxFxVersion string = ''
+
+@description('Optional. Command line for the backend application.')
+param backendAppCommandLine string = ''
+
+@description('Optional. Command line for the frontend application.')
+param frontendAppCommandLine string = ''
+
+@description('Optional. Whether to do build during deployment.')
+param scmDoBuildDuringDeployment string = ''
+
+@description('Optional. Whether to enable Oryx build.')
+param enableOryxBuild string = ''
+
+@description('Optional. Default Node.js version for the website.')
+param websiteNodeDefaultVersion string = ''
+
+@description('Optional. Python unbuffered flag.')
+param pythonUnbuffered string = ''
+
 // ============================================================================
 // Parameters — Feature Flags
 // ============================================================================
@@ -303,6 +330,7 @@ module ai_search './modules/ai/ai-search.bicep' = {
   params: {
     solutionName: solutionSuffix
     location: searchServiceLocation
+    skuName: 'standard'
   }
   scope: resourceGroup(resourceGroup().name)
 }
@@ -446,8 +474,11 @@ module backend_docker './modules/compute/app-service.bicep' = {
     solutionName: solutionSuffix
     name: 'api-${solutionSuffix}'
     location: location
+    tags: union(tags, { 'azd-service-name': 'api' })
     serverFarmResourceId: hostingplan!.outputs.resourceId
-    linuxFxVersion: backendApiImageName
+    kind: kind
+    linuxFxVersion: !empty(backendLinuxFxVersion) ? backendLinuxFxVersion : backendApiImageName
+    appCommandLine: backendAppCommandLine
     appSettings: {
       AGENT_NAME_CONVERSATION: ''
       AGENT_NAME_TITLE: ''
@@ -473,6 +504,13 @@ module backend_docker './modules/compute/app-service.bicep' = {
       SQLDB_SERVER: sqlDBModule!.outputs.serverFqdn
       USE_AI_PROJECT_CLIENT: 'True'
       USE_CHAT_HISTORY_ENABLED: useChatHistoryEnabledSetting
+      ...(!empty(scmDoBuildDuringDeployment) && !empty(enableOryxBuild) && !empty(pythonUnbuffered))
+      ? {
+        SCM_DO_BUILD_DURING_DEPLOYMENT: scmDoBuildDuringDeployment
+        ENABLE_ORYX_BUILD: enableOryxBuild
+        PYTHONUNBUFFERED: pythonUnbuffered
+      }
+      : {}
     }
   }
   scope: resourceGroup(resourceGroup().name)
@@ -485,11 +523,21 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     solutionName: solutionSuffix
     name: 'app-${solutionSuffix}'
     location: location
+    tags: union(tags, { 'azd-service-name': 'webapp' })
     serverFarmResourceId: hostingplan!.outputs.resourceId
-    linuxFxVersion: frontendImageName
+    kind: kind
+    linuxFxVersion: !empty(frontendLinuxFxVersion) ? frontendLinuxFxVersion : frontendImageName
+    appCommandLine: frontendAppCommandLine
     appSettings: {
       APPINSIGHTS_INSTRUMENTATIONKEY: app_insights.outputs.instrumentationKey
       APP_API_BASE_URL: backend_docker!.outputs.appUrl
+      ...(!empty(scmDoBuildDuringDeployment) && !empty(enableOryxBuild) && !empty(websiteNodeDefaultVersion))
+      ? {
+        SCM_DO_BUILD_DURING_DEPLOYMENT: scmDoBuildDuringDeployment
+        ENABLE_ORYX_BUILD: enableOryxBuild
+        WEBSITE_NODE_DEFAULT_VERSION: websiteNodeDefaultVersion
+      }
+      : {}
     }
   }
   scope: resourceGroup(resourceGroup().name)

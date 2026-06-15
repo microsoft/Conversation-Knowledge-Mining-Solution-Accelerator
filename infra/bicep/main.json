@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "3465965418629910031"
+      "templateHash": "7862678916993680011"
     }
   },
   "parameters": {
@@ -236,6 +236,69 @@
       ],
       "metadata": {
         "description": "Optional. App Service Plan SKU (used by AVM flavors)."
+      }
+    },
+    "kind": {
+      "type": "string",
+      "defaultValue": "app,linux,container",
+      "metadata": {
+        "description": "Kind of web app."
+      }
+    },
+    "backendLinuxFxVersion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Docker image name for the backend API (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides backend image settings if provided."
+      }
+    },
+    "frontendLinuxFxVersion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Docker image name for the frontend web app (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides frontend image settings if provided."
+      }
+    },
+    "backendAppCommandLine": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Command line for the backend application."
+      }
+    },
+    "frontendAppCommandLine": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Command line for the frontend application."
+      }
+    },
+    "scmDoBuildDuringDeployment": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Whether to do build during deployment."
+      }
+    },
+    "enableOryxBuild": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Whether to enable Oryx build."
+      }
+    },
+    "websiteNodeDefaultVersion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Default Node.js version for the website."
+      }
+    },
+    "pythonUnbuffered": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Python unbuffered flag."
       }
     },
     "useChatHistoryEnabled": {
@@ -2406,36 +2469,15 @@
           "serverFarmResourceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('module.app-service-plan.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.resourceId.value]"
           },
-          "linuxFxVersion": {
-            "value": "[variables('backendApiImageName')]"
+          "kind": {
+            "value": "[parameters('kind')]"
+          },
+          "linuxFxVersion": "[if(not(empty(parameters('backendLinuxFxVersion'))), createObject('value', parameters('backendLinuxFxVersion')), createObject('value', variables('backendApiImageName')))]",
+          "appCommandLine": {
+            "value": "[parameters('backendAppCommandLine')]"
           },
           "appSettings": {
-            "value": {
-              "AGENT_NAME_CONVERSATION": "",
-              "AGENT_NAME_TITLE": "",
-              "APPLICATIONINSIGHTS_CONNECTION_STRING": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-insights.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.connectionString.value]",
-              "APP_ENV": "Prod",
-              "AZURE_AI_AGENT_API_VERSION": "[parameters('azureAiAgentApiVersion')]",
-              "AZURE_AI_AGENT_ENDPOINT": "[if(variables('useExistingAIProject'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundrySubscriptionId'), variables('aiFoundryResourceGroupName')), 'Microsoft.Resources/deployments', take(format('module.existing-project-setup.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.projectEndpoint.value, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.ai-foundry-project.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.projectEndpoint.value)]",
-              "AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME": "[parameters('gptModelName')]",
-              "AZURE_AI_SEARCH_CONNECTION_NAME": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundrySubscriptionId'), variables('aiFoundryResourceGroupName')), 'Microsoft.Resources/deployments', take(format('module.foundry-search-conn.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.connectionName.value]",
-              "AZURE_AI_SEARCH_ENDPOINT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.ai-search.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.endpoint.value]",
-              "AZURE_AI_SEARCH_INDEX": "call_transcripts_index",
-              "AZURE_BASIC_LOGGING_LEVEL": "INFO",
-              "AZURE_COSMOSDB_ACCOUNT": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.name.value]",
-              "AZURE_COSMOSDB_CONVERSATIONS_CONTAINER": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.containerName.value]",
-              "AZURE_COSMOSDB_DATABASE": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.databaseName.value]",
-              "AZURE_COSMOSDB_ENABLE_FEEDBACK": "True",
-              "AZURE_LOGGING_PACKAGES": "",
-              "DISPLAY_CHART_DEFAULT": "False",
-              "DUMMY_TEST": "True",
-              "REACT_APP_LAYOUT_CONFIG": "[variables('reactAppLayoutConfig')]",
-              "SOLUTION_NAME": "[variables('solutionSuffix')]",
-              "SQLDB_DATABASE": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.sql-db.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.databaseName.value]",
-              "SQLDB_SERVER": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.sql-db.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.serverFqdn.value]",
-              "USE_AI_PROJECT_CLIENT": "True",
-              "USE_CHAT_HISTORY_ENABLED": "[variables('useChatHistoryEnabledSetting')]"
-            }
+            "value": "[shallowMerge(createArray(createObject('AGENT_NAME_CONVERSATION', '', 'AGENT_NAME_TITLE', '', 'APPLICATIONINSIGHTS_CONNECTION_STRING', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-insights.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.connectionString.value, 'APP_ENV', 'Prod', 'AZURE_AI_AGENT_API_VERSION', parameters('azureAiAgentApiVersion'), 'AZURE_AI_AGENT_ENDPOINT', if(variables('useExistingAIProject'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundrySubscriptionId'), variables('aiFoundryResourceGroupName')), 'Microsoft.Resources/deployments', take(format('module.existing-project-setup.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.projectEndpoint.value, reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.ai-foundry-project.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.projectEndpoint.value), 'AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME', parameters('gptModelName'), 'AZURE_AI_SEARCH_CONNECTION_NAME', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('aiFoundrySubscriptionId'), variables('aiFoundryResourceGroupName')), 'Microsoft.Resources/deployments', take(format('module.foundry-search-conn.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.connectionName.value, 'AZURE_AI_SEARCH_ENDPOINT', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.ai-search.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.endpoint.value, 'AZURE_AI_SEARCH_INDEX', 'call_transcripts_index', 'AZURE_BASIC_LOGGING_LEVEL', 'INFO', 'AZURE_COSMOSDB_ACCOUNT', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.name.value, 'AZURE_COSMOSDB_CONVERSATIONS_CONTAINER', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.containerName.value, 'AZURE_COSMOSDB_DATABASE', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.cosmos-db-nosql.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.databaseName.value, 'AZURE_COSMOSDB_ENABLE_FEEDBACK', 'True', 'AZURE_LOGGING_PACKAGES', '', 'DISPLAY_CHART_DEFAULT', 'False', 'DUMMY_TEST', 'True', 'REACT_APP_LAYOUT_CONFIG', variables('reactAppLayoutConfig'), 'SOLUTION_NAME', variables('solutionSuffix'), 'SQLDB_DATABASE', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.sql-db.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.databaseName.value, 'SQLDB_SERVER', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.sql-db.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.serverFqdn.value, 'USE_AI_PROJECT_CLIENT', 'True', 'USE_CHAT_HISTORY_ENABLED', variables('useChatHistoryEnabledSetting')), if(and(and(not(empty(parameters('scmDoBuildDuringDeployment'))), not(empty(parameters('enableOryxBuild')))), not(empty(parameters('pythonUnbuffered')))), createObject('SCM_DO_BUILD_DURING_DEPLOYMENT', parameters('scmDoBuildDuringDeployment'), 'ENABLE_ORYX_BUILD', parameters('enableOryxBuild'), 'PYTHONUNBUFFERED', parameters('pythonUnbuffered')), createObject())))]"
           }
         },
         "template": {
@@ -2445,7 +2487,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "13974117254762023166"
+              "templateHash": "16810600753084752575"
             }
           },
           "parameters": {
@@ -2508,6 +2550,13 @@
                 "description": "Kind of web app."
               }
             },
+            "appCommandLine": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Command line for the application."
+              }
+            },
             "virtualNetworkSubnetId": {
               "type": "string",
               "defaultValue": "",
@@ -2563,7 +2612,8 @@
                 "siteConfig": {
                   "alwaysOn": "[parameters('alwaysOn')]",
                   "ftpsState": "Disabled",
-                  "linuxFxVersion": "[parameters('linuxFxVersion')]"
+                  "linuxFxVersion": "[parameters('linuxFxVersion')]",
+                  "appCommandLine": "[parameters('appCommandLine')]"
                 },
                 "endToEndEncryptionEnabled": true
               }
@@ -2680,14 +2730,15 @@
           "serverFarmResourceId": {
             "value": "[reference(resourceId('Microsoft.Resources/deployments', take(format('module.app-service-plan.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.resourceId.value]"
           },
-          "linuxFxVersion": {
-            "value": "[variables('frontendImageName')]"
+          "kind": {
+            "value": "[parameters('kind')]"
+          },
+          "linuxFxVersion": "[if(not(empty(parameters('frontendLinuxFxVersion'))), createObject('value', parameters('frontendLinuxFxVersion')), createObject('value', variables('frontendImageName')))]",
+          "appCommandLine": {
+            "value": "[parameters('frontendAppCommandLine')]"
           },
           "appSettings": {
-            "value": {
-              "APPINSIGHTS_INSTRUMENTATIONKEY": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-insights.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.instrumentationKey.value]",
-              "APP_API_BASE_URL": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-service-backend.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.appUrl.value]"
-            }
+            "value": "[shallowMerge(createArray(createObject('APPINSIGHTS_INSTRUMENTATIONKEY', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-insights.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.instrumentationKey.value, 'APP_API_BASE_URL', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-service-backend.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.appUrl.value), if(and(and(not(empty(parameters('scmDoBuildDuringDeployment'))), not(empty(parameters('enableOryxBuild')))), not(empty(parameters('websiteNodeDefaultVersion')))), createObject('SCM_DO_BUILD_DURING_DEPLOYMENT', parameters('scmDoBuildDuringDeployment'), 'ENABLE_ORYX_BUILD', parameters('enableOryxBuild'), 'WEBSITE_NODE_DEFAULT_VERSION', parameters('websiteNodeDefaultVersion')), createObject())))]"
           }
         },
         "template": {
@@ -2697,7 +2748,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "13974117254762023166"
+              "templateHash": "16810600753084752575"
             }
           },
           "parameters": {
@@ -2760,6 +2811,13 @@
                 "description": "Kind of web app."
               }
             },
+            "appCommandLine": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Command line for the application."
+              }
+            },
             "virtualNetworkSubnetId": {
               "type": "string",
               "defaultValue": "",
@@ -2815,7 +2873,8 @@
                 "siteConfig": {
                   "alwaysOn": "[parameters('alwaysOn')]",
                   "ftpsState": "Disabled",
-                  "linuxFxVersion": "[parameters('linuxFxVersion')]"
+                  "linuxFxVersion": "[parameters('linuxFxVersion')]",
+                  "appCommandLine": "[parameters('appCommandLine')]"
                 },
                 "endToEndEncryptionEnabled": true
               }

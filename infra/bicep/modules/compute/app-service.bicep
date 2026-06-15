@@ -31,6 +31,9 @@ param alwaysOn bool = true
 @description('Kind of web app.')
 param kind string = 'app,linux'
 
+@description('Command line for the application.')
+param appCommandLine string = ''
+
 @description('Subnet resource ID for VNet integration.')
 param virtualNetworkSubnetId string = ''
 
@@ -56,6 +59,7 @@ resource appService 'Microsoft.Web/sites@2025-05-01' = {
       alwaysOn: alwaysOn
       ftpsState: 'Disabled'
       linuxFxVersion: linuxFxVersion
+      appCommandLine: appCommandLine
     }
     endToEndEncryptionEnabled: true
   }

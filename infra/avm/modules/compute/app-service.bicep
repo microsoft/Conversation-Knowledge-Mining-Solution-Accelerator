@@ -31,6 +31,9 @@ param alwaysOn bool = true
 @description('Kind of web app.')
 param kind string = 'app,linux'
 
+@description('Command line for the application.')
+param appCommandLine string = ''
+
 @description('Optional. Enable/Disable usage telemetry for module.')
 param enableTelemetry bool = true
 
@@ -76,6 +79,7 @@ module appService 'br/public:avm/res/web/site:0.23.1' = {
       ftpsState: 'Disabled'
       linuxFxVersion: linuxFxVersion
       minTlsVersion: '1.2'
+      appCommandLine: appCommandLine
     }
     e2eEncryptionEnabled: true
     configs: [

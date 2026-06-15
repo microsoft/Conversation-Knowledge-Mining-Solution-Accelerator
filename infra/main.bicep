@@ -122,6 +122,9 @@ param frontendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
 @description('Optional. App Service Plan SKU.')
 param appServicePlanSku string = 'B3'
 
+@description('Kind of web app.')
+param kind string = 'app,linux,container'
+
 // ============================================================================
 // Parameters — Feature Flags
 // ============================================================================
@@ -221,6 +224,7 @@ module avmDeployment './avm/main.bicep' = if (isAvm) {
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     azureAiAgentApiVersion: azureAiAgentApiVersion
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
+    kind: kind
     containerRegistryName: containerRegistryName
     appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname
@@ -260,6 +264,7 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     embeddingDeploymentCapacity: embeddingDeploymentCapacity
     azureAiAgentApiVersion: azureAiAgentApiVersion
     azureContentUnderstandingApiVersion: azureContentUnderstandingApiVersion
+    kind: kind
     containerRegistryName: containerRegistryName
     appServicePlanSku: appServicePlanSku
     backendContainerRegistryHostname: backendContainerRegistryHostname
