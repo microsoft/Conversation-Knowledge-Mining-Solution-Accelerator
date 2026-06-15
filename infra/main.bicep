@@ -95,6 +95,7 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
     publicNetworkAccess: 'Enabled'
     restrictOutboundNetworkAccess: false
     disableLocalAuth: false
+    restore: false
     deployments: [
       {
         name: chatDeploymentName
@@ -142,6 +143,7 @@ module cuServices 'modules/ai-services.bicep' = {
     publicNetworkAccess: 'Enabled'
     restrictOutboundNetworkAccess: false
     disableLocalAuth: false
+    restore: false
     deployments: []
   }
 }
