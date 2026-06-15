@@ -143,6 +143,10 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 4. (Optional) Configure authentication:
    - Go to Azure Portal → App Service → **Authentication** → **Add identity provider** → **Microsoft**
 
+After deploying, the Home page is ready for your data — upload files or load a scenario pack to get started:
+
+![Home page after deployment](docs/images/data-free-homepage.png)
+
 > ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
 
 ---

@@ -8,6 +8,17 @@ metadata:
   template: knowledge-mining@1.0
 
 hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./infra/scripts/build-images.ps1
+      continueOnError: false
+      interactive: true
+    posix:
+      shell: sh
+      run: pwsh -File ./infra/scripts/build-images.ps1
+      continueOnError: false
+      interactive: true
   postprovision:
     windows:
       shell: pwsh
