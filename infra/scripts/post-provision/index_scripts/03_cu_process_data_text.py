@@ -71,13 +71,13 @@ async def main():
     INDEX_NAME = "call_transcripts_index"
 
     if USE_CASE == "telecom":
-        SAMPLE_IMPORT_FILE = 'infra/scripts/data/telecom/sample_search_index_data.json'
-        SAMPLE_PROCESSED_DATA_FILE = 'infra/scripts/data/telecom/sample_processed_data.json'
-        SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/scripts/data/telecom/sample_processed_data_key_phrases.json'
+        SAMPLE_IMPORT_FILE = 'data/telecom/sample_search_index_data.json'
+        SAMPLE_PROCESSED_DATA_FILE = 'data/telecom/sample_processed_data.json'
+        SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'data/telecom/sample_processed_data_key_phrases.json'
     else:
-        SAMPLE_IMPORT_FILE = 'infra/scripts/data/IT_helpdesk/sample_search_index_data.json'
-        SAMPLE_PROCESSED_DATA_FILE = 'infra/scripts/data/IT_helpdesk/sample_processed_data.json'
-        SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'infra/scripts/data/IT_helpdesk/sample_processed_data_key_phrases.json'
+        SAMPLE_IMPORT_FILE = 'data/IT_helpdesk/sample_search_index_data.json'
+        SAMPLE_PROCESSED_DATA_FILE = 'data/IT_helpdesk/sample_processed_data.json'
+        SAMPLE_PROCESSED_DATA_KEY_PHRASES_FILE = 'data/IT_helpdesk/sample_processed_data_key_phrases.json'
 
     # Shared credential
     credential = AzureCliCredential(process_timeout=30)

@@ -17,7 +17,7 @@ CU_API_VERSION = args.cu_api_version
 
 ANALYZER_ID = "ckm_analyzer_json"
 
-ANALYZER_TEMPLATE_FILE = 'infra/scripts/data/ckm_analyzer_config_json.json'
+ANALYZER_TEMPLATE_FILE = 'data/ckm_analyzer_config_json.json'
 
 credential = AzureCliCredential(process_timeout=30)
 # Initialize Content Understanding Client

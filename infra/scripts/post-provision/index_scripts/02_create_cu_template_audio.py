@@ -19,7 +19,7 @@ CU_API_VERSION = args.cu_api_version
 
 ANALYZER_ID = "ckm_analyzer_audio"
 
-ANALYZER_TEMPLATE_FILE = 'infra/scripts/data/ckm_analyzer_config_audio.json'
+ANALYZER_TEMPLATE_FILE = 'data/ckm_analyzer_config_audio.json'
 
 # Add parent directory to path for imports
 sys.path.append(str(Path.cwd().parent))

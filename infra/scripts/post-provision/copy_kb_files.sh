@@ -11,11 +11,11 @@ if [ -z "$usecase" ]; then
 fi
 
 if [ "$usecase" == "telecom" ]; then
-	zipFileName1="infra/scripts/data/telecom/call_transcripts.zip"
-	zipFileName2="infra/scripts/data/telecom/audio_data.zip"
+	zipFileName1="data/telecom/call_transcripts.zip"
+	zipFileName2="data/telecom/audio_data.zip"
 	extractedFolder2="audio_data"
 elif [ "$usecase" == "IT_helpdesk" ]; then
-	zipFileName1="infra/scripts/data/IT_helpdesk/call_transcripts.zip"
+	zipFileName1="data/IT_helpdesk/call_transcripts.zip"
 fi
 
 extractedFolder1="call_transcripts"

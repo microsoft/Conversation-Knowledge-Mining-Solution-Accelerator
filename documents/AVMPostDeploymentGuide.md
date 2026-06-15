@@ -182,7 +182,7 @@ To replace the sample data with your own conversational data, follow these steps
 - Your data must be in **JSON** (transcripts) or **WAV** (audio) format
 - File names should be prefixed with "convo" followed by a GUID and timestamp
   - Example: `convo_32e38683-bbf7-407e-a541-09b37b77921d_2024-12-07 04%3A00%3A00`
-- For examples, see the sample data in the `infra/scripts/data/` folder
+- For examples, see the sample data in the `data/` folder
 
 #### Upload Your Data
 
