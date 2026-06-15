@@ -58,6 +58,8 @@ export const getAvailableFilters = () => apiClient.get("/ingestion/filters");
 export const getUploadedFiles = () => apiClient.get("/ingestion/files");
 export const deleteFile = (fileId: string) =>
   apiClient.delete(`/ingestion/files/${encodeURIComponent(fileId)}`);
+export const retryFile = (fileId: string) =>
+  apiClient.post(`/ingestion/files/${encodeURIComponent(fileId)}/retry`);
 export const getExtractionInfo = () => apiClient.get("/ingestion/extraction");
 
 // --- File Upload ---

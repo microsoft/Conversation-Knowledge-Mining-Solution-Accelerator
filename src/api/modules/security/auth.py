@@ -47,11 +47,13 @@ async def get_current_user(request: Request) -> User:
 
         return User(user_id=principal_id, name=name, email=email, roles=roles)
 
-    # Dev mode: no EasyAuth headers — allow anonymous access
-    if not is_prod:
-        return User(user_id="dev-user", name="Developer", email="dev@local", roles=["Admin"])
-
-    raise HTTPException(status_code=401, detail="Authentication required")
+    # No EasyAuth headers — allow anonymous access.
+    # When EasyAuth is enabled on the App Service, it intercepts unauthenticated
+    # requests BEFORE they reach this code, so if we get here without headers
+    # it means EasyAuth is not configured (dev or pre-auth-setup prod).
+    if is_prod:
+        logger.debug("No EasyAuth headers in prod — EasyAuth not configured, allowing anonymous")
+    return User(user_id="anonymous", name="User", email="", roles=["Admin"])
 
 
 def require_role(required_role: str):

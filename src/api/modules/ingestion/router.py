@@ -300,13 +300,21 @@ async def refresh_cache(user: User = Depends(get_current_user)):
 
 @router.get("/extraction", response_model=FilterSchema)
 async def get_filter_schema(user: User = Depends(get_current_user)):
-    """Return the AI-generated filter schema with dimensions and values.
-    Falls back to SQL metadata if no extraction schema exists."""
+    """Return the filter schema with dimensions and values.
+    Merges AI-generated schema with SQL metadata-based filters."""
     schema = ingestion_service.filter_schema
-    if schema.dimensions:
-        return schema
-    # Fallback: build dimensions from SQL metadata for seeded/connected data
-    return _build_sql_filters()
+
+    # Always merge SQL metadata filters (covers seeded data like sample_processed_data)
+    sql_schema = _build_sql_filters()
+    if sql_schema.dimensions:
+        existing_ids = {d.id for d in schema.dimensions}
+        for dim in sql_schema.dimensions:
+            if dim.id not in existing_ids:
+                schema.dimensions.append(dim)
+
+    if not schema.dimensions:
+        return FilterSchema()
+    return schema
 
 
 def _build_sql_filters() -> FilterSchema:
@@ -398,6 +406,45 @@ async def delete_file(file_id: str, user: User = Depends(require_role("contribut
         "file_id": file_id,
         "updated_schema": ingestion_service.filter_schema.dict(),
     }
+
+
+@router.post("/files/{file_id}/retry")
+async def retry_file(
+    file_id: str,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(require_role("contributor")),
+):
+    """Retry processing a failed or stuck file by re-downloading from blob and re-processing."""
+    from src.api.modules.ingestion.azure_storage import azure_storage_service
+    from src.api.modules.ingestion.queue_service import queue_service, EXTRACTION_QUEUE
+
+    ingestion_service._ensure_loaded()
+    existing = ingestion_service._uploaded_files.get(file_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"File '{file_id}' not found")
+    if existing.status not in ("failed", "ready"):
+        raise HTTPException(status_code=409, detail=f"File is currently {existing.status}")
+
+    filename = existing.filename
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    # Reset status to processing
+    ingestion_service._update_file_status(file_id, "processing", error="")
+
+    # Try to re-download from blob and re-process
+    try:
+        content = azure_storage_service.download_raw_file(file_id, filename)
+    except Exception:
+        content = None
+
+    if content:
+        message = {"file_id": file_id, "filename": filename, "ext": ext, "blob_path": f"raw/{file_id}/{filename}"}
+        if not queue_service.available or not queue_service.enqueue(EXTRACTION_QUEUE, message):
+            background_tasks.add_task(_process_single_document, file_id, filename, ext, content)
+    else:
+        ingestion_service._update_file_status(file_id, "failed", error="Raw file not found in blob storage. Please re-upload.")
+
+    return {"status": "retrying", "file_id": file_id}
 
 
 # ══════════════════════════════════════════════

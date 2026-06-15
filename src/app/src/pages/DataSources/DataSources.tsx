@@ -28,10 +28,12 @@ import {
   ingestDataSource,
   getUploadedFiles,
   deleteFile,
+  retryFile,
   uploadDocument,
 } from "../../api/client";
 import type { UploadedFile, DataSourceConfig } from "../../types/api";
 import { useNavigate } from "react-router-dom";
+import { useAppState } from "../../context/AppStateContext";
 import "./DataSources.css";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -44,6 +46,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const DataSources: React.FC = () => {
   const navigate = useNavigate();
+  const { setExploreData } = useAppState();
   const [sources, setSources] = useState<DataSourceConfig[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,12 +86,16 @@ const DataSources: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await deleteFile(deleteTarget.id); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await deleteFile(deleteTarget.id); setExploreData(null); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
     finally { setDeleting(false); setDeleteTarget(null); }
   };
 
   const handleDeleteSource = async (id: string) => {
     try { await deleteDataSource(id); loadSources(); } catch (e) { setError(`Failed to delete data source: ${e instanceof Error ? e.message : "Unknown error"}`); }
+  };
+
+  const handleRetry = async (id: string) => {
+    try { await retryFile(id); setExploreData(null); loadSources(); } catch (e) { setError(`Retry failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
   };
 
   const handleIngest = async (id: string) => {
@@ -111,6 +118,7 @@ const DataSources: React.FC = () => {
     }
     try {
       await uploadDocument(files);
+      setExploreData(null);
       loadSources();
     } catch (e) { setError(`Upload failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -233,6 +241,10 @@ const DataSources: React.FC = () => {
                 <div className="sourceMetaError">{f.error || "Processing failed"}</div>
               </div>
               <div className="sourceActions sourceActionsVisible">
+                <button className="actionBtn" title="Retry"
+                  onClick={() => handleRetry(f.id)}>
+                  <ArrowSync20Regular />
+                </button>
                 <button className="actionBtn deleteBtn" title="Delete"
                   onClick={() => handleDeleteFile(f.id, f.filename)}>
                   <Delete20Regular />

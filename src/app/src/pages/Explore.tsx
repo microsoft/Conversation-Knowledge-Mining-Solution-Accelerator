@@ -99,7 +99,7 @@ const Explore: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
+    if (!exploreData) setLoading(true);
     try {
       const [fR, dR, sR] = await Promise.allSettled([
         getUploadedFiles(), listDataSources(), getExtractionInfo(),
@@ -214,7 +214,24 @@ const Explore: React.FC = () => {
         {/* ═══ LEFT: Data ═══ */}
         <div className={s.left}>
           <div className={s.leftSection}>
-            <div className={s.leftLabel}>Data</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className={s.leftLabel}>Data</div>
+              {selectedDocIds.size > 0 && (
+                <button onClick={() => setSelectedDocIds(new Set())}
+                  title="Clear selection"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 3,
+                    border: "none", borderRadius: 4, background: "none",
+                    cursor: "pointer", fontSize: 11, color: "#64748b",
+                    fontFamily: "inherit", padding: "2px 4px",
+                    transition: "color 0.15s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#2563eb")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "#64748b")}>
+                  <Dismiss12Regular />
+                </button>
+              )}
+            </div>
             {files.map(f => (
               <div key={f.id} className={selectedDocIds.has(f.id) ? s.sourceItemActive : s.sourceItem}
                 onClick={() => toggleDoc(f.id)}>
@@ -222,7 +239,7 @@ const Explore: React.FC = () => {
                   ? <Checkmark20Regular style={{ fontSize: 14, flexShrink: 0 }} />
                   : <DocumentText20Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.filename}</span>
-                <Caption1>{f.doc_count}</Caption1>
+                <Caption1>{f.doc_count || 1}</Caption1>
               </div>
             ))}
             {dataSources.map(ds => (
@@ -247,13 +264,7 @@ const Explore: React.FC = () => {
                 </Button>
               </div>
             ) : null}
-            {selectedDocIds.size > 0 && (
-              <button onClick={() => setSelectedDocIds(new Set())}
-                style={{ border: "none", background: "none", cursor: "pointer", fontSize: 11,
-                  color: "#2563eb", fontFamily: "inherit", padding: "4px 0", marginTop: 4 }}>
-                Clear selection (chat with all)
-              </button>
-            )}
+
           </div>
 
           {schema?.dimensions?.length > 0 && (

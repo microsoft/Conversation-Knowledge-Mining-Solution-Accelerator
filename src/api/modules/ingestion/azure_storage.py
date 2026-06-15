@@ -132,6 +132,14 @@ class AzureStorageService:
             logger.warning(f"Raw file upload failed for {filename}: {e}")
             return False
 
+    def download_raw_file(self, file_id: str, filename: str) -> bytes:
+        """Download a raw file from blob storage for retry processing."""
+        settings = get_settings()
+        blob_service = self._get_blob_client()
+        container = blob_service.get_container_client(settings.azure_storage_container)
+        blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+        return blob.download_blob().readall()
+
     def upload_to_blob(self, doc_id: str, doc_data: dict) -> bool:
         """Upload a single document to blob storage."""
         settings = get_settings()

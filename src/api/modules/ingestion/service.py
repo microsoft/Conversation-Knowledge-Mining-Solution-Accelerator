@@ -366,7 +366,17 @@ class IngestionService:
         self._ensure_loaded()
         if file_id in self._uploaded_files:
             f = self._uploaded_files[file_id]
-            self._uploaded_files[file_id] = f.copy(update={"status": status, "error": error})
+            updates: dict = {"status": status, "error": error}
+            # Recalculate doc_count when marking ready
+            if status == "ready" and f.doc_count == 0:
+                count = sum(
+                    1 for doc in self._documents.values()
+                    if (doc.metadata.source_file or "") == f.filename
+                    or doc.id == file_id
+                )
+                if count > 0:
+                    updates["doc_count"] = count
+            self._uploaded_files[file_id] = f.copy(update=updates)
             self._persist_file(self._uploaded_files[file_id])
 
     def load_json_file(self, file_path: str) -> IngestionResult:
@@ -374,13 +384,38 @@ class IngestionService:
         with open(file_path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
+        # Known enrichment fields that should become filterable dimensions
+        _ENRICHMENT_FIELDS = {"sentiment", "satisfied", "complaint", "mined_topic", "topic"}
+        # Field name mapping for non-standard formats (e.g. sample data)
+        _FIELD_MAP = {"ConversationId": "id", "Content": "text"}
+
         by_type: dict[str, int] = {}
+        dim_values: dict[str, dict[str, int]] = {}  # field -> {value: count}
+
         for item in raw_data:
+            # Normalize field names if needed
+            for old_key, new_key in _FIELD_MAP.items():
+                if old_key in item and new_key not in item:
+                    item[new_key] = item.pop(old_key)
+            if "type" not in item:
+                item["type"] = "call_transcript"
+            if "text" not in item:
+                item["text"] = ""
+
             # Tag document with source file for delete tracking
             meta = item.get("metadata", {})
             if "source_file" not in meta:
                 meta["source_file"] = os.path.basename(file_path)
-                item["metadata"] = meta
+
+            # Preserve enrichment fields in metadata for filter building
+            for field in _ENRICHMENT_FIELDS:
+                val = item.get(field, "")
+                if val and isinstance(val, str) and val.strip():
+                    meta[field] = val.strip()
+                    dim_values.setdefault(field, {})
+                    dim_values[field][val.strip()] = dim_values[field].get(val.strip(), 0) + 1
+
+            item["metadata"] = meta
             doc = Document(
                 id=item["id"],
                 type=item["type"],
@@ -392,6 +427,26 @@ class IngestionService:
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
 
             self._persist_doc(item)
+
+        # Build filter dimensions from enrichment fields
+        if dim_values:
+            _SKIP = {"topic"}  # topic is too free-form, keep others
+            new_dims = list(self._filter_schema.dimensions)
+            existing_ids = {d.id for d in new_dims}
+            for field, vals in dim_values.items():
+                if field in _SKIP or field in existing_ids:
+                    continue
+                if 2 <= len(vals) <= 20:
+                    sorted_vals = sorted(vals.items(), key=lambda x: -x[1])
+                    new_dims.append(FilterDimension(
+                        id=field,
+                        label=field.replace("_", " ").title(),
+                        type="multi_select",
+                        values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
+                    ))
+            if len(new_dims) > len(self._filter_schema.dimensions):
+                self._filter_schema = FilterSchema(domain=self._filter_schema.domain, dimensions=new_dims)
+                self._persist_schema()
 
         filename = os.path.basename(file_path)
 

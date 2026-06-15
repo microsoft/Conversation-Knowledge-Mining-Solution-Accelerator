@@ -106,8 +106,21 @@ class QueueWorker:
                             logger.error(f"Worker error in {queue_name}: {e}")
 
                 except Exception as e:
-                    logger.error(f"Poll error for {queue_name}: {e}")
-                    self._wait()
+                    if not hasattr(self, '_consecutive_errors'):
+                        self._consecutive_errors = {}
+                    count = self._consecutive_errors.get(queue_name, 0) + 1
+                    self._consecutive_errors[queue_name] = count
+                    # Log first error, then only every 60th (~5 min at 5s interval)
+                    if count == 1 or count % 60 == 0:
+                        logger.error(f"Poll error for {queue_name} (x{count}): {e}")
+                    # Back off: 5s → 30s max on persistent failures
+                    import time
+                    backoff = min(self._poll_interval * count, 30)
+                    for _ in range(int(backoff * 10)):
+                        if not self._running:
+                            return
+                        time.sleep(0.1)
+                    continue
 
     def _handle_with_retry(self, queue_name: str, handler, msg, payload: dict):
         """Wrap a handler with exponential backoff retry logic."""

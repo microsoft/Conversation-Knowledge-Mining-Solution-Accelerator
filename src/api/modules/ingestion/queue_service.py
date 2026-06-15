@@ -55,7 +55,9 @@ class QueueService:
             self._available = False
             return False
         try:
-            self._get_client(EXTRACTION_QUEUE)
+            client = self._get_client(EXTRACTION_QUEUE)
+            # Actually test auth by peeking (not just creating the client)
+            client.peek_messages(max_messages=1)
             self._get_client(ENRICHMENT_QUEUE)
             self._available = True
         except Exception as e:
