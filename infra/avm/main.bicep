@@ -951,10 +951,10 @@ output API_APP_PRINCIPAL_ID string = backend_docker!.outputs.identityPrincipalId
 output API_APP_URL string = backend_docker!.outputs.appUrl
 
 @description('Contains Application Insights connection string.')
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = app_insights.outputs.connectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = enableMonitoring ? app_insights!.outputs.connectionString : ''
 
 @description('Contains Application Insights Instrumentation Key.')
-output APPINSIGHTS_INSTRUMENTATIONKEY string = app_insights.outputs.instrumentationKey
+output APPINSIGHTS_INSTRUMENTATIONKEY string = enableMonitoring ? app_insights!.outputs.instrumentationKey : ''
 
 @description('Contains Azure AI Agent API Version.')
 output AZURE_AI_AGENT_API_VERSION string = azureAiAgentApiVersion
