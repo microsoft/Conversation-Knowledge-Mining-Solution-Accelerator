@@ -35,7 +35,7 @@ _DOC_INDEX_RE = re.compile(r"^doc_(\d+)$")
 
 logger = logging.getLogger(__name__)
 
-_PATCH_APPLIED = False
+_PATCH_APPLIED = False  # noqa: F841 - used to prevent reapplying patch (checked at line 53)
 _CACHE_ATTR = "_kmsa_search_get_urls_cache"
 _TARGET_METHOD = "_parse_chunk_from_openai"
 _TARGET_CLASS = "RawOpenAIChatClient"
@@ -162,7 +162,7 @@ def apply() -> None:
         return result
 
     setattr(target_cls, _TARGET_METHOD, _patched)
-    _PATCH_APPLIED = True
+    _PATCH_APPLIED = True  # noqa: F841 - marks patch as applied (checked at line 50)
     logger.info(
         "Applied Azure AI Search citation patch on %s.%s (workaround for %s)",
         _TARGET_CLASS, _TARGET_METHOD, _UPSTREAM_ISSUE,
