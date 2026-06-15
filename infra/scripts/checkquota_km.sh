@@ -9,6 +9,12 @@ SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}"
 GPT_MIN_CAPACITY="${GPT_MIN_CAPACITY}"
 TEXT_EMBEDDING_MIN_CAPACITY="${TEXT_EMBEDDING_MIN_CAPACITY}"
 
+# Safety buffer multiplier: only select a region if available quota is at least
+# QUOTA_SAFETY_MULTIPLIER times the required minimum. This guards against race
+# conditions where concurrent deployments consume quota between check and deploy.
+# Default is 2 (i.e. requires 2x the minimum to be available).
+QUOTA_SAFETY_MULTIPLIER="${QUOTA_SAFETY_MULTIPLIER:-2}"
+
 # Azure CLI is expected to be already authenticated via OIDC (federated credentials)
 echo "Verifying Azure CLI authentication..."
 if ! az account show > /dev/null 2>&1; then
@@ -73,11 +79,12 @@ for REGION in "${REGIONS[@]}"; do
         LIMIT=$(echo "$MODEL_INFO" | jq -r '.limit // 0')
 
         AVAILABLE=$((LIMIT - CURRENT_VALUE))
+        REQUIRED_WITH_BUFFER=$(( ${MIN_CAPACITY[$MODEL]} * QUOTA_SAFETY_MULTIPLIER ))
 
-        echo "✅ Model: $MODEL | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE"
+        echo "✅ Model: $MODEL | Used: $CURRENT_VALUE | Limit: $LIMIT | Available: $AVAILABLE | Required (with ${QUOTA_SAFETY_MULTIPLIER}x buffer): $REQUIRED_WITH_BUFFER"
 
-        if [ "$AVAILABLE" -lt "${MIN_CAPACITY[$MODEL]}" ]; then
-            echo "❌ ERROR: $MODEL in $REGION has insufficient quota."
+        if [ "$AVAILABLE" -lt "$REQUIRED_WITH_BUFFER" ]; then
+            echo "❌ ERROR: $MODEL in $REGION has insufficient quota (available: $AVAILABLE, need $REQUIRED_WITH_BUFFER with safety buffer)."
             INSUFFICIENT_QUOTA=true
             break
         fi
