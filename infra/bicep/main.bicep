@@ -121,30 +121,6 @@ param appServicePlanSku string = 'B3'
 @description('Kind of web app.')
 param kind string = 'app,linux,container'
 
-@description('Optional. Docker image name for the backend API (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides backend image settings if provided.')
-param backendLinuxFxVersion string = ''
-
-@description('Optional. Docker image name for the frontend web app (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides frontend image settings if provided.')
-param frontendLinuxFxVersion string = ''
-
-@description('Optional. Command line for the backend application.')
-param backendAppCommandLine string = ''
-
-@description('Optional. Command line for the frontend application.')
-param frontendAppCommandLine string = ''
-
-@description('Optional. Whether to do build during deployment.')
-param scmDoBuildDuringDeployment string = ''
-
-@description('Optional. Whether to enable Oryx build.')
-param enableOryxBuild string = ''
-
-@description('Optional. Default Node.js version for the website.')
-param websiteNodeDefaultVersion string = ''
-
-@description('Optional. Python unbuffered flag.')
-param pythonUnbuffered string = ''
-
 // ============================================================================
 // Parameters — Feature Flags
 // ============================================================================
@@ -195,7 +171,7 @@ var useChatHistoryEnabledSetting = useChatHistoryEnabled ? 'True' : 'False'
 
 // Tags: merge existing RG tags with standard metadata
 var resourceTags = union(existingTags, tags, {
-  TemplateName: 'Unified Data Analysis Agents'
+  TemplateName: 'KM-Generic'
   CreatedBy: createdBy
   DeploymentName: deployment().name
   Type: 'Non-WAF'
@@ -477,8 +453,7 @@ module backend_docker './modules/compute/app-service.bicep' = {
     tags: union(tags, { 'azd-service-name': 'api' })
     serverFarmResourceId: hostingplan!.outputs.resourceId
     kind: kind
-    linuxFxVersion: !empty(backendLinuxFxVersion) ? backendLinuxFxVersion : backendApiImageName
-    appCommandLine: backendAppCommandLine
+    linuxFxVersion: backendApiImageName
     appSettings: {
       AGENT_NAME_CONVERSATION: ''
       AGENT_NAME_TITLE: ''
@@ -504,13 +479,6 @@ module backend_docker './modules/compute/app-service.bicep' = {
       SQLDB_SERVER: sqlDBModule!.outputs.serverFqdn
       USE_AI_PROJECT_CLIENT: 'True'
       USE_CHAT_HISTORY_ENABLED: useChatHistoryEnabledSetting
-      ...(!empty(scmDoBuildDuringDeployment) && !empty(enableOryxBuild) && !empty(pythonUnbuffered))
-      ? {
-        SCM_DO_BUILD_DURING_DEPLOYMENT: scmDoBuildDuringDeployment
-        ENABLE_ORYX_BUILD: enableOryxBuild
-        PYTHONUNBUFFERED: pythonUnbuffered
-      }
-      : {}
     }
   }
   scope: resourceGroup(resourceGroup().name)
@@ -526,18 +494,10 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     tags: union(tags, { 'azd-service-name': 'webapp' })
     serverFarmResourceId: hostingplan!.outputs.resourceId
     kind: kind
-    linuxFxVersion: !empty(frontendLinuxFxVersion) ? frontendLinuxFxVersion : frontendImageName
-    appCommandLine: frontendAppCommandLine
+    linuxFxVersion: frontendImageName
     appSettings: {
       APPINSIGHTS_INSTRUMENTATIONKEY: app_insights.outputs.instrumentationKey
       APP_API_BASE_URL: backend_docker!.outputs.appUrl
-      ...(!empty(scmDoBuildDuringDeployment) && !empty(enableOryxBuild) && !empty(websiteNodeDefaultVersion))
-      ? {
-        SCM_DO_BUILD_DURING_DEPLOYMENT: scmDoBuildDuringDeployment
-        ENABLE_ORYX_BUILD: enableOryxBuild
-        WEBSITE_NODE_DEFAULT_VERSION: websiteNodeDefaultVersion
-      }
-      : {}
     }
   }
   scope: resourceGroup(resourceGroup().name)

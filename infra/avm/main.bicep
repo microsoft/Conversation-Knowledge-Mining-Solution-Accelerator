@@ -155,29 +155,6 @@ param appServicePlanSku string = 'B3'
 @description('Kind of web app.')
 param kind string = 'app,linux,container'
 
-@description('Optional. Docker image name for the backend API (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides backend image settings if provided.')
-param backendLinuxFxVersion string = ''
-
-@description('Optional. Docker image name for the frontend web app (e.g., DOCKER|registry.azurecr.io/image:tag). Overrides frontend image settings if provided.')
-param frontendLinuxFxVersion string = ''
-
-@description('Optional. Command line for the backend application.')
-param backendAppCommandLine string = ''
-
-@description('Optional. Command line for the frontend application.')
-param frontendAppCommandLine string = ''
-
-@description('Optional. Whether to do build during deployment.')
-param scmDoBuildDuringDeployment string = ''
-
-@description('Optional. Whether to enable Oryx build.')
-param enableOryxBuild string = ''
-
-@description('Optional. Default Node.js version for the website.')
-param websiteNodeDefaultVersion string = ''
-
-@description('Optional. Python unbuffered flag.')
-param pyhonUnbuffered string = ''
 // ============================================================================
 // Parameters — Feature Flags
 // ============================================================================
@@ -857,8 +834,7 @@ module backend_docker './modules/compute/app-service.bicep' = {
     enableTelemetry: enableTelemetry
     serverFarmResourceId: hostingplan!.outputs.resourceId
     kind: kind
-    linuxFxVersion: !empty(backendLinuxFxVersion) ? backendLinuxFxVersion : backendApiImageName
-    appCommandLine: backendAppCommandLine
+    linuxFxVersion: backendApiImageName
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webserverfarmSubnetResourceId : ''
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
@@ -919,8 +895,7 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     enableTelemetry: enableTelemetry
     serverFarmResourceId: hostingplan!.outputs.resourceId
     kind: kind
-    linuxFxVersion: !empty(frontendLinuxFxVersion) ? frontendLinuxFxVersion : frontendImageName
-    appCommandLine: frontendAppCommandLine
+    linuxFxVersion: frontendImageName
     vnetRouteAllEnabled: enablePrivateNetworking ? true : false
     imagePullTraffic: enablePrivateNetworking ? true : false
     contentShareTraffic: enablePrivateNetworking ? true : false
