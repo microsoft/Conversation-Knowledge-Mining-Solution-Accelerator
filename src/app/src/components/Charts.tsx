@@ -19,11 +19,10 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 
 interface DonutChartProps {
   data: Array<{ label: string; value: number }>;
-  title?: string;
   height?: number;
 }
 
-export const DonutChart: React.FC<DonutChartProps> = ({ data, title, height = 220 }) => {
+export const DonutChart: React.FC<DonutChartProps> = ({ data, height = 220 }) => {
   const chartData = {
     labels: data.map((d) => d.label),
     datasets: [
@@ -56,13 +55,12 @@ export const DonutChart: React.FC<DonutChartProps> = ({ data, title, height = 22
 
 interface BarChartProps {
   data: Array<{ label: string; value: number }>;
-  title?: string;
   height?: number;
   horizontal?: boolean;
   color?: string;
 }
 
-export const BarChart: React.FC<BarChartProps> = ({ data, title, height = 200, horizontal = false, color = "#2563eb" }) => {
+export const BarChart: React.FC<BarChartProps> = ({ data, height = 200, horizontal = false, color = "#2563eb" }) => {
   const chartData = {
     labels: data.map((d) => d.label),
     datasets: [
@@ -101,12 +99,11 @@ export const BarChart: React.FC<BarChartProps> = ({ data, title, height = 200, h
 
 interface LineChartProps {
   data: Array<{ label: string; value: number }>;
-  title?: string;
   height?: number;
   color?: string;
 }
 
-export const LineChart: React.FC<LineChartProps> = ({ data, title, height = 200, color = "#2563eb" }) => {
+export const LineChart: React.FC<LineChartProps> = ({ data, height = 200, color = "#2563eb" }) => {
   const chartData = {
     labels: data.map((d) => d.label),
     datasets: [

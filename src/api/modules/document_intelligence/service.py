@@ -1,4 +1,5 @@
 import time
+import logging
 from typing import BinaryIO, Optional
 
 import httpx
@@ -6,6 +7,8 @@ from azure.identity import DefaultAzureCredential
 
 from src.api.config import get_settings
 from src.api.modules.document_intelligence.models import ExtractedDocument
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
 
@@ -175,7 +178,7 @@ class ContentUnderstandingService:
             "Content-Type": "application/octet-stream",
         }
 
-        with httpx.Client(timeout=120) as client:
+        with httpx.Client(timeout=300) as client:
             resp = client.post(url, headers=headers, content=content)
             if resp.status_code >= 400:
                 logger.error(f"CU Error {resp.status_code}: {resp.text}")
@@ -184,6 +187,7 @@ class ContentUnderstandingService:
             if not operation_url:
                 raise RuntimeError("No Operation-Location in response")
 
+            logger.info(f"CU analysis submitted for {filename}, polling {operation_url}")
             result = self._poll_result(client, operation_url)
 
         return self._parse_result(result, filename, analyzer)
@@ -201,7 +205,7 @@ class ContentUnderstandingService:
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
         body = {"url": file_url}
 
-        with httpx.Client(timeout=60) as client:
+        with httpx.Client(timeout=300) as client:
             resp = client.post(url, headers=headers, json=body)
             if resp.status_code >= 400:
                 logger.error(f"CU Error {resp.status_code}: {resp.text}")
@@ -210,46 +214,66 @@ class ContentUnderstandingService:
             if not operation_url:
                 raise RuntimeError("No Operation-Location in response")
 
+            logger.info(f"CU URL analysis submitted for {filename}, polling {operation_url}")
             result = self._poll_result(client, operation_url)
 
         return self._parse_result(result, filename, analyzer)
 
-    def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 300) -> dict:
+    def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 600) -> dict:
         headers = self._auth_headers()
         elapsed = 0
-        interval = 3
+        interval = 1  # Start fast, grow exponentially
         while elapsed < max_wait:
             resp = client.get(operation_url, headers=headers)
             resp.raise_for_status()
             data = resp.json()
             status = data.get("status", "").lower()
             if status == "succeeded":
+                logger.info(f"CU poll completed in {elapsed}s")
                 return data
             if status == "failed":
                 raise RuntimeError(f"Analysis failed: {data}")
             time.sleep(interval)
             elapsed += interval
+            interval = min(interval * 2, 15)  # Cap at 15s
         raise TimeoutError("Content Understanding analysis timed out")
 
     def _parse_result(self, data: dict, filename: str, analyzer: str) -> ExtractedDocument:
         result = data.get("result", {})
         contents = result.get("contents", [{}])
-        first = contents[0] if contents else {}
-        fields = first.get("fields", {})
 
-        # Extract markdown: prefer 'content' field from CU, fallback to 'markdown'
-        markdown = ""
-        if fields.get("content", {}).get("valueString"):
-            markdown = fields["content"]["valueString"]
-        elif first.get("markdown"):
-            markdown = first["markdown"]
+        # Concatenate markdown from ALL content entries (multi-page PDFs return one per page)
+        all_markdown_parts = []
+        all_fields = {}
+        page_count = 1
+
+        for entry in contents:
+            entry_fields = entry.get("fields", {})
+            # Merge fields from first entry that has them
+            if entry_fields and not all_fields:
+                all_fields = entry_fields
+
+            # Collect text: prefer generated 'content' field, fallback to built-in 'markdown'
+            text = ""
+            if entry_fields.get("content", {}).get("valueString"):
+                text = entry_fields["content"]["valueString"]
+            elif entry.get("markdown"):
+                text = entry["markdown"]
+            if text.strip():
+                all_markdown_parts.append(text)
+
+            page_count = max(page_count, entry.get("endPageNumber", 1))
+
+        markdown = "\n\n".join(all_markdown_parts)
+        first = contents[0] if contents else {}
+        logger.info(f"Parsed CU result for {filename}: {len(contents)} content entries, {page_count} pages, {len(markdown)} chars")
 
         return ExtractedDocument(
             filename=filename,
             content_type=first.get("mimeType", "application/octet-stream"),
             markdown=markdown,
-            fields=fields,
-            page_count=first.get("endPageNumber", 1),
+            fields=all_fields,
+            page_count=page_count,
             analyzer=analyzer,
         )
 

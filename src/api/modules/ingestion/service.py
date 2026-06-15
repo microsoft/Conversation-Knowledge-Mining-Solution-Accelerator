@@ -735,21 +735,14 @@ class IngestionService:
         except Exception as e:
             logger.warning(f"SQL cleanup failed for {file_id}: {e}")
 
-        # Remove from AI Search
+        # Remove from blob storage, AI Search (doc entries + chunks)
+        # Include file_id itself since chunks use it as doc_id
+        all_ids_for_search = list(set(doc_ids_to_remove + [file_id]))
         try:
-            from src.api.config import get_settings
-            from azure.identity import DefaultAzureCredential
-            from azure.search.documents import SearchClient
-            settings = get_settings()
-            if settings.azure_search_endpoint and doc_ids_to_remove:
-                client = SearchClient(
-                    endpoint=settings.azure_search_endpoint,
-                    index_name=settings.azure_search_index_name,
-                    credential=DefaultAzureCredential(),
-                )
-                client.delete_documents(documents=[{"id": did} for did in doc_ids_to_remove])
+            from src.api.modules.ingestion.azure_storage import azure_storage_service
+            azure_storage_service.delete_file_data(file_id, uploaded_file.filename, all_ids_for_search)
         except Exception as e:
-            logger.warning(f"Failed to remove documents from AI Search for file '{file_id}': {e}")
+            logger.warning(f"Storage/search cleanup failed for {file_id}: {e}")
 
         logger.info(f"Deleted file '{file_id}' and {len(doc_ids_to_remove)} documents")
         return True

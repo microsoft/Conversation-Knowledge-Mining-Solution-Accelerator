@@ -28,9 +28,7 @@ class ChatStore:
     def available(self) -> bool:
         return True  # Always available — in-memory fallback
 
-    # ══════════════════════════════════════════════
-    # Sessions
-    # ══════════════════════════════════════════════
+    # --- Sessions ---
 
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         sql = self._get_sql()
@@ -114,9 +112,7 @@ class ChatStore:
             sql._refresh_token()
             return False
 
-    # ══════════════════════════════════════════════
-    # Messages
-    # ══════════════════════════════════════════════
+    # --- Messages ---
 
     def add_message(self, session_id: str, role: str, content: str, sources: Optional[list] = None) -> Optional[dict]:
         sql = self._get_sql()

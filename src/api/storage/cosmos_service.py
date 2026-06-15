@@ -86,9 +86,7 @@ class CosmosService:
         self._ensure_init()
         return self._initialized and self._db is not None
 
-    # ══════════════════════════════════════════════
-    # Chat Sessions
-    # ══════════════════════════════════════════════
+    # --- Chat Sessions ---
 
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         """Create a new chat session. Returns session metadata."""
@@ -176,9 +174,7 @@ class CosmosService:
             logger.warning(f"Failed to delete session: {e}")
             return False
 
-    # ══════════════════════════════════════════════
-    # Chat Messages
-    # ══════════════════════════════════════════════
+    # --- Chat Messages ---
 
     def add_message(self, session_id: str, role: str, content: str,
                     sources: Optional[list[dict]] = None) -> Optional[dict]:
@@ -257,9 +253,7 @@ class CosmosService:
             logger.warning(f"Failed to save messages bulk: {e}")
             return False
 
-    # ══════════════════════════════════════════════
-    # Document Insights
-    # ══════════════════════════════════════════════
+    # --- Document Insights ---
 
     def save_insights(self, dataset_id: str, insights: dict) -> bool:
         """Save generated insights for a dataset."""
@@ -302,9 +296,7 @@ class CosmosService:
             logger.warning(f"Failed to delete insights for {dataset_id}: {e}")
             return False
 
-    # ══════════════════════════════════════════════
-    # Enrichment Cache
-    # ══════════════════════════════════════════════
+    # --- Enrichment Cache ---
 
     def get_enrichment(self, doc_hash: str) -> Optional[dict]:
         """Look up cached enrichment result by content hash."""
@@ -336,9 +328,7 @@ class CosmosService:
             logger.warning(f"Failed to cache enrichment: {e}")
             return False
 
-    # ══════════════════════════════════════════════
-    # Document Persistence
-    # ══════════════════════════════════════════════
+    # --- Document Persistence ---
 
     def save_document(self, doc_id: str, doc_data: dict) -> bool:
         """Save a document record to Cosmos DB."""

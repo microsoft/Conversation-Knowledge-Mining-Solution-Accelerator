@@ -201,7 +201,6 @@ const ChatInterface: React.FC = () => {
                 <span style={{ animation: "pulse 1.5s ease-in-out infinite" }}>●</span>
                 <span style={{ animation: "pulse 1.5s ease-in-out 0.3s infinite" }}>●</span>
                 <span style={{ animation: "pulse 1.5s ease-in-out 0.6s infinite" }}>●</span>
-                <style>{`@keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }`}</style>
               </div>
             </div>
           </div>

@@ -3,12 +3,10 @@ import {
   makeStyles,
   tokens,
   Text,
-  Card,
   Button,
   Spinner,
   TabList,
   Tab,
-  Badge,
 } from "@fluentui/react-components";
 import {
   ArrowUpload24Regular,

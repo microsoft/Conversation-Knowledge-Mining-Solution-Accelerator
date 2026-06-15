@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 
 from openai import AzureOpenAI
@@ -5,6 +6,7 @@ from openai import AzureOpenAI
 from src.api.config import get_settings
 from src.api.capabilities._llm import get_llm_client
 from src.api.modules.ingestion.service import ingestion_service
+from src.api.utils.constants import strip_code_fences
 from src.api.modules.processing.models import (
     SummarizeResponse,
     Entity,
@@ -82,12 +84,8 @@ class ProcessingService:
         )
 
         raw = response.choices[0].message.content.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-            raw = raw.rsplit("```", 1)[0]
+        raw = strip_code_fences(raw)
 
-        import json
         try:
             entities_data = json.loads(raw)
         except json.JSONDecodeError:
@@ -147,7 +145,6 @@ class ProcessingService:
             file_ids: Optional list of file IDs to scope insights to.
                       If None, analyzes all documents.
         """
-        import json
         settings = get_settings()
 
         stats = ingestion_service.get_stats()
@@ -287,8 +284,6 @@ Output strictly valid JSON."""
 
     def generate_insights_from_external(self, external_index_id: str) -> dict:
         """Generate insights by sampling documents from an external Azure AI Search index."""
-        import json
-
         from src.api.modules.ingestion.external_index import external_index_service
         index = external_index_service.get(external_index_id)
         if not index:
@@ -346,8 +341,6 @@ CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
 
     def generate_insights_from_data_source(self, data_source_id: str) -> dict:
         """Generate insights by sampling documents from a connected data source."""
-        import json
-
         from src.api.modules.data_sources.registry import data_source_registry
         config = data_source_registry.get(data_source_id)
         if not config:

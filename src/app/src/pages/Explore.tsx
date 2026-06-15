@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Text, Badge, Spinner, Caption1, Button } from "@fluentui/react-components";
+import { Text, Caption1, Button } from "@fluentui/react-components";
 import {
   Send24Regular, Sparkle20Regular, Add20Regular, Chat20Regular,
   Database20Regular, DocumentText20Regular, Delete20Regular,
@@ -9,7 +9,7 @@ import {
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources,
   saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
-import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
 import { renderMarkdown } from "../utils/markdown";
 import { SkeletonText, SkeletonChat } from "../components/Skeleton";
@@ -64,7 +64,6 @@ const getSourceSnippet = (text: string, maxLen = 120): string => {
 /* ── Component ── */
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const location = useLocation();
   const navigate = useNavigate();
 
   // Data context
@@ -349,7 +348,6 @@ const Explore: React.FC = () => {
                         <span style={{ animation: "pulse 1.5s ease-in-out infinite" }}>●</span>{" "}
                         <span style={{ animation: "pulse 1.5s ease-in-out 0.3s infinite" }}>●</span>{" "}
                         <span style={{ animation: "pulse 1.5s ease-in-out 0.6s infinite" }}>●</span>
-                        <style>{`@keyframes pulse { 0%,100% { opacity:.3 } 50% { opacity:1 } }`}</style>
                       </span>
                     </div>
                   </div>

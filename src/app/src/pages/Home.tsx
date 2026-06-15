@@ -3,6 +3,11 @@ import {
   Text,
   Button,
   Spinner,
+  Dialog,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
 } from "@fluentui/react-components";
 import {
   ArrowUpload24Regular,
@@ -14,6 +19,7 @@ import {
   LightbulbFilament20Regular,
   ChatBubblesQuestion20Regular,
   TextBulletListSquare20Regular,
+  Delete20Regular,
 } from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
 import {
@@ -21,6 +27,7 @@ import {
   uploadDocument,
   listDataSources,
   getUploadedFiles,
+  deleteFile,
 } from "../api/client";
 import { FILE_TYPES } from "../utils/constants";
 import { useAppState } from "../context/AppStateContext";
@@ -31,6 +38,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setDashboardHeadline, setInsights, homeData, setHomeData } = useAppState();
+  const { setExploreData } = useAppState();
 
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
@@ -40,6 +48,8 @@ const Home: React.FC = () => {
   const [dataSources, setDataSources] = useState<any[]>(homeData?.dataSources ?? []);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>(homeData?.uploadedFiles ?? []);
   const [loadingSources, setLoadingSources] = useState(!homeData);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; count: number } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const loadStatus = (force = false) => {
     Promise.allSettled([listDataSources(), getUploadedFiles()])
@@ -121,6 +131,26 @@ const Home: React.FC = () => {
     setUploadMsg("");
   };
 
+  const handleDeleteFile = (id: string, name: string, count: number) => {
+    setDeleteTarget({ id, name, count });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteFile(deleteTarget.id);
+      setExploreData(null);
+      setInsights(null);
+      loadStatus();
+    } catch (e) {
+      setUploadError(`Failed to delete: ${e instanceof Error ? e.message : "Unknown error"}`);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   return (
     <div className={s.page}>
       {/* Hero */}
@@ -164,6 +194,13 @@ const Home: React.FC = () => {
                           Ready
                         </span>
                       )}
+                      <button
+                        className={s.fileDeleteBtn}
+                        title="Delete"
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id, f.filename, f.doc_count || 0); }}
+                      >
+                        <Delete20Regular />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -327,6 +364,30 @@ const Home: React.FC = () => {
         </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(_, d) => { if (!d.open) setDeleteTarget(null); }}>
+        <DialogSurface style={{ maxWidth: 360, borderRadius: 12, padding: "20px 24px" }}>
+          <DialogBody style={{ padding: 0 }}>
+            <DialogTitle style={{ padding: 0, margin: "0 0 8px", fontSize: 16 }}>Remove file?</DialogTitle>
+            <DialogContent style={{ padding: 0 }}>
+              <p style={{ margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.5 }}>
+                <strong style={{ color: "#1e293b" }}>{deleteTarget?.name}</strong>
+                {deleteTarget && deleteTarget.count > 0 && (
+                  <> and its {deleteTarget.count.toLocaleString()} {deleteTarget.count === 1 ? "record" : "records"}</>
+                )} will be permanently removed.
+              </p>
+            </DialogContent>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+              <Button appearance="subtle" size="medium" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+              <Button appearance="primary" size="medium" onClick={confirmDelete} disabled={deleting}
+                style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
+                {deleting ? <Spinner size="tiny" /> : "Remove"}
+              </Button>
+            </div>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
 
     </div>
   );

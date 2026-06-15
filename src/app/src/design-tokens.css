@@ -59,3 +59,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background-color: #f5f5f5;
 }
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}

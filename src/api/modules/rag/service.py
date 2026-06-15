@@ -3,7 +3,7 @@ import logging
 import os
 
 import yaml
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import DefaultAzureCredential
 from openai import AzureOpenAI
 
 from src.api.config import get_settings
@@ -123,14 +123,14 @@ class RAGService:
                 query_emb = emb_service.generate_embedding(query)
                 vector_queries.append(VectorizedQuery(
                     vector=query_emb.embedding,
-                    k=top_k,
+                    k_nearest_neighbors=top_k,
                     fields="text_vector",
                 ))
             except Exception as e:
                 logger.debug(f"Vector search unavailable, using keyword only: {e}")
 
             # Use fields that exist in both legacy and chunked index schemas
-            select_fields = ["id", "text", "summary", "type", "source_file"]
+            select_fields = ["id", "doc_id", "text", "summary", "type", "source_file"]
 
             results = client.search(
                 search_text=query,
@@ -143,7 +143,7 @@ class RAGService:
             docs = []
             seen = {}  # doc_id -> index in docs (dedup chunks from same document)
             for r in results:
-                doc_id = r.get("doc_id", r["id"])
+                doc_id = r.get("doc_id") or r["id"]
                 # Strip chunk suffix to get base doc ID
                 if "_c" in doc_id:
                     doc_id = doc_id.split("_c")[0]

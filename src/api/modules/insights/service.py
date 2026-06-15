@@ -1,18 +1,4 @@
-"""Insight engine: LLM proposes → system validates + structures → UI renders.
-
-Key design:
-  - LLM decides WHAT matters (insight_type + fields)
-  - System VALIDATES the plan (field exists? values correct?)
-  - SQL COMPUTES exact numbers
-  - Response is fully structured with semantic info for downstream use
-
-Response structure:
-  - data_context:  total/filtered records, applied filters
-  - kpis:          semantic KPIs with metric IDs and roles
-  - sections:      typed sections with validated charts
-  - filters:       structured with types (categorical, date_range, etc.)
-  - suggested_questions: context-aware, referencing actual fields/values
-"""
+"""Insight engine: LLM proposes insights, system validates and structures them for UI rendering."""
 
 import json
 import logging
@@ -27,10 +13,7 @@ from src.api.capabilities._llm import get_llm_client
 logger = logging.getLogger(__name__)
 _SAFE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
-
-# ═══════════════════════════════════════════════════
-# Semantic Field Classifier
-# ═══════════════════════════════════════════════════
+# --- Semantic Field Classifier ---
 
 _SEMANTIC_RULES: list[tuple[re.Pattern, str, str]] = [
     # (pattern, semantic_type, business_role)
@@ -101,17 +84,13 @@ def _is_numeric(val: str) -> bool:
 
 
 def _is_datetime(val: str) -> bool:
-    import re as _re
-    return bool(_re.match(
+    return bool(re.match(
         r"^\d{4}[-/]\d{1,2}[-/]\d{1,2}", val
-    )) or bool(_re.match(
+    )) or bool(re.match(
         r"^\d{1,2}[-/]\d{1,2}[-/]\d{4}", val
     ))
 
-
-# ═══════════════════════════════════════════════════
-# Schema Extractor
-# ═══════════════════════════════════════════════════
+# --- Schema Extractor ---
 
 def _extract_schema(cursor) -> dict:
     cursor.execute("SELECT COUNT(*) FROM documents")
@@ -165,10 +144,7 @@ def _extract_schema(cursor) -> dict:
 
     return {"total_records": total, "fields": fields, "has_key_phrases": has_phrases}
 
-
-# ═══════════════════════════════════════════════════
-# LLM Planner
-# ═══════════════════════════════════════════════════
+# --- LLM Planner ---
 
 _PLAN_PROMPT = """You are a data analyst designing an insight dashboard.
 
@@ -318,10 +294,7 @@ def _plan(schema: dict) -> dict:
     except json.JSONDecodeError:
         return {}
 
-
-# ═══════════════════════════════════════════════════
-# Plan Validator — catch bad LLM output
-# ═══════════════════════════════════════════════════
+# --- Plan Validator ---
 
 def _validate_plan(plan: dict, schema: dict) -> dict:
     """Validate and fix the LLM plan against the actual schema."""
@@ -383,10 +356,7 @@ def _validate_plan(plan: dict, schema: dict) -> dict:
 
     return plan
 
-
-# ═══════════════════════════════════════════════════
-# Query Engine
-# ═══════════════════════════════════════════════════
+# --- Query Engine ---
 
 def _build_where(filters: dict | None, params: list) -> str:
     clauses = ["1=1"]
@@ -666,10 +636,7 @@ def _exec_filters(cursor, filter_specs):
             logger.warning(f"Failed to load filter values for field '{f}': {e}")
     return result
 
-
-# ═══════════════════════════════════════════════════
-# Orchestrator
-# ═══════════════════════════════════════════════════
+# --- Orchestrator ---
 
 class DashboardService:
     _plan_cache: dict[str, dict] = {}

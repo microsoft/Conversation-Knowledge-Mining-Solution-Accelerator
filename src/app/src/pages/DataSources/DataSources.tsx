@@ -10,7 +10,6 @@ import {
   DialogBody,
   DialogTitle,
   DialogContent,
-  DialogActions,
 } from "@fluentui/react-components";
 import {
   Database24Regular,
@@ -46,7 +45,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 const DataSources: React.FC = () => {
   const navigate = useNavigate();
-  const { setExploreData } = useAppState();
+  const { setExploreData, setInsights } = useAppState();
   const [sources, setSources] = useState<DataSourceConfig[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +85,7 @@ const DataSources: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await deleteFile(deleteTarget.id); setExploreData(null); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await deleteFile(deleteTarget.id); setExploreData(null); setInsights(null); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
     finally { setDeleting(false); setDeleteTarget(null); }
   };
 
@@ -325,19 +324,37 @@ const DataSources: React.FC = () => {
       )}
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(_, d) => { if (!d.open) setDeleteTarget(null); }}>
-        <DialogSurface>
-          <DialogBody>
-            <DialogTitle>Delete file</DialogTitle>
-            <DialogContent>
-              Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will remove all extracted data and cannot be undone.
+        <DialogSurface style={{ maxWidth: 420, borderRadius: 16, padding: 0, overflow: "hidden" }}>
+          <DialogBody style={{ padding: 0 }}>
+            <div style={{ padding: "24px 24px 0", display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Delete20Regular style={{ color: "#dc2626" }} />
+              </div>
+              <DialogTitle style={{ padding: 0, margin: 0 }}>Delete file</DialogTitle>
+            </div>
+            <DialogContent style={{ padding: "16px 24px 20px" }}>
+              <p style={{ margin: "0 0 12px", color: "#374151", fontSize: 14, lineHeight: 1.5 }}>
+                Are you sure you want to delete <strong>{deleteTarget?.name}</strong>?
+              </p>
+              {(() => {
+                const target = uploadedFiles.find(f => f.id === deleteTarget?.id);
+                const count = target?.doc_count || 0;
+                return count > 0 ? (
+                  <div style={{ padding: "10px 14px", background: "#fef2f2", borderRadius: 8, fontSize: 13, color: "#991b1b", display: "flex", alignItems: "center", gap: 8 }}>
+                    <ErrorCircle20Regular style={{ flexShrink: 0 }} />
+                    <span>This will permanently remove <strong>{count.toLocaleString()} {count === 1 ? "record" : "records"}</strong> from insights and search.</span>
+                  </div>
+                ) : null;
+              })()}
             </DialogContent>
-            <DialogActions>
-              <Button appearance="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+            <div style={{ padding: "0 24px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <Button appearance="subtle" onClick={() => setDeleteTarget(null)} disabled={deleting}
+                style={{ borderRadius: 8 }}>Cancel</Button>
               <Button appearance="primary" onClick={confirmDelete} disabled={deleting}
-                style={{ backgroundColor: "#ef4444", borderColor: "#ef4444" }}>
+                style={{ backgroundColor: "#dc2626", borderColor: "#dc2626", borderRadius: 8 }}>
                 {deleting ? <Spinner size="tiny" /> : "Delete"}
               </Button>
-            </DialogActions>
+            </div>
           </DialogBody>
         </DialogSurface>
       </Dialog>

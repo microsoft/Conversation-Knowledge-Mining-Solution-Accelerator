@@ -144,6 +144,22 @@
   letter-spacing: 0.3px;
 }
 
+.fileDeleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 2px;
+  margin-left: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.fileDeleteBtn:hover { color: #dc2626; }
+
 .uploadIcon {
   width: 56px;
   height: 56px;

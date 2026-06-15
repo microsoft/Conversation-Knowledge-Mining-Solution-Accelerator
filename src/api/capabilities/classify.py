@@ -1,6 +1,9 @@
+import json
+
 from src.api.capabilities.registry import register
 from src.api.capabilities._llm import get_llm_client
 from src.api.config import get_settings
+from src.api.utils.constants import strip_code_fences
 
 
 @register("classify")
@@ -26,10 +29,7 @@ def classify(text: str = "", labels: list[str] | None = None, context: dict | No
         max_tokens=100,
     )
     raw = response.choices[0].message.content.strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        raw = raw.rsplit("```", 1)[0]
-    import json
+    raw = strip_code_fences(raw)
     try:
         parsed = json.loads(raw)
         return {"result": parsed.get("label", "unknown"), "meta": {"confidence": parsed.get("confidence", 0)}}

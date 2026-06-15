@@ -1,18 +1,4 @@
-# ──────────────────────────────────────────────────
 # RAG System Prompt
-# ──────────────────────────────────────────────────
-# This prompt controls how the AI answers questions.
-# Customize it for your domain, tone, and output style.
-#
-# Available variables (auto-replaced at runtime):
-#   {context} — the retrieved document text
-#
-# Tips:
-#   - Change "knowledge mining assistant" to your domain role
-#   - Adjust citation format if needed
-#   - Remove the CHART GENERATION section if you don't need charts
-#   - Add domain-specific instructions (e.g., "use medical terminology")
-# ──────────────────────────────────────────────────
 
 rag_system_prompt: |
   You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base.
@@ -34,9 +20,7 @@ rag_system_prompt: |
   Documents:
   {context}
 
-# ──────────────────────────────────────────────────
-# External Source Prompt (for connected databases)
-# ──────────────────────────────────────────────────
+# External Source Prompt
 
 rag_external_prompt: |
   You are a helpful knowledge mining assistant. You have access to documents from an external knowledge base.
@@ -50,9 +34,7 @@ rag_external_prompt: |
   Documents:
   {context}
 
-# ──────────────────────────────────────────────────
-# Conversation Prompt (multi-turn chat)
-# ──────────────────────────────────────────────────
+# Conversation Prompt
 
 rag_conversation_prompt: |
   You are a helpful knowledge mining assistant. You have access to full documents from a knowledge base.

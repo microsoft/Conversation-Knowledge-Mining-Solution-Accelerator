@@ -1,7 +1,9 @@
 import json
+
 from src.api.capabilities.registry import register
 from src.api.capabilities._llm import get_llm_client
 from src.api.config import get_settings
+from src.api.utils.constants import strip_code_fences
 
 
 @register("extract_entities")
@@ -27,9 +29,7 @@ def extract_entities(text: str | list[str] = "", schema: list[str] | None = None
         max_tokens=1500,
     )
     raw = response.choices[0].message.content.strip()
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        raw = raw.rsplit("```", 1)[0]
+    raw = strip_code_fences(raw)
     try:
         entities = [e for e in json.loads(raw) if isinstance(e, dict) and e.get("text")]
     except json.JSONDecodeError:

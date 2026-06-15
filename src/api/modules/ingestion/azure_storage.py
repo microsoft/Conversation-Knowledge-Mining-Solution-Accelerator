@@ -4,8 +4,10 @@ import json
 import logging
 from typing import Optional
 
+from datetime import datetime, timedelta, timezone
+
 from azure.identity import DefaultAzureCredential
-from azure.storage.blob import BlobServiceClient, ContentSettings
+from azure.storage.blob import BlobServiceClient, ContentSettings, generate_blob_sas, BlobSasPermissions
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
@@ -139,6 +141,32 @@ class AzureStorageService:
         container = blob_service.get_container_client(settings.azure_storage_container)
         blob = container.get_blob_client(f"raw/{file_id}/{filename}")
         return blob.download_blob().readall()
+
+    def get_raw_file_sas_url(self, file_id: str, filename: str) -> str | None:
+        """Generate a short-lived SAS URL for a raw file so CU can read it directly."""
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return None
+        try:
+            blob_path = f"raw/{file_id}/{filename}"
+            # Use user delegation key for Entra-only storage accounts
+            blob_service = self._get_blob_client()
+            delegation_key = blob_service.get_user_delegation_key(
+                key_start_time=datetime.now(timezone.utc),
+                key_expiry_time=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+            sas = generate_blob_sas(
+                account_name=settings.azure_storage_account,
+                container_name=settings.azure_storage_container,
+                blob_name=blob_path,
+                user_delegation_key=delegation_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+            return f"https://{settings.azure_storage_account}.blob.core.windows.net/{settings.azure_storage_container}/{blob_path}?{sas}"
+        except Exception as e:
+            logger.warning(f"SAS URL generation failed for {file_id}/{filename}: {e}")
+            return None
 
     def upload_to_blob(self, doc_id: str, doc_data: dict) -> bool:
         """Upload a single document to blob storage."""
@@ -280,6 +308,62 @@ class AzureStorageService:
 
         logger.info(f"Persisted {blob_count} to blob, {search_count} to search index")
         return {"blob_uploaded": blob_count, "search_indexed": search_count}
+
+    def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str]) -> dict:
+        """Delete all data for a file: blob, search index entries, and search chunks."""
+        result = {"blob_deleted": False, "search_docs_deleted": 0, "search_chunks_deleted": 0}
+
+        # Delete raw blob (raw/{file_id}/{filename})
+        settings = get_settings()
+        if settings.azure_storage_account:
+            try:
+                blob_service = self._get_blob_client()
+                container = blob_service.get_container_client(settings.azure_storage_container)
+                blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+                blob.delete_blob()
+                result["blob_deleted"] = True
+            except Exception as e:
+                logger.warning(f"Blob delete failed for {file_id}: {e}")
+
+            # Delete doc-level blobs (documents/{doc_id}.json)
+            for doc_id in doc_ids:
+                try:
+                    blob = container.get_blob_client(f"documents/{doc_id}.json")
+                    blob.delete_blob()
+                except Exception:
+                    pass
+
+        # Delete from AI Search: doc-level entries + all chunks
+        if settings.azure_search_endpoint:
+            try:
+                search_client = self._get_search_client()
+
+                # Delete doc-level entries
+                if doc_ids:
+                    search_client.delete_documents(documents=[{"id": did} for did in doc_ids])
+                    result["search_docs_deleted"] = len(doc_ids)
+
+                # Find and delete all chunks by doc_id filter
+                for doc_id in doc_ids:
+                    chunk_ids = []
+                    search_results = search_client.search(
+                        search_text="*",
+                        filter=f"doc_id eq '{doc_id}'",
+                        select=["id"],
+                        top=1000,
+                    )
+                    for r in search_results:
+                        chunk_ids.append(r["id"])
+                    if chunk_ids:
+                        for batch_start in range(0, len(chunk_ids), 100):
+                            batch = chunk_ids[batch_start:batch_start + 100]
+                            search_client.delete_documents(documents=[{"id": cid} for cid in batch])
+                        result["search_chunks_deleted"] += len(chunk_ids)
+            except Exception as e:
+                logger.warning(f"Search cleanup failed for {file_id}: {e}")
+
+        logger.info(f"Cleanup for file '{file_id}': {result}")
+        return result
 
 
 azure_storage_service = AzureStorageService()
