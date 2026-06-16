@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 
 # Suppress informational warnings from agent_framework about runtime
 # tool/structured_output overrides not being supported by AzureAIClient.
-logging.getLogger("agent_framework.azure").setLevel(logging.ERROR)
+logging.getLogger("agent_framework.foundry").setLevel(logging.ERROR)
 
 import pandas as pd
 import pyodbc
@@ -29,9 +29,9 @@ from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 
-from agent_framework.azure import AzureAIProjectAgentProvider
+from agent_framework_foundry import FoundryAgent
 
-from content_understanding_client import AzureContentUnderstandingClient
+from content_understanding_client import AzureContentUnderstandingClient, sanitize_cu_output
 
 # Get parameters from command line
 p = argparse.ArgumentParser()
@@ -314,11 +314,14 @@ def create_tables():
     conn.commit()
 
 
+
 create_tables()
+
 
 def get_field_value(fields, field_name, default=""):
     field = fields.get(field_name, {})
-    return field.get('valueString', default)
+    value = field.get('valueString', default)
+    return sanitize_cu_output(value)
 
 # Process files and insert into DB and Search
 async def process_files():
@@ -511,11 +514,8 @@ try:
             AsyncAzureCliCredential(process_timeout=30) as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
-            # Create provider for agent management
-            provider = AzureAIProjectAgentProvider(project_client=project_client)
-            
-            # Get agent using provider
-            agent = await provider.get_agent(name=TOPIC_MINING_AGENT_NAME)
+            # Create agent using FoundryAgent
+            agent = FoundryAgent(project_client=project_client, agent_name=TOPIC_MINING_AGENT_NAME)
             
             # Query with the topics string
             query = f"Analyze these conversation topics and identify distinct categories: {topics_str1}"
@@ -558,11 +558,8 @@ try:
             AsyncAzureCliCredential(process_timeout=30) as async_cred,
             AIProjectClient(endpoint=AI_PROJECT_ENDPOINT, credential=async_cred) as project_client,
         ):
-            # Create provider for agent management
-            provider = AzureAIProjectAgentProvider(project_client=project_client)
-            
-            # Get agent using provider
-            agent = await provider.get_agent(name=TOPIC_MAPPING_AGENT_NAME)
+            # Create agent using FoundryAgent
+            agent = FoundryAgent(project_client=project_client, agent_name=TOPIC_MAPPING_AGENT_NAME)
             
             # Process all rows using the same agent instance
             for _, row in df_processed_data.iterrows():

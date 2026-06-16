@@ -173,11 +173,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_success(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test successful streaming with valid query."""
@@ -212,9 +212,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -240,11 +238,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_empty_query(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test streaming with empty query - should use default query."""
@@ -277,9 +275,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -297,11 +293,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_with_citations(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test streaming with citations in response."""
@@ -343,9 +339,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -374,11 +368,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_with_citation_markers(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test streaming replaces citation markers correctly."""
@@ -409,9 +403,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -434,11 +426,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_with_citation_markers_without_dagger(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test streaming replaces citation markers that lack the † character."""
@@ -469,9 +461,7 @@ class TestChatService:
 
         mock_agent.run = mock_run
 
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -494,11 +484,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_cached_thread(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test streaming with cached thread ID."""
@@ -526,16 +516,14 @@ class TestChatService:
         mock_chunk.text = "Response"
         mock_chunk.contents = []
         
-        async def mock_run(query, stream=False, conversation_id=None):
+        async def mock_run(query, stream=False, session=None):
             # Verify cached thread ID is used
-            assert conversation_id == "cached-thread-id"
+            assert session is not None and session.service_session_id == "cached-thread-id"
             yield mock_chunk
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -554,11 +542,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_rate_limit_error(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test handling of rate limit errors."""
@@ -594,9 +582,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         # Execute and verify HTTPException with 429 status
         with pytest.raises(HTTPException) as exc_info:
@@ -609,11 +595,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_general_exception(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test handling of general exceptions."""
@@ -637,9 +623,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
@@ -656,11 +640,11 @@ class TestChatService:
     @pytest.mark.asyncio
     @patch("services.chat_service.SQLTool")
     @patch("services.chat_service.get_sqldb_connection", new_callable=AsyncMock)
-    @patch("services.chat_service.AzureAIProjectAgentProvider")
+    @patch("services.chat_service.FoundryAgent")
     @patch("services.chat_service.AIProjectClient")
     @patch("services.chat_service.get_azure_credential_async", new_callable=AsyncMock)
     async def test_stream_openai_text_no_response(
-        self, mock_credential, mock_project_client_class, mock_provider_class,
+        self, mock_credential, mock_project_client_class, mock_foundry_agent_class,
         mock_sqldb_conn, mock_sql_tool, chat_service
     ):
         """Test handling when agent returns no text."""
@@ -692,9 +676,7 @@ class TestChatService:
         
         mock_agent.run = mock_run
         
-        mock_provider = MagicMock()
-        mock_provider.get_agent = AsyncMock(return_value=mock_agent)
-        mock_provider_class.return_value = mock_provider
+        mock_foundry_agent_class.return_value = mock_agent
 
         mock_sqldb_conn.return_value = AsyncMock()
         mock_tool_instance = MagicMock()
