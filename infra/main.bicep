@@ -991,17 +991,17 @@ module storageAccount 'br/public:avm/res/storage/storage-account:0.31.0' = {
     roleAssignments: [
       {
         principalId: userAssignedIdentity.outputs.principalId
-        roleDefinitionIdOrName: 'Storage Blob Data Contributor'
+        roleDefinitionIdOrName: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' // Storage Blob Data Contributor
         principalType: 'ServicePrincipal'
       }
       {
         principalId: userAssignedIdentity.outputs.principalId
-        roleDefinitionIdOrName: 'Storage Account Contributor'
+        roleDefinitionIdOrName: '17d1049b-9a84-46fb-8f53-869881c3d3ab' // Storage Account Contributor
         principalType: 'ServicePrincipal'
       }
       {
         principalId: userAssignedIdentity.outputs.principalId
-        roleDefinitionIdOrName: 'Storage File Data Privileged Contributor'
+        roleDefinitionIdOrName: '69566ab7-960f-475b-8e7c-b3118f30c6bd' // Storage File Data Privileged Contributor
         principalType: 'ServicePrincipal'
       }
     ]
