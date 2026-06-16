@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = ""
     app_frontend_hostname: str = ""
-    data_dir: str = os.path.join(os.path.dirname(__file__), "..", "data")
+    data_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
     # Limits
