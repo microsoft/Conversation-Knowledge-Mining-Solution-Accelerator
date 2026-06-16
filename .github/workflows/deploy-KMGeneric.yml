@@ -18,7 +18,7 @@ permissions:
   id-token: write
 
 env:
-  GPT_MIN_CAPACITY: 150
+  GPT_MIN_CAPACITY: 50
   TEXT_EMBEDDING_MIN_CAPACITY: 80
   BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
 jobs:
@@ -134,7 +134,7 @@ jobs:
           az deployment group create \
             --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
             --template-file infra/main.bicep \
-            --parameters solutionName=${{env.SOLUTION_PREFIX}} location="${{ env.AZURE_LOCATION }}" secondaryLocation="${{ env.AZURE_LOCATION }}" gptDeploymentCapacity=150 aiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'Purpose':'Deploying and Cleaning Up Resources for Validation','CreatedDate':'$current_date'}"
+            --parameters solutionName=${{env.SOLUTION_PREFIX}} location="${{ env.AZURE_LOCATION }}" secondaryLocation="${{ env.AZURE_LOCATION }}" gptDeploymentCapacity=50 aiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'Purpose':'Deploying and Cleaning Up Resources for Validation','CreatedDate':'$current_date'}"
 
      
 
