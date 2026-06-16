@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.43.8.12551",
-      "templateHash": "9558335949477141360"
+      "version": "0.44.1.10279",
+      "templateHash": "5914264828980253617"
     }
   },
   "parameters": {
@@ -325,6 +325,7 @@
     "applicationInsightsResourceName": "[format('appi-{0}', variables('solutionSuffix'))]",
     "bastionHostName": "[format('bas-{0}', variables('solutionSuffix'))]",
     "dataCollectionRulesResourceName": "[format('dcr-{0}', variables('solutionSuffix'))]",
+    "dcrLogAnalyticsDestinationName": "[format('la-{0}-destination', variables('logAnalyticsWorkspaceResourceName'))]",
     "jumpboxVmName": "[take(format('vm-jumpbox-{0}', variables('solutionSuffix')), 15)]",
     "privateDnsZones": [
       "privatelink.cognitiveservices.azure.com",
@@ -4428,8 +4429,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "14263337584307645476"
+              "version": "0.44.1.10279",
+              "templateHash": "9627102454387562913"
             }
           },
           "definitions": {
@@ -9078,7 +9079,7 @@
                 "logAnalytics": [
                   {
                     "workspaceResourceId": "[if(variables('useExistingLogAnalytics'), parameters('existingLogAnalyticsWorkspaceId'), reference('logAnalyticsWorkspace').outputs.resourceId.value)]",
-                    "name": "la--1264800308"
+                    "name": "[variables('dcrLogAnalyticsDestinationName')]"
                   }
                 ]
               },
@@ -9088,7 +9089,7 @@
                     "Microsoft-Perf"
                   ],
                   "destinations": [
-                    "la--1264800308"
+                    "[variables('dcrLogAnalyticsDestinationName')]"
                   ],
                   "transformKql": "source",
                   "outputStream": "Microsoft-Perf"
@@ -9098,7 +9099,7 @@
                     "Microsoft-Event"
                   ],
                   "destinations": [
-                    "la--1264800308"
+                    "[variables('dcrLogAnalyticsDestinationName')]"
                   ],
                   "transformKql": "source",
                   "outputStream": "Microsoft-Event"
@@ -23926,8 +23927,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "16752595662856460651"
+              "version": "0.44.1.10279",
+              "templateHash": "5252655870199315922"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -25075,8 +25076,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.43.8.12551",
-                      "templateHash": "10918733563560027648"
+                      "version": "0.44.1.10279",
+                      "templateHash": "13713786341946245413"
                     }
                   },
                   "definitions": {
@@ -26725,8 +26726,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.43.8.12551",
-                              "templateHash": "9910113619698591130"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -26955,8 +26956,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.43.8.12551",
-                      "templateHash": "10918733563560027648"
+                      "version": "0.44.1.10279",
+                      "templateHash": "13713786341946245413"
                     }
                   },
                   "definitions": {
@@ -28605,8 +28606,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.43.8.12551",
-                              "templateHash": "9910113619698591130"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -29627,9 +29628,9 @@
       },
       "dependsOn": [
         "aiFoundryAiServices",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').aiServices)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').openAI)]",
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').cognitiveServices)]",
         "virtualNetwork"
       ]
     },
@@ -31810,8 +31811,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "2967490583129753981"
+              "version": "0.44.1.10279",
+              "templateHash": "14378911215964300033"
             }
           },
           "parameters": {
@@ -31905,8 +31906,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "13704406247129243046"
+              "version": "0.44.1.10279",
+              "templateHash": "13879155259000477210"
             }
           },
           "parameters": {
@@ -32000,17 +32001,17 @@
             "value": [
               {
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
-                "roleDefinitionIdOrName": "Storage Blob Data Contributor",
+                "roleDefinitionIdOrName": "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
                 "principalType": "ServicePrincipal"
               },
               {
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
-                "roleDefinitionIdOrName": "Storage Account Contributor",
+                "roleDefinitionIdOrName": "17d1049b-9a84-46fb-8f53-869881c3d3ab",
                 "principalType": "ServicePrincipal"
               },
               {
                 "principalId": "[reference('userAssignedIdentity').outputs.principalId.value]",
-                "roleDefinitionIdOrName": "Storage File Data Privileged Contributor",
+                "roleDefinitionIdOrName": "69566ab7-960f-475b-8e7c-b3118f30c6bd",
                 "principalType": "ServicePrincipal"
               }
             ]
@@ -39943,8 +39944,8 @@
         }
       },
       "dependsOn": [
-        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageBlob)]",
+        "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageQueue)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageDfs)]",
         "[format('avmPrivateDnsZones[{0}]', variables('dnsZoneIndex').storageFile)]",
         "userAssignedIdentity",
@@ -53765,8 +53766,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "6926177947269338708"
+              "version": "0.44.1.10279",
+              "templateHash": "18173420839042785423"
             }
           },
           "definitions": {
@@ -54778,8 +54779,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.43.8.12551",
-                      "templateHash": "1585721918321980475"
+                      "version": "0.44.1.10279",
+                      "templateHash": "13783254618840971873"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -55718,8 +55719,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.43.8.12551",
-              "templateHash": "6926177947269338708"
+              "version": "0.44.1.10279",
+              "templateHash": "18173420839042785423"
             }
           },
           "definitions": {
@@ -56731,8 +56732,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.43.8.12551",
-                      "templateHash": "1585721918321980475"
+                      "version": "0.44.1.10279",
+                      "templateHash": "13783254618840971873"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."

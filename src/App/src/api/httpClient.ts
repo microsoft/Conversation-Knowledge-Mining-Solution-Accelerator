@@ -20,7 +20,7 @@ type ResponseInterceptor =
 type ErrorInterceptor = (error: unknown) => never;
 
 class HttpClient {
-  private readonly baseURL = process.env.REACT_APP_API_BASE_URL ?? "";
+  private readonly baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
   private readonly defaultTimeout = 30000;
   private readonly requestInterceptors: RequestInterceptor[] = [];
   private readonly responseInterceptors: ResponseInterceptor[] = [];

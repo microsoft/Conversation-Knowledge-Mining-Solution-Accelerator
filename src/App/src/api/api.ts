@@ -146,11 +146,12 @@ export const historyRead = async (convId: string): Promise<ChatMessage[]> => {
 };
 
 export const historyList = async (
-  offset = 0
+  offset = 0,
+  limit = 25
 ): Promise<Conversation[] | null> => {
   try {
     const response = await httpClient.get("/history/list", {
-      params: { offset },
+      params: { offset, limit },
     });
     const payload = await parseResponseJson<any[]>(response);
 
@@ -184,12 +185,16 @@ export async function getLayoutConfig(): Promise<{
 }> {
   try {
     return await layoutConfigCache.getOrCreate("layout-config", async () => {
-      const response = await httpClient.get("/api/layout-config");
+      const response = await retryRequest(async () => {
+        const res = await httpClient.get("/api/layout-config");
+        if (!res.ok && (res.status === 429 || res.status >= 500)) {
+          throw new Error(`Layout config request failed: ${res.status}`);
+        }
+        return res;
+      }, 3, 2000);
+
       if (!response.ok) {
-        return {
-          appConfig: null,
-          charts: [],
-        };
+        throw new Error(`Layout config request failed: ${response.status}`);
       }
 
       const layoutConfigData = await parseResponseJson<{
@@ -290,7 +295,62 @@ export const historyDelete = async (convId: string): Promise<Response> => {
 
 export const historyDeleteAll = async (): Promise<Response> => {
   try {
-    return await httpClient.delete("/history/delete_all", {});
+    const response = await httpClient.delete("/history/delete_all", {});
+
+    if (response.ok || response.status !== 404) {
+      return response;
+    }
+
+    // Some deployments expose single-delete APIs but not the bulk-delete route.
+    // Fall back to paginated delete so "clear all" still works.
+    const pageSize = 25;
+    const conversationIds: string[] = [];
+    let offset = 0;
+
+    while (true) {
+      const page = await historyList(offset, pageSize);
+      if (!Array.isArray(page) || page.length === 0) {
+        break;
+      }
+
+      conversationIds.push(...page.map((conversation) => conversation.id));
+      if (page.length < pageSize) {
+        break;
+      }
+
+      offset += pageSize;
+    }
+
+    if (conversationIds.length === 0) {
+      return response;
+    }
+
+    const deleteResults = await Promise.allSettled(
+      conversationIds.map((conversationId) => historyDelete(conversationId))
+    );
+
+    const hasFailedDelete = deleteResults.some(
+      (result) => result.status === "rejected" || !result.value.ok
+    );
+
+    if (hasFailedDelete) {
+      return createErrorResponse(
+        500,
+        "There was an issue clearing chat history."
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        message: "Successfully deleted all conversations.",
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
   } catch {
     return createErrorResponse(500, "There was an issue clearing chat history.");
   }
