@@ -77,7 +77,7 @@ Follow the quick deploy steps on the deployment guide to deploy this solution 
 
 <br/>
 
-> **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause. In such cases, consider deploying the WAF-supported version to ensure compliance. To configure, [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
+> **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause. In such cases, consider deploying the WAF-aligned version (deployment flavor `avm-waf`) to ensure compliance. To configure, [Click here](./documents/DeploymentGuide.md#31-choose-deployment-type-optional).
 
 > ⚠️ **Important: Check Azure OpenAI Quota Availability**
  <br/>To ensure sufficient quota is available in your subscription, please follow [quota check instructions guide](./documents/QuotaCheck.md) before you deploy the solution.
@@ -89,7 +89,7 @@ Follow the quick deploy steps on the deployment guide to deploy this solution 
 ### Prerequisites and costs
 To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups, resources, app registrations, and assign roles at the resource group level**. This should include Contributor role at the subscription level and  Role Based Access Control role on the subscription and/or resource group level. Follow the steps in [Azure Account Set Up](./documents/AzureAccountSetUp.md).
 
-Here are some example regions where the services are available: East US, East US2, Australia East, UK South, France Central.
+Here are the allowed primary regions for deployment: Australia East, Central US, East Asia, East US2, Japan East, North Europe, Southeast Asia, UK South.
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a **region** where the following services are available.
 

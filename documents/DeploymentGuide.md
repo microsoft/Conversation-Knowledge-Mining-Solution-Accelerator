@@ -6,7 +6,7 @@ This guide walks you through deploying the Conversation Knowledge Mining Solutio
 
 🆘 **Need Help?** If you encounter any issues during deployment, check our [Troubleshooting Guide](./TroubleShootingSteps.md) for solutions to common problems.
 
-> **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause. In such cases, consider deploying the WAF-supported version to ensure compliance. To configure, [Click here](#31-choose-deployment-type-optional).
+> **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause. In such cases, consider deploying the WAF-aligned version (deployment flavor `avm-waf`) to ensure compliance. To configure, [Click here](#31-choose-deployment-type-optional).
 
 ## Step 1: Prerequisites & Setup
 
@@ -58,7 +58,9 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - [Embedding Deployment Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#embedding-models)
 - [Azure Semantic Search](./AzureSemanticSearchRegion.md)
 
-**Recommended Regions:** East US, East US2, Australia East, UK South, France Central
+**Allowed Primary Regions:** Australia East, Central US, East Asia, East US2, Japan East, North Europe, Southeast Asia, UK South
+
+> **Note:** The primary location (`AZURE_LOCATION`) is restricted to the above regions to guarantee compatibility with paired regions and replica locations. The AI Service location (`AZURE_ENV_AI_SERVICE_LOCATION`) supports a different set of regions — see the [Parameter Customization Guide](./CustomizingAzdParameters.md) for details.
 
 🔍 **Check Availability:** Use [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/) to verify service availability.
 
@@ -190,16 +192,19 @@ Review the configuration options below. You can customize any settings that meet
 
 ### 3.1 Choose Deployment Type (Optional)
 
-| **Aspect** | **Development/Testing (Default)** | **Production** |
+| **Aspect** | **Development/Testing (Default)** | **Production (WAF-aligned)** |
 |------------|-----------------------------------|----------------|
-| **Configuration File** | `main.parameters.json` (sandbox) | Copy `main.waf.parameters.json` to `main.parameters.json` |
+| **Deployment Flavor** | `bicep` (Vanilla Bicep) | `avm-waf` (AVM WAF-aligned) |
+| **Configuration File** | `main.parameters.json` (default) | Copy `main.waf.parameters.json` to `main.parameters.json` |
 | **Security Controls** | Minimal (for rapid iteration) | Enhanced (production best practices) |
 | **Cost** | Lower costs | Cost optimized |
 | **Use Case** | POCs, development, testing | Production workloads |
 | **Framework** | Basic configuration | [Well-Architected Framework](https://learn.microsoft.com/en-us/azure/well-architected/) |
-| **Features** | Core functionality | Reliability, security, operational excellence |
+| **Features** | Core functionality | Monitoring, private networking, scalability, redundancy |
 
-**To use production configuration:**
+> **Note:** An intermediate option (`avm`) is also available — it uses AVM modules without WAF networking features. Set `DEPLOYMENT_FLAVOR` to `avm` for enterprise-grade modules without private endpoints.
+
+**To use production (WAF-aligned) configuration:**
 
 Copy the contents from the production configuration file to your main parameters file:
 
@@ -357,13 +362,13 @@ az login --use-device-code
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh
 ```
 
 **If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
 
 ```bash
-bash ./infra/scripts/run_create_agents_scripts.sh \
+bash ./infra/scripts/post-provision/run_create_agents_scripts.sh \
    <resource-group> \
    <project-endpoint> <solution-name> <gpt-model-name> \
    <ai-foundry-resource-id> <api-app-name> \
@@ -384,13 +389,13 @@ bash ./infra/scripts/run_create_agents_scripts.sh \
 The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh
+bash ./infra/scripts/post-provision/process_sample_data.sh
 ```
 
 **If you don't have `azd env` configured**, you'll need to pass parameters manually. The parameters are grouped by service for clarity:
 
 ```bash
-bash ./infra/scripts/process_sample_data.sh \
+bash ./infra/scripts/post-provision/process_sample_data.sh \
   <Resource-Group-Name> <Azure-Subscription-ID> \
   <Storage-Account-Name> <Storage-Container-Name> \
   <SQL-Server-Name> <SQL-Database-Name> <Backend-User-MID-Client-ID> <Backend-User-MID-Display-Name> \
