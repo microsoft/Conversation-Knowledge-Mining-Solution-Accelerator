@@ -470,7 +470,7 @@ module frontend_docker './bicep/modules/compute/app-service.bicep' = {
     serverFarmResourceId: hostingplan!.outputs.resourceId
     kind: 'app,linux'
     linuxFxVersion: 'NODE|20-lts'
-    appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa'
+    appCommandLine: 'pm2 serve /home/site/wwwroot/dist --no-daemon --spa'
     appSettings: {
       APPINSIGHTS_INSTRUMENTATIONKEY: app_insights.outputs.instrumentationKey
       APP_API_BASE_URL: backend_docker!.outputs.appUrl
