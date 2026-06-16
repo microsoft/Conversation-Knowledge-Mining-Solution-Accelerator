@@ -41,6 +41,10 @@ param privateEndpointSubnetId string = ''
 @description('Private DNS zone resource IDs for private endpoint.')
 param privateDnsZoneResourceIds array = []
 
+@description('Default action for the network rule set. Use Allow when no private endpoint is in place; Deny for private-only.')
+@allowed(['Allow', 'Deny'])
+param networkRuleSetDefaultAction string = 'Allow'
+
 @description('Enable Azure telemetry collection.')
 param enableTelemetry bool = true
 
@@ -88,6 +92,7 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.12.1' 
     exportPolicyStatus: exportPolicyStatus
     roleAssignments: !empty(acrPullPrincipalIds) ? roleAssignments : []
     privateEndpoints: privateEndpointConfig
+    networkRuleSetDefaultAction: networkRuleSetDefaultAction
   }
 }
 

@@ -156,3 +156,9 @@ output resourceId string = aksCluster.outputs.resourceId
 
 @description('FQDN of the AKS cluster.')
 output fqdn string = aksCluster.outputs.?fqdn ?? ''
+
+@description('Object ID of the AKS kubelet system-assigned managed identity (used by pods at runtime via IMDS).')
+output kubeletIdentityObjectId string = aksCluster.outputs.?kubeletIdentityObjectId ?? ''
+
+@description('Principal ID of the AKS control-plane system-assigned managed identity.')
+output systemAssignedMIPrincipalId string = aksCluster.outputs.?systemAssignedMIPrincipalId ?? ''
