@@ -415,7 +415,7 @@ var reactAppLayoutConfig = '''{
 }'''
 
 // ========== Backend Deployment ========== //
-module backend_docker './bicep/modules/compute/app-service.bicep' = {
+module backend './bicep/modules/compute/app-service.bicep' = {
   name: take('module.app-service-backend.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
@@ -460,7 +460,7 @@ module backend_docker './bicep/modules/compute/app-service.bicep' = {
 }
 
 // ========== Frontend Deployment ========== //
-module frontend_docker './bicep/modules/compute/app-service.bicep' = {
+module frontend './bicep/modules/compute/app-service.bicep' = {
   name: take('module.app-service-frontend.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
@@ -473,7 +473,7 @@ module frontend_docker './bicep/modules/compute/app-service.bicep' = {
     appCommandLine: 'pm2 serve /home/site/wwwroot/dist --no-daemon --spa'
     appSettings: {
       APPINSIGHTS_INSTRUMENTATIONKEY: app_insights.outputs.instrumentationKey
-      APP_API_BASE_URL: backend_docker!.outputs.appUrl
+      VITE_API_BASE_URL: backend!.outputs.appUrl
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
       ENABLE_ORYX_BUILD: 'true'
       WEBSITE_NODE_DEFAULT_VERSION: '~20'
@@ -496,7 +496,7 @@ module role_assignments './bicep/modules/identity/role-assignments.bicep' = {
     aiSearchPrincipalId: ai_search.outputs.identityPrincipalId
     deployerPrincipalId: deployingUserPrincipalId
     deployerPrincipalType: deployingUserPrincipalType
-    backendAppServicePrincipalId: backend_docker!.outputs.identityPrincipalId
+    backendAppServicePrincipalId: backend!.outputs.identityPrincipalId
     cosmosDbAccountName: cosmosDBModule!.outputs.name
   }
   scope: resourceGroup(resourceGroup().name)
@@ -517,13 +517,13 @@ output AGENT_NAME_CONVERSATION string = ''
 output AGENT_NAME_TITLE string = ''
 
 @description('Backend API App Service name')
-output API_APP_NAME string = backend_docker!.outputs.name
+output API_APP_NAME string = backend!.outputs.name
 
 @description('API App Service principal ID')
-output API_APP_PRINCIPAL_ID string = backend_docker!.outputs.identityPrincipalId
+output API_APP_PRINCIPAL_ID string = backend!.outputs.identityPrincipalId
 
 @description('Contains API application URL.')
-output API_APP_URL string = backend_docker!.outputs.appUrl
+output API_APP_URL string = backend!.outputs.appUrl
 
 @description('Contains Application Insights connection string.')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = app_insights.outputs.connectionString
@@ -640,4 +640,4 @@ output USE_CASE string = usecase
 output USE_CHAT_HISTORY_ENABLED string = useChatHistoryEnabledSetting
 
 @description('Frontend web application URL')
-output WEB_APP_URL string = frontend_docker!.outputs.appUrl
+output WEB_APP_URL string = frontend!.outputs.appUrl
