@@ -69,8 +69,8 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 📖 **Follow:** [Quota Check Instructions](./QuotaCheck.md) to ensure sufficient capacity.
 
 **Recommended Configuration:**
-- **Default:** 150k tokens (minimum)
-- **Optimal:** More than 150k tokens (recommended for best performance)
+- **Default:** 50k tokens (minimum)
+- **Optimal:** More than 50k tokens (recommended for best performance)
 
 > **Note:** When you run `azd up`, the deployment will automatically show you regions with available quota, so this pre-check is optional but helpful for planning purposes. You can customize these settings later in [Step 3.3: Advanced Configuration](#33-advanced-configuration-optional).
 
