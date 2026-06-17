@@ -250,6 +250,7 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
 
         # Stage 2: Chunk + Embed + Index (batch embeddings for speed)
         chunks = chunk_text(extracted.markdown)
+        indexed = 0
         try:
             from src.api.modules.embeddings.service import EmbeddingsService
             from src.api.modules.ingestion.azure_storage import azure_storage_service
@@ -257,12 +258,18 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
             emb_service = EmbeddingsService()
             embeddings = emb_service.generate_embeddings_batch(chunks)
 
-            azure_storage_service.index_chunks(
+            indexed = azure_storage_service.index_chunks(
                 doc_id=file_id, chunks=chunks, embeddings=embeddings,
                 metadata=doc_data.get("metadata", {}),
             )
         except Exception as e:
-            logger.warning(f"[{file_id}] Chunk/embed/index failed (non-blocking): {e}")
+            raise RuntimeError(f"Chunk/embed/index failed: {e}")
+
+        # Keep fallback behavior aligned with queue worker to avoid ready+doc_count=0 drift.
+        if chunks and indexed == 0:
+            raise RuntimeError(
+                f"Chunk indexing produced 0 indexed docs for {filename}; marking as failed"
+            )
 
         # Separate LLM summarization stage (decoupled from CU extraction)
         try:
