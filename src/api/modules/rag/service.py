@@ -25,7 +25,15 @@ except Exception:
 def _get_prompt(key: str, fallback: str, **kwargs) -> str:
     """Load a prompt from config, falling back to the built-in default."""
     template = _PROMPTS.get(key, fallback)
-    return template.format(**kwargs) if kwargs else template
+    if not kwargs:
+        return template
+
+    # Use literal token replacement (e.g., {context}) so JSON examples in prompts
+    # do not trigger str.format() KeyError on keys like {"type": ...}.
+    rendered = template
+    for token, value in kwargs.items():
+        rendered = rendered.replace("{" + token + "}", str(value))
+    return rendered
 
 
 class RAGService:

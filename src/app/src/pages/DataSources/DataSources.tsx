@@ -28,6 +28,7 @@ import {
   getUploadedFiles,
   deleteFile,
   retryFile,
+  uploadJsonFile,
   uploadDocument,
 } from "../../api/client";
 import type { UploadedFile, DataSourceConfig } from "../../types/api";
@@ -120,7 +121,9 @@ const DataSources: React.FC = () => {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList);
+    const files: File[] = Array.from(fileList);
+    const jsonFiles = files.filter((f) => f.name.toLowerCase().endsWith(".json"));
+    const docFiles = files.filter((f) => !f.name.toLowerCase().endsWith(".json"));
     const oversized = files.filter((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
     if (oversized.length > 0) {
       setError(`${oversized.map((f) => f.name).join(", ")} exceeded the ${MAX_FILE_SIZE_MB} MB limit.`);
@@ -128,7 +131,12 @@ const DataSources: React.FC = () => {
       return;
     }
     try {
-      await uploadDocument(files);
+      for (const file of jsonFiles) {
+        await uploadJsonFile(file);
+      }
+      if (docFiles.length > 0) {
+        await uploadDocument(docFiles);
+      }
       setExploreData(null);
       loadSources();
     } catch (e) { setError(`Upload failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
@@ -168,7 +176,7 @@ const DataSources: React.FC = () => {
           <p>Your uploaded files</p>
         </div>
         <div className="sourcesHeaderActions">
-          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.csv,.json"
+          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.csv,.json,.xlsx,.tiff,.bmp"
             style={{ display: "none" }} onChange={handleUpload} />
           <Button appearance="primary" size="small" icon={<ArrowUpload20Regular />}
             onClick={() => fileInputRef.current?.click()}>Upload files</Button>

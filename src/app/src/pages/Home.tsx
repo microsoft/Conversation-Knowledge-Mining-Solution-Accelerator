@@ -111,19 +111,32 @@ const Home: React.FC = () => {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList);
+    const files: File[] = Array.from(fileList);
+    const jsonFiles = files.filter((f) => f.name.toLowerCase().endsWith(".json"));
+    const docFiles = files.filter((f) => !f.name.toLowerCase().endsWith(".json"));
     const label = files.length === 1 ? files[0].name : `${files.length} files`;
     setUploading(true);
     setUploadDone(false);
     setUploadError("");
     setUploadMsg(`Uploading ${label}...`);
     try {
-      if (files.length === 1 && files[0].name.toLowerCase().endsWith(".json")) {
-        const res = await uploadJsonFile(files[0]);
-        setUploadMsg(`${res.data.total_loaded} records loaded`);
+      let totalLoaded = 0;
+
+      for (const file of jsonFiles) {
+        const res = await uploadJsonFile(file);
+        totalLoaded += Number(res?.data?.total_loaded || 0);
+      }
+
+      if (docFiles.length > 0) {
+        await uploadDocument(docFiles);
+      }
+
+      if (jsonFiles.length > 0 && docFiles.length > 0) {
+        setUploadMsg(`${totalLoaded} records loaded and ${docFiles.length} document(s) submitted — processing in background`);
+      } else if (jsonFiles.length > 0) {
+        setUploadMsg(`${totalLoaded} records loaded`);
       } else {
-        await uploadDocument(files);
-        setUploadMsg(`${files.length} file(s) submitted — processing in background`);
+        setUploadMsg(`${docFiles.length} file(s) submitted — processing in background`);
       }
       setUploadDone(true);
       setInsights(null); // Invalidate insights cache so it regenerates with new data
@@ -309,7 +322,7 @@ const Home: React.FC = () => {
           )}
 
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
-            accept=".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.tiff,.bmp,.wav,.mp3,.mp4" onChange={handleUpload} />
+            accept=".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.tiff,.bmp" onChange={handleUpload} />
         </div>
       </div>
 
@@ -324,7 +337,7 @@ const Home: React.FC = () => {
                   <ArrowUpload24Regular style={{ color: "#2563eb" }} />
                 </div>
                 <div className={s.valueTitle}>Upload files</div>
-                <div className={s.valueDesc}>Drag & drop PDFs, Word docs, JSON, CSV, images, or audio files. They'll be processed automatically.</div>
+                <div className={s.valueDesc}>Drag & drop PDFs, Word docs, spreadsheets, JSON, CSV, or image files. They'll be processed automatically.</div>
               </div>
               <div className={s.valueCard}>
                 <div className={s.valueIcon} style={{ backgroundColor: "#d1fae5" }}>
