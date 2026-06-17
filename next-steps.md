@@ -33,13 +33,22 @@ Configure environment variables for running services by updating `settings` in [
 To describe the infrastructure and application, `azure.yaml` along with Infrastructure as Code files using Bicep were added with the following directory structure:
 
 ```yaml
-- azure.yaml        # azd project configuration
-- infra/            # Infrastructure-as-code Bicep files
-  - main.bicep      # Main deployment template
-  - modules/        # Library modules
+- azure.yaml          # azd project configuration
+- infra/              # Infrastructure-as-code Bicep files
+  - main.bicep        # Deployment router (selects flavor)
+  - main.parameters.json    # Default parameters (bicep flavor)
+  - main.waf.parameters.json # WAF-aligned parameters (avm-waf flavor)
+  - avm/              # AVM-based modules (enterprise-grade)
+    - main.bicep      # AVM orchestrator
+    - modules/        # Domain-organized AVM modules
+  - bicep/            # Vanilla Bicep modules (lightweight)
+    - main.bicep      # Bicep orchestrator
+    - modules/        # Domain-organized Bicep modules
+  - scripts/          # Build, data, pre/post-provision scripts
 ```
 
-The resources declared in [main.bicep](./infra/main.bicep) are provisioned when running `azd up` or `azd provision`.
+The resources declared in [main.bicep](./infra/main.bicep) are provisioned when running `azd up` or `azd provision`. The `main.bicep` acts as a router, selecting the deployment flavor (`bicep`, `avm`, or `avm-waf`) based on the `deploymentFlavor` parameter.
+
 This includes:
 
 - AI Foundry (AI Services and AI Project)
@@ -48,7 +57,7 @@ This includes:
 - Cosmos DB
 - SQL Database
 - App Service Plan and Web Apps (backend API and frontend)
-- Virtual Network and Private Endpoints (WAF deployment)
+- Virtual Network, Private Endpoints, and Bastion Host (AVM-WAF deployment only)
 
 More information about [Bicep](https://aka.ms/bicep) language.
 
