@@ -85,10 +85,17 @@ async def upload_document(
         raise HTTPException(status_code=413, detail=f"Too many files. Maximum is {settings.max_concurrent_uploads} per request.")
 
     # Validate all files and read their content
+    from src.api.utils.constants import AUDIO_VIDEO_FORMATS
     file_contents: list[tuple[str, str, bytes]] = []
     for file in files:
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        # Check for audio/video files first with user-friendly message
+        if ext in AUDIO_VIDEO_FORMATS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Audio and video files are not supported. Please use PDF, Word (.docx), or text files.",
+            )
         if ext not in DOCUMENT_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
@@ -172,43 +179,67 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
     from src.api.modules.document_intelligence.service import content_understanding_service
     from src.api.modules.ingestion.chunking import chunk_text
     from src.api.modules.processing.service import ProcessingService
+    from src.api.modules.ingestion.local_extractor import extract_text as local_extract
 
     try:
         settings = get_settings()
-        cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
 
-        # Stage 1: Extract — prefer SAS URL to avoid re-uploading bytes
-        extracted = None
-        if settings.cu_use_sas_url:
-            try:
-                from src.api.modules.ingestion.azure_storage import azure_storage_service
-                sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
-                if sas_url:
-                    extracted = content_understanding_service.analyze_url(
-                        file_url=sas_url,
+        # Try local extraction first — will reject unsupported formats like WAV early
+        try:
+            local_text, needs_cu = local_extract(content, filename)
+            if local_text.strip() and not needs_cu:
+                logger.debug(f"[{file_id}] Local extraction succeeded for {filename}, skipping CU")
+                # Create a mock extracted object for consistency
+                extracted = type('obj', (object,), {
+                    'markdown': local_text,
+                    'page_count': 1,
+                    'fields': {}
+                })()
+            else:
+                extracted = None  # Will use CU below
+        except ValueError as ve:
+            # Format validation error (e.g., WAV not supported)
+            ingestion_service._update_file_status(file_id, "failed", error=str(ve))
+            return
+        except Exception as le:
+            logger.debug(f"[{file_id}] Local extraction failed: {le}, will try CU")
+            extracted = None
+
+        # Stage 1: Extract using CU if needed
+        if extracted is None:
+            cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
+
+            # Prefer SAS URL to avoid re-uploading bytes
+            if settings.cu_use_sas_url:
+                try:
+                    from src.api.modules.ingestion.azure_storage import azure_storage_service
+                    sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
+                    if sas_url:
+                        extracted = content_understanding_service.analyze_url(
+                            file_url=sas_url,
+                            filename=filename,
+                            max_wait_sec=cu_wait_sec,
+                        )
+                except Exception as e:
+                    logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
+
+            if extracted is None:
+                try:
+                    extracted = content_understanding_service.analyze(
+                        file=io.BytesIO(content),
                         filename=filename,
                         max_wait_sec=cu_wait_sec,
                     )
-            except Exception as e:
-                logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
-
-        if extracted is None:
-            try:
-                extracted = content_understanding_service.analyze(
-                    file=io.BytesIO(content),
-                    filename=filename,
-                    max_wait_sec=cu_wait_sec,
-                )
-            except TimeoutError:
-                retry_wait_sec = settings.cu_poll_max_wait_sec
-                logger.warning(
-                    f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s"
-                )
-                extracted = content_understanding_service.analyze(
-                    file=io.BytesIO(content),
-                    filename=filename,
-                    max_wait_sec=retry_wait_sec,
-                )
+                except TimeoutError:
+                    retry_wait_sec = settings.cu_poll_max_wait_sec
+                    logger.warning(
+                        f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s for {filename}"
+                    )
+                    extracted = content_understanding_service.analyze(
+                        file=io.BytesIO(content),
+                        filename=filename,
+                        max_wait_sec=retry_wait_sec,
+                    )
 
         if not extracted.markdown.strip():
             ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")
@@ -288,8 +319,22 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
         ingestion_service._update_file_status(file_id, "ready")
 
     except Exception as e:
+        import traceback
         logger.error(f"Processing failed for {filename}: {e}")
-        ingestion_service._update_file_status(file_id, "failed", error=str(e))
+        logger.debug(traceback.format_exc())
+        # Provide user-friendly error message
+        error_msg = str(e)
+        if "Chunk indexing produced 0 indexed" in error_msg:
+            user_msg = "The file was processed but could not be indexed. The file may be empty or in an unsupported format."
+        elif "No text could be extracted" in error_msg:
+            user_msg = f"No text could be extracted from {filename}. The file may be empty, corrupted, or in an unsupported format."
+        elif "timeout" in error_msg.lower():
+            user_msg = f"Processing took too long for {filename}. The file may be very large or the service may be busy. Please try again."
+        elif "corrupted" in error_msg.lower() or "invalid" in error_msg.lower():
+            user_msg = f"The file appears to be corrupted or invalid. Please check the file and try uploading again."
+        else:
+            user_msg = f"Failed to process {filename}. Please check that the file is valid and try again."
+        ingestion_service._update_file_status(file_id, "failed", error=user_msg)
 
 
 @router.post("/upload/csv", response_model=IngestionResult)

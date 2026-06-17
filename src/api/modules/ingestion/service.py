@@ -16,6 +16,7 @@ from src.api.modules.ingestion.models import (
     FilterDimension,
     FilterValue,
 )
+from src.api.modules.ingestion.error_messages import format_error_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -372,7 +373,15 @@ class IngestionService:
         self._ensure_loaded()
         if file_id in self._uploaded_files:
             f = self._uploaded_files[file_id]
-            updates: dict = {"status": status, "error": error}
+            # Format error message for user if present
+            formatted_error = ""
+            if error and status == "failed":
+                formatted_error = format_error_for_user(error, filename=f.filename)
+                logger.warning(f"[{file_id}] File failed: {error} (user message: {formatted_error})")
+            else:
+                formatted_error = error
+            
+            updates: dict = {"status": status, "error": formatted_error}
             # Recalculate doc_count when marking ready or extracted
             if status in ("ready", "extracted") and f.doc_count == 0:
                 count = sum(

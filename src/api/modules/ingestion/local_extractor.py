@@ -46,9 +46,16 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, bool]:
         if ext == "pdf":
             return _extract_pdf(file_bytes)
 
-        # Images and audio always need CU
+        # Audio and video files are not supported
+        if ext in ["wav", "mp3", "mp4", "m4a", "aac", "flac", "ogg"]:
+            raise ValueError(f"Audio and video files (.{ext}) are not supported. Please use PDF, Word (.docx), or text files.")
+
+        # Images and other formats always need CU
         return "", True
 
+    except ValueError:
+        # Re-raise validation errors (like unsupported formats)
+        raise
     except Exception as e:
         logger.warning(f"Local extraction failed for {filename}: {e} — will fall back to CU")
         return "", True
@@ -96,18 +103,28 @@ def _extract_docx(file_bytes: bytes) -> str:
         text = "\n".join(parts).strip()
         if text:
             return text
+        logger.debug("python-docx extracted empty text; trying OOXML fallback")
     except Exception as e:
-        logger.warning(f"python-docx parse failed, trying OOXML fallback: {e}")
+        logger.debug(f"python-docx parse failed, trying OOXML fallback: {e}")
 
     # Fallback: extract plain text from document.xml
     import re
     import zipfile
 
-    with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-        xml = zf.read("word/document.xml").decode("utf-8", errors="ignore")
-    text = re.sub(r"<[^>]+>", " ", xml)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            if "word/document.xml" not in zf.namelist():
+                raise ValueError("Not a valid DOCX: missing word/document.xml")
+            xml = zf.read("word/document.xml").decode("utf-8", errors="ignore")
+        text = re.sub(r"<[^>]+>", " ", xml)
+        text = re.sub(r"\s+", " ", text).strip()
+        if text:
+            return text
+        logger.warning(f"OOXML fallback for DOCX returned empty text (file may be corrupted or have no content)")
+        return ""
+    except Exception as e:
+        logger.error(f"DOCX extraction failed (both python-docx and OOXML fallback): {e}")
+        raise ValueError(f"Failed to extract text from DOCX: {e}")
 
 
 def _extract_xlsx(file_bytes: bytes) -> str:

@@ -203,7 +203,21 @@ class QueueWorker:
             # Try to extract text without CU for native-text files.
             # This makes native PDFs, DOCX, TXT, XLSX chateable in seconds.
             from src.api.modules.ingestion.local_extractor import extract_text as local_extract
-            local_text, needs_cu = local_extract(content, filename)
+            try:
+                local_text, needs_cu = local_extract(content, filename)
+            except ValueError as ve:
+                # Format validation error (e.g., WAV not supported) — terminal failure
+                error_msg = str(ve)
+                logger.error(f"[extraction] {error_msg}")
+                ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+                queue_service.delete(EXTRACTION_QUEUE, message)
+                ingestion_service.release_processing_lock(file_id)
+                return
+            except Exception as e:
+                error_msg = f"Local text extraction failed for {filename}: {e}"
+                logger.warning(f"[extraction] {error_msg} — will try CU analysis")
+                local_text = ""
+                needs_cu = True
 
             text_blob_path = f"extracted/{file_id}/content.txt"
 
@@ -241,6 +255,7 @@ class QueueWorker:
                     }
                     queue_service.enqueue(ENRICHMENT_QUEUE, enrichment_msg)
                     queue_service.delete(EXTRACTION_QUEUE, message)
+                    logger.debug(f"[extraction] {filename} enqueued for enrichment (native format)")
                     return
                 # else: scanned PDF — fall through to CU OCR below, keeping extracted status
 
@@ -446,7 +461,9 @@ class QueueWorker:
             error_msg = f"Extraction failed: {str(e)}"
             tb = traceback.format_exc()
             logger.error(f"[extraction] {error_msg}\n{tb}")
-            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+            # Provide detailed error context to user
+            detailed_error = f"{error_msg} (See logs for details. File: {filename})" 
+            ingestion_service._update_file_status(file_id, "failed", error=detailed_error)
             queue_service.delete(EXTRACTION_QUEUE, message)
         finally:
             ingestion_service.release_processing_lock(file_id)
@@ -560,8 +577,13 @@ class QueueWorker:
             queue_service.delete(ENRICHMENT_QUEUE, message)
 
         except Exception as e:
-            logger.error(f"[enrichment] Failed for {filename}: {e}")
-            ingestion_service._update_file_status(file_id, "failed", error=str(e))
+            import traceback
+            error_msg = f"Enrichment failed for {filename}: {str(e)}"
+            tb = traceback.format_exc()
+            logger.error(f"[enrichment] {error_msg}\n{tb}")
+            # Provide detailed error context to user
+            detailed_error = f"{error_msg} (Check logs for details)" 
+            ingestion_service._update_file_status(file_id, "failed", error=detailed_error)
         finally:
             ingestion_service.release_processing_lock(file_id)
 
