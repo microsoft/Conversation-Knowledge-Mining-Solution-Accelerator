@@ -26,13 +26,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
   const [userName, setUserName] = useState("");
-  const { dashboardHeadline, ingestionSnapshot } = useAppState();
-  
-  // Only show use case name if data is loaded
-  const hasData = ingestionSnapshot && (
-    (ingestionSnapshot.uploadedFiles && ingestionSnapshot.uploadedFiles.length > 0) ||
-    (ingestionSnapshot.dataSources && ingestionSnapshot.dataSources.length > 0)
-  );
+  const { dashboardHeadline } = useAppState();
 
   useEffect(() => {
     // Fetch user info from EasyAuth
@@ -70,11 +64,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className={styles.topBarLeft}>
           <span className={styles.breadcrumb}>
             {process.env.REACT_APP_BRANDING_NAME || "Knowledge Mining"}
-            {hasData && uiConfig.useCaseName && (
-              <span style={{ fontWeight: 400, color: "#94a3b8" }}>
-                {" | "}{uiConfig.useCaseName}
-              </span>
-            )}
           </span>
         </div>
         <div className={styles.topBarRight}>
