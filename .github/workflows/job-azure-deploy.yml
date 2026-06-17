@@ -347,12 +347,22 @@ jobs:
           AZURE_REGIONS: ${{ vars.AZURE_REGIONS_KM }}
         run: |
           chmod +x infra/scripts/checkquota_km.sh
-          if ! infra/scripts/checkquota_km.sh; then
-            # If quota check fails due to insufficient quota, set the flag
-            if grep -q "No region with sufficient quota found" infra/scripts/checkquota_km.sh; then
-              echo "QUOTA_FAILED=true" >> $GITHUB_ENV
-            fi
-            exit 1  # Fail the pipeline if any other failure occurs
+          infra/scripts/checkquota_km.sh
+
+          quota_failed="$(grep -E '^QUOTA_FAILED=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+          valid_region="$(grep -E '^VALID_REGION=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+
+          if [[ "${quota_failed:-false}" == "true" ]]; then
+            echo "❌ Quota check failed: no region has required model quota."
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -z "${valid_region:-}" ]]; then
+            echo "❌ Quota check did not provide VALID_REGION. Marking quota check as failed."
+            echo "QUOTA_FAILED=true" >> "$GITHUB_ENV"
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -n "${valid_region:-}" ]]; then
+            echo "✅ Quota check passed. Selected region: ${valid_region}"
           fi
 
       - name: Set Quota Failure Output
@@ -379,6 +389,11 @@ jobs:
           INPUT_TRIGGER_TYPE: ${{ inputs.trigger_type }}
           INPUT_AZURE_LOCATION: ${{ inputs.azure_location }}
         run: |
+          if [[ -z "${VALID_REGION:-}" ]]; then
+            echo "❌ ERROR: VALID_REGION is empty after quota check."
+            exit 1
+          fi
+
           echo "Selected Region from Quota Check: $VALID_REGION"
           echo "AZURE_ENV_AI_SERVICE_LOCATION=$VALID_REGION" >> $GITHUB_ENV
           echo "AZURE_ENV_AI_SERVICE_LOCATION=$VALID_REGION" >> $GITHUB_OUTPUT
