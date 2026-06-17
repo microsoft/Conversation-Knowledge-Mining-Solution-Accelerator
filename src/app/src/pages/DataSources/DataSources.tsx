@@ -34,6 +34,7 @@ import {
 import type { UploadedFile, DataSourceConfig } from "../../types/api";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../context/AppStateContext";
+import { getApiErrorMessage } from "../../utils/errors";
 import "./DataSources.css";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -98,21 +99,21 @@ const DataSources: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
-    try { await deleteFile(deleteTarget.id); setExploreData(null); setInsights(null); loadSources(); } catch (e) { setError(`Failed to delete file: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await deleteFile(deleteTarget.id); setExploreData(null); setInsights(null); loadSources(); } catch (e) { setError(`Failed to delete file: ${getApiErrorMessage(e, "Unknown error")}`); }
     finally { setDeleting(false); setDeleteTarget(null); }
   };
 
   const handleDeleteSource = async (id: string) => {
-    try { await deleteDataSource(id); loadSources(); } catch (e) { setError(`Failed to delete data source: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await deleteDataSource(id); loadSources(); } catch (e) { setError(`Failed to delete data source: ${getApiErrorMessage(e, "Unknown error")}`); }
   };
 
   const handleRetry = async (id: string) => {
-    try { await retryFile(id); setExploreData(null); loadSources(); } catch (e) { setError(`Retry failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await retryFile(id); setExploreData(null); loadSources(); } catch (e) { setError(`Retry failed: ${getApiErrorMessage(e, "Unknown error")}`); }
   };
 
   const handleIngest = async (id: string) => {
     setIngesting(id);
-    try { await ingestDataSource(id); loadSources(); } catch (e) { setError(`Ingestion failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
+    try { await ingestDataSource(id); loadSources(); } catch (e) { setError(`Ingestion failed: ${getApiErrorMessage(e, "Unknown error")}`); }
     finally { setIngesting(null); }
   };
 
@@ -131,15 +132,34 @@ const DataSources: React.FC = () => {
       return;
     }
     try {
+      const failures: string[] = [];
+      let docsSubmitted = false;
+
       for (const file of jsonFiles) {
-        await uploadJsonFile(file);
+        try {
+          await uploadJsonFile(file);
+        } catch (err) {
+          failures.push(`${file.name}: ${getApiErrorMessage(err, "JSON upload failed")}`);
+        }
       }
       if (docFiles.length > 0) {
-        await uploadDocument(docFiles);
+        try {
+          await uploadDocument(docFiles);
+          docsSubmitted = true;
+        } catch (err) {
+          failures.push(`Documents: ${getApiErrorMessage(err, "Document upload failed")}`);
+        }
       }
-      setExploreData(null);
-      loadSources();
-    } catch (e) { setError(`Upload failed: ${e instanceof Error ? e.message : "Unknown error"}`); }
+
+      if (failures.length > 0) {
+        setError(`Some uploads failed: ${failures.slice(0, 2).join(" | ")}`);
+      }
+
+      if (jsonFiles.length > 0 || docsSubmitted) {
+        setExploreData(null);
+        loadSources();
+      }
+    } catch (e) { setError(`Upload failed: ${getApiErrorMessage(e, "Unknown error")}`); }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 

@@ -16,11 +16,11 @@ import { SkeletonText, SkeletonChat } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
-const ChatContent: React.FC<{ content: string }> = ({ content }) => {
+const ChatContent: React.FC<{ content: string }> = ({ content }: { content: string }) => {
   const parts = content.split(/(```chart[\s\S]*?```)/g);
   return (
     <>
-      {parts.map((part, i) => {
+      {parts.map((part: string, i: number) => {
         if (part.startsWith("```chart")) {
           try {
             const json = part.replace(/```chart\s*/, "").replace(/```$/, "");
@@ -123,7 +123,7 @@ const Explore: React.FC = () => {
   };
 
   const loadSessions = () => {
-    listChatSessions().then(r => {
+    listChatSessions().then((r: any) => {
       const raw = r.data?.sessions || r.data;
       setSessions(Array.isArray(raw) ? raw : []);
     }).catch(() => {});
@@ -151,36 +151,36 @@ const Explore: React.FC = () => {
     const q = text || chatInput;
     if (!q.trim() || chatLoading) return;
     const userMsg = { role: "user" as const, content: q };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages((prev: any[]) => [...prev, userMsg]);
     setChatInput("");
     setChatLoading(true);
     try {
-      const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) : undefined;
+      const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) as string[] : undefined;
       const scope = docIds ? "documents" as const : "all" as const;
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
       const res = await askQuestion(q, 5, filters, scope, docIds);
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
-      setMessages(prev => [...prev, asstMsg]);
+      setMessages((prev: any[]) => [...prev, asstMsg]);
       if (res.data.sources?.length) setLastSources(res.data.sources);
       const allMsgs = [...messages, userMsg, asstMsg];
       const title = messages.length === 0 ? q.slice(0, 60) : undefined;
       saveChatHistory(sessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
     } catch (err: unknown) {
-      setMessages(prev => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }]);
+      setMessages((prev: any[]) => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }]);
     } finally { setChatLoading(false); }
   };
 
   const toggleDoc = (id: string) => {
-    setSelectedDocIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelectedDocIds((prev: Set<string>) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
   const toggleFilter = (dim: string, value: string) => {
-    setActiveFilters(prev => { const next = { ...prev }; next[dim] === value ? delete next[dim] : next[dim] = value; return next; });
+    setActiveFilters((prev: Record<string, string>) => { const next = { ...prev }; next[dim] === value ? delete next[dim] : next[dim] = value; return next; });
   };
   const toggleDim = (id: string) => {
-    setExpandedDims(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setExpandedDims((p: Set<string>) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
   const toggleSource = (idx: number) => {
-    setExpandedSources(prev => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
+    setExpandedSources((prev: Set<number>) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   };
   const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); setLastSources([]); };
   const loadSession = async (sid: string) => {
@@ -194,8 +194,8 @@ const Explore: React.FC = () => {
   };
 
   const readyFiles = files.filter((f: any) => f.status === "ready" || !f.status);
-  const totalRecords = readyFiles.reduce((sum, f) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum, d) => sum + (d.doc_count || 0), 0);
-  const sessionCount = sessions.filter(sess => sess.message_count > 0).length;
+  const totalRecords = readyFiles.reduce((sum: number, f: any) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum: number, d: any) => sum + (d.doc_count || 0), 0);
+  const sessionCount = sessions.filter((sess: any) => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
     ? `${selectedDocIds.size} selected`
     : `${readyFiles.length + dataSources.length} ready source${readyFiles.length + dataSources.length !== 1 ? "s" : ""}`;
@@ -214,7 +214,7 @@ const Explore: React.FC = () => {
             {Object.entries(activeFilters).map(([k, v]) => (
               <span key={k} className={s.filterChip}>
                 {k.replace("_", " ")}: {v}
-                <button className={s.filterX} onClick={() => toggleFilter(k, v)}><Dismiss12Regular /></button>
+                <button className={s.filterX} onClick={() => toggleFilter(k as string, v as string)}><Dismiss12Regular /></button>
               </span>
             ))}
           </>
@@ -244,13 +244,13 @@ const Explore: React.FC = () => {
                     fontFamily: "inherit", padding: "2px 4px",
                     transition: "color 0.15s",
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "#2563eb")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "#64748b")}>
+                  onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.color = "#2563eb")}
+                  onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.color = "#64748b")}>
                   <Dismiss12Regular />
                 </button>
               )}
             </div>
-            {files.map(f => {
+            {files.map((f: any) => {
               const isReady = f.status === "ready" || !f.status;
               return (
                 <div key={f.id} className={selectedDocIds.has(f.id) ? s.sourceItemActive : s.sourceItem}
@@ -266,7 +266,7 @@ const Explore: React.FC = () => {
                 </div>
               );
             })}
-            {dataSources.map(ds => (
+            {dataSources.map((ds: any) => (
               <div key={ds.id} className={s.sourceItem}>
                 <Database20Regular style={{ fontSize: 14, color: "#f59e0b", flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ds.name}</span>
@@ -328,14 +328,14 @@ const Explore: React.FC = () => {
                   Charts, summaries, trends, and analysis — all through conversation.
                 </Text>
                 <div className={s.suggestions}>
-                  {PROMPTS.map(p => (
+                  {PROMPTS.map((p: string) => (
                     <button key={p} className={s.suggestionBtn} onClick={() => handleChat(p)}>{p}</button>
                   ))}
                 </div>
               </div>
             ) : (
               <>
-                {messages.map((msg, i) =>
+                {messages.map((msg: any, i: number) =>
                   msg.role === "user" ? (
                     <div key={i} className={s.userMsg}><ChatContent content={msg.content} /></div>
                   ) : (
@@ -390,8 +390,8 @@ const Explore: React.FC = () => {
                 <Add20Regular />
               </button>
               <textarea placeholder="Ask a question..." value={chatInput} rows={1}
-                onChange={e => { setChatInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px"; }}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChat(); } }}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setChatInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px"; }}
+                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChat(); } }}
                 style={{ flex: 1, border: "none", outline: "none", fontSize: 14, background: "transparent",
                   color: "#1f2937", fontFamily: "inherit", resize: "none", overflow: "auto",
                   lineHeight: 1.5, maxHeight: 150, minHeight: 24 }}
@@ -425,7 +425,7 @@ const Explore: React.FC = () => {
                 style={{ color: "#2563eb", fontWeight: 600 }}>
                 <Add20Regular /> New conversation
               </div>
-              {sessions.filter(sess => sess.message_count > 0).map(sess => (
+              {sessions.filter((sess: any) => sess.message_count > 0).map((sess: any) => (
                 <div key={sess.id} className={s.histItem} onClick={() => loadSession(sess.id)}>
                   <Chat20Regular style={{ color: "#94a3b8", flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -434,7 +434,7 @@ const Explore: React.FC = () => {
                     </div>
                     <div style={{ color: "#94a3b8", fontSize: 11 }}>{sess.message_count} messages</div>
                   </div>
-                  <button onClick={e => { e.stopPropagation(); deleteChatSession(sess.id).then(() => loadSessions()); }}
+                  <button onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); deleteChatSession(sess.id).then(() => loadSessions()); }}
                     style={{ border: "none", background: "none", cursor: "pointer", color: "#cbd5e1", padding: 2 }}>
                     <Delete20Regular />
                   </button>

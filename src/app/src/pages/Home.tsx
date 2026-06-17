@@ -29,6 +29,7 @@ import {
   getUploadedFiles,
   deleteFile,
 } from "../api/client";
+import { getApiErrorMessage } from "../utils/errors";
 import { FILE_TYPES } from "../utils/constants";
 import { useAppState } from "../context/AppStateContext";
 import s from "./Home.module.css";
@@ -121,14 +122,25 @@ const Home: React.FC = () => {
     setUploadMsg(`Uploading ${label}...`);
     try {
       let totalLoaded = 0;
+      let docSubmitted = false;
+      const failures: string[] = [];
 
       for (const file of jsonFiles) {
-        const res = await uploadJsonFile(file);
-        totalLoaded += Number(res?.data?.total_loaded || 0);
+        try {
+          const res = await uploadJsonFile(file);
+          totalLoaded += Number(res?.data?.total_loaded || 0);
+        } catch (err) {
+          failures.push(`${file.name}: ${getApiErrorMessage(err, "JSON upload failed")}`);
+        }
       }
 
       if (docFiles.length > 0) {
-        await uploadDocument(docFiles);
+        try {
+          await uploadDocument(docFiles);
+          docSubmitted = true;
+        } catch (err) {
+          failures.push(`Documents: ${getApiErrorMessage(err, "Document upload failed")}`);
+        }
       }
 
       if (jsonFiles.length > 0 && docFiles.length > 0) {
@@ -138,11 +150,18 @@ const Home: React.FC = () => {
       } else {
         setUploadMsg(`${docFiles.length} file(s) submitted — processing in background`);
       }
-      setUploadDone(true);
+
+      if (failures.length > 0) {
+        setUploadError(`Some uploads failed: ${failures.slice(0, 2).join(" | ")}`);
+      }
+
+      if (totalLoaded > 0 || docSubmitted) {
+        setUploadDone(true);
+      }
       setInsights(null); // Invalidate insights cache so it regenerates with new data
       loadStatus();
     } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
+      setUploadError(getApiErrorMessage(err, "Upload failed"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -168,7 +187,7 @@ const Home: React.FC = () => {
       setInsights(null);
       loadStatus();
     } catch (e) {
-      setUploadError(`Failed to delete: ${e instanceof Error ? e.message : "Unknown error"}`);
+      setUploadError(`Failed to delete: ${getApiErrorMessage(e, "Unknown error")}`);
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
