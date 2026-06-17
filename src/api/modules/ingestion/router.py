@@ -28,6 +28,18 @@ def _trigger_auto_pipeline():
     pipeline_engine.trigger_auto_pipeline()
 
 
+def _clear_insights_cache():
+    """Background task: clear insights dashboard cache after data upload to force regeneration."""
+    try:
+        from src.api.modules.insights.service import dashboard_service
+        dashboard_service._plan_cache.clear()
+        dashboard_service._plan_cache_ts.clear()
+        dashboard_service._schema_cache = None
+        dashboard_service._schema_hash = None
+    except Exception as e:
+        logger.debug(f"Failed to clear insights cache: {e}")
+
+
 @router.post("/load-default", response_model=IngestionResult)
 async def load_default_dataset(
     background_tasks: BackgroundTasks,
@@ -37,6 +49,7 @@ async def load_default_dataset(
     try:
         result = ingestion_service.load_default_dataset()
         background_tasks.add_task(_trigger_auto_pipeline)
+        background_tasks.add_task(_clear_insights_cache)
         return result
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Dataset file not found: {e}")
@@ -64,6 +77,7 @@ async def upload_json(
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
     background_tasks.add_task(ingestion_service.finalize_ingestion, data, file.filename or "uploaded.json")
     background_tasks.add_task(_trigger_auto_pipeline)
+    background_tasks.add_task(_clear_insights_cache)
     return result
 
 
@@ -164,6 +178,9 @@ async def upload_document(
             pass
         else:
             _processing_pool.submit(_process_single_document, file_id, filename, ext, content)
+
+    # Clear insights cache to force regeneration with new data
+    background_tasks.add_task(_clear_insights_cache)
 
     return IngestionResult(
         total_loaded=0,
@@ -354,6 +371,7 @@ async def upload_csv(
     finally:
         os.unlink(tmp.name)
     background_tasks.add_task(_trigger_auto_pipeline)
+    background_tasks.add_task(_clear_insights_cache)
     return result
 
 
