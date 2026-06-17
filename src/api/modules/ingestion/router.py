@@ -116,25 +116,25 @@ async def upload_document(
         ingestion_service._ensure_loaded()
         existing = ingestion_service._uploaded_files.get(file_id)
         if existing and existing.status == "ready":
-            logger.info(f"Skipping {filename}: already ready")
             continue
         if existing and existing.status == "processing":
-            # Allow re-upload if processing for > 30 minutes (likely stuck after server reload)
+            # Allow re-upload if processing appears stuck beyond configured timeout.
             from datetime import datetime, timedelta
             try:
                 started = datetime.fromisoformat(existing.uploaded_at.replace("Z", "+00:00"))
-                if datetime.now(started.tzinfo) - started < timedelta(minutes=30):
-                    logger.info(f"Skipping {filename}: recently started processing")
+                stale_minutes = max(1, settings.processing_stale_timeout_minutes)
+                if datetime.now(started.tzinfo) - started < timedelta(minutes=stale_minutes):
                     continue
-                logger.info(f"Re-uploading {filename}: processing was stuck (>30min)")
             except Exception:
                 pass  # If date parsing fails, allow re-upload
 
         # Upload raw file to blob storage
+        blob_upload_ok = False
         try:
             azure_storage_service.upload_raw_file(file_id, filename, content)
+            blob_upload_ok = True
         except Exception as e:
-            logger.warning(f"Raw blob upload failed for {filename}: {e}")
+            logger.warning(f"Raw blob upload failed for {filename}, will process in-process: {e}")
 
         # Create a placeholder file record
         uploaded_file = UploadedFile(
@@ -152,10 +152,10 @@ async def upload_document(
         ingestion_service._uploaded_files[file_id] = uploaded_file
         ingestion_service._persist_file(uploaded_file)
 
-        # Enqueue for Stage 1 (extraction) — falls back to thread pool if queue unavailable
-        message = {"file_id": file_id, "filename": filename, "ext": ext, "blob_path": f"raw/{file_id}/{filename}"}
-        if not queue_service.available or not queue_service.enqueue(EXTRACTION_QUEUE, message):
-            logger.info(f"Queue unavailable, submitting {filename} to thread pool")
+        # Enqueue for Stage 1 (extraction) — falls back to thread pool if queue/blob unavailable
+        if blob_upload_ok and queue_service.available and queue_service.enqueue(EXTRACTION_QUEUE, {"file_id": file_id, "filename": filename, "ext": ext, "blob_path": f"raw/{file_id}/{filename}"}):
+            pass
+        else:
             _processing_pool.submit(_process_single_document, file_id, filename, ext, content)
 
     return IngestionResult(
@@ -171,29 +171,44 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
     import io
     from src.api.modules.document_intelligence.service import content_understanding_service
     from src.api.modules.ingestion.chunking import chunk_text
+    from src.api.modules.processing.service import ProcessingService
 
     try:
+        settings = get_settings()
+        cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
+
         # Stage 1: Extract — prefer SAS URL to avoid re-uploading bytes
-        logger.info(f"[{file_id}] Starting document processing for {filename}")
         extracted = None
-        try:
-            from src.api.modules.ingestion.azure_storage import azure_storage_service
-            sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
-            if sas_url:
-                logger.info(f"[{file_id}] Using SAS URL for CU analysis")
-                extracted = content_understanding_service.analyze_url(
-                    file_url=sas_url, filename=filename
-                )
-        except Exception as e:
-            logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
+        if settings.cu_use_sas_url:
+            try:
+                from src.api.modules.ingestion.azure_storage import azure_storage_service
+                sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
+                if sas_url:
+                    extracted = content_understanding_service.analyze_url(
+                        file_url=sas_url,
+                        filename=filename,
+                        max_wait_sec=cu_wait_sec,
+                    )
+            except Exception as e:
+                logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
 
         if extracted is None:
-            logger.info(f"[{file_id}] Using byte upload for CU analysis ({len(content)} bytes)")
-            extracted = content_understanding_service.analyze(
-                file=io.BytesIO(content), filename=filename
-            )
-
-        logger.info(f"[{file_id}] CU extraction complete: {len(extracted.markdown)} chars, {extracted.page_count} pages")
+            try:
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=cu_wait_sec,
+                )
+            except TimeoutError:
+                retry_wait_sec = settings.cu_poll_max_wait_sec
+                logger.warning(
+                    f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s"
+                )
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=retry_wait_sec,
+                )
 
         if not extracted.markdown.strip():
             ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")
@@ -202,8 +217,6 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
         # Capture CU-extracted fields instead of discarding them
         cu_fields = {}
         if extracted.fields:
-            if extracted.fields.get("summary", {}).get("valueString"):
-                cu_fields["summary"] = extracted.fields["summary"]["valueString"]
             if extracted.fields.get("topic", {}).get("valueString"):
                 cu_fields["topic"] = extracted.fields["topic"]["valueString"]
             if extracted.fields.get("keyPhrases", {}).get("valueString"):
@@ -217,8 +230,6 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
             "source_type": ext,
             "page_count": str(extracted.page_count),
         }
-        if cu_fields.get("summary"):
-            metadata["summary"] = cu_fields["summary"]
         if cu_fields.get("topic"):
             metadata["topic"] = cu_fields["topic"]
         if cu_fields.get("key_phrases"):
@@ -230,39 +241,44 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
             "text": extracted.markdown,
             "metadata": metadata,
         }
-        if cu_fields.get("summary"):
-            doc_data["summary"] = cu_fields["summary"]
         if cu_fields.get("key_phrases"):
             doc_data["key_phrases"] = cu_fields["key_phrases"]
         if cu_fields.get("topic"):
             doc_data["topics"] = [cu_fields["topic"]]
 
         ingestion_service.load_json_data([doc_data], filename=filename)
-        logger.info(f"[{file_id}] Document stored in memory + SQL")
 
         # Stage 2: Chunk + Embed + Index (batch embeddings for speed)
         chunks = chunk_text(extracted.markdown)
-        logger.info(f"[{file_id}] Chunked into {len(chunks)} segments")
         try:
             from src.api.modules.embeddings.service import EmbeddingsService
             from src.api.modules.ingestion.azure_storage import azure_storage_service
 
             emb_service = EmbeddingsService()
             embeddings = emb_service.generate_embeddings_batch(chunks)
-            logger.info(f"[{file_id}] Generated {len(embeddings)} embeddings")
 
             azure_storage_service.index_chunks(
                 doc_id=file_id, chunks=chunks, embeddings=embeddings,
                 metadata=doc_data.get("metadata", {}),
             )
-            logger.info(f"[{file_id}] Indexed chunks in AI Search")
         except Exception as e:
             logger.warning(f"[{file_id}] Chunk/embed/index failed (non-blocking): {e}")
+
+        # Separate LLM summarization stage (decoupled from CU extraction)
+        try:
+            processing_service = ProcessingService()
+            summary_input = extracted.markdown[:30000]
+            summary_resp = processing_service.summarize(summary_input, max_length=180, style="concise")
+            summary_text = (summary_resp.summary or "").strip()
+            if summary_text:
+                doc_data["summary"] = summary_text
+                doc_data["metadata"]["summary"] = summary_text
+        except Exception as e:
+            logger.warning(f"[{file_id}] LLM summarization failed (continuing without summary): {e}")
 
         # Enrich
         ingestion_service.finalize_ingestion([doc_data], filename)
         ingestion_service._update_file_status(file_id, "ready")
-        logger.info(f"[{file_id}] Processing complete — status set to ready")
 
     except Exception as e:
         logger.error(f"Processing failed for {filename}: {e}")
@@ -325,17 +341,19 @@ async def get_available_filters(user: User = Depends(get_current_user)):
 @router.get("/files", response_model=list[UploadedFile])
 async def list_uploaded_files(user: User = Depends(get_current_user)):
     """Return list of uploaded files (document-level view).
-    Auto-detects stale 'processing' files (>30 min) and marks them as failed."""
+    Auto-detects stale 'processing' files and marks them as failed."""
     from datetime import datetime, timedelta, timezone
+    settings = get_settings()
+    stale_minutes = max(1, settings.processing_stale_timeout_minutes)
     files = ingestion_service.uploaded_files
     for f in files:
         if f.status == "processing":
             try:
                 started = datetime.fromisoformat(f.uploaded_at.replace("Z", "+00:00"))
-                if datetime.now(timezone.utc) - started > timedelta(minutes=30):
+                if datetime.now(timezone.utc) - started > timedelta(minutes=stale_minutes):
                     ingestion_service._update_file_status(
                         f.id, "failed",
-                        error="Processing timed out — the server may have restarted. Use retry to re-process."
+                        error=f"Processing timed out after {stale_minutes} minutes. Use retry to re-process."
                     )
             except Exception:
                 pass
@@ -451,7 +469,32 @@ async def clear_documents(user: User = Depends(get_current_user)):
 @router.delete("/files/{file_id}")
 async def delete_file(file_id: str, user: User = Depends(require_role("contributor"))):
     """Delete an uploaded file and all its documents from memory, SQL, and AI Search."""
-    success = ingestion_service.delete_file(file_id)
+    import asyncio
+
+    # Resolve flexible identifiers (id, filename, filename stem) to improve UX.
+    # _ensure_loaded may hit SQL — run in thread to avoid blocking the event loop.
+    def _resolve_and_delete():
+        ingestion_service._ensure_loaded()
+        resolved = file_id
+        if file_id not in ingestion_service._uploaded_files:
+            req_norm = file_id.strip().lower().replace(" ", "_")
+            for existing_id, uploaded in ingestion_service._uploaded_files.items():
+                filename = uploaded.filename or ""
+                stem = filename.rsplit(".", 1)[0] if filename else ""
+                candidates = {
+                    existing_id,
+                    filename,
+                    stem,
+                    stem.replace(" ", "_"),
+                }
+                if any(req_norm == c.strip().lower().replace(" ", "_") for c in candidates if c):
+                    resolved = existing_id
+                    break
+        success = ingestion_service.delete_file(resolved)
+        return resolved, success
+
+    resolved_file_id, success = await asyncio.to_thread(_resolve_and_delete)
+
     if not success:
         raise HTTPException(status_code=404, detail=f"File '{file_id}' not found")
     # Clear insights cache so dashboard regenerates without deleted data
@@ -465,7 +508,7 @@ async def delete_file(file_id: str, user: User = Depends(require_role("contribut
         pass
     return {
         "deleted": True,
-        "file_id": file_id,
+        "file_id": resolved_file_id,
         "updated_schema": ingestion_service.filter_schema.dict(),
     }
 

@@ -90,6 +90,24 @@ class ContentUnderstandingService:
     def __init__(self):
         self._analyzers_ensured: set[str] = set()
 
+    @staticmethod
+    def _is_unsupported_audio_scenario_error(exc: Exception) -> bool:
+        if not isinstance(exc, httpx.HTTPStatusError):
+            return False
+        if exc.response is None or exc.response.status_code != 400:
+            return False
+        body = (exc.response.text or "").lower()
+        return "unsupportedpropertyvalue" in body and "audiotranscription" in body
+
+    @staticmethod
+    def _raise_cu_request_error(resp: httpx.Response, operation: str, analyzer: str):
+        detail = (resp.text or "").strip()
+        if len(detail) > 1200:
+            detail = detail[:1200] + "..."
+        raise RuntimeError(
+            f"CU {operation} failed ({resp.status_code}) for analyzer '{analyzer}': {detail}"
+        )
+
     def _get_token(self) -> str:
         token = _credential.get_token("https://cognitiveservices.azure.com/.default")
         return token.token
@@ -106,6 +124,17 @@ class ContentUnderstandingService:
 
     def _default_analyzer_id(self) -> str:
         return get_settings().azure_content_understanding_analyzer_id
+
+    def resolve_max_wait(self, file_size_bytes: int, max_cap_sec: int | None = None) -> int:
+        """Compute a size-aware CU polling timeout.
+
+        Small files fail fast; larger files get additional time up to a configurable cap.
+        """
+        settings = get_settings()
+        cap = max_cap_sec if max_cap_sec is not None else settings.cu_poll_max_wait_sec
+        size_mb = max(1, int((file_size_bytes + (1024 * 1024 - 1)) / (1024 * 1024)))
+        computed = settings.cu_poll_base_wait_sec + (size_mb * settings.cu_poll_per_mb_wait_sec)
+        return max(settings.cu_poll_base_wait_sec, min(computed, cap))
 
     def _ensure_analyzer(self, analyzer_id: str | None = None):
         """Create the CU analyzer if it doesn't exist yet."""
@@ -138,10 +167,13 @@ class ContentUnderstandingService:
                 self._poll_result(client, operation_url)
 
         self._analyzers_ensured.add(analyzer_id)
-        logger.info(f"CU Analyzer '{analyzer_id}' ready")
 
     def analyze(
-        self, file: BinaryIO, filename: str, analyzer: str | None = None
+        self,
+        file: BinaryIO,
+        filename: str,
+        analyzer: str | None = None,
+        max_wait_sec: int | None = None,
     ) -> ExtractedDocument:
         if analyzer is None:
             analyzer = self._default_analyzer_id()
@@ -149,7 +181,7 @@ class ContentUnderstandingService:
         if ext not in SUPPORTED_EXTENSIONS:
             raise ValueError(f"Unsupported file type: .{ext}")
 
-        # Route audio/video files to the audio analyzer
+        # Route audio/video files to the audio analyzer when supported by CU API/version.
         if ext in AUDIO_EXTENSIONS:
             analyzer = AUDIO_ANALYZER_ID
 
@@ -166,8 +198,21 @@ class ContentUnderstandingService:
                 analyzer="direct-text",
             )
 
-        # Ensure the analyzer exists
-        self._ensure_analyzer(analyzer)
+        # Ensure the analyzer exists. If audio analyzer schema isn't supported,
+        # fall back to the default analyzer for a clearer failure mode.
+        try:
+            self._ensure_analyzer(analyzer)
+        except httpx.HTTPStatusError as e:
+            if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
+                fallback = self._default_analyzer_id()
+                logger.warning(
+                    "CU audio analyzer template unsupported for this API/version; "
+                    f"falling back to analyzer '{fallback}' for {filename}"
+                )
+                analyzer = fallback
+                self._ensure_analyzer(analyzer)
+            else:
+                raise
 
         endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
@@ -182,22 +227,44 @@ class ContentUnderstandingService:
             resp = client.post(url, headers=headers, content=content)
             if resp.status_code >= 400:
                 logger.error(f"CU Error {resp.status_code}: {resp.text}")
-            resp.raise_for_status()
+                self._raise_cu_request_error(resp, "analyze", analyzer)
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:
                 raise RuntimeError("No Operation-Location in response")
 
-            logger.info(f"CU analysis submitted for {filename}, polling {operation_url}")
-            result = self._poll_result(client, operation_url)
+            poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
+            result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
 
         return self._parse_result(result, filename, analyzer)
 
     def analyze_url(
-        self, file_url: str, filename: str, analyzer: str | None = None
+        self,
+        file_url: str,
+        filename: str,
+        analyzer: str | None = None,
+        max_wait_sec: int | None = None,
     ) -> ExtractedDocument:
         if analyzer is None:
             analyzer = self._default_analyzer_id()
-        self._ensure_analyzer(analyzer)
+
+        # Route audio/video files to the audio analyzer (parity with byte-upload path).
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext in AUDIO_EXTENSIONS:
+            analyzer = AUDIO_ANALYZER_ID
+
+        try:
+            self._ensure_analyzer(analyzer)
+        except httpx.HTTPStatusError as e:
+            if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
+                fallback = self._default_analyzer_id()
+                logger.warning(
+                    "CU audio analyzer template unsupported for this API/version; "
+                    f"falling back to analyzer '{fallback}' for {filename}"
+                )
+                analyzer = fallback
+                self._ensure_analyzer(analyzer)
+            else:
+                raise
 
         endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
@@ -209,27 +276,41 @@ class ContentUnderstandingService:
             resp = client.post(url, headers=headers, json=body)
             if resp.status_code >= 400:
                 logger.error(f"CU Error {resp.status_code}: {resp.text}")
-            resp.raise_for_status()
+                self._raise_cu_request_error(resp, "analyze_url", analyzer)
             operation_url = resp.headers.get("Operation-Location")
             if not operation_url:
                 raise RuntimeError("No Operation-Location in response")
 
-            logger.info(f"CU URL analysis submitted for {filename}, polling {operation_url}")
-            result = self._poll_result(client, operation_url)
+            poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
+            result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
 
         return self._parse_result(result, filename, analyzer)
 
     def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 600) -> dict:
-        headers = self._auth_headers()
         elapsed = 0
         interval = 1  # Start fast, grow exponentially
+        transient_errors = 0
         while elapsed < max_wait:
-            resp = client.get(operation_url, headers=headers)
-            resp.raise_for_status()
+            try:
+                # Refresh auth header per poll in case token rotates during long runs.
+                resp = client.get(operation_url, headers=self._auth_headers())
+                resp.raise_for_status()
+                transient_errors = 0
+            except (httpx.ConnectError, httpx.ReadError, httpx.RemoteProtocolError, httpx.TimeoutException) as e:
+                # CU polling can hit intermittent transport issues; retry until max_wait.
+                transient_errors += 1
+                logger.warning(
+                    f"CU poll transient error (attempt {transient_errors}) for {operation_url}: {e}"
+                )
+                sleep_for = min(interval, 15)
+                time.sleep(sleep_for)
+                elapsed += sleep_for
+                interval = min(interval * 2, 15)
+                continue
+
             data = resp.json()
             status = data.get("status", "").lower()
             if status == "succeeded":
-                logger.info(f"CU poll completed in {elapsed}s")
                 return data
             if status == "failed":
                 raise RuntimeError(f"Analysis failed: {data}")
@@ -266,7 +347,6 @@ class ContentUnderstandingService:
 
         markdown = "\n\n".join(all_markdown_parts)
         first = contents[0] if contents else {}
-        logger.info(f"Parsed CU result for {filename}: {len(contents)} content entries, {page_count} pages, {len(markdown)} chars")
 
         return ExtractedDocument(
             filename=filename,

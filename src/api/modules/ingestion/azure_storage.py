@@ -131,7 +131,8 @@ class AzureStorageService:
             )
             return True
         except Exception as e:
-            logger.warning(f"Raw file upload failed for {filename}: {e}")
+            import traceback
+            logger.error(f"Raw file upload failed for {filename}: {e}\n{traceback.format_exc()}")
             return False
 
     def download_raw_file(self, file_id: str, filename: str) -> bytes:

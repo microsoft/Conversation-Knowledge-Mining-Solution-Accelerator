@@ -45,35 +45,47 @@ const TYPE_LABELS: Record<string, string> = {
 
 const DataSources: React.FC = () => {
   const navigate = useNavigate();
-  const { setExploreData, setInsights } = useAppState();
+  const { setExploreData, setInsights, ingestionSnapshot } = useAppState();
   const [sources, setSources] = useState<DataSourceConfig[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [ingesting, setIngesting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadedFilesRef = useRef<UploadedFile[]>([]);
+  const sourcesRef = useRef<DataSourceConfig[]>([]);
+
+  useEffect(() => {
+    uploadedFilesRef.current = uploadedFiles;
+  }, [uploadedFiles]);
+
+  useEffect(() => {
+    sourcesRef.current = sources;
+  }, [sources]);
 
   const loadSources = useCallback(async () => {
     try {
-      const [srcRes, filesRes] = await Promise.allSettled([
-        listDataSources(),
-        getUploadedFiles(),
-      ]);
-      setSources(srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : []);
+      // During processing, only fetch files; skip data-sources to reduce traffic
+      const hasProcessing = uploadedFilesRef.current.some((f) => f.status === "processing");
+      const requests: any[] = [getUploadedFiles()];
+      if (!hasProcessing) requests.push(listDataSources());
+      else requests.push(Promise.resolve({ data: sourcesRef.current }) as any);
+      
+      const [filesRes, srcRes] = await Promise.allSettled(requests);
       setUploadedFiles(filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : []);
+      setSources(srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadSources(); }, [loadSources]);
 
-  // Auto-refresh while any file is still processing
+  // Shared app-level polling updates this page through ingestionSnapshot.
   useEffect(() => {
-    const hasProcessing = uploadedFiles.some((f) => f.status === "processing");
-    if (!hasProcessing) return;
-    const interval = setInterval(() => { loadSources(); }, 5000);
-    return () => clearInterval(interval);
-  }, [uploadedFiles, loadSources]);
+    if (!ingestionSnapshot) return;
+    setUploadedFiles(Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : []);
+    setSources(Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources : []);
+  }, [ingestionSnapshot]);
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);

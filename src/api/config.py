@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     llm_request_timeout_sec: int = 60
     sql_connection_timeout_sec: int = 30
     queue_poll_interval_sec: int = 5
+    cu_poll_max_wait_sec: int = 1200  # 20 min cap for large/complex scanned PDFs
+    cu_poll_base_wait_sec: int = 60
+    cu_poll_per_mb_wait_sec: int = 60  # 1 min per MB (scanned PDFs are slow)
+    cu_use_sas_url: bool = True  # Prefer SAS URL to avoid CU byte re-upload overhead
+    processing_stale_timeout_minutes: int = 20
 
     # Chunking
     chunk_size: int = 1000

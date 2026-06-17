@@ -37,7 +37,7 @@ import s from "./Home.module.css";
 const Home: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { setDashboardHeadline, setInsights, homeData, setHomeData } = useAppState();
+  const { setDashboardHeadline, setInsights, homeData, setHomeData, ingestionSnapshot } = useAppState();
   const { setExploreData } = useAppState();
 
   const [uploading, setUploading] = useState(false);
@@ -52,10 +52,16 @@ const Home: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
 
   const loadStatus = (force = false) => {
-    Promise.allSettled([listDataSources(), getUploadedFiles()])
-      .then(([srcRes, filesRes]) => {
-        const sources = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : [];
+    // Always fetch both on initial load; during processing, only fetch files to reduce traffic
+    const hasProcessing = uploadedFiles.some((f: any) => f.status === "processing");
+    const requests: any[] = [getUploadedFiles()];
+    if (!hasProcessing) requests.push(listDataSources());
+    else requests.push(Promise.resolve({ data: dataSources }) as any); // Return cached sources during polling
+    
+    Promise.allSettled(requests)
+      .then(([filesRes, srcRes]) => {
         const files = filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : [];
+        const sources = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : dataSources;
         setDataSources(sources);
         setUploadedFiles(files);
         setHomeData({ dataSources: sources, uploadedFiles: files });
@@ -71,16 +77,21 @@ const Home: React.FC = () => {
       .finally(() => setLoadingSources(false));
   };
 
-  useEffect(() => { if (!homeData) loadStatus(); }, []);
+  // Always refresh on mount to avoid stale cached empty state.
+  useEffect(() => { loadStatus(); }, []);
 
-  // Auto-refresh while any file is still processing
+  // Shared app-level polling updates this page through ingestionSnapshot.
   const processingFiles = uploadedFiles.filter((f: any) => f.status === "processing");
   const readyFiles = uploadedFiles.filter((f: any) => f.status !== "processing");
   useEffect(() => {
-    if (processingFiles.length === 0) return;
-    const interval = setInterval(loadStatus, 5000);
-    return () => clearInterval(interval);
-  }, [processingFiles.length]);
+    if (!ingestionSnapshot) return;
+    setUploadedFiles(Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : []);
+    setDataSources(Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources : []);
+    setHomeData({
+      uploadedFiles: Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [],
+      dataSources: Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources : [],
+    });
+  }, [ingestionSnapshot]); // setHomeData is stable (useCallback) — omitting avoids stale-closure false dep
 
   const uploadedFileCount = uploadedFiles.length;
   const totalRecords = dataSources.reduce((sum: number, ds: any) => sum + (ds.doc_count || 0), 0);
@@ -219,16 +230,8 @@ const Home: React.FC = () => {
                 No data loaded yet
               </Text>
               <Text size={200} style={{ color: "#94a3b8" }}>
-                Upload files to get started, or run a scenario pack from the command line.
+                Use the upload box below to get started, or run a scenario pack from the command line.
               </Text>
-              <Button
-                appearance="primary"
-                size="medium"
-                icon={<ArrowUpload24Regular />}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Upload files
-              </Button>
             </>
           )}
         </div>

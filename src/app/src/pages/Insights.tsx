@@ -133,6 +133,9 @@ const Insights: React.FC = () => {
   const sections = data.sections || [];
   const kpis = data.kpis || [];
   const availableFilters = data.filters || [];
+  const filterLabelMap = Object.fromEntries(
+    availableFilters.map((f: any) => [f.field, f.label || f.field])
+  ) as Record<string, string>;
   const questions = data.suggested_questions || [];
   const keyInsights = data.key_insights || [];
   const standoutFindings = data.standout_findings || [];
@@ -196,22 +199,48 @@ const Insights: React.FC = () => {
 
         {/* ── Filters ── */}
         {availableFilters.length > 0 && (
-          <div className={s.filterRow}>
-            {availableFilters.map((f: any) => (
-              <Dropdown key={f.field} placeholder={f.label}
-                value={filters[f.field] || "All"}
-                onOptionSelect={(_, opt) => applyFilter(f.field, opt?.optionValue || "")}
-                size="small" style={{ minWidth: 150 }}>
-                <Option value="_all" text={`All ${f.label}`}>All {f.label}</Option>
-                {f.values.map((v: string) => <Option key={v} value={v} text={v}>{v}</Option>)}
-              </Dropdown>
-            ))}
+          <>
+            <div className={s.filterRow}>
+              {availableFilters.map((f: any) => (
+                <Dropdown key={f.field} placeholder={f.label}
+                  value={filters[f.field] ? `${f.label}: ${filters[f.field]}` : `All ${f.label}`}
+                  onOptionSelect={(_, opt) => applyFilter(f.field, opt?.optionValue || "")}
+                  size="small" style={{ minWidth: 190 }}>
+                  <Option value="_all" text={`All ${f.label}`}>All {f.label}</Option>
+                  {f.values.map((v: string) => (
+                    <Option key={v} value={v} text={`${f.label}: ${v}`}>{v}</Option>
+                  ))}
+                </Dropdown>
+              ))}
+              {Object.keys(filters).length > 0 && (
+                <Button size="small" appearance="subtle" onClick={() => { setFilters({}); load({}); }}>
+                  Clear {Object.keys(filters).length > 1 ? `(${Object.keys(filters).length})` : ""}
+                </Button>
+              )}
+            </div>
+
             {Object.keys(filters).length > 0 && (
-              <Button size="small" appearance="subtle" onClick={() => { setFilters({}); load({}); }}>
-                Clear {Object.keys(filters).length > 1 ? `(${Object.keys(filters).length})` : ""}
-              </Button>
+              <div className={s.filterRow} style={{ marginTop: 8, gap: 6 }}>
+                {Object.entries(filters).map(([field, value]) => (
+                  <span
+                    key={field}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "4px 8px",
+                      borderRadius: 999,
+                      background: "#eff6ff",
+                      color: "#1e40af",
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {(filterLabelMap[field] || field)}: {value}
+                  </span>
+                ))}
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {/* ── KPIs ── */}

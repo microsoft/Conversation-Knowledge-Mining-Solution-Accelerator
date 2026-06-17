@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from "react";
 import { loadFromSession } from "../utils/storage";
 import type { DashboardResponse, ChatMessage } from "../types/api";
+import { getUploadedFiles, listDataSources, getExtractionInfo } from "../api/client";
 
 interface AppState {
   // Insights cache
@@ -26,6 +27,9 @@ interface AppState {
   // Home data cache (data sources, uploaded files)
   homeData: { dataSources: any[]; uploadedFiles: any[] } | null;
   setHomeData: (d: { dataSources: any[]; uploadedFiles: any[] } | null) => void;
+
+  // Shared ingestion snapshot (single global polling source)
+  ingestionSnapshot: { uploadedFiles: any[]; dataSources: any[]; schema: any; updatedAt: number } | null;
 }
 
 const AppContext = createContext<AppState>({
@@ -41,6 +45,7 @@ const AppContext = createContext<AppState>({
   setExploreData: () => {},
   homeData: null,
   setHomeData: () => {},
+  ingestionSnapshot: null,
 });
 
 export const useAppState = () => useContext(AppContext);
@@ -52,6 +57,22 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [exploreChatMessages, setExploreChatMessagesRaw] = useState<ChatMessage[]>(() => loadFromSession("km_explore_chat", []));
   const [exploreData, setExploreDataRaw] = useState<{ files: any[]; dataSources: any[]; schema: any } | null>(() => loadFromSession("km_explore_data", null));
   const [homeData, setHomeDataRaw] = useState<{ dataSources: any[]; uploadedFiles: any[] } | null>(() => loadFromSession("km_home_data", null));
+  const [ingestionSnapshot, setIngestionSnapshot] = useState<{ uploadedFiles: any[]; dataSources: any[]; schema: any; updatedAt: number } | null>(null);
+  const snapshotRef = useRef<typeof ingestionSnapshot>(null);
+  const homeDataRef = useRef<typeof homeData>(homeData);
+  const exploreDataRef = useRef<typeof exploreData>(exploreData);
+
+  useEffect(() => {
+    snapshotRef.current = ingestionSnapshot;
+  }, [ingestionSnapshot]);
+
+  useEffect(() => {
+    homeDataRef.current = homeData;
+  }, [homeData]);
+
+  useEffect(() => {
+    exploreDataRef.current = exploreData;
+  }, [exploreData]);
 
   const setInsights = (data: DashboardResponse | null) => {
     setInsightsRaw(data);
@@ -74,15 +95,64 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
     });
   };
 
-  const setExploreData = (d: { files: any[]; dataSources: any[]; schema: any } | null) => {
+  const setExploreData = useCallback((d: { files: any[]; dataSources: any[]; schema: any } | null) => {
     setExploreDataRaw(d);
     try { sessionStorage.setItem("km_explore_data", JSON.stringify(d)); } catch {}
-  };
+  }, []);
 
-  const setHomeData = (d: { dataSources: any[]; uploadedFiles: any[] } | null) => {
+  const setHomeData = useCallback((d: { dataSources: any[]; uploadedFiles: any[] } | null) => {
     setHomeDataRaw(d);
     try { sessionStorage.setItem("km_home_data", JSON.stringify(d)); } catch {}
-  };
+  }, []);
+
+  useEffect(() => {
+    let timer: number | null = null;
+
+    const tick = async () => {
+      // Poll only while any file is processing (single app-level poller).
+      const cachedFiles = snapshotRef.current?.uploadedFiles
+        ?? homeDataRef.current?.uploadedFiles
+        ?? exploreDataRef.current?.files
+        ?? [];
+
+      const hasProcessing = cachedFiles.some((f: any) => f.status === "processing");
+      if (!hasProcessing) return;
+
+      try {
+        const filesRes = await getUploadedFiles();
+        const files = Array.isArray(filesRes.data) ? filesRes.data : [];
+
+        const stillProcessing = files.some((f: any) => f.status === "processing");
+
+        let dataSources = snapshotRef.current?.dataSources ?? homeDataRef.current?.dataSources ?? exploreDataRef.current?.dataSources ?? [];
+        let schema = snapshotRef.current?.schema ?? exploreDataRef.current?.schema ?? null;
+
+        // Refresh heavier endpoints only when processing completes.
+        if (!stillProcessing) {
+          try {
+            const [srcRes, schemaRes] = await Promise.all([listDataSources(), getExtractionInfo()]);
+            dataSources = Array.isArray(srcRes.data) ? srcRes.data : dataSources;
+            schema = schemaRes.data ?? schema;
+          } catch {
+            // Keep cached values if refresh fails.
+          }
+        }
+
+        const snapshot = { uploadedFiles: files, dataSources, schema, updatedAt: Date.now() };
+        setIngestionSnapshot(snapshot);
+      } catch {
+        // Ignore transient polling errors.
+      }
+    };
+
+    // Fast no-op interval when nothing is processing; active updates when processing exists.
+    timer = window.setInterval(tick, 10000);
+    tick();
+
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, []);
 
   return (
     <AppContext.Provider value={{
@@ -92,6 +162,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
       exploreChatMessages, setExploreChatMessages,
       exploreData, setExploreData,
       homeData, setHomeData,
+      ingestionSnapshot,
     }}>
       {children}
     </AppContext.Provider>

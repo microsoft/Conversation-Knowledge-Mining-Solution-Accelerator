@@ -15,3 +15,6 @@ azure-storage-blob==12.24.1
 azure-storage-queue==12.12.0
 azure-cosmos==4.9.0
 pyodbc==5.2.0
+pymupdf>=1.24.0
+python-docx>=1.1.0
+openpyxl>=3.1.0

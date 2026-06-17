@@ -47,7 +47,8 @@ class UploadedFile(BaseModel):
     filter_values: dict[str, list[str]] = {}  # dimension_id -> [values]
     doc_ids: list[str] = []  # IDs of documents belonging to this file
     uploaded_at: str = ""
-    status: str = "ready"  # "processing", "ready", "failed"
+    status: str = "ready"  # "processing", "extracted", "ready", "failed"
+    # "extracted": text extracted, available for chat; still chunking/indexing in background
     error: str = ""
 
 

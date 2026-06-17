@@ -13,7 +13,7 @@ from src.api.modules.rag.models import QAResponse, Source
 logger = logging.getLogger(__name__)
 
 # Load prompts from config file (editable without code changes)
-_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "app", "config", "prompts.yaml")
+_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "config", "prompts.yaml")
 _PROMPTS: dict = {}
 try:
     with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
@@ -38,6 +38,44 @@ class RAGService:
         if self._client is None:
             self._client = get_llm_client()
         return self._client
+
+    def _get_blob_text_for_file(self, file_id: str) -> str:
+        """Read extracted text from blob storage for 'extracted'-status files."""
+        try:
+            from src.api.modules.ingestion.azure_storage import azure_storage_service
+            from src.api.config import get_settings
+            settings = get_settings()
+            blob_client = azure_storage_service._get_blob_client()
+            container = blob_client.get_container_client(settings.azure_storage_container)
+            blob = container.get_blob_client(f"extracted/{file_id}/content.txt")
+            return blob.download_blob().readall().decode("utf-8")
+        except Exception as e:
+            logger.warning(f"Could not read blob text for {file_id}: {e}")
+            return ""
+
+    def _build_extracted_context(self, document_ids: list[str], query: str) -> list[dict]:
+        """For files in 'extracted' state, read full text from blob and return as context docs."""
+        from src.api.modules.ingestion.service import ingestion_service
+        ingestion_service._ensure_loaded()
+
+        results = []
+        for file_id in document_ids:
+            f = ingestion_service._uploaded_files.get(file_id)
+            if f and f.status == "extracted":
+                text = self._get_blob_text_for_file(file_id)
+                if text:
+                    # Simple keyword relevance score
+                    q_words = query.lower().split()
+                    score = sum(1 for w in q_words if w in text.lower()) / max(len(q_words), 1)
+                    results.append({
+                        "doc_id": file_id,
+                        "text": text[:8000],  # cap at 8K chars for context window
+                        "summary": "",
+                        "type": f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "doc",
+                        "source_file": f.filename,
+                        "score": max(score, 0.1),
+                    })
+        return results
 
     def _filter_document_ids(self, filters: dict, ingestion_service) -> Optional[list[str]]:
         """Given active filters (dimension_id -> comma-separated values),
@@ -320,6 +358,27 @@ class RAGService:
             logger.warning("Azure AI Search unavailable, falling back to in-memory search")
             search_docs = []
 
+        # For files in 'extracted' state (not yet indexed), inject blob text directly
+        if document_ids:
+            extracted_docs = self._build_extracted_context(document_ids, question)
+            if extracted_docs:
+                # Merge: extracted docs fill gaps for files not yet in AI Search
+                indexed_file_ids = {d["doc_id"] for d in search_docs}
+                for doc in extracted_docs:
+                    if doc["doc_id"] not in indexed_file_ids:
+                        search_docs.append(doc)
+        else:
+            # No specific document scope — check if any uploaded files are only extracted
+            from src.api.modules.ingestion.service import ingestion_service
+            ingestion_service._ensure_loaded()
+            extracted_ids = [
+                f.id for f in ingestion_service._uploaded_files.values()
+                if f.status == "extracted"
+            ]
+            if extracted_ids:
+                extracted_docs = self._build_extracted_context(extracted_ids, question)
+                search_docs.extend(extracted_docs)
+
         # Also search external live-query data sources
         external_docs = self._search_external_data_sources(question, top_k)
         if external_docs:
@@ -417,6 +476,23 @@ class RAGService:
 
         # Search: AI Search first, then external sources, fallback to in-memory
         search_docs = self._search_azure_ai_search(last_user_message, top_k, document_ids)
+
+        # Also inject blob text for 'extracted'-status files not yet in AI Search
+        if document_ids:
+            extracted_docs = self._build_extracted_context(document_ids, last_user_message)
+            indexed_ids = {d["doc_id"] for d in search_docs}
+            for doc in extracted_docs:
+                if doc["doc_id"] not in indexed_ids:
+                    search_docs.append(doc)
+        else:
+            from src.api.modules.ingestion.service import ingestion_service
+            ingestion_service._ensure_loaded()
+            extracted_ids = [
+                f.id for f in ingestion_service._uploaded_files.values()
+                if f.status == "extracted"
+            ]
+            if extracted_ids:
+                search_docs.extend(self._build_extracted_context(extracted_ids, last_user_message))
 
         external_docs = self._search_external_data_sources(last_user_message, top_k)
         if external_docs:

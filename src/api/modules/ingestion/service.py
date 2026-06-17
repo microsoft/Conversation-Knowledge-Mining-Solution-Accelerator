@@ -50,7 +50,7 @@ class IngestionService:
                 pass  # Already released
 
     def is_already_processed(self, file_id: str) -> bool:
-        """Check if a file has already been successfully processed."""
+        """Check if a file has already been fully indexed (status=ready)."""
         self._ensure_loaded()
         f = self._uploaded_files.get(file_id)
         return f is not None and f.status == "ready"
@@ -337,15 +337,21 @@ class IngestionService:
                 summary = f"{len(data)} {', '.join(sorted(types))} documents"
                 keywords = sorted(types)
 
+        existing = self._uploaded_files.get(file_id)
+        doc_ids = existing.doc_ids if existing and existing.doc_ids else [d.get("id", "") for d in data]
+        doc_count = max(len(data), len(doc_ids))
+
         uploaded_file = UploadedFile(
             id=file_id,
             filename=filename,
-            doc_count=len(data),
+            doc_count=doc_count,
             summary=summary,
             keywords=keywords,
             filter_values=filter_values,
-            doc_ids=self._uploaded_files[file_id].doc_ids if file_id in self._uploaded_files else [d.get("id", "") for d in data],
-            uploaded_at=datetime.utcnow().isoformat() + "Z",
+            doc_ids=doc_ids,
+            uploaded_at=existing.uploaded_at if existing else datetime.utcnow().isoformat() + "Z",
+            status=existing.status if existing else "ready",
+            error=existing.error if existing else "",
         )
         self._uploaded_files[file_id] = uploaded_file
         self._persist_file(uploaded_file)
@@ -367,8 +373,8 @@ class IngestionService:
         if file_id in self._uploaded_files:
             f = self._uploaded_files[file_id]
             updates: dict = {"status": status, "error": error}
-            # Recalculate doc_count when marking ready
-            if status == "ready" and f.doc_count == 0:
+            # Recalculate doc_count when marking ready or extracted
+            if status in ("ready", "extracted") and f.doc_count == 0:
                 count = sum(
                     1 for doc in self._documents.values()
                     if (doc.metadata.source_file or "") == f.filename

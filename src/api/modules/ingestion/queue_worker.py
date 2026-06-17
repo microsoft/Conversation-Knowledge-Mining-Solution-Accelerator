@@ -9,6 +9,8 @@ import json
 import logging
 import threading
 
+from azure.core.exceptions import ResourceNotFoundError
+
 from src.api.config import get_settings
 from src.api.modules.ingestion.queue_service import (
     queue_service, EXTRACTION_QUEUE, ENRICHMENT_QUEUE,
@@ -178,16 +180,15 @@ class QueueWorker:
 
         # Skip if already processed
         if ingestion_service.is_already_processed(file_id):
-            logger.info(f"[extraction] Already processed, skipping: {filename}")
             queue_service.delete(EXTRACTION_QUEUE, message)
             return
 
         # Acquire lock to prevent concurrent processing
         if not ingestion_service.acquire_processing_lock(file_id):
-            logger.info(f"[extraction] Already in progress, skipping: {filename}")
             return  # Message stays in queue, will retry after visibility timeout
 
-        logger.info(f"[extraction] Processing: {filename}")
+        cu_wait_sec = None
+        content_size = None
 
         try:
             # Download raw file from blob
@@ -196,15 +197,87 @@ class QueueWorker:
             container = blob_client.get_container_client(settings.azure_storage_container)
             blob = container.get_blob_client(blob_path)
             content = blob.download_blob().readall()
+            content_size = len(content)
 
-            # Extract text via Content Understanding
-            extracted = content_understanding_service.analyze(
-                file=io.BytesIO(content), filename=filename
-            )
+            # ── Phase 1: Fast local extraction ──────────────────────────────
+            # Try to extract text without CU for native-text files.
+            # This makes native PDFs, DOCX, TXT, XLSX chateable in seconds.
+            from src.api.modules.ingestion.local_extractor import extract_text as local_extract
+            local_text, needs_cu = local_extract(content, filename)
+
+            text_blob_path = f"extracted/{file_id}/content.txt"
+
+            if local_text.strip():
+                # Store text blob immediately
+                try:
+                    tb = container.get_blob_client(text_blob_path)
+                    tb.upload_blob(local_text.encode("utf-8"), overwrite=True)
+                except Exception as e:
+                    logger.error(f"[extraction] Failed to store locally extracted text for {filename}: {e}")
+                    raise
+
+                # Register document in ingestion service so chat can find it
+                base_metadata = {
+                    "source_file": filename,
+                    "source_type": ext,
+                    "page_count": "0",  # unknown until CU
+                }
+                doc_data = {"id": file_id, "type": ext, "text": local_text, "metadata": base_metadata}
+                ingestion_service.load_json_data([doc_data], filename=filename)
+
+                # Mark as "extracted" — immediately available for chat
+                ingestion_service._update_file_status(file_id, "extracted")
+
+                if not needs_cu:
+                    # Native file — skip CU extraction entirely, go straight to enrichment
+                    enrichment_msg = {
+                        "file_id": file_id,
+                        "filename": filename,
+                        "ext": ext,
+                        "text_blob_path": text_blob_path,
+                        "text_length": len(local_text),
+                        "metadata": base_metadata,
+                        "cu_fields": {},
+                    }
+                    queue_service.enqueue(ENRICHMENT_QUEUE, enrichment_msg)
+                    queue_service.delete(EXTRACTION_QUEUE, message)
+                    return
+                # else: scanned PDF — fall through to CU OCR below, keeping extracted status
+
+            # ── Phase 2: CU extraction (scanned PDFs, images, audio) ────────
+            cu_wait_sec = content_understanding_service.resolve_max_wait(content_size, settings.cu_poll_max_wait_sec)
+
+            # Prefer SAS URL analysis to avoid re-uploading bytes to CU; fallback to bytes on failure.
+            extracted = None
+            sas_url = None
+            if settings.cu_use_sas_url:
+                try:
+                    sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
+                except Exception as e:
+                    logger.warning(f"[extraction] Could not generate SAS URL for {filename}, using byte upload: {e}")
+
+            if sas_url:
+                try:
+                    extracted = content_understanding_service.analyze_url(
+                        file_url=sas_url,
+                        filename=filename,
+                        max_wait_sec=cu_wait_sec,
+                    )
+                except Exception as e:
+                    logger.warning(f"[extraction] SAS URL CU analysis failed for {filename}, falling back to bytes: {e}")
+
+            if extracted is None:
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=cu_wait_sec,
+                )
 
             if not extracted.markdown.strip():
+                error_msg = f"No text could be extracted from {filename} (CU returned empty markdown)"
+                logger.warning(f"[extraction] {error_msg}")
                 ingestion_service._update_file_status(
-                    file_id, "failed", error=f"No text could be extracted from {filename}"
+                    file_id, "failed", error=error_msg
                 )
                 queue_service.delete(EXTRACTION_QUEUE, message)
                 return
@@ -212,8 +285,6 @@ class QueueWorker:
             # Extract CU-enriched fields instead of discarding them
             cu_fields = {}
             if extracted.fields:
-                if extracted.fields.get("summary", {}).get("valueString"):
-                    cu_fields["summary"] = extracted.fields["summary"]["valueString"]
                 if extracted.fields.get("topic", {}).get("valueString"):
                     cu_fields["topic"] = extracted.fields["topic"]["valueString"]
                 if extracted.fields.get("keyPhrases", {}).get("valueString"):
@@ -228,12 +299,10 @@ class QueueWorker:
                 "page_count": str(extracted.page_count),
             }
             # Merge CU fields into metadata so they flow through the whole pipeline
-            if cu_fields.get("summary"):
-                base_metadata["summary"] = cu_fields["summary"]
             if cu_fields.get("topic"):
-                base_metadata["topic"] = cu_fields["topic"]
+                base_metadata["topics"] = [cu_fields["topic"]]
             if cu_fields.get("key_phrases"):
-                base_metadata["key_phrases"] = ", ".join(cu_fields["key_phrases"])
+                base_metadata["key_phrases"] = cu_fields["key_phrases"]
 
             # Save extracted document to ingestion service
             doc_data = {
@@ -242,8 +311,6 @@ class QueueWorker:
                 "text": extracted.markdown,
                 "metadata": base_metadata,
             }
-            if cu_fields.get("summary"):
-                doc_data["summary"] = cu_fields["summary"]
             if cu_fields.get("key_phrases"):
                 doc_data["key_phrases"] = cu_fields["key_phrases"]
             if cu_fields.get("topic"):
@@ -252,17 +319,15 @@ class QueueWorker:
             ingestion_service.load_json_data([doc_data], filename=filename)
 
             # Store extracted text in blob (avoids 64 KB queue message limit)
-            text_blob_path = f"extracted/{file_id}/content.txt"
             try:
-                container = blob_client.get_container_client(settings.azure_storage_container)
                 tb = container.get_blob_client(text_blob_path)
                 tb.upload_blob(extracted.markdown.encode("utf-8"), overwrite=True)
             except Exception as e:
                 logger.error(f"[extraction] Failed to store extracted text for {filename}: {e}")
                 raise
 
-            if cu_fields:
-                logger.info(f"[extraction] CU fields captured for {filename}: {list(cu_fields.keys())}")
+            # Mark as extracted — now available for chat even before chunking/indexing
+            ingestion_service._update_file_status(file_id, "extracted")
 
             # Enqueue for Stage 2: enrichment (reference only, no inline text)
             enrichment_msg = {
@@ -278,11 +343,111 @@ class QueueWorker:
 
             # Delete extraction message
             queue_service.delete(EXTRACTION_QUEUE, message)
-            logger.info(f"[extraction] Complete, enqueued for enrichment: {filename}")
 
+        except TimeoutError:
+            # For large scanned files, go straight to full configured cap on retry.
+            retry_wait_sec = settings.cu_poll_max_wait_sec
+
+            if cu_wait_sec and retry_wait_sec > cu_wait_sec:
+                logger.warning(
+                    f"[extraction] Initial CU timeout for {filename} at {cu_wait_sec}s; retrying once with {retry_wait_sec}s"
+                )
+                try:
+                    # Retry once with a longer wait using byte upload for deterministic retry path.
+                    extracted = content_understanding_service.analyze(
+                        file=io.BytesIO(content),
+                        filename=filename,
+                        max_wait_sec=retry_wait_sec,
+                    )
+
+                    if not extracted.markdown.strip():
+                        error_msg = f"No text could be extracted from {filename} after CU retry"
+                        logger.error(f"[extraction] {error_msg}")
+                        ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+                        return
+
+                    cu_fields = {}
+                    if extracted.fields:
+                        if extracted.fields.get("topic", {}).get("valueString"):
+                            cu_fields["topic"] = extracted.fields["topic"]["valueString"]
+                        if extracted.fields.get("keyPhrases", {}).get("valueString"):
+                            cu_fields["key_phrases"] = [
+                                kp.strip() for kp in extracted.fields["keyPhrases"]["valueString"].split(",")
+                                if kp.strip()
+                            ]
+
+                    base_metadata = {
+                        "source_file": filename,
+                        "source_type": ext,
+                        "page_count": str(extracted.page_count),
+                    }
+                    if cu_fields.get("topic"):
+                        base_metadata["topics"] = [cu_fields["topic"]]
+                    if cu_fields.get("key_phrases"):
+                        base_metadata["key_phrases"] = cu_fields["key_phrases"]
+
+                    doc_data = {
+                        "id": file_id,
+                        "type": ext,
+                        "text": extracted.markdown,
+                        "metadata": base_metadata,
+                    }
+                    if cu_fields.get("key_phrases"):
+                        doc_data["key_phrases"] = cu_fields["key_phrases"]
+                    if cu_fields.get("topic"):
+                        doc_data["topics"] = [cu_fields["topic"]]
+
+                    ingestion_service.load_json_data([doc_data], filename=filename)
+
+                    text_blob_path = f"extracted/{file_id}/content.txt"
+                    container = blob_client.get_container_client(settings.azure_storage_container)
+                    tb = container.get_blob_client(text_blob_path)
+                    tb.upload_blob(extracted.markdown.encode("utf-8"), overwrite=True)
+
+                    enrichment_msg = {
+                        "file_id": file_id,
+                        "filename": filename,
+                        "ext": ext,
+                        "text_blob_path": text_blob_path,
+                        "text_length": len(extracted.markdown),
+                        "metadata": base_metadata,
+                        "cu_fields": cu_fields,
+                    }
+                    queue_service.enqueue(ENRICHMENT_QUEUE, enrichment_msg)
+                    queue_service.delete(EXTRACTION_QUEUE, message)
+                    return
+                except TimeoutError:
+                    pass
+                except Exception as e:
+                    logger.error(f"[extraction] Retry failed for {filename}: {e}")
+
+            error_msg = (
+                f"CU extraction timeout after {cu_wait_sec}s"
+                f" (retry attempted up to {retry_wait_sec}s)"
+                f" for {content_size} bytes: {filename}"
+            )
+            logger.error(f"[extraction] {error_msg}")
+            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+            queue_service.delete(EXTRACTION_QUEUE, message)
+        except ResourceNotFoundError:
+            # Raw blob is missing (deleted/moved/mismatched path). This is terminal for this message.
+            error_msg = f"Source file not found in blob storage for {filename} ({blob_path})"
+            logger.error(f"[extraction] {error_msg}")
+            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+            queue_service.delete(EXTRACTION_QUEUE, message)
+        except ValueError as e:
+            # Unsupported file type or parsing error
+            error_msg = f"Invalid file format or parsing error: {str(e)}"
+            logger.error(f"[extraction] {error_msg}")
+            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+            queue_service.delete(EXTRACTION_QUEUE, message)
         except Exception as e:
-            logger.error(f"[extraction] Failed for {filename}: {e}")
-            ingestion_service._update_file_status(file_id, "failed", error=str(e))
+            import traceback
+            error_msg = f"Extraction failed: {str(e)}"
+            tb = traceback.format_exc()
+            logger.error(f"[extraction] {error_msg}\n{tb}")
+            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+            queue_service.delete(EXTRACTION_QUEUE, message)
         finally:
             ingestion_service.release_processing_lock(file_id)
 
@@ -294,6 +459,7 @@ class QueueWorker:
         from src.api.modules.embeddings.service import EmbeddingsService
         from src.api.modules.ingestion.azure_storage import azure_storage_service
         from src.api.modules.ingestion.service import ingestion_service
+        from src.api.modules.processing.service import ProcessingService
 
         file_id = payload["file_id"]
         filename = payload["filename"]
@@ -324,20 +490,15 @@ class QueueWorker:
 
         # Skip if already fully processed
         if ingestion_service.is_already_processed(file_id):
-            logger.info(f"[enrichment] Already processed, skipping: {filename}")
             queue_service.delete(ENRICHMENT_QUEUE, message)
             return
 
         if not ingestion_service.acquire_processing_lock(file_id):
-            logger.info(f"[enrichment] Already in progress, skipping: {filename}")
             return
-
-        logger.info(f"[enrichment] Processing: {filename}")
 
         try:
             # Step 1: Chunk
             chunks = chunk_text(text)
-            logger.info(f"[enrichment] {filename}: {len(chunks)} chunks")
 
             # Step 2: Generate embeddings (batched)
             embeddings_service = EmbeddingsService()
@@ -352,19 +513,39 @@ class QueueWorker:
                 embeddings=embeddings,
                 metadata=metadata,
             )
-            logger.info(f"[enrichment] {filename}: {indexed} chunks indexed")
 
-            # Step 4: Run AI enrichment (summary, keywords, filters)
+            # Do not mark ready if indexing silently failed; this avoids ready+doc_count=0 drift.
+            if chunks and indexed == 0:
+                raise RuntimeError(
+                    f"Chunk indexing produced 0 indexed docs for {filename}; leaving file as failed for retry"
+                )
+
+            # Step 4: Run AI enrichment (LLM summary + CU fields + filters)
             cu_fields = payload.get("cu_fields", {})
+
+            # Generate summary in a separate LLM stage (decoupled from CU extraction).
+            summary_text = str(metadata.get("summary", "") or "").strip()
+            if not summary_text:
+                try:
+                    processing_service = ProcessingService()
+                    # Cap prompt size to avoid very large requests while preserving core context.
+                    summary_input = text[:30000]
+                    summary_resp = processing_service.summarize(summary_input, max_length=180, style="concise")
+                    summary_text = (summary_resp.summary or "").strip()
+                    if summary_text:
+                        metadata["summary"] = summary_text
+                except Exception as e:
+                    logger.warning(f"[enrichment] LLM summary generation failed for {filename}: {e}")
+
             doc_data = {
                 "id": file_id,
                 "type": payload.get("ext", ""),
                 "text": text,
                 "metadata": metadata,
             }
+            if summary_text:
+                doc_data["summary"] = summary_text
             # Forward CU-extracted fields so _track_file can reuse them
-            if cu_fields.get("summary"):
-                doc_data["summary"] = cu_fields["summary"]
             if cu_fields.get("key_phrases"):
                 doc_data["key_phrases"] = cu_fields["key_phrases"]
             if cu_fields.get("topic"):
@@ -377,7 +558,6 @@ class QueueWorker:
 
             # Delete enrichment message
             queue_service.delete(ENRICHMENT_QUEUE, message)
-            logger.info(f"[enrichment] Complete: {filename}")
 
         except Exception as e:
             logger.error(f"[enrichment] Failed for {filename}: {e}")

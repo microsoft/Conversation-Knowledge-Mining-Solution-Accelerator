@@ -67,7 +67,7 @@ const Explore: React.FC = () => {
   const navigate = useNavigate();
 
   // Data context
-  const { exploreChatMessages, setExploreChatMessages, exploreData, setExploreData } = useAppState();
+  const { exploreChatMessages, setExploreChatMessages, exploreData, setExploreData, ingestionSnapshot } = useAppState();
   const [files, setFiles] = useState<any[]>(exploreData?.files ?? []);
   const [dataSources, setDataSources] = useState<any[]>(exploreData?.dataSources ?? []);
   const [schema, setSchema] = useState<any>(exploreData?.schema ?? null);
@@ -93,21 +93,28 @@ const Explore: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
-    if (!exploreData) loadData();
+    // Always refresh on mount to avoid stale cached empty state.
+    loadData();
     loadSessions();
   }, []);
 
   const loadData = async () => {
     if (!exploreData) setLoading(true);
     try {
-      const [fR, dR, sR] = await Promise.allSettled([
-        getUploadedFiles(), listDataSources(), getExtractionInfo(),
-      ]);
+      // During processing, only fetch files; skip data-sources and schema to reduce traffic
+      const hasProcessing = files.some((f: any) => f.status === "processing");
+      const requests: any[] = [getUploadedFiles()];
+      if (!hasProcessing) {
+        requests.push(listDataSources(), getExtractionInfo());
+      } else {
+        requests.push(Promise.resolve({ data: dataSources }) as any, Promise.resolve({ data: schema }) as any);
+      }
+      const [fR, dR, sR] = await Promise.allSettled(requests);
       const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
-      const newFiles = rawFiles.filter((f: any) => f.status === "ready" || !f.status);
-      const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : [];
+      const newFiles = rawFiles;
+      const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
       const newDS = rawDS.filter((ds: any) => ds.status === "connected");
-      const newSchema = sR.status === "fulfilled" ? sR.value.data : null;
+      const newSchema = sR.status === "fulfilled" ? sR.value.data : schema;
       setFiles(newFiles);
       setDataSources(newDS);
       if (newSchema) setSchema(newSchema);
@@ -128,6 +135,17 @@ const Explore: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    if (!ingestionSnapshot) return;
+    const nextFiles = Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [];
+    const nextSources = Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected") : [];
+    const nextSchema = ingestionSnapshot.schema ?? schema;
+    setFiles(nextFiles);
+    setDataSources(nextSources);
+    setSchema(nextSchema);
+    setExploreData({ files: nextFiles, dataSources: nextSources, schema: nextSchema });
+  }, [ingestionSnapshot]);
 
   const handleChat = async (text?: string) => {
     const q = text || chatInput;
@@ -175,11 +193,12 @@ const Explore: React.FC = () => {
     } catch (e) { /* silently ignore */ }
   };
 
-  const totalRecords = files.reduce((sum, f) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum, d) => sum + (d.doc_count || 0), 0);
+  const readyFiles = files.filter((f: any) => f.status === "ready" || !f.status);
+  const totalRecords = readyFiles.reduce((sum, f) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum, d) => sum + (d.doc_count || 0), 0);
   const sessionCount = sessions.filter(sess => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
     ? `${selectedDocIds.size} selected`
-    : `${files.length + dataSources.length} source${files.length + dataSources.length !== 1 ? "s" : ""}`;
+    : `${readyFiles.length + dataSources.length} ready source${readyFiles.length + dataSources.length !== 1 ? "s" : ""}`;
 
   return (
     <div className={s.page}>
@@ -231,16 +250,22 @@ const Explore: React.FC = () => {
                 </button>
               )}
             </div>
-            {files.map(f => (
-              <div key={f.id} className={selectedDocIds.has(f.id) ? s.sourceItemActive : s.sourceItem}
-                onClick={() => toggleDoc(f.id)}>
-                {selectedDocIds.has(f.id)
-                  ? <Checkmark20Regular style={{ fontSize: 14, flexShrink: 0 }} />
-                  : <DocumentText20Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.filename}</span>
-                <Caption1>{f.doc_count || 1}</Caption1>
-              </div>
-            ))}
+            {files.map(f => {
+              const isReady = f.status === "ready" || !f.status;
+              return (
+                <div key={f.id} className={selectedDocIds.has(f.id) ? s.sourceItemActive : s.sourceItem}
+                  onClick={() => isReady && toggleDoc(f.id)}
+                  style={!isReady ? { opacity: 0.65, cursor: "default" } : undefined}>
+                  {selectedDocIds.has(f.id)
+                    ? <Checkmark20Regular style={{ fontSize: 14, flexShrink: 0 }} />
+                    : <DocumentText20Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.filename}</span>
+                  {f.status === "processing" && <Caption1 style={{ color: "#f59e0b" }}>Processing</Caption1>}
+                  {f.status === "failed" && <Caption1 style={{ color: "#dc2626" }}>Failed</Caption1>}
+                  {isReady && <Caption1>{f.doc_count || 1}</Caption1>}
+                </div>
+              );
+            })}
             {dataSources.map(ds => (
               <div key={ds.id} className={s.sourceItem}>
                 <Database20Regular style={{ fontSize: 14, color: "#f59e0b", flexShrink: 0 }} />

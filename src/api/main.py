@@ -33,6 +33,40 @@ _RATE_LIMIT = 60          # max requests per window
 _RATE_WINDOW_SEC = 60     # window size in seconds
 _rate_buckets: dict[str, list[float]] = defaultdict(list)
 _EXEMPT_PATHS = frozenset({"/", "/api/health", "/openapi.json", "/docs", "/redoc"})
+_SCAN_BLOCK_PATH_FRAGMENTS = (
+    "${jndi:",
+    "struts2-showcase",
+    "/cgi-bin/",
+    "/jspwiki/",
+    "/broker/xml",
+    "/portal/info.jsp",
+    "/webtools/control/main",
+)
+_SCAN_BLOCK_EXACT_PATHS = frozenset({"/:undefined", "/:undefined/", "/undefined"})
+
+
+class ScannerProbeBlockMiddleware(BaseHTTPMiddleware):
+    """Block obvious vulnerability scanner probes early to reduce noisy logs."""
+
+    async def dispatch(self, request: Request, call_next):
+        path = (request.url.path or "").lower()
+        query = (request.url.query or "").lower()
+        raw = request.url.path
+
+        if path in _SCAN_BLOCK_EXACT_PATHS:
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+        if any(fragment in path for fragment in _SCAN_BLOCK_PATH_FRAGMENTS):
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+        if "${jndi:" in query:
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+        # Catch encoded variants that appear in raw path (e.g. /%3Aundefined)
+        if "%3aundefined" in raw.lower() or "%24%7bjndi%3a" in raw.lower():
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+        return await call_next(request)
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -86,10 +120,7 @@ async def lifespan(app: FastAPI):
         from src.api.modules.ingestion.service import ingestion_service
 
         docs = ingestion_service.documents
-        if docs:
-            logger.info(f"Loaded {len(docs)} documents from database on startup")
-        else:
-            logger.info("No existing data — users can upload or load demo from the Home page")
+        _ = docs
     except Exception as e:
         logger.warning(f"Startup data load failed: {e}")
 
@@ -129,6 +160,7 @@ app.add_middleware(
     expose_headers=["X-Request-ID"],
 )
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(ScannerProbeBlockMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 # Register module routers
