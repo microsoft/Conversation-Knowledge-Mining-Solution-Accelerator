@@ -30,7 +30,7 @@ import {
   deleteFile,
 } from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
-import { FILE_TYPES } from "../utils/constants";
+import { FILE_TYPES, SUPPORTED_UPLOAD_ACCEPT, SUPPORTED_UPLOAD_DESCRIPTION } from "../utils/constants";
 import { useAppState } from "../context/AppStateContext";
 import s from "./Home.module.css";
 
@@ -201,7 +201,7 @@ const Home: React.FC = () => {
         <div className={s.heroLeft}>
           <div className={s.heroTitle}>Turn your data into answers and insights</div>
           <div className={s.heroSub}>
-            Upload additional documents to enrich your knowledge base.
+            Upload supported files to enrich your knowledge base.
           </div>
         </div>
 
@@ -331,7 +331,7 @@ const Home: React.FC = () => {
                 <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
               </div>
               <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
-                Upload additional documents
+                Upload supported files
               </Text>
               <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
               <div className={s.fileTypes}>
@@ -341,7 +341,7 @@ const Home: React.FC = () => {
           )}
 
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
-            accept=".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.tiff,.bmp" onChange={handleUpload} />
+            accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleUpload} />
         </div>
       </div>
 
@@ -356,7 +356,7 @@ const Home: React.FC = () => {
                   <ArrowUpload24Regular style={{ color: "#2563eb" }} />
                 </div>
                 <div className={s.valueTitle}>Upload files</div>
-                <div className={s.valueDesc}>Drag & drop PDFs, Word docs, spreadsheets, JSON, CSV, or image files. They'll be processed automatically.</div>
+                <div className={s.valueDesc}>Supported formats: {SUPPORTED_UPLOAD_DESCRIPTION}. Files are processed automatically.</div>
               </div>
               <div className={s.valueCard}>
                 <div className={s.valueIcon} style={{ backgroundColor: "#d1fae5" }}>

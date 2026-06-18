@@ -1,5 +1,5 @@
 # Supported document formats - audio/video excluded (wav, mp3, mp4, etc.)
-DOCUMENT_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp"}
+DOCUMENT_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg"}
 
 # Audio and video formats - explicitly rejected with user-friendly message
 AUDIO_VIDEO_FORMATS = {"wav", "mp3", "mp4", "m4a", "aac", "flac", "ogg"}

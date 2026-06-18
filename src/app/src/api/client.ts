@@ -70,6 +70,13 @@ export const uploadJsonFile = (file: File) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
+export const uploadCsvFile = (file: File) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiClient.post("/ingestion/upload/csv", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
 export const uploadDocument = (files: File | File[]) => {
   const formData = new FormData();
   const fileArray = Array.isArray(files) ? files : [files];

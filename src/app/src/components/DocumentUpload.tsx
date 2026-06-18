@@ -7,7 +7,12 @@ import {
   Spinner,
 } from "@fluentui/react-components";
 import { ArrowUpload24Regular } from "@fluentui/react-icons";
-import { uploadJsonFile, extractDocument } from "../api/client";
+import { uploadJsonFile, uploadCsvFile, extractDocument } from "../api/client";
+import {
+  SUPPORTED_INGEST_ACCEPT,
+  SUPPORTED_EXTRACT_ACCEPT,
+  SUPPORTED_EXTRACT_DESCRIPTION,
+} from "../utils/constants";
 
 const useStyles = makeStyles({
   dropZone: {
@@ -41,7 +46,10 @@ const DocumentUpload: React.FC<Props> = ({ mode, onComplete }) => {
     if (!file) return;
     setLoading(true);
     try {
-      const response = mode === "ingest" ? await uploadJsonFile(file) : await extractDocument(file);
+      const isCsv = file.name.toLowerCase().endsWith(".csv");
+      const response = mode === "ingest"
+        ? (isCsv ? await uploadCsvFile(file) : await uploadJsonFile(file))
+        : await extractDocument(file);
       setResult(response.data);
       onComplete?.(response.data);
     } catch (error: unknown) {
@@ -60,13 +68,13 @@ const DocumentUpload: React.FC<Props> = ({ mode, onComplete }) => {
         <Text>
           {mode === "ingest"
             ? "Click to upload JSON/CSV for ingestion"
-            : "Click to upload PDF/DOCX/CSV/TXT for extraction"}
+            : `Click to upload ${SUPPORTED_EXTRACT_DESCRIPTION} for extraction`}
         </Text>
         <input
           ref={fileInputRef}
           type="file"
           style={{ display: "none" }}
-          accept={mode === "ingest" ? ".json,.csv" : ".pdf,.docx,.csv,.txt"}
+          accept={mode === "ingest" ? SUPPORTED_INGEST_ACCEPT : SUPPORTED_EXTRACT_ACCEPT}
           onChange={handleFileSelect}
         />
       </div>

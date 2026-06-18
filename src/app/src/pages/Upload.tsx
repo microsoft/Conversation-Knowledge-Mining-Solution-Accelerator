@@ -16,6 +16,7 @@ import {
 import DocumentUpload from "../components/DocumentUpload";
 import FAQSearch from "../components/FAQSearch";
 import { loadDefaultDataset, indexDocuments } from "../api/client";
+import { SUPPORTED_EXTRACT_DESCRIPTION } from "../utils/constants";
 
 const useStyles = makeStyles({
   container: {
@@ -107,7 +108,7 @@ const Upload: React.FC = () => {
             <Text weight="semibold">Extract with Content Understanding</Text>
           </div>
           <Text size={200} style={{ color: "#666" }}>
-            Upload PDF, DOCX, images, or audio for AI-powered extraction
+            Upload {SUPPORTED_EXTRACT_DESCRIPTION} for AI-powered extraction
           </Text>
         </div>
       </div>

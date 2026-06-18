@@ -35,6 +35,7 @@ import type { UploadedFile, DataSourceConfig } from "../../types/api";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../../context/AppStateContext";
 import { getApiErrorMessage } from "../../utils/errors";
+import { SUPPORTED_UPLOAD_ACCEPT, SUPPORTED_UPLOAD_DESCRIPTION } from "../../utils/constants";
 import "./DataSources.css";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -196,7 +197,7 @@ const DataSources: React.FC = () => {
           <p>Your uploaded files</p>
         </div>
         <div className="sourcesHeaderActions">
-          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.csv,.json,.xlsx,.tiff,.bmp"
+          <input ref={fileInputRef} type="file" multiple accept={SUPPORTED_UPLOAD_ACCEPT}
             style={{ display: "none" }} onChange={handleUpload} />
           <Button appearance="primary" size="small" icon={<ArrowUpload20Regular />}
             onClick={() => fileInputRef.current?.click()}>Upload files</Button>
@@ -357,7 +358,7 @@ const DataSources: React.FC = () => {
         <div className="emptyState">
           <ArrowUpload20Regular style={{ fontSize: 48, color: "#cbd5e1" }} />
           <h3>No data yet</h3>
-          <p>Upload files to get started. Supported formats: PDF, DOCX, images, text, CSV, and JSON.</p>
+          <p>Upload files to get started. Supported formats: {SUPPORTED_UPLOAD_DESCRIPTION}.</p>
           <Button appearance="primary" icon={<ArrowUpload20Regular />}
             onClick={() => fileInputRef.current?.click()}>Upload files</Button>
         </div>
