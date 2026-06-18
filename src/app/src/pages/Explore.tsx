@@ -61,6 +61,22 @@ const getSourceSnippet = (text: string, maxLen = 120): string => {
   return clean.slice(0, maxLen).replace(/\s\S*$/, "") + "…";
 };
 
+const isFileSelectable = (status?: string): boolean => status === "ready" || status === "extracted" || !status;
+
+const getFileStatusText = (status?: string): string | null => {
+  if (status === "processing") return "Processing";
+  if (status === "extracted") return "Preparing";
+  if (status === "failed") return "Failed";
+  return null;
+};
+
+const getFileStatusColor = (status?: string): string | undefined => {
+  if (status === "processing") return "#f59e0b";
+  if (status === "extracted") return "#2563eb";
+  if (status === "failed") return "#dc2626";
+  return undefined;
+};
+
 /* ── Component ── */
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -193,7 +209,7 @@ const Explore: React.FC = () => {
     } catch (e) { /* silently ignore */ }
   };
 
-  const readyFiles = files.filter((f: any) => f.status === "ready" || !f.status);
+  const readyFiles = files.filter((f: any) => isFileSelectable(f.status));
   const totalRecords = readyFiles.reduce((sum: number, f: any) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum: number, d: any) => sum + (d.doc_count || 0), 0);
   const sessionCount = sessions.filter((sess: any) => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
@@ -251,7 +267,8 @@ const Explore: React.FC = () => {
               )}
             </div>
             {files.map((f: any) => {
-              const isReady = f.status === "ready" || !f.status;
+              const isReady = isFileSelectable(f.status);
+              const statusText = getFileStatusText(f.status);
               return (
                 <div key={f.id} className={selectedDocIds.has(f.id) ? s.sourceItemActive : s.sourceItem}
                   onClick={() => isReady && toggleDoc(f.id)}
@@ -260,8 +277,7 @@ const Explore: React.FC = () => {
                     ? <Checkmark20Regular style={{ fontSize: 14, flexShrink: 0 }} />
                     : <DocumentText20Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.filename}</span>
-                  {f.status === "processing" && <Caption1 style={{ color: "#f59e0b" }}>Processing</Caption1>}
-                  {f.status === "failed" && <Caption1 style={{ color: "#dc2626" }}>Failed</Caption1>}
+                  {statusText && <Caption1 style={{ color: getFileStatusColor(f.status) }}>{statusText}</Caption1>}
                   {isReady && <Caption1>{f.doc_count || 1}</Caption1>}
                 </div>
               );

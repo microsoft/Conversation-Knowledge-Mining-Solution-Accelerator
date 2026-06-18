@@ -98,6 +98,20 @@ const Home: React.FC = () => {
   const totalRecords = dataSources.reduce((sum: number, ds: any) => sum + (ds.doc_count || 0), 0);
   const hasData = dataSources.length > 0 || uploadedFileCount > 0;
 
+  const getFileStatusLabel = (status?: string) => {
+    if (status === "processing") return "Processing";
+    if (status === "extracted") return "Preparing";
+    if (status === "failed") return "Failed";
+    return "Ready";
+  };
+
+  const getFileStatusStyle = (status?: string) => {
+    if (status === "processing") return { color: "#f59e0b", background: "#fef3c7" };
+    if (status === "extracted") return { color: "#2563eb", background: "#dbeafe" };
+    if (status === "failed") return { color: "#dc2626", background: "#fee2e2" };
+    return { color: "#059669", background: "#d1fae5" };
+  };
+
   const buildSummary = () => {
     const parts: string[] = [];
     if (totalRecords > 0) parts.push(`${totalRecords.toLocaleString()} records`);
@@ -221,22 +235,10 @@ const Home: React.FC = () => {
                   {uploadedFiles.map((f: any) => (
                     <div key={f.id} className={s.fileStatusItem}>
                       <span className={s.fileStatusName}>{f.filename}</span>
-                      {f.status === "processing" && (
-                        <span className={s.fileStatusBadge} style={{ color: "#f59e0b", background: "#fef3c7" }}>
-                          Processing
-                        </span>
-                      )}
-                      {f.status === "failed" && (
-                        <span className={s.fileStatusBadge} style={{ color: "#dc2626", background: "#fee2e2" }}
-                          title={f.error || "Processing failed"}>
-                          Failed
-                        </span>
-                      )}
-                      {(f.status === "ready" || !f.status) && (
-                        <span className={s.fileStatusBadge} style={{ color: "#059669", background: "#d1fae5" }}>
-                          Ready
-                        </span>
-                      )}
+                      <span className={s.fileStatusBadge} style={getFileStatusStyle(f.status)}
+                        title={f.status === "failed" ? f.error || "Processing failed" : undefined}>
+                        {getFileStatusLabel(f.status)}
+                      </span>
                       <button
                         className={s.fileDeleteBtn}
                         title="Delete"
@@ -300,12 +302,6 @@ const Home: React.FC = () => {
             <>
               <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
               <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
-              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                <Button appearance="primary" size="medium" icon={<Search24Regular />}
-                  onClick={(e) => { e.stopPropagation(); navigate("/explore"); }}>Explore data</Button>
-                <Button appearance="outline" size="medium" icon={<ChartMultiple24Regular />}
-                  onClick={(e) => { e.stopPropagation(); navigate("/insights"); }}>View insights</Button>
-              </div>
               <Text size={200} style={{ color: "#2563eb", cursor: "pointer", marginTop: 4 }}
                 onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
                 Upload more files
