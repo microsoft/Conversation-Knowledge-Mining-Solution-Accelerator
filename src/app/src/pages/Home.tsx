@@ -52,7 +52,7 @@ const Home: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; count: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadStatus = (force = false) => {
+  const loadStatus = () => {
     // Always fetch both on initial load; during processing, only fetch files to reduce traffic
     const hasProcessing = uploadedFiles.some((f: any) => f.status === "processing");
     const requests: any[] = [getUploadedFiles()];
@@ -82,8 +82,6 @@ const Home: React.FC = () => {
   useEffect(() => { loadStatus(); }, []);
 
   // Shared app-level polling updates this page through ingestionSnapshot.
-  const processingFiles = uploadedFiles.filter((f: any) => f.status === "processing");
-  const readyFiles = uploadedFiles.filter((f: any) => f.status !== "processing");
   useEffect(() => {
     if (!ingestionSnapshot) return;
     setUploadedFiles(Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : []);

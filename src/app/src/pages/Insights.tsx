@@ -131,7 +131,6 @@ const Insights: React.FC = () => {
     </div></div>
   );
 
-  const ctx = data.data_context || {};
   const sections = data.sections || [];
   const kpis = data.kpis || [];
   const availableFilters = data.filters || [];

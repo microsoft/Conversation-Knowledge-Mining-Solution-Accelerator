@@ -17,8 +17,6 @@ import {
 } from "@fluentui/react-icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
-import { useAppState } from "../context/AppStateContext";
-import uiConfig from "../config/ui-config.json";
 import styles from "./Layout.module.css";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -26,7 +24,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
   const [userName, setUserName] = useState("");
-  const { dashboardHeadline } = useAppState();
 
   useEffect(() => {
     // Fetch user info from EasyAuth
@@ -53,9 +50,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     { path: "/insights", label: "Insights", icon: <ChartMultiple24Regular />, activeIcon: <ChartMultiple24Filled /> },
     { path: "/explore", label: "Explore", icon: <Search24Regular />, activeIcon: <Search24Filled /> },
   ];
-
-  const currentPage = navItems.find((n) => n.path === location.pathname);
-  const pageTitle = location.pathname === "/" ? "" : currentPage?.label || "";
 
   return (
     <div className={styles.root}>
