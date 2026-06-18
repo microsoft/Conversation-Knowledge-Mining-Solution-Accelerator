@@ -131,6 +131,30 @@ def _extract_schema(cursor) -> dict:
         except Exception as e:
             logger.debug(f"Skipping malformed key_phrases row: {e}")
 
+    # Pull actual document summaries so the LLM can generate content-based insights
+    cursor.execute(
+        "SELECT TOP 15 summary FROM documents "
+        "WHERE summary IS NOT NULL AND LEN(summary) > 20"
+    )
+    document_summaries = []
+    for r in cursor.fetchall():
+        if r[0] and r[0].strip():
+            document_summaries.append(r[0].strip()[:600])
+
+    # Aggregate key phrases across all documents for the planner
+    cursor.execute(
+        "SELECT TOP 30 key_phrases FROM documents "
+        "WHERE key_phrases IS NOT NULL AND LEN(key_phrases) > 2"
+    )
+    phrase_pool: list[str] = []
+    for r in cursor.fetchall():
+        try:
+            phrases = json.loads(r[0])
+            if isinstance(phrases, list):
+                phrase_pool.extend(p.strip().lower() for p in phrases[:15] if isinstance(p, str) and len(p.strip()) > 2)
+        except Exception:
+            continue
+
     fields = []
     for name, info in field_info.items():
         classification = _classify_field(name, info["samples"], info["count"], sampled)
@@ -142,13 +166,20 @@ def _extract_schema(cursor) -> dict:
             **classification,
         })
 
-    return {"total_records": total, "fields": fields, "has_key_phrases": has_phrases}
+    return {
+        "total_records": total,
+        "fields": fields,
+        "has_key_phrases": has_phrases,
+        "document_summaries": document_summaries,
+        "top_key_phrases": list(dict.fromkeys(phrase_pool))[:60],  # deduplicated
+    }
 
 # --- LLM Planner ---
 
 _PLAN_PROMPT = """You are a data analyst designing an insight dashboard.
 
-DATASET SCHEMA:
+{content_section}
+DATASET SCHEMA (structural metadata fields):
 {schema}
 
 Each field includes:
@@ -167,7 +198,14 @@ Use semantic_type to guide insight design:
 - identifier/contact/pii fields → NEVER use in charts or filters
 - text fields → skip (use key_phrases instead if available)
 
-Return JSON with this structure:
+CONTENT-FIRST RULES (CRITICAL):
+- If DOCUMENT SUMMARIES are provided above, the headline, summary, key_insights and standout_findings MUST reflect the actual subject matter of those documents — what they discuss, what findings they contain, what decisions or topics they cover.
+- NEVER write key_insights that describe file format distributions (e.g. "PDFs are the most common file type") — that is not useful to users.
+- NEVER write key_insights about page counts, processing metadata, or document structure unless the data explicitly measures those things meaningfully.
+- The headline must describe the TOPIC of the content (e.g. "Non-Performing Loan Sales and Borrower Outcomes") not the collection type ("Document Processing Insights").
+- For document collections (uploaded files), lean on the summaries to identify themes, findings, entities, geographies, time periods, and outcomes that actually appear in the content.
+- Only use structural metadata fields (like file_format or document_type) in charts or filters if there are 4+ documents with real variation; even then, treat them as secondary to content insights.
+
 
 {{
   "headline": "6-10 word use case headline",
@@ -282,10 +320,26 @@ LABEL QUALITY RULES (critical for user clarity):
 def _plan(schema: dict) -> dict:
     settings = get_settings()
     client = get_llm_client()
+
+    # Build content section from actual document summaries and key phrases
+    content_parts: list[str] = []
+    summaries = schema.get("document_summaries", [])
+    if summaries:
+        numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(summaries))
+        content_parts.append(f"DOCUMENT SUMMARIES (actual content of the uploaded documents):\n{numbered}")
+    phrases = schema.get("top_key_phrases", [])
+    if phrases:
+        content_parts.append(f"KEY PHRASES ACROSS ALL DOCUMENTS:\n{', '.join(phrases[:50])}")
+    content_section = ("\n\n".join(content_parts) + "\n\n") if content_parts else ""
+
+    # Strip large content fields from schema before serialising to keep prompt compact
+    schema_for_prompt = {k: v for k, v in schema.items() if k not in ("document_summaries", "top_key_phrases")}
+
     resp = client.chat.completions.create(
         model=settings.azure_openai_chat_deployment,
         messages=[{"role": "user", "content": _PLAN_PROMPT.format(
-            schema=json.dumps(schema, indent=2, default=str))}],
+            content_section=content_section,
+            schema=json.dumps(schema_for_prompt, indent=2, default=str))}],
         temperature=0.1, max_tokens=2500,
         response_format={"type": "json_object"},
     )
