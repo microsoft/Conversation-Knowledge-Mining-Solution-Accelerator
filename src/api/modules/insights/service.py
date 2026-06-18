@@ -664,6 +664,12 @@ class DashboardService:
             logger.warning(f"SQL connection failed: {e}")
             return None
 
+    @staticmethod
+    def _get_total_records(cursor) -> int:
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        row = cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
     def get_dashboard(self, filters=None, refresh=False) -> dict:
         conn = self._get_connection()
         if not conn:
@@ -671,7 +677,7 @@ class DashboardService:
         try:
             cursor = conn.cursor()
 
-            # Schema: reuse cached if not refreshing
+            # Schema: refresh when requested or when source data count changed.
             if refresh or self._schema_cache is None:
                 schema = _extract_schema(cursor)
                 if schema["total_records"] == 0:
@@ -682,7 +688,19 @@ class DashboardService:
                     json.dumps(schema, sort_keys=True, default=str).encode()
                 ).hexdigest()
             else:
-                schema = self._schema_cache
+                live_total = self._get_total_records(cursor)
+                cached_total = int(self._schema_cache.get("total_records", 0))
+                if live_total != cached_total:
+                    schema = _extract_schema(cursor)
+                    if schema["total_records"] == 0:
+                        conn.close()
+                        return self._empty()
+                    self._schema_cache = schema
+                    self._schema_hash = hashlib.md5(
+                        json.dumps(schema, sort_keys=True, default=str).encode()
+                    ).hexdigest()
+                else:
+                    schema = self._schema_cache
 
             # Plan (cached, validated, with TTL)
             key = self._schema_hash

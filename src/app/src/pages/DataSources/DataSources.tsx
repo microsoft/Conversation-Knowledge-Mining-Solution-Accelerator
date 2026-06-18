@@ -157,6 +157,7 @@ const DataSources: React.FC = () => {
       }
 
       if (jsonFiles.length > 0 || docsSubmitted) {
+        setInsights(null);
         setExploreData(null);
         loadSources();
       }

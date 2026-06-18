@@ -40,6 +40,8 @@ const Insights: React.FC = () => {
     finally { setLoading(false); setRefreshing(false); }
   };
 
+  // Use cached insights on page re-entry; refresh explicitly via Re-generate.
+  // Upload/delete flows invalidate cache (setInsights(null)), which triggers a fresh load.
   useEffect(() => { if (!cachedData) load(); }, []);
 
   const applyFilter = (field: string, value: string) => {
