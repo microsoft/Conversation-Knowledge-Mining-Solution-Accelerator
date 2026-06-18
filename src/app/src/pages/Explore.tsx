@@ -65,7 +65,7 @@ const isFileSelectable = (status?: string): boolean => status === "ready" || sta
 
 const getFileStatusText = (status?: string): string | null => {
   if (status === "processing") return "Processing";
-  if (status === "extracted") return "Preparing";
+  if (status === "extracted") return "Chat ready";
   if (status === "failed") return "Failed";
   return null;
 };

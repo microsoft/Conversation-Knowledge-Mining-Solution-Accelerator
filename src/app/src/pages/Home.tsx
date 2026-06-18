@@ -97,10 +97,14 @@ const Home: React.FC = () => {
   const uploadedFileCount = uploadedFiles.length;
   const totalRecords = dataSources.reduce((sum: number, ds: any) => sum + (ds.doc_count || 0), 0);
   const hasData = dataSources.length > 0 || uploadedFileCount > 0;
+  const readyCount = uploadedFiles.filter((f: any) => f.status === "ready" || !f.status).length;
+  const chatReadyCount = uploadedFiles.filter((f: any) => f.status === "extracted").length;
+  const processingCount = uploadedFiles.filter((f: any) => f.status === "processing").length;
+  const insightsAvailable = readyCount > 0 || dataSources.length > 0;
 
   const getFileStatusLabel = (status?: string) => {
     if (status === "processing") return "Processing";
-    if (status === "extracted") return "Preparing";
+    if (status === "extracted") return "Chat ready";
     if (status === "failed") return "Failed";
     return "Ready";
   };
@@ -236,7 +240,13 @@ const Home: React.FC = () => {
                     <div key={f.id} className={s.fileStatusItem}>
                       <span className={s.fileStatusName}>{f.filename}</span>
                       <span className={s.fileStatusBadge} style={getFileStatusStyle(f.status)}
-                        title={f.status === "failed" ? f.error || "Processing failed" : undefined}>
+                        title={
+                          f.status === "extracted"
+                            ? "You can ask questions about this document now. Insights and indexing are still processing."
+                            : f.status === "failed"
+                              ? f.error || "Processing failed"
+                              : undefined
+                        }>
                         {getFileStatusLabel(f.status)}
                       </span>
                       <button
@@ -250,9 +260,21 @@ const Home: React.FC = () => {
                   ))}
                 </div>
               )}
+              {uploadedFiles.length > 0 && (
+                <Text size={200} style={{ color: "#64748b", marginTop: 6 }}>
+                  {chatReadyCount > 0 ? `${chatReadyCount} ${chatReadyCount === 1 ? "document" : "documents"} ready for chat` : ""}
+                  {chatReadyCount > 0 && (readyCount > 0 || processingCount > 0) ? ", " : ""}
+                  {readyCount > 0 ? `${readyCount} fully processed` : ""}
+                  {processingCount > 0 && (chatReadyCount > 0 || readyCount > 0) ? ", " : ""}
+                  {processingCount > 0 ? `${processingCount} still processing` : ""}
+                </Text>
+              )}
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
-                  onClick={() => navigate("/insights")}>View insights</Button>
+                <span title={insightsAvailable ? "" : "Insights are still being generated. Chat is available now."}>
+                  <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
+                    disabled={!insightsAvailable}
+                    onClick={() => navigate("/insights")}>View insights</Button>
+                </span>
                 <Button appearance="outline" size="medium" icon={<Search24Regular />}
                   onClick={() => navigate("/explore")}>Explore data</Button>
               </div>
