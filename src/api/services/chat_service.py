@@ -22,7 +22,12 @@ from fastapi import HTTPException, status
 
 from azure.ai.projects.aio import AIProjectClient
 
-from agent_framework.azure import AzureAIProjectAgentProvider
+from agent_framework import AgentSession
+from agent_framework_foundry import FoundryAgent
+# Restore Azure AI Search per-document URL enrichment on streaming citations
+# (regression at agent-framework GA; tracked upstream as microsoft/agent-framework#5995).
+# Must be imported BEFORE the first FoundryAgent.run() call.
+import services._patches.agent_framework_search_citations  # noqa: F401 - patch applied for side effects on import
 
 from cachetools import TTLCache
 
@@ -38,7 +43,7 @@ logger = logging.getLogger(__name__)
 # tool/structured_output overrides not being supported by AzureAIClient.
 # This can be made configurable via env var if needed for debugging.
 agent_log_level = os.getenv("AGENT_FRAMEWORK_LOG_LEVEL", "ERROR").upper()
-logging.getLogger("agent_framework.azure").setLevel(getattr(logging, agent_log_level, logging.ERROR))
+logging.getLogger("agent_framework.foundry").setLevel(getattr(logging, agent_log_level, logging.ERROR))
 
 
 class ExpCache(TTLCache):
@@ -136,9 +141,6 @@ class ChatService:
                 if not query:
                     query = "Please provide a query."
 
-                # Create provider for agent management
-                provider = AzureAIProjectAgentProvider(project_client=project_client)
-
                 db_conn = await get_sqldb_connection()
                 custom_tool = SQLTool(conn=db_conn)
 
@@ -149,11 +151,12 @@ class ChatService:
                     logger.info("Reusing existing thread %s for conversation %s",
                                 thread_conversation_id, conversation_id)
 
-                # Get agent with tools using provider
+                # Create agent using FoundryAgent
                 logger.info("Retrieving orchestrator agent: '%s'", self.orchestrator_agent_name)
-                agent = await provider.get_agent(
-                    name=self.orchestrator_agent_name,
-                    tools=custom_tool.get_sql_response
+                agent = FoundryAgent(
+                    project_client=project_client,
+                    agent_name=self.orchestrator_agent_name,
+                    tools=[custom_tool.get_sql_response]
                 )
                 logger.info("Orchestrator agent retrieved successfully: '%s'", self.orchestrator_agent_name)
 
@@ -179,7 +182,8 @@ class ChatService:
 
                 logger.info("Starting agent.run stream for conversation %s, thread %s",
                             conversation_id, thread_conversation_id)
-                async for chunk in agent.run(query, stream=True, conversation_id=thread_conversation_id):
+                session = AgentSession(service_session_id=thread_conversation_id)
+                async for chunk in agent.run(query, stream=True, session=session):
                     # Collect citations from Azure AI Search responses
                     for content in getattr(chunk, "contents", []):
                         annotations = getattr(content, "annotations", [])
@@ -212,7 +216,16 @@ class ChatService:
                     seen_doc_ids = set()  # Track unique document IDs to avoid duplicates
 
                     for citation in citations:
-                        get_url = (citation.get("additional_properties") or {}).get("get_url")
+                        add_props = citation.get("additional_properties") or {}
+                        # Prefer the per-document URL (additional_properties.get_url, populated
+                        # by the agent_framework_search_citations patch) over the top-level `url`,
+                        # which carries only the search-service root URL on GA agent-framework
+                        # (see microsoft/agent-framework#5995).
+                        get_url = (
+                            add_props.get("get_url")
+                            or citation.get("url")
+                            or add_props.get("url")
+                        )
                         url = get_url if get_url else 'N/A'
                         title = citation.get('title', 'N/A')
 

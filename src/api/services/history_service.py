@@ -7,7 +7,7 @@ from common.config.config import Config
 from common.database.cosmosdb_service import CosmosConversationClient
 from helpers.azure_credential_utils import get_azure_credential_async, build_async_azure_credential
 
-from agent_framework.azure import AzureAIProjectAgentProvider
+from agent_framework_foundry import FoundryAgent
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +73,8 @@ class HistoryService:
                 await get_azure_credential_async(client_id=self.azure_client_id) as credential,
                 AIProjectClient(endpoint=self.ai_project_endpoint, credential=credential) as project_client,
             ):
-                # Create provider for agent management
-                provider = AzureAIProjectAgentProvider(project_client=project_client)
-
-                # Get title agent using provider
-                agent = await provider.get_agent(name=self.title_agent_name)
+                # Create agent using FoundryAgent
+                agent = FoundryAgent(project_client=project_client, agent_name=self.title_agent_name)
 
                 # Generate title using agent
                 result = await agent.run(final_prompt)
