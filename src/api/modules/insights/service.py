@@ -206,17 +206,18 @@ CONTENT-FIRST RULES (CRITICAL):
 - The headline must describe the TOPIC of the content (e.g. "Non-Performing Loan Sales and Borrower Outcomes") not the collection type ("Document Processing Insights").
 - For document collections (uploaded files), lean on the summaries to identify themes, findings, entities, geographies, time periods, and outcomes that actually appear in the content.
 - Only use structural metadata fields (like file_format or document_type) in charts or filters if there are 4+ documents with real variation; even then, treat them as secondary to content insights.
+- HEADLINE MUST BE GENERIC: Do NOT include individual customer/person names in the headline. Use the organization, system, or domain name (e.g. "Woodgrove IT Helpdesk" not "Helena's IT Support Interactions"). Focus on the subject matter and context, not the individual.
 
 
 {{
-  "headline": "6-10 word use case headline",
-  "summary": "One sentence (max 30 words) describing what this data represents",
+  "headline": "6-10 word use case headline (generic, no individual names)",
+  "summary": "One sentence (max 30 words) describing what this data represents (generic, focus on organization/system/domain)",
 
   "key_insights": [
-    "First major pattern or finding (one sentence)",
-    "Second major pattern or finding (one sentence)",
-    "Third major pattern or finding (one sentence)",
-    "Fourth major pattern or finding (one sentence)"
+    "First major pattern or finding (one sentence, generic and organizational)",
+    "Second major pattern or finding (one sentence, generic and organizational)",
+    "Third major pattern or finding (one sentence, generic and organizational)",
+    "Fourth major pattern or finding (one sentence, generic and organizational)"
   ],
 
   "kpis": [
