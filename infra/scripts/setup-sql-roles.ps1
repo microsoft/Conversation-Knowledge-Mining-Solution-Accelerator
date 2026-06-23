@@ -39,17 +39,19 @@ if (-not $server -or -not $database -or -not $apiName -or -not $principalId) {
     exit 0
 }
 
+$accountType = (az account show --query user.type -o tsv 2>$null)
+$isServicePrincipal = ($accountType -eq 'servicePrincipal')
+
 $roles = @(
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datareader"; isServicePrincipal = $true },
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datawriter"; isServicePrincipal = $true },
-    @{ principalId = $principalId; displayName = $apiName; role = "db_ddladmin";   isServicePrincipal = $true }
+    @{ principalId = $principalId; displayName = $apiName; role = "db_datareader"; isServicePrincipal = $isServicePrincipal },
+    @{ principalId = $principalId; displayName = $apiName; role = "db_datawriter"; isServicePrincipal = $isServicePrincipal }
 )
 
 # Write to a temp file to avoid CLI JSON quoting issues across shells
 $tmp = [System.IO.Path]::GetTempFileName()
 ConvertTo-Json -InputObject $roles -Depth 5 | Set-Content -Path $tmp -Encoding utf8
 
-Write-Host "API identity : $apiName ($principalId)" -ForegroundColor DarkGray
+Write-Host "API identity : $apiName ($principalId), account type: $accountType" -ForegroundColor DarkGray
 Write-Host "SQL target   : $server / $database" -ForegroundColor DarkGray
 
 $script = Join-Path $PSScriptRoot "post-provision/add_user_scripts/assign_sql_roles.py"
