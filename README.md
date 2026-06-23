@@ -279,6 +279,8 @@ docker-compose up --build
 
 > **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
 
+> **Note:** To allow setup scripts to fall back to deployed Azure backend if local health check fails (useful for CI/CD), set `KM_ALLOW_DEPLOYED_BACKEND_FALLBACK=1`. See [DEPLOYMENT.md](DEPLOYMENT.md) for full environment variable reference.
+
 ### Azure Services and Costs
 
 Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a region where the following services are available.

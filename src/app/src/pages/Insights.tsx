@@ -4,7 +4,10 @@ import {
   Button,
   Card,
   CardHeader,
+  Dropdown,
   Divider,
+  Field,
+  Option,
   Skeleton,
   SkeletonItem,
   Text,
@@ -107,6 +110,43 @@ const useStyles = makeStyles({
     display: "flex",
     flexWrap: "wrap",
     gap: "8px",
+  },
+  filtersCard: {
+    borderRadius: "14px",
+    border: "1px solid #dbeafe",
+    background: "rgba(255, 255, 255, 0.85)",
+    padding: "12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  filterHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  filterGroups: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: "10px",
+  },
+  filterGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+  },
+  filterValues: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+  },
+  currentFiltersRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    alignItems: "center",
   },
   sectionCard: {
     borderRadius: "18px",
@@ -764,7 +804,7 @@ const Insights: React.FC = () => {
   const [loading, setLoading] = useState(!cachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(cachedData?.data_context?.filters_applied || {});
   const [evidencePanelOpen, setEvidencePanelOpen] = useState(false);
   const [selectedEvidenceData, setSelectedEvidenceData] = useState<EvidenceItem[]>([]);
   const [selectedInsight, setSelectedInsight] = useState<string | null>(null);
@@ -806,6 +846,8 @@ const Insights: React.FC = () => {
 
   const runtime = useMemo(() => data?.runtime ?? (data ? deriveRuntimeFromDashboard(data) : null), [data]);
   const dataset = data?.datasetInfo || { name: "Dataset", sourceType: "documents", lastUpdated: new Date().toISOString() };
+  const availableFilters = useMemo(() => data?.filters || [], [data]);
+  const appliedFilters = useMemo(() => data?.data_context?.filters_applied || {}, [data]);
 
   const metrics = useMemo(() => {
     const topicsCount = runtime?.counts?.topics || runtime?.topics?.length || 0;
@@ -979,10 +1021,22 @@ const Insights: React.FC = () => {
     { label: "Flagged patterns", value: metrics.anomaliesCount, summary: "Potential outliers or unusual patterns detected.", tooltip: "Count of `runtime.unexpectedPatterns` in this run.", color: PALETTE[3] },
   ];
 
-  const summarySignals = Array.from(new Set([
-    data?.headline,
-    ...(runtime?.summarySignals || []),
-  ].filter((value): value is string => Boolean(value)))).slice(0, 6);
+  const setFilterValue = useCallback((field: string, value?: string) => {
+    const next = { ...filters };
+    const normalized = (value || "").trim();
+    if (!normalized) {
+      delete next[field];
+    } else {
+      next[field] = normalized;
+    }
+    setFilters(next);
+    void load(next);
+  }, [filters, load]);
+
+  const clearAllFilters = useCallback(() => {
+    setFilters({});
+    void load({});
+  }, [load]);
 
   if (loading) return <SkeletonDashboard />;
 
@@ -1030,13 +1084,54 @@ const Insights: React.FC = () => {
               </Button>
             </div>
 
-            {summarySignals.length > 0 && (
-              <div className={styles.signalRow}>
-                {summarySignals.map((signal, index) => (
-                  <Badge key={`${signal}-${index}`} appearance="outline" color="brand">
-                    {signal}
-                  </Badge>
-                ))}
+            {availableFilters.length > 0 && (
+              <div className={styles.filtersCard}>
+                <div className={styles.filterHeader}>
+                  <div className={styles.sectionEyebrow}>
+                    <DocumentBulletList20Regular />
+                    <Text weight="semibold" size={200}>Filter insights</Text>
+                  </div>
+                  <Button appearance="subtle" size="small" onClick={clearAllFilters}>Clear all</Button>
+                </div>
+
+                <div className={styles.filterGroups}>
+                  {availableFilters.map((filter) => (
+                    <div key={filter.field} className={styles.filterGroup}>
+                      <Field size="small" label={filter.label || filter.field}>
+                        <Dropdown
+                          size="small"
+                          value={filters[filter.field] || "All"}
+                          selectedOptions={filters[filter.field] ? [filters[filter.field]] : [""]}
+                          onOptionSelect={(_, data) => setFilterValue(filter.field, String(data.optionValue || ""))}
+                        >
+                          <Option value="">All</Option>
+                          {(filter.values || []).map((value) => (
+                            <Option key={`${filter.field}-${value}`} value={value}>
+                              {value}
+                            </Option>
+                          ))}
+                        </Dropdown>
+                      </Field>
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.currentFiltersRow}>
+                  <Text size={200} weight="semibold">Current filters:</Text>
+                  {Object.keys(appliedFilters).length === 0 ? (
+                    <Badge appearance="outline">All records</Badge>
+                  ) : (
+                    Object.entries(appliedFilters).map(([field, value]) => {
+                      const spec = availableFilters.find((item) => item.field === field);
+                      const label = spec?.label || field;
+                      return (
+                        <Badge key={`${field}-${value}`} color="brand" appearance="filled">
+                          {label}: {value}
+                        </Badge>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
           </div>
