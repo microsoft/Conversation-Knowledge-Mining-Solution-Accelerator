@@ -199,25 +199,25 @@ Use semantic_type to guide insight design:
 - identifier/contact/pii fields → NEVER use in charts or filters
 - text fields → skip (use key_phrases instead if available)
 
-CONTENT-FIRST RULES (CRITICAL):
+CONTENT-FIRST & ANONYMIZATION RULES (CRITICAL):
 - If DOCUMENT SUMMARIES are provided above, the headline, summary, key_insights and standout_findings MUST reflect the actual subject matter of those documents — what they discuss, what findings they contain, what decisions or topics they cover.
 - NEVER write key_insights that describe file format distributions (e.g. "PDFs are the most common file type") — that is not useful to users.
 - NEVER write key_insights about page counts, processing metadata, or document structure unless the data explicitly measures those things meaningfully.
 - The headline must describe the TOPIC of the content (e.g. "Non-Performing Loan Sales and Borrower Outcomes") not the collection type ("Document Processing Insights").
 - For document collections (uploaded files), lean on the summaries to identify themes, findings, entities, geographies, time periods, and outcomes that actually appear in the content.
 - Only use structural metadata fields (like file_format or document_type) in charts or filters if there are 4+ documents with real variation; even then, treat them as secondary to content insights.
-- HEADLINE MUST BE GENERIC: Do NOT include individual customer/person names in the headline. Use the organization, system, or domain name (e.g. "Woodgrove IT Helpdesk" not "Helena's IT Support Interactions"). Focus on the subject matter and context, not the individual.
+- ANONYMIZATION (MANDATORY): NEVER include individual customer/person/employee names anywhere in headline, summary, or key_insights. Replace all individual names with organizational/domain names (e.g. "Woodgrove IT Helpdesk Support Requests" not "Helena's IT Support"). If the data is about customer interactions, use the organization/service name as context. All insights must be institutional/organizational in scope, never individual.
 
 
 {{
-  "headline": "6-10 word use case headline (generic, no individual names)",
-  "summary": "One sentence (max 30 words) describing what this data represents (generic, focus on organization/system/domain)",
+  "headline": "6-10 word organizational/institutional headline (NO individual names, e.g. 'Woodgrove IT Helpdesk Support Interactions')",
+  "summary": "One sentence (max 30 words) describing organizational/institutional context (NO individual names, focus on organization/system/domain)",
 
   "key_insights": [
-    "First major pattern or finding (one sentence, generic and organizational)",
-    "Second major pattern or finding (one sentence, generic and organizational)",
-    "Third major pattern or finding (one sentence, generic and organizational)",
-    "Fourth major pattern or finding (one sentence, generic and organizational)"
+    "First major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Second major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Third major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Fourth major pattern or finding (one sentence, organizational scope, NO individual names)"
   ],
 
   "kpis": [
