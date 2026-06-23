@@ -8,17 +8,6 @@ metadata:
   template: knowledge-mining@1.0
 
 hooks:
-  preprovision:
-    windows:
-      shell: pwsh
-      run: ./infra/scripts/build-images.ps1
-      continueOnError: false
-      interactive: true
-    posix:
-      shell: sh
-      run: pwsh -File ./infra/scripts/build-images.ps1
-      continueOnError: false
-      interactive: true
   postprovision:
     windows:
       shell: pwsh
@@ -28,6 +17,16 @@ hooks:
         azd env get-values 2>$null | ForEach-Object {
           $_ -replace '^(\w+)="(.*)"$', '$1=$2'
         } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
+
+        # ── Step 0: Python environment ──
+        Write-Host ""
+        Write-Host "Preparing Python environment..." -ForegroundColor Yellow
+        if (-not (Test-Path "venv")) {
+          python -m venv venv
+        }
+        & ./venv/Scripts/Activate.ps1
+        python -m pip install --quiet --upgrade pip
+        pip install --quiet -r requirements.txt
 
         # ── Step 1: Create AI agent ──
         Write-Host ""
@@ -60,6 +59,15 @@ hooks:
         # Write azd env values to .env so scripts can read them
         echo "Writing .env file..."
         azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
+
+        echo ""
+        echo "Preparing Python environment..."
+        if [ ! -d venv ]; then
+          python3 -m venv venv
+        fi
+        . ./venv/bin/activate
+        python -m pip install --quiet --upgrade pip
+        pip install --quiet -r requirements.txt
 
         echo ""
         echo "Setting up AI agent..."

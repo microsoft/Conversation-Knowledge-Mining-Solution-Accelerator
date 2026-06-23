@@ -9,11 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY src/api/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./src/api/
+RUN pip install --no-cache-dir -r src/api/requirements.txt
 
-COPY src/ ./src/
-COPY data/ ./data/
+# Build context is ./src/api — recreate the src.api package layout
+COPY . ./src/api/
+RUN touch src/__init__.py
 
 # Non-root user
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app

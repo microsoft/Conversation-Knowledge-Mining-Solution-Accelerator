@@ -33,16 +33,16 @@
       "value": "${AZURE_CU_LOCATION=swedencentral}"
     },
     "backendContainerRegistryHostname": {
-      "value": "${BACKEND_CONTAINER_REGISTRY=}"
+      "value": "${BACKEND_CONTAINER_REGISTRY=kmgendeploypipeline.azurecr.io}"
     },
     "backendContainerImageTag": {
-      "value": "${BACKEND_IMAGE_TAG=latest}"
+      "value": "${BACKEND_IMAGE_TAG=modularity_23062026}"
     },
     "frontendContainerRegistryHostname": {
-      "value": "${FRONTEND_CONTAINER_REGISTRY=}"
+      "value": "${FRONTEND_CONTAINER_REGISTRY=kmgendeploypipeline.azurecr.io}"
     },
     "frontendContainerImageTag": {
-      "value": "${FRONTEND_IMAGE_TAG=latest}"
+      "value": "${FRONTEND_IMAGE_TAG=modularity_23062026}"
     }
   }
 }
