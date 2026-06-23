@@ -1441,7 +1441,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
       linuxFxVersion: 'NODE|20-lts'
       minTlsVersion: '1.2'
       alwaysOn: true
-      appCommandLine: 'pm2 serve /home/site/wwwroot/build --no-daemon --spa'
+      appCommandLine: 'pm2 serve /home/site/wwwroot/dist --no-daemon --spa'
     }
     configs: [
       {
@@ -1449,7 +1449,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
         properties: {
           SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
           ENABLE_ORYX_BUILD: 'true'
-          REACT_APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
+          VITE_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
           WEBSITE_NODE_DEFAULT_VERSION: '~20'
           APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
           BACKEND_API_HOST: enablePrivateNetworking ? 'api-${solutionSuffix}.azurewebsites.net' : ''

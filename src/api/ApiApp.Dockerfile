@@ -1,7 +1,9 @@
 FROM python:3.11-alpine
 
 # Install system dependencies required for building and running the application
-RUN apk add --no-cache --virtual .build-deps \
+RUN apk add --no-cache \
+    ca-certificates \
+    && apk add --no-cache --virtual .build-deps \
     build-base \
     libffi-dev \
     openssl-dev \

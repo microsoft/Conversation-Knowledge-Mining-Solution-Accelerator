@@ -817,6 +817,11 @@ module aiFoundryPrivateEndpoint 'br/public:avm/res/network/private-endpoint:0.8.
     }
     subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
   }
+  dependsOn: [
+    aiFoundryAiServices
+    virtualNetwork
+    avmPrivateDnsZones
+  ]
 }
 
 // ========== AVM WAF ========== //
