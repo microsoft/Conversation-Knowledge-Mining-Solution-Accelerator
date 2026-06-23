@@ -5,7 +5,6 @@ import {
   Card,
   CardHeader,
   Dropdown,
-  Divider,
   Field,
   Option,
   Skeleton,
@@ -23,7 +22,6 @@ import {
   ChevronDown20Regular,
   ChevronRight20Regular,
   ChevronUp20Regular,
-  Dismiss24Regular,
   DocumentBulletList20Regular,
   Info24Regular,
   Link24Regular,
@@ -141,12 +139,6 @@ const useStyles = makeStyles({
     display: "flex",
     flexWrap: "wrap",
     gap: "8px",
-  },
-  currentFiltersRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "8px",
-    alignItems: "center",
   },
   sectionCard: {
     borderRadius: "18px",
@@ -318,31 +310,6 @@ const useStyles = makeStyles({
     padding: "20px",
     color: tokens.colorNeutralForeground3,
   },
-  panelOverlay: {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.42)",
-    zIndex: 50,
-  },
-  panelCard: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    width: "min(100vw, 440px)",
-    borderRadius: 0,
-    boxShadow: "-20px 0 50px rgba(15, 23, 42, 0.15)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  panelBody: {
-    padding: "0 18px 18px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    overflowY: "auto",
-    flex: 1,
-  },
   evidenceCard: {
     borderRadius: "14px",
   },
@@ -354,13 +321,6 @@ const useStyles = makeStyles({
     borderRadius: "18px",
   },
 });
-
-interface EvidenceItem {
-  text: string;
-  label?: string;
-  value?: number | string;
-  section?: string;
-}
 
 const TEST_PATTERN = /^(test_?doc|sample_?|tmp_?|e2e_?|large_docx|fake_?|mock_?|__)/i;
 const JUNK_LABELS = new Set(["docx", "lorem ipsum", "lorem", "ipsum", "placeholder", "n/a", "null", "undefined", "none"]);
@@ -628,48 +588,6 @@ const deriveRuntimeFromDashboard = (dashboard: DashboardResponse) => {
   };
 };
 
-const EvidencePanel: React.FC<{
-  visible: boolean;
-  insightTitle?: string;
-  evidence?: EvidenceItem[];
-  onClose: () => void;
-}> = ({ visible, insightTitle, evidence, onClose }) => {
-  const styles = useStyles();
-
-  if (!visible) return null;
-
-  return (
-    <div className={styles.panelOverlay} role="dialog" aria-modal="true" aria-label="Supporting evidence">
-      <Card className={styles.panelCard}>
-        <CardHeader
-          header={<Text weight="semibold" size={500}>Supporting evidence</Text>}
-          description={insightTitle ? <Text size={200}>For: {insightTitle}</Text> : undefined}
-          action={<Button appearance="subtle" icon={<Dismiss24Regular />} onClick={onClose} />}
-        />
-        <Divider />
-        <div className={styles.panelBody}>
-          {!evidence?.length ? (
-            <Card className={styles.evidenceCard}>
-              <Text size={200}>No supporting evidence found for this insight.</Text>
-            </Card>
-          ) : (
-            evidence.map((item, index) => (
-              <Card key={index} className={styles.evidenceCard}>
-                <CardHeader
-                  header={<Text weight="semibold">{item.label || "Evidence item"}</Text>}
-                  description={item.section ? <Text size={200}>{item.section}</Text> : undefined}
-                />
-                <Text size={200}>{item.text}</Text>
-                {item.value !== undefined && <Text size={200}>Count: {item.value}</Text>}
-              </Card>
-            ))
-          )}
-        </div>
-      </Card>
-    </div>
-  );
-};
-
 const SkeletonDashboard: React.FC = () => {
   const styles = useStyles();
 
@@ -805,9 +723,6 @@ const Insights: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>(cachedData?.data_context?.filters_applied || {});
-  const [evidencePanelOpen, setEvidencePanelOpen] = useState(false);
-  const [selectedEvidenceData, setSelectedEvidenceData] = useState<EvidenceItem[]>([]);
-  const [selectedInsight, setSelectedInsight] = useState<string | null>(null);
   const [showMoreOverview, setShowMoreOverview] = useState(false);
 
   const load = useCallback(async (filterValues?: Record<string, string>, refresh = false) => {
@@ -847,7 +762,6 @@ const Insights: React.FC = () => {
   const runtime = useMemo(() => data?.runtime ?? (data ? deriveRuntimeFromDashboard(data) : null), [data]);
   const dataset = data?.datasetInfo || { name: "Dataset", sourceType: "documents", lastUpdated: new Date().toISOString() };
   const availableFilters = useMemo(() => data?.filters || [], [data]);
-  const appliedFilters = useMemo(() => data?.data_context?.filters_applied || {}, [data]);
 
   const metrics = useMemo(() => {
     const topicsCount = runtime?.counts?.topics || runtime?.topics?.length || 0;
@@ -1116,22 +1030,6 @@ const Insights: React.FC = () => {
                   ))}
                 </div>
 
-                <div className={styles.currentFiltersRow}>
-                  <Text size={200} weight="semibold">Current filters:</Text>
-                  {Object.keys(appliedFilters).length === 0 ? (
-                    <Badge appearance="outline">All records</Badge>
-                  ) : (
-                    Object.entries(appliedFilters).map(([field, value]) => {
-                      const spec = availableFilters.find((item) => item.field === field);
-                      const label = spec?.label || field;
-                      return (
-                        <Badge key={`${field}-${value}`} color="brand" appearance="filled">
-                          {label}: {value}
-                        </Badge>
-                      );
-                    })
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -1141,11 +1039,6 @@ const Insights: React.FC = () => {
           <CardHeader
             header={<Text weight="semibold" size={500}>Data overview</Text>}
             description={<Text size={200}>A quick snapshot of record count, extracted topics, entities, and links.</Text>}
-            action={
-              <Tooltip content="These top numbers come from `data_context` and runtime extraction counts in this response." relationship="description">
-                <Button appearance="subtle" icon={<Info24Regular />} aria-label="Data overview help" />
-              </Tooltip>
-            }
           />
           <div className={styles.sectionBody}>
             <div className={styles.overviewGrid}>
@@ -1186,14 +1079,7 @@ const Insights: React.FC = () => {
                 <Card key={metric.label} className={styles.metricCard}>
                   <CardHeader
                     image={metric.icon}
-                    header={
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <Text weight="semibold">{metric.label}</Text>
-                        <Tooltip content={metric.tooltip} relationship="description">
-                          <Info24Regular fontSize={14} />
-                        </Tooltip>
-                      </div>
-                    }
+                    header={<Text weight="semibold">{metric.label}</Text>}
                     description={
                       <Text className={styles.metricValue} style={{ color: metric.color }}>
                         {typeof metric.value === "number" ? metric.value.toLocaleString() : metric.value}
@@ -1227,14 +1113,7 @@ const Insights: React.FC = () => {
                   {moreMetrics.map((metric) => (
                     <Card key={metric.label} className={styles.metricCard}>
                       <CardHeader
-                        header={
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Text weight="semibold">{metric.label}</Text>
-                            <Tooltip content={metric.tooltip} relationship="description">
-                              <Info24Regular fontSize={14} />
-                            </Tooltip>
-                          </div>
-                        }
+                        header={<Text weight="semibold">{metric.label}</Text>}
                         description={
                           <Text className={styles.metricValue} style={{ color: metric.color }}>
                             {metric.value}
@@ -1317,18 +1196,6 @@ const Insights: React.FC = () => {
                         {insight.explanation && insight.explanation !== insight.title && (
                           <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>{insight.explanation}</Text>
                         )}
-                        <Button
-                          size="small"
-                          appearance="secondary"
-                          icon={<DocumentBulletList20Regular />}
-                          onClick={() => {
-                            setSelectedInsight(insight.title);
-                            setSelectedEvidenceData(insight.evidence || []);
-                            setEvidencePanelOpen(true);
-                          }}
-                        >
-                          View evidence
-                        </Button>
                       </div>
                     </Card>
                   );
@@ -1491,17 +1358,10 @@ const Insights: React.FC = () => {
         <Card className={styles.tipCard}>
           <CardHeader
             header={<Text weight="semibold" size={400}>Tip</Text>}
-            description={<Text size={200}>Use the chat panel to dig into a finding, validate an anomaly, or ask for source evidence.</Text>}
+            description={<Text size={200}>Use the chat panel to dig into a finding and validate anomalies with follow-up questions.</Text>}
           />
         </Card>
       </div>
-
-      <EvidencePanel
-        visible={evidencePanelOpen}
-        insightTitle={selectedInsight || undefined}
-        evidence={selectedEvidenceData}
-        onClose={() => setEvidencePanelOpen(false)}
-      />
     </div>
   );
 };
