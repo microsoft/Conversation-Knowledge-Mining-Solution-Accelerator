@@ -99,17 +99,10 @@ async def upload_document(
         raise HTTPException(status_code=413, detail=f"Too many files. Maximum is {settings.max_concurrent_uploads} per request.")
 
     # Validate all files and read their content
-    from src.api.utils.constants import AUDIO_VIDEO_FORMATS
     file_contents: list[tuple[str, str, bytes]] = []
     for file in files:
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        # Check for audio/video files first with user-friendly message
-        if ext in AUDIO_VIDEO_FORMATS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Audio and video files are not supported. Please use PDF, Word (.docx), or text files.",
-            )
         if ext not in DOCUMENT_EXTENSIONS:
             raise HTTPException(
                 status_code=400,

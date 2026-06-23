@@ -109,20 +109,29 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
     let timer: number | null = null;
 
     const tick = async () => {
-      // Poll only while any file is processing (single app-level poller).
+      // Poll while processing is active OR while app has no known data yet,
+      // so externally triggered scenario loads become visible without reload.
       const cachedFiles = snapshotRef.current?.uploadedFiles
         ?? homeDataRef.current?.uploadedFiles
         ?? exploreDataRef.current?.files
         ?? [];
+      const cachedSources = snapshotRef.current?.dataSources
+        ?? homeDataRef.current?.dataSources
+        ?? exploreDataRef.current?.dataSources
+        ?? [];
 
       const hasProcessing = cachedFiles.some((f: any) => f.status === "processing");
-      if (!hasProcessing) return;
+      const hasAnyData = cachedFiles.length > 0 || cachedSources.length > 0;
+      if (!hasProcessing && hasAnyData) return;
 
       try {
         const filesRes = await getUploadedFiles();
         const files = Array.isArray(filesRes.data) ? filesRes.data : [];
 
         const stillProcessing = files.some((f: any) => f.status === "processing");
+
+        // Still empty and no active processing: keep waiting without extra calls.
+        if (!stillProcessing && files.length === 0 && !hasAnyData) return;
 
         let dataSources = snapshotRef.current?.dataSources ?? homeDataRef.current?.dataSources ?? exploreDataRef.current?.dataSources ?? [];
         let schema = snapshotRef.current?.schema ?? exploreDataRef.current?.schema ?? null;

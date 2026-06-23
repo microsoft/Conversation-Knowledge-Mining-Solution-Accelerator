@@ -350,6 +350,9 @@ const Explore: React.FC = () => {
             ) : sourcesExpanded && files.length === 0 && dataSources.length === 0 ? (
               <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: "12px 0" }}>
                 <p style={{ margin: "0 0 8px" }}>No data loaded yet</p>
+                <p style={{ margin: "0 0 10px", color: "#94a3b8" }}>
+                  If a scenario is loading, sources will appear here automatically.
+                </p>
                 <Button
                   size="small"
                   appearance="primary"

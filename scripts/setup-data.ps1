@@ -60,6 +60,42 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
 $scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
 
+function Resolve-ScenarioDataPath {
+    param(
+        [string]$Root,
+        [string]$ScenarioKey,
+        [string]$ConfiguredFolder
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ($ConfiguredFolder) { $candidates.Add($ConfiguredFolder) }
+
+    switch ($ScenarioKey) {
+        "mortgage-application" {
+            $candidates.Add("MortgageApplication_usecase")
+            $candidates.Add("MorgageApplication_usecase")
+        }
+        "telecom-analysis" {
+            $candidates.Add("telecom_analysis_usecase")
+            $candidates.Add("telecom_analysis_uscase")
+        }
+        "contact-center" {
+            $candidates.Add("ContactCenter_usecase")
+            $candidates.Add("ContactCeneter_usecase")
+        }
+    }
+
+    foreach ($folder in ($candidates | Select-Object -Unique)) {
+        if (-not $folder) { continue }
+        $path = Join-Path $Root "data" $folder
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
 # ── Resolve backend URL ──
 if ($PSBoundParameters.ContainsKey("BackendUrl")) {
     Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
@@ -71,6 +107,17 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
         $localHealthy = $true
     } catch {
         $localHealthy = $false
+    }
+
+    if (-not $localHealthy) {
+        $loopbackUrl = "http://127.0.0.1:8000"
+        try {
+            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+            $BackendUrl = $loopbackUrl
+            $localHealthy = $true
+        } catch {
+            $localHealthy = $false
+        }
     }
 
     if ($localHealthy) {
@@ -174,10 +221,11 @@ if ($Scenario) {
     Write-Host "  $($pack.description)" -ForegroundColor White
     Write-Host ""
 
-    $scenarioDataPath = Join-Path $projectRoot "data" $pack.data_folder
+    $scenarioDataPath = Resolve-ScenarioDataPath -Root $projectRoot -ScenarioKey $Scenario -ConfiguredFolder $pack.data_folder
 
-    if (-not (Test-Path $scenarioDataPath)) {
-        Write-Host "ERROR: Scenario data folder not found: $scenarioDataPath" -ForegroundColor Red
+    if (-not $scenarioDataPath) {
+        Write-Host "ERROR: Scenario data folder not found for '$Scenario'." -ForegroundColor Red
+        Write-Host "Checked configured and known variant folder names under data/." -ForegroundColor Yellow
         exit 1
     }
 

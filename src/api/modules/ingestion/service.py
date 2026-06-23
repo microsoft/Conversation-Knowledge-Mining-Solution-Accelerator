@@ -146,27 +146,10 @@ class IngestionService:
                 except Exception as e:
                     logger.warning(f"Failed to clear stale filter schema: {e}")
 
-            # Prune stale uploaded_files rows that no longer have backing documents.
+            # Do not auto-delete uploaded file records during reload.
+            # Files should only be removed via explicit clear/delete operations.
             if self._uploaded_files:
-                doc_ids = set(self._documents.keys())
-                docs_by_source = {
-                    (doc.metadata.source_file or "")
-                    for doc in self._documents.values()
-                    if (doc.metadata.source_file or "")
-                }
-                stale_file_ids: list[str] = []
                 for file_id, uploaded in list(self._uploaded_files.items()):
-                    has_docs = False
-                    if uploaded.doc_ids:
-                        has_docs = any(doc_id in doc_ids for doc_id in uploaded.doc_ids)
-                    if not has_docs and uploaded.filename:
-                        has_docs = uploaded.filename in docs_by_source
-
-                    if not has_docs:
-                        stale_file_ids.append(file_id)
-                        del self._uploaded_files[file_id]
-                        continue
-
                     # Keep doc_count aligned to current documents for accurate UI counts.
                     if uploaded.filename:
                         matched_count = sum(
@@ -177,18 +160,6 @@ class IngestionService:
                             updated = uploaded.copy(update={"doc_count": matched_count})
                             self._uploaded_files[file_id] = updated
                             self._persist_file(updated)
-
-                if stale_file_ids:
-                    try:
-                        conn = sql_service._get_connection()
-                        cursor = conn.cursor()
-                        for stale_id in stale_file_ids:
-                            cursor.execute("DELETE FROM uploaded_files WHERE id = ?", stale_id)
-                        conn.commit()
-                        conn.close()
-                        logger.info(f"Pruned {len(stale_file_ids)} stale uploaded file records")
-                    except Exception as e:
-                        logger.warning(f"Failed to prune stale uploaded files: {e}")
 
             if self._documents:
                 logger.info(f"Loaded from Azure SQL: {len(self._documents)} docs, {len(self._uploaded_files)} files")

@@ -308,6 +308,12 @@ const Home: React.FC = () => {
               <Text size={200} style={{ color: "#94a3b8" }}>
                 Use the upload box below to get started, or run a scenario pack from the command line.
               </Text>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <Spinner size="tiny" />
+                <Text size={200} style={{ color: "#64748b" }}>
+                  Waiting for incoming scenario data. This page refreshes automatically.
+                </Text>
+              </div>
             </>
           )}
         </div>
