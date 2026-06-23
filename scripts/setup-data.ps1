@@ -42,7 +42,8 @@ param(
     [string]$Table,
     [string]$ConnectionString,
 
-    [string]$BackendUrl = "http://localhost:8000"
+    [string]$BackendUrl = "http://localhost:8000",
+    [switch]$AllowDeployedFallback
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,12 +76,19 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
     if ($localHealthy) {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
     } else {
-        $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
-        if ($azdUrl) {
-            Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
-            $BackendUrl = $azdUrl
+        if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
+            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+            if ($azdUrl) {
+                Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
+                $BackendUrl = $azdUrl
+            } else {
+                Write-Host "ERROR: Local backend is unavailable and no deployed backend is configured." -ForegroundColor Red
+                exit 1
+            }
         } else {
-            Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
+            Write-Host "ERROR: Local backend is unavailable at $BackendUrl." -ForegroundColor Red
+            Write-Host "Start the local API first, pass -BackendUrl explicitly, or use -AllowDeployedFallback to target the deployed backend intentionally." -ForegroundColor Yellow
+            exit 1
         }
     }
 }

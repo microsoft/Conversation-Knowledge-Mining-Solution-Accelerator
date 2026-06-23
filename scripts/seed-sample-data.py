@@ -298,6 +298,7 @@ def upload_to_sql():
     conn.commit()
 
     raw_docs = load_json(PROCESSED_DATA_FILE)
+    source_filename = os.path.basename(PROCESSED_DATA_FILE)
     print(f"  Loaded {len(raw_docs)} documents from {os.path.basename(PROCESSED_DATA_FILE)}")
 
     uploaded = 0
@@ -312,26 +313,27 @@ def upload_to_sql():
             "mined_topic": doc.get("mined_topic", ""),
             "start_time": doc.get("StartTime", ""),
             "end_time": doc.get("EndTime", ""),
+            "source_file": source_filename,
         }
         cursor.execute("""
             MERGE documents AS target
             USING (SELECT ? AS id) AS source ON target.id = source.id
             WHEN MATCHED THEN UPDATE SET
                 doc_type=?, text_content=?, summary=?,
-                key_phrases=?, topics=?, metadata=?
+                key_phrases=?, topics=?, metadata=?, source_file=?
             WHEN NOT MATCHED THEN INSERT
-                (id, doc_type, text_content, summary, key_phrases, topics, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
+                (id, doc_type, text_content, summary, key_phrases, topics, metadata, source_file)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """,
             doc["ConversationId"],
             "call_transcript", doc.get("Content", ""), doc.get("summary", ""),
             json.dumps(kp_list), json.dumps([doc.get("mined_topic", "")]),
-            json.dumps(metadata),
+            json.dumps(metadata), source_filename,
             # INSERT values
             doc["ConversationId"],
             "call_transcript", doc.get("Content", ""), doc.get("summary", ""),
             json.dumps(kp_list), json.dumps([doc.get("mined_topic", "")]),
-            json.dumps(metadata),
+            json.dumps(metadata), source_filename,
         )
         uploaded += 1
 

@@ -260,8 +260,10 @@ After editing `scenarios.json`, run the setup script to see your new options:
 python -m venv venv
 venv\Scripts\activate
 pip install -r src/api/requirements.txt
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+./scripts/start-local-backend.ps1
 ```
+
+For single-process local development on Windows, prefer [scripts/start-local-backend.ps1](scripts/start-local-backend.ps1). It stops any existing listener on port 8000 before starting the API and avoids `--reload` by default, which is more stable on Windows.
 
 **Frontend:**
 ```bash

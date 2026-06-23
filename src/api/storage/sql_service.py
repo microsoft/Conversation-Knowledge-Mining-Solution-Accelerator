@@ -292,13 +292,18 @@ class AzureSqlService:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, doc_type, text_content, summary, entities, key_phrases, topics, metadata "
+                "SELECT id, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file "
                 "FROM documents ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                 [offset, limit])
             rows = cursor.fetchall()
             conn.close()
             results = []
             for row in rows:
+                metadata = json.loads(row[7]) if row[7] else {}
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                if row[8] and not metadata.get("source_file"):
+                    metadata["source_file"] = row[8]
                 results.append({
                     "id": row[0],
                     "type": row[1],
@@ -307,7 +312,7 @@ class AzureSqlService:
                     "entities": json.loads(row[4]) if row[4] else [],
                     "key_phrases": json.loads(row[5]) if row[5] else [],
                     "topics": json.loads(row[6]) if row[6] else [],
-                    "metadata": json.loads(row[7]) if row[7] else {},
+                    "metadata": metadata,
                 })
             return results
         except Exception as e:
