@@ -923,12 +923,6 @@ const Insights: React.FC = () => {
                   <Text weight="semibold" size={200}>Insights overview</Text>
                 </div>
                 <Text as="h1" className={styles.title}>{data?.headline || "Document insights dashboard"}</Text>
-                <div className={styles.heroMeta}>
-                  <span><strong>Records:</strong> {typeof metrics.processed === "number" ? metrics.processed.toLocaleString() : metrics.processed}</span>
-                  <span><strong>Source:</strong> {dataset.sourceType}</span>
-                  <span><strong>Last updated:</strong> {formatDate(dataset.lastUpdated)}</span>
-                  <Badge appearance="tint" color="success" size="small">Ready</Badge>
-                </div>
               </div>
               <Button
                 appearance="secondary"
