@@ -246,7 +246,6 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     siteConfig: {
       linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : 'PYTHON|3.13'
       appCommandLine: !empty(backendContainerRegistryHostname) ? '' : 'pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000'
-      acrUseManagedIdentityCreds: !empty(backendContainerRegistryHostname)
       minTlsVersion: '1.2'
     }
     configs: [
@@ -296,7 +295,6 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     siteConfig: {
       linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : 'NODE|22-lts'
       appCommandLine: !empty(frontendContainerRegistryHostname) ? '' : 'pm2 serve /home/site/wwwroot --no-daemon --spa --port 8080'
-      acrUseManagedIdentityCreds: !empty(frontendContainerRegistryHostname)
       minTlsVersion: '1.2'
     }
     configs: [
@@ -305,7 +303,7 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
         properties: {
           DOCKER_REGISTRY_SERVER_URL: !empty(frontendContainerRegistryHostname) ? 'https://${frontendContainerRegistryHostname}' : ''
           APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
-          WEBSITES_PORT: !empty(frontendContainerRegistryHostname) ? '' : '8080'
+          WEBSITES_PORT: !empty(frontendContainerRegistryHostname) ? '80' : '8080'
         }
       }
     ]
@@ -324,7 +322,7 @@ module roles 'modules/roles.bicep' = {
     cuName: cuResourceName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
     frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
-    acrName: !empty(backendContainerRegistryHostname) ? split(backendContainerRegistryHostname, '.')[0] : ''
+    // acrName: !empty(backendContainerRegistryHostname) ? split(backendContainerRegistryHostname, '.')[0] : ''
     deployerPrincipalId: deployer().objectId
   }
 }
@@ -347,6 +345,12 @@ output AZURE_SQL_SERVER string = sql.outputs.serverFqdn
 
 @description('Azure SQL Database name.')
 output AZURE_SQL_DATABASE string = '${abbrs.databases.sqlDatabase}${resourceToken}'
+
+@description('Backend API application (and SQL contained user) name.')
+output API_APP_NAME string = backendWebSiteResourceName
+
+@description('Backend API system-assigned managed identity principal ID.')
+output AZURE_API_PRINCIPAL_ID string = webSiteBackend.outputs.systemAssignedMIPrincipalId!
 
 @description('Azure Cosmos DB endpoint (empty if not deployed).')
 output AZURE_COSMOS_ENDPOINT string = deployCosmos ? cosmos!.outputs.endpoint : ''

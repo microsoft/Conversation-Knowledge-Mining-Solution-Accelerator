@@ -1,6 +1,18 @@
 import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL || "/api";
+
+function resolveApiBase(): string {
+  const runtime =
+    (typeof window !== "undefined" && (window as any)._env_?.APP_API_BASE_URL) || "";
+  const runtimeVal = String(runtime).trim();
+  const buildTime = process.env.REACT_APP_API_BASE_URL || "";
+  let base = runtimeVal && runtimeVal !== "$APP_API_BASE_URL" ? runtimeVal : buildTime;
+  if (!base) return "/api";
+  base = base.replace(/\/+$/, "");
+  return base.endsWith("/api") ? base : `${base}/api`;
+}
+
+const API_BASE = resolveApiBase();
 
 const apiClient = axios.create({
   baseURL: API_BASE,
