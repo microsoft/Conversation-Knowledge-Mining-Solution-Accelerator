@@ -60,13 +60,28 @@ $configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
 $scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
 
 # ── Resolve backend URL ──
-if ($BackendUrl -eq "http://localhost:8000") {
-    $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
-    if ($azdUrl) {
-        Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
-        $BackendUrl = $azdUrl
-    } else {
+if ($PSBoundParameters.ContainsKey("BackendUrl")) {
+    Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
+}
+elseif ($BackendUrl -eq "http://localhost:8000") {
+    $localHealthy = $false
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        $localHealthy = $true
+    } catch {
+        $localHealthy = $false
+    }
+
+    if ($localHealthy) {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
+    } else {
+        $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+        if ($azdUrl) {
+            Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
+            $BackendUrl = $azdUrl
+        } else {
+            Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
+        }
     }
 }
 
@@ -183,6 +198,7 @@ if ($Scenario) {
 
         # Run seed-sample-data.py with the scenario data directory
         $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
+        $env:BACKEND_URL = $BackendUrl
         python (Join-Path $PSScriptRoot "seed-sample-data.py")
 
         if ($LASTEXITCODE -eq 0) {

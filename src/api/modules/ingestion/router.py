@@ -130,6 +130,7 @@ async def upload_document(
         file_contents.append((filename, ext, content))
 
     # Save raw files to blob storage and create "processing" file records
+    skipped_count = 0
     for filename, ext, content in file_contents:
         file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
 
@@ -137,6 +138,7 @@ async def upload_document(
         ingestion_service._ensure_loaded()
         existing = ingestion_service._uploaded_files.get(file_id)
         if existing and existing.status == "ready":
+            skipped_count += 1
             continue
         if existing and existing.status == "processing":
             # Allow re-upload if processing appears stuck beyond configured timeout.
@@ -182,10 +184,12 @@ async def upload_document(
     # Clear insights cache to force regeneration with new data
     background_tasks.add_task(_clear_insights_cache)
 
+    newly_queued = len(file_contents) - skipped_count
     return IngestionResult(
-        total_loaded=0,
+        total_loaded=newly_queued,
         by_type={ext: 1 for _, ext, _ in file_contents},
         sample_ids=[fname.rsplit(".", 1)[0].replace(" ", "_") for fname, _, _ in file_contents],
+        skipped=skipped_count,
     )
 
 
@@ -367,9 +371,12 @@ async def upload_csv(
     tmp.write(await file.read())
     tmp.close()
     try:
-        result = ingestion_service.load_csv_file(tmp.name)
+        upload_name = file.filename or "uploaded.csv"
+        csv_docs = ingestion_service._build_csv_documents(tmp.name, upload_name)
+        result = ingestion_service.load_json_data(csv_docs, filename=upload_name)
     finally:
         os.unlink(tmp.name)
+    background_tasks.add_task(ingestion_service.finalize_ingestion, csv_docs, upload_name)
     background_tasks.add_task(_trigger_auto_pipeline)
     background_tasks.add_task(_clear_insights_cache)
     return result

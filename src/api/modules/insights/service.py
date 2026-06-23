@@ -5,6 +5,7 @@ import logging
 import re
 import struct
 import hashlib
+from datetime import datetime, timezone
 from collections import Counter
 
 from src.api.config import get_settings
@@ -690,6 +691,199 @@ def _exec_filters(cursor, filter_specs):
             logger.warning(f"Failed to load filter values for field '{f}': {e}")
     return result
 
+
+def _to_runtime_payload(payload: dict) -> dict:
+    """Adapt dashboard response fields into the runtime contract expected by the UI."""
+
+    def _num(v, default=0.0) -> float:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def _kpi_trend_direction(v) -> str:
+        t = str(v or "").strip().lower()
+        if t in ("up", "increase", "increasing", "rising"):
+            return "up"
+        if t in ("down", "decrease", "decreasing", "falling"):
+            return "down"
+        return "stable"
+
+    # KPIs
+    runtime_kpis = []
+    for i, k in enumerate(payload.get("kpis", []) or []):
+        if not isinstance(k, dict):
+            continue
+        runtime_kpis.append({
+            "id": str(k.get("metric") or f"kpi_{i + 1}"),
+            "label": str(k.get("label") or "KPI"),
+            "value": k.get("value", 0),
+            "format": k.get("format") or "number",
+            "trendDirection": _kpi_trend_direction(k.get("trend")),
+            "trendValue": None,
+            "confidence": None,
+        })
+
+    # Topics / entities inferred from chart payloads
+    topics_map: dict[str, float] = {}
+    entities_map: dict[str, float] = {}
+    relationships = []
+
+    for sec in payload.get("sections", []) or []:
+        if not isinstance(sec, dict):
+            continue
+        for ch in sec.get("charts", []) or []:
+            if not isinstance(ch, dict):
+                continue
+
+            vis = str(ch.get("visualization") or "").lower()
+            insight_type = str(ch.get("insight_type") or "").lower()
+            field_name = str(ch.get("field") or "").lower()
+            title = str(ch.get("title") or "").lower()
+            is_topic_like = (
+                vis == "word_cloud"
+                or any(t in field_name for t in ("topic", "theme", "phrase", "keyword"))
+                or any(t in title for t in ("topic", "theme", "phrase", "keyword"))
+            )
+
+            data = ch.get("data")
+            if isinstance(data, list):
+                for row in data:
+                    if not isinstance(row, dict):
+                        continue
+
+                    if vis == "word_cloud":
+                        name = str(row.get("text") or "").strip()
+                        score = _num(row.get("frequency") or row.get("weight") or 0)
+                        if name:
+                            topics_map[name] = topics_map.get(name, 0.0) + max(score, 0.0)
+                        continue
+
+                    label = str(row.get("label") or "").strip()
+                    if not label:
+                        continue
+                    value = max(_num(row.get("value"), 0.0), 0.0)
+
+                    if is_topic_like:
+                        topics_map[label] = topics_map.get(label, 0.0) + value
+                    else:
+                        entities_map[label] = entities_map.get(label, 0.0) + value
+
+            # Driver charts can be converted into lightweight relationship edges
+            if insight_type == "drivers" and isinstance(data, dict):
+                outcome_label = str(data.get("outcome_label") or "outcome")
+                for f in data.get("factors", []) or []:
+                    if not isinstance(f, dict):
+                        continue
+                    dim = str(f.get("dimension") or "Factor").strip()
+                    val = str(f.get("value") or "").strip()
+                    if not dim or not val:
+                        continue
+                    relationships.append({
+                        "from": dim,
+                        "to": val,
+                        "relation": f"affects {outcome_label}",
+                        "strength": max(abs(_num(f.get("deviation"), 0.0)), 0.1),
+                    })
+
+    topics = [
+        {"id": f"topic_{i + 1}", "name": name, "score": round(score, 2), "trendValue": None, "trendDirection": "stable"}
+        for i, (name, score) in enumerate(
+            sorted(topics_map.items(), key=lambda x: x[1], reverse=True)[:30]
+        )
+    ]
+
+    entities = [
+        {
+            "id": f"entity_{i + 1}",
+            "name": name,
+            "mentions": int(round(count)),
+            "trendDirection": "stable",
+            "trendValue": None,
+        }
+        for i, (name, count) in enumerate(
+            sorted(entities_map.items(), key=lambda x: x[1], reverse=True)[:30]
+        )
+    ]
+
+    # Insights derived from planner text outputs
+    def _insight_category(text: str) -> str:
+        t = text.lower()
+        if "risk" in t or "concern" in t:
+            return "Risk"
+        if "anomaly" in t or "unusual" in t or "spike" in t or "drop" in t:
+            return "Anomaly"
+        if "opportun" in t or "potential" in t:
+            return "Opportunity"
+        if "trend" in t or "increas" in t or "decreas" in t:
+            return "Trend"
+        return "Insight"
+
+    insights = []
+    key_insights = payload.get("key_insights", []) or []
+    standout = payload.get("standout_findings", []) or []
+    for i, text in enumerate([*key_insights, *standout]):
+        if not isinstance(text, str) or not text.strip():
+            continue
+        category = _insight_category(text)
+        insights.append({
+            "id": f"insight_{i + 1}",
+            "category": category,
+            "title": text.strip(),
+            "confidence": None,
+            "impactScore": 0.8 if category in ("Risk", "Anomaly") else 0.7,
+            "context": payload.get("headline", ""),
+            "explanation": payload.get("summary", ""),
+            "evidenceCount": 0,
+            "evidence": [],
+        })
+
+    unexpected_patterns = []
+    for i, text in enumerate(standout):
+        if not isinstance(text, str) or not text.strip():
+            continue
+        lower = text.lower()
+        is_high = any(tok in lower for tok in ("risk", "anomaly", "spike", "drop", "critical"))
+        unexpected_patterns.append({
+            "id": f"pattern_{i + 1}",
+            "pattern": text.strip(),
+            "severity": "high" if is_high else "medium",
+            "explanation": payload.get("summary", "Observed in the analyzed records."),
+        })
+
+    actions = [
+        {"id": f"action_{i + 1}", "label": q.strip(), "intentType": "explore"}
+        for i, q in enumerate(payload.get("suggested_questions", []) or [])
+        if isinstance(q, str) and q.strip()
+    ]
+
+    data_context = payload.get("data_context", {}) or {}
+    record_count = int(data_context.get("filtered_records") or data_context.get("total_records") or 0)
+
+    summary_signals = []
+    if payload.get("headline"):
+        summary_signals.append(str(payload["headline"]))
+    summary_signals.extend([s for s in key_insights if isinstance(s, str)])
+
+    return {
+        "schemaVersion": "1.0",
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "recordCount": record_count,
+        "counts": {
+            "topics": len(topics),
+            "entities": len(entities),
+            "relationships": len(relationships),
+        },
+        "summarySignals": summary_signals[:6],
+        "kpis": runtime_kpis,
+        "topics": topics,
+        "entities": entities,
+        "relationships": relationships[:20],
+        "insights": insights,
+        "unexpectedPatterns": unexpected_patterns,
+        "actions": actions,
+    }
+
 # --- Orchestrator ---
 
 class DashboardService:
@@ -802,7 +996,7 @@ class DashboardService:
             avail_filters = _exec_filters(cursor, plan.get("filters", []))
 
             conn.close()
-            return {
+            response = {
                 "data_context": {
                     "total_records": schema["total_records"],
                     "filtered_records": filtered_count,
@@ -817,6 +1011,8 @@ class DashboardService:
                 "filters": avail_filters,
                 "suggested_questions": plan.get("suggested_questions", []),
             }
+            response["runtime"] = _to_runtime_payload(response)
+            return response
         except Exception as e:
             logger.warning(f"Dashboard failed: {e}")
             try:
@@ -827,12 +1023,14 @@ class DashboardService:
 
     @staticmethod
     def _empty():
-        return {
+        response = {
             "data_context": {"total_records": 0, "filtered_records": 0, "filters_applied": {}},
             "headline": "No Data Available",
             "summary": "Upload documents or connect a data source to see insights.",
             "kpis": [], "sections": [], "filters": [], "suggested_questions": [],
         }
+        response["runtime"] = _to_runtime_payload(response)
+        return response
 
 
 dashboard_service = DashboardService()

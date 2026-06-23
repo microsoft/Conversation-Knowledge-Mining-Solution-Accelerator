@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Text, Caption1, Button } from "@fluentui/react-components";
 import {
-  Send24Regular, Sparkle20Regular, Add20Regular, Chat20Regular,
-  Database20Regular, DocumentText20Regular, Delete20Regular,
-  ChevronDown20Regular, ChevronRight20Regular, Dismiss12Regular,
-  Checkmark20Regular, ArrowUpload24Regular,
+  Send24Regular, Sparkle24Regular, Add24Regular, Chat24Regular,
+  Database24Regular, DocumentText24Regular, Delete24Regular,
+  ChevronDown20Regular, ChevronRight20Regular,
+  Checkmark24Regular, ArrowUpload24Regular,
 } from "@fluentui/react-icons";
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources,
-  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession } from "../api/client";
+  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession, refreshIngestionCache } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
@@ -87,12 +87,14 @@ const Explore: React.FC = () => {
   const [files, setFiles] = useState<any[]>(exploreData?.files ?? []);
   const [dataSources, setDataSources] = useState<any[]>(exploreData?.dataSources ?? []);
   const [schema, setSchema] = useState<any>(exploreData?.schema ?? null);
+  // Only show spinner on first ever load (no cached data). Background refresh on subsequent mounts.
   const [loading, setLoading] = useState(!exploreData);
 
   // Selection & filters
   const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   const [expandedDims, setExpandedDims] = useState<Set<string>>(new Set());
+  const [sourcesExpanded, setSourcesExpanded] = useState(true);
 
   // Chat
   const messages = exploreChatMessages;
@@ -102,11 +104,13 @@ const Explore: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [expandedSources, setExpandedSources] = useState<Set<number>>(new Set());
   const [lastSources, setLastSources] = useState<any[]>([]);
+  const processedAutoQueryRef = useRef<string>("");
 
   // Sessions
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const refreshedCacheRef = useRef(false);
 
   useEffect(() => {
     // Always refresh on mount to avoid stale cached empty state.
@@ -115,8 +119,19 @@ const Explore: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    if (!exploreData) setLoading(true);
+    // Show spinner only if there is no data to display yet.
+    if (!exploreData && files.length === 0) setLoading(true);
     try {
+      // Refresh backend in-memory cache once per mount so seeded data is visible.
+      if (!refreshedCacheRef.current) {
+        try {
+          await refreshIngestionCache();
+        } catch {
+          // Non-fatal: continue with normal reads.
+        }
+        refreshedCacheRef.current = true;
+      }
+
       // During processing, only fetch files; skip data-sources and schema to reduce traffic
       const hasProcessing = files.some((f: any) => f.status === "processing");
       const requests: any[] = [getUploadedFiles()];
@@ -135,7 +150,12 @@ const Explore: React.FC = () => {
       setDataSources(newDS);
       if (newSchema) setSchema(newSchema);
       setExploreData({ files: newFiles, dataSources: newDS, schema: newSchema });
-    } catch (e) { /* silently ignore */ } finally { setLoading(false); }
+    } catch (e) {
+      // Prefer empty state over stale cross-scenario data when requests fail.
+      setFiles([]);
+      setDataSources([]);
+      setExploreData({ files: [], dataSources: [], schema });
+    } finally { setLoading(false); }
   };
 
   const loadSessions = () => {
@@ -146,9 +166,20 @@ const Explore: React.FC = () => {
   };
 
   useEffect(() => {
-    const q = searchParams.get("q");
-    if (q && messages.length === 0) handleChat(q);
-  }, [searchParams]);
+    const rawQ = searchParams.get("q") || "";
+    const q = rawQ.trim();
+    if (!q || chatLoading) return;
+
+    const source = (searchParams.get("source") || "").toLowerCase();
+    const fromInsights = source === "insights";
+    const autoKey = `${source}|${q}`;
+
+    if (processedAutoQueryRef.current === autoKey) return;
+    if (!fromInsights && messages.length > 0) return;
+
+    processedAutoQueryRef.current = autoKey;
+    void handleChat(q, { resetConversation: fromInsights });
+  }, [searchParams, messages.length, chatLoading]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -163,11 +194,29 @@ const Explore: React.FC = () => {
     setExploreData({ files: nextFiles, dataSources: nextSources, schema: nextSchema });
   }, [ingestionSnapshot]);
 
-  const handleChat = async (text?: string) => {
+  const handleChat = async (text?: string, options?: { resetConversation?: boolean }) => {
     const q = text || chatInput;
     if (!q.trim() || chatLoading) return;
+    const resetConversation = !!options?.resetConversation;
+
+    let activeSessionId = sessionId;
+    let existingMessages = messages;
+
+    if (resetConversation) {
+      activeSessionId = crypto.randomUUID();
+      existingMessages = [];
+      setSessionId(activeSessionId);
+      setMessages([]);
+      setExpandedSources(new Set());
+      setLastSources([]);
+    }
+
     const userMsg = { role: "user" as const, content: q };
-    setMessages((prev: any[]) => [...prev, userMsg]);
+    if (resetConversation) {
+      setMessages([userMsg]);
+    } else {
+      setMessages((prev: any[]) => [...prev, userMsg]);
+    }
     setChatInput("");
     setChatLoading(true);
     try {
@@ -178,9 +227,9 @@ const Explore: React.FC = () => {
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
       setMessages((prev: any[]) => [...prev, asstMsg]);
       if (res.data.sources?.length) setLastSources(res.data.sources);
-      const allMsgs = [...messages, userMsg, asstMsg];
-      const title = messages.length === 0 ? q.slice(0, 60) : undefined;
-      saveChatHistory(sessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
+      const allMsgs = [...existingMessages, userMsg, asstMsg];
+      const title = existingMessages.length === 0 ? q.slice(0, 60) : undefined;
+      saveChatHistory(activeSessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
     } catch (err: unknown) {
       setMessages((prev: any[]) => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }]);
     } finally { setChatLoading(false); }
@@ -220,7 +269,7 @@ const Explore: React.FC = () => {
     <div className={s.page}>
       {/* ═══ CONTEXT BAR ═══ */}
       <div className={s.contextBar}>
-        <DocumentText20Regular style={{ color: "#2563eb", fontSize: 16 }} />
+        <DocumentText24Regular style={{ color: "#2563eb", fontSize: 16 }} />
         <span className={s.contextValue}>{totalRecords.toLocaleString()}</span> records
         <div className={s.contextSep} />
         <span>{scopeLabel}</span>
@@ -230,7 +279,7 @@ const Explore: React.FC = () => {
             {Object.entries(activeFilters).map(([k, v]) => (
               <span key={k} className={s.filterChip}>
                 {k.replace("_", " ")}: {v}
-                <button className={s.filterX} onClick={() => toggleFilter(k as string, v as string)}><Dismiss12Regular /></button>
+                <button className={s.filterX} onClick={() => toggleFilter(k as string, v as string)} aria-label="Remove filter">x</button>
               </span>
             ))}
           </>
@@ -239,7 +288,7 @@ const Explore: React.FC = () => {
         <button onClick={() => setShowHistory(true)}
           style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, color: "#64748b",
             display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit" }}>
-          <Chat20Regular style={{ fontSize: 14 }} />
+          <Chat24Regular style={{ fontSize: 14 }} />
           History{sessionCount > 0 ? ` (${sessionCount})` : ""}
         </button>
       </div>
@@ -249,7 +298,14 @@ const Explore: React.FC = () => {
         <div className={s.left}>
           <div className={s.leftSection}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div className={s.leftLabel}>Data</div>
+              <button
+                className={s.sectionToggle}
+                onClick={() => setSourcesExpanded((prev) => !prev)}
+                title="Expand or collapse sources"
+              >
+                {sourcesExpanded ? <ChevronDown20Regular style={{ fontSize: 14 }} /> : <ChevronRight20Regular style={{ fontSize: 14 }} />}
+                <span className={s.leftLabel} style={{ marginBottom: 0 }}>Sources</span>
+              </button>
               {selectedDocIds.size > 0 && (
                 <button onClick={() => setSelectedDocIds(new Set())}
                   title="Clear selection"
@@ -262,11 +318,11 @@ const Explore: React.FC = () => {
                   }}
                   onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.color = "#2563eb")}
                   onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => (e.currentTarget.style.color = "#64748b")}>
-                  <Dismiss12Regular />
+                  x
                 </button>
               )}
             </div>
-            {files.map((f: any) => {
+            {sourcesExpanded && files.map((f: any) => {
               const isReady = isFileSelectable(f.status);
               const statusText = getFileStatusText(f.status);
               return (
@@ -274,24 +330,24 @@ const Explore: React.FC = () => {
                   onClick={() => isReady && toggleDoc(f.id)}
                   style={!isReady ? { opacity: 0.65, cursor: "default" } : undefined}>
                   {selectedDocIds.has(f.id)
-                    ? <Checkmark20Regular style={{ fontSize: 14, flexShrink: 0 }} />
-                    : <DocumentText20Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
+                    ? <Checkmark24Regular style={{ fontSize: 14, flexShrink: 0 }} />
+                    : <DocumentText24Regular style={{ fontSize: 14, color: "#94a3b8", flexShrink: 0 }} />}
                   <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.filename}</span>
                   {statusText && <Caption1 style={{ color: getFileStatusColor(f.status) }}>{statusText}</Caption1>}
                   {isReady && <Caption1>{f.doc_count || 1}</Caption1>}
                 </div>
               );
             })}
-            {dataSources.map((ds: any) => (
+            {sourcesExpanded && dataSources.map((ds: any) => (
               <div key={ds.id} className={s.sourceItem}>
-                <Database20Regular style={{ fontSize: 14, color: "#f59e0b", flexShrink: 0 }} />
+                <Database24Regular style={{ fontSize: 14, color: "#f59e0b", flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ds.name}</span>
                 <Caption1>{ds.doc_count?.toLocaleString()}</Caption1>
               </div>
             ))}
-            {loading ? (
+            {sourcesExpanded && loading ? (
               <SkeletonText lines={4} />
-            ) : files.length === 0 && dataSources.length === 0 ? (
+            ) : sourcesExpanded && files.length === 0 && dataSources.length === 0 ? (
               <div style={{ fontSize: 12, color: "#64748b", textAlign: "center", padding: "12px 0" }}>
                 <p style={{ margin: "0 0 8px" }}>No data loaded yet</p>
                 <Button
@@ -305,11 +361,17 @@ const Explore: React.FC = () => {
               </div>
             ) : null}
 
+            {!sourcesExpanded && (
+              <Caption1 style={{ color: "#64748b" }}>
+                {files.length + dataSources.length} sources hidden
+              </Caption1>
+            )}
+
           </div>
 
           {schema?.dimensions?.length > 0 && (
             <div className={s.leftSection}>
-              <div className={s.leftLabel}>Filters</div>
+              <div className={s.leftLabel} title="Use these to narrow records before asking questions">Filter dimensions</div>
               {schema.dimensions.map((dim: any) => {
                 const expanded = expandedDims.has(dim.id);
                 return (
@@ -338,7 +400,7 @@ const Explore: React.FC = () => {
           <div className={s.chatMessages}>
             {messages.length === 0 ? (
               <div className={s.emptyChat}>
-                <Sparkle20Regular style={{ fontSize: 36, color: "#cbd5e1" }} />
+                <Sparkle24Regular style={{ fontSize: 36, color: "#cbd5e1" }} />
                 <Text size={500} weight="semibold" style={{ color: "#0f172a" }}>Ask your data</Text>
                 <Text size={300} style={{ color: "#64748b" }}>
                   Charts, summaries, trends, and analysis — all through conversation.
@@ -403,7 +465,7 @@ const Explore: React.FC = () => {
               <button onClick={startNew} title="New conversation"
                 style={{ border: "none", background: "none", cursor: "pointer", padding: 4,
                   display: "flex", color: "#6366f1", marginTop: 2, flexShrink: 0 }}>
-                <Add20Regular />
+                <Add24Regular />
               </button>
               <textarea placeholder="Ask a question..." value={chatInput} rows={1}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setChatInput(e.target.value); e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 150) + "px"; }}
@@ -433,17 +495,17 @@ const Explore: React.FC = () => {
               Chat History
               <button onClick={() => setShowHistory(false)}
                 style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8" }}>
-                <Dismiss12Regular />
+                x
               </button>
             </div>
             <div style={{ overflowY: "auto", flex: 1 }}>
               <div className={s.histItem} onClick={() => { startNew(); setShowHistory(false); }}
                 style={{ color: "#2563eb", fontWeight: 600 }}>
-                <Add20Regular /> New conversation
+                <Add24Regular /> New conversation
               </div>
               {sessions.filter((sess: any) => sess.message_count > 0).map((sess: any) => (
                 <div key={sess.id} className={s.histItem} onClick={() => loadSession(sess.id)}>
-                  <Chat20Regular style={{ color: "#94a3b8", flexShrink: 0 }} />
+                  <Chat24Regular style={{ color: "#94a3b8", flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 500, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {sess.title || "Untitled"}
@@ -452,7 +514,7 @@ const Explore: React.FC = () => {
                   </div>
                   <button onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); deleteChatSession(sess.id).then(() => loadSessions()); }}
                     style={{ border: "none", background: "none", cursor: "pointer", color: "#cbd5e1", padding: 2 }}>
-                    <Delete20Regular />
+                    <Delete24Regular />
                   </button>
                 </div>
               ))}

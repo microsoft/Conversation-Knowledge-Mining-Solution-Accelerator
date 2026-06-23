@@ -102,7 +102,15 @@ class AzureStorageService:
         try:
             index_client.create_or_update_index(index)
         except Exception as e:
-            logger.warning(f"Could not ensure search index: {e}")
+            msg = str(e)
+            # Benign race: another worker/startup path is creating/updating the same index.
+            if (
+                "ResourceCreationConcurrencyConflict" in msg
+                or ("OperationNotAllowed" in msg and "concurrent operation" in msg)
+            ):
+                logger.debug("Search index ensure skipped due to concurrent update")
+            else:
+                logger.warning(f"Could not ensure search index: {e}")
 
     def upload_raw_file(self, file_id: str, filename: str, content: bytes) -> bool:
         """Upload a raw file (PDF, DOCX, etc.) to blob storage for background processing."""

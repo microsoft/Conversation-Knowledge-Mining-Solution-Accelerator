@@ -23,6 +23,7 @@ class IngestionResult(BaseModel):
     by_type: dict[str, int]
     sample_ids: list[str]
     quick_insights: Optional["QuickInsights"] = None
+    skipped: int = 0
 
 
 class QuickInsights(BaseModel):

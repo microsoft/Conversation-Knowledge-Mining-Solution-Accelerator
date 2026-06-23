@@ -469,7 +469,7 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
         
         Returns:
             {
-                "doc_extractions": [{id, summary, keywords, entities, topics}],
+                "doc_extractions": [{id, summary, keywords, entities, topics, metadata, relationships}],
                 "domain": str,
                 "dimensions": [{id, label, type, values: [{value, label, count}]}],
                 "document_filters": [{id, values: {dim_id: [values]}}]
@@ -514,9 +514,13 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
             prompt = f"""Analyze these {len(chunk)} documents. Do TWO things:
 
 1. For each document, extract:
-   - summary (1 sentence)
-   - keywords (3-5 specific terms)
-   NOTE: Some documents already have "summary", "key_phrases", or "topics" from prior extraction. Use those as-is and refine only if needed.
+    - summary (1 sentence)
+    - keywords (3-5 specific terms)
+    - entities: 3-8 concrete entities as objects with {{name, type, context}}
+    - topics: 2-5 high-level topic labels
+    - relationships: 0-8 relationship objects with {{subject, relation, object, context, confidence}}
+    - metadata: key-value pairs explicitly grounded in the content such as dates, locations, products, people, organizations, amounts, events, statuses, behaviors, or other domain-specific signals
+    NOTE: Some documents already have "summary", "key_phrases", or "topics" from prior extraction. Use those as-is and refine only if needed.
 
 2. For the dataset, generate a FILTER SCHEMA:
    - Identify 4-8 filter dimensions (infer from content, NOT hardcoded)
@@ -527,7 +531,7 @@ Output JSON:
 {{
   "domain": "detected domain name",
   "doc_extractions": [
-    {{"id": "doc_id", "summary": "...", "keywords": ["..."]}}
+        {{"id": "doc_id", "summary": "...", "keywords": ["..."], "entities": [{{"name": "...", "type": "...", "context": "..."}}], "topics": ["..."], "relationships": [{{"subject": "...", "relation": "...", "object": "...", "context": "...", "confidence": 0.8}}], "metadata": {{"field": "value"}}}}
   ],
   "dimensions": [
     {{

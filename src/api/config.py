@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     # App
     app_env: str = ""
     app_frontend_hostname: str = ""
+    startup_strict_in_prod: bool = True
+    auth_allow_anonymous_in_prod: bool = False
     data_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
@@ -110,10 +112,46 @@ class Settings(BaseSettings):
             warnings.append("azure_storage_account not set. Async queue processing disabled; uploads will process in-process.")
         return warnings
 
+    def validate_production_requirements(self) -> list[str]:
+        """Return blocking configuration errors for production deployments."""
+        errors: list[str] = []
+
+        if not self.app_frontend_hostname:
+            errors.append("app_frontend_hostname is required in production.")
+
+        if not self.azure_foundry_endpoint and not self.azure_openai_endpoint:
+            errors.append("One LLM endpoint is required in production: azure_foundry_endpoint or azure_openai_endpoint.")
+
+        if not self.azure_search_endpoint:
+            errors.append("azure_search_endpoint is required in production.")
+
+        if not self.azure_content_understanding_endpoint:
+            errors.append("azure_content_understanding_endpoint is required in production.")
+
+        if self.database_provider == "sql" and not self.azure_sql_server:
+            errors.append("azure_sql_server is required in production when database_provider is 'sql'.")
+
+        if self.database_provider == "cosmos" and not self.azure_cosmos_endpoint:
+            errors.append("azure_cosmos_endpoint is required in production when database_provider is 'cosmos'.")
+
+        if not self.azure_storage_account:
+            errors.append("azure_storage_account is required in production.")
+
+        return errors
+
 
 @lru_cache()
 def get_settings() -> Settings:
     settings = Settings()
     for w in settings.validate_startup():
         logger.warning(f"[CONFIG] {w}")
+
+    is_prod = settings.app_env.lower() in ("prod", "production")
+    if is_prod and settings.startup_strict_in_prod:
+        blocking = settings.validate_production_requirements()
+        if blocking:
+            joined = " | ".join(blocking)
+            logger.error(f"[CONFIG] Production validation failed: {joined}")
+            raise RuntimeError(f"Production configuration validation failed: {joined}")
+
     return settings

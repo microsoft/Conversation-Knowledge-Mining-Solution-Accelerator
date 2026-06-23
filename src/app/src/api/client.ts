@@ -68,6 +68,7 @@ export const getDocument = (id: string) => apiClient.get(`/ingestion/documents/$
 export const getIngestionStats = () => apiClient.get("/ingestion/stats");
 export const getAvailableFilters = () => apiClient.get("/ingestion/filters");
 export const getUploadedFiles = () => apiClient.get("/ingestion/files");
+export const refreshIngestionCache = () => apiClient.post("/ingestion/refresh");
 export const deleteFile = (fileId: string) =>
   apiClient.delete(`/ingestion/files/${encodeURIComponent(fileId)}`);
 export const retryFile = (fileId: string) =>

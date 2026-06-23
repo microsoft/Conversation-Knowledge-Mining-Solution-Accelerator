@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Optional
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.queue import QueueClient
 
@@ -28,6 +29,17 @@ class QueueService:
         if self._credential is None:
             self._credential = DefaultAzureCredential()
         return self._credential
+
+    @staticmethod
+    def _is_message_not_found_error(exc: Exception) -> bool:
+        """Azure Queue delete can race when another worker already removed the message."""
+        if isinstance(exc, ResourceNotFoundError):
+            return True
+        error_code = getattr(exc, "error_code", None)
+        if str(error_code).lower() == "messagenotfound":
+            return True
+        msg = str(exc)
+        return "MessageNotFound" in msg or "The specified message does not exist" in msg
 
     def _get_client(self, queue_name: str) -> QueueClient:
         if queue_name not in self._clients:
@@ -97,6 +109,10 @@ class QueueService:
             client.delete_message(message)
             return True
         except Exception as e:
+            if self._is_message_not_found_error(e):
+                # Benign race: message was already removed or became invalid.
+                logger.debug(f"Delete skipped for {queue_name}: message already gone")
+                return True
             logger.error(f"Failed to delete from {queue_name}: {e}")
             return False
 

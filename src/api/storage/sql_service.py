@@ -179,6 +179,41 @@ class AzureSqlService:
                 updated_at DATETIME2 DEFAULT GETUTCDATE()
             )
         """)
+        cursor.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'entity_nodes')
+            CREATE TABLE entity_nodes (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                name NVARCHAR(500) NOT NULL,
+                normalized_name NVARCHAR(500) NOT NULL,
+                entity_type NVARCHAR(100) NOT NULL,
+                first_seen DATETIME2 DEFAULT GETUTCDATE(),
+                last_seen DATETIME2 DEFAULT GETUTCDATE()
+            )
+        """)
+        cursor.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'document_entities')
+            CREATE TABLE document_entities (
+                doc_id NVARCHAR(255) NOT NULL,
+                entity_id INT NOT NULL,
+                context NVARCHAR(MAX) NULL,
+                confidence FLOAT NULL,
+                created_at DATETIME2 DEFAULT GETUTCDATE()
+            )
+        """)
+        cursor.execute("""
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'entity_relationships')
+            CREATE TABLE entity_relationships (
+                id INT IDENTITY(1,1) PRIMARY KEY,
+                doc_id NVARCHAR(255) NOT NULL,
+                subject_entity_id INT NOT NULL,
+                relation NVARCHAR(120) NOT NULL,
+                object_entity_id INT NULL,
+                object_value NVARCHAR(500) NULL,
+                evidence NVARCHAR(MAX) NULL,
+                confidence FLOAT NULL,
+                created_at DATETIME2 DEFAULT GETUTCDATE()
+            )
+        """)
 
         # ── Indexes for frequently queried columns ──
         for idx_sql in [
@@ -186,6 +221,11 @@ class AzureSqlService:
             "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_chat_messages_session_id') CREATE INDEX IX_chat_messages_session_id ON chat_messages(session_id)",
             "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_chat_sessions_user_id') CREATE INDEX IX_chat_sessions_user_id ON chat_sessions(user_id)",
             "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_external_data_sources_status') CREATE INDEX IX_external_data_sources_status ON external_data_sources(status)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_entity_nodes_normalized_type') CREATE UNIQUE INDEX UX_entity_nodes_normalized_type ON entity_nodes(normalized_name, entity_type)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_document_entities_doc') CREATE INDEX IX_document_entities_doc ON document_entities(doc_id)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_document_entities_entity') CREATE INDEX IX_document_entities_entity ON document_entities(entity_id)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_entity_relationships_doc') CREATE INDEX IX_entity_relationships_doc ON entity_relationships(doc_id)",
+            "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_entity_relationships_subject') CREATE INDEX IX_entity_relationships_subject ON entity_relationships(subject_entity_id)",
         ]:
             cursor.execute(idx_sql)
 
@@ -604,6 +644,171 @@ class AzureSqlService:
 
     def delete_data_source(self, source_id: str) -> bool:
         if not self.available:
+            return False
+
+    # ══════════════════════════════════════════════
+    # Entity Graph (nodes + relationships)
+    # ══════════════════════════════════════════════
+
+    @staticmethod
+    def _normalize_entity_name(name: str) -> str:
+        normalized = " ".join((name or "").strip().lower().split())
+        return normalized[:500]
+
+    @staticmethod
+    def _entity_type(value: str) -> str:
+        typed = (value or "unknown").strip().lower() or "unknown"
+        return typed[:100]
+
+    def _upsert_entity_node(self, cursor, name: str, entity_type: str) -> Optional[int]:
+        if not name:
+            return None
+        normalized = self._normalize_entity_name(name)
+        if not normalized:
+            return None
+        etype = self._entity_type(entity_type)
+
+        # Atomic MERGE to avoid duplicate-key races under concurrent inserts.
+        cursor.execute(
+            """
+            MERGE entity_nodes WITH (HOLDLOCK) AS target
+            USING (SELECT ? AS normalized_name, ? AS entity_type) AS src
+                ON target.normalized_name = src.normalized_name
+               AND target.entity_type     = src.entity_type
+            WHEN MATCHED THEN
+                UPDATE SET last_seen = GETUTCDATE(), name = ?
+            WHEN NOT MATCHED THEN
+                INSERT (name, normalized_name, entity_type) VALUES (?, ?, ?);
+            """,
+            normalized,
+            etype,
+            name[:500],
+            name[:500],
+            normalized,
+            etype,
+        )
+
+        cursor.execute(
+            "SELECT id FROM entity_nodes WHERE normalized_name = ? AND entity_type = ?",
+            normalized,
+            etype,
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else None
+
+    def save_entity_graph(self, doc_id: str, source_file: str, entities: list[dict], relationships: list[dict]) -> bool:
+        if not self.available:
+            return False
+        if not doc_id:
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM document_entities WHERE doc_id = ?", doc_id)
+            cursor.execute("DELETE FROM entity_relationships WHERE doc_id = ?", doc_id)
+
+            entity_id_map: dict[str, int] = {}
+            for entity in entities or []:
+                if not isinstance(entity, dict):
+                    continue
+                name = str(entity.get("name", "")).strip()
+                if not name:
+                    continue
+                node_id = self._upsert_entity_node(cursor, name, str(entity.get("type", "unknown")))
+                if not node_id:
+                    continue
+                entity_id_map[self._normalize_entity_name(name)] = node_id
+                context = str(entity.get("context", "") or "")
+                confidence = entity.get("confidence")
+                conf_val = float(confidence) if isinstance(confidence, (int, float)) else None
+                cursor.execute(
+                    "INSERT INTO document_entities (doc_id, entity_id, context, confidence) VALUES (?, ?, ?, ?)",
+                    doc_id,
+                    node_id,
+                    context[:4000],
+                    conf_val,
+                )
+
+            for rel in relationships or []:
+                if not isinstance(rel, dict):
+                    continue
+                subject_name = str(rel.get("subject", "") or rel.get("source", "") or rel.get("from", "")).strip()
+                relation = str(rel.get("relation", "") or rel.get("predicate", "") or rel.get("type", "")).strip()
+                if not subject_name or not relation:
+                    continue
+
+                subject_id = entity_id_map.get(self._normalize_entity_name(subject_name))
+                if not subject_id:
+                    subject_id = self._upsert_entity_node(cursor, subject_name, str(rel.get("subject_type", "unknown")))
+                    if not subject_id:
+                        continue
+
+                object_name = str(rel.get("object", "") or rel.get("target", "") or rel.get("to", "")).strip()
+                object_id = None
+                object_value = None
+                if object_name:
+                    object_id = entity_id_map.get(self._normalize_entity_name(object_name))
+                    if not object_id:
+                        object_id = self._upsert_entity_node(cursor, object_name, str(rel.get("object_type", "unknown")))
+                    if not object_id:
+                        object_value = object_name[:500]
+
+                evidence = str(rel.get("context", "") or rel.get("evidence", "") or rel.get("snippet", ""))
+                confidence = rel.get("confidence")
+                conf_val = float(confidence) if isinstance(confidence, (int, float)) else None
+
+                cursor.execute(
+                    """
+                    INSERT INTO entity_relationships
+                        (doc_id, subject_entity_id, relation, object_entity_id, object_value, evidence, confidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    doc_id,
+                    subject_id,
+                    relation[:120],
+                    object_id,
+                    object_value,
+                    evidence[:4000],
+                    conf_val,
+                )
+
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to save entity graph for {doc_id}: {e}")
+            self._refresh_token()
+            return False
+
+    def delete_entity_graph_for_docs(self, doc_ids: list[str]) -> bool:
+        if not self.available or not doc_ids:
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            for doc_id in doc_ids:
+                cursor.execute("DELETE FROM document_entities WHERE doc_id = ?", doc_id)
+                cursor.execute("DELETE FROM entity_relationships WHERE doc_id = ?", doc_id)
+
+            cursor.execute(
+                """
+                DELETE FROM entity_nodes
+                WHERE id NOT IN (
+                    SELECT DISTINCT entity_id FROM document_entities
+                    UNION
+                    SELECT DISTINCT subject_entity_id FROM entity_relationships
+                    UNION
+                    SELECT DISTINCT object_entity_id FROM entity_relationships WHERE object_entity_id IS NOT NULL
+                )
+                """
+            )
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete entity graph docs: {e}")
+            self._refresh_token()
             return False
         try:
             conn = self._get_connection()
