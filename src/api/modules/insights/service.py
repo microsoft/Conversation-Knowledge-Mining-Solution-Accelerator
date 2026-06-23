@@ -319,6 +319,131 @@ LABEL QUALITY RULES (critical for user clarity):
 - Return ONLY valid JSON"""
 
 
+_NAME_STOPWORDS = {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+    "windows", "laptop", "printer", "scanner", "wifi", "network", "helpdesk", "support", "service", "team",
+}
+
+
+def _infer_org_label(schema: dict) -> str:
+    summaries = schema.get("document_summaries") or []
+    patterns = [
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+(?:Helpdesk|Support|Service|Department|Center|Desk))",
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+Contact Center)",
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+Customer Service)",
+    ]
+    for summary in summaries:
+        if not isinstance(summary, str):
+            continue
+        for p in patterns:
+            m = re.search(p, summary)
+            if m:
+                return m.group(1).strip()
+    return "the organization"
+
+
+def _collect_person_tokens(schema: dict) -> set[str]:
+    names: set[str] = set()
+    for field in schema.get("fields", []):
+        if not isinstance(field, dict):
+            continue
+        sem = str(field.get("semantic_type") or "").lower()
+        role = str(field.get("business_role") or "").lower()
+        if sem not in ("actor", "label"):
+            continue
+        if role not in ("customer", "workforce", "descriptive"):
+            continue
+        for raw in field.get("sample_values", []) or []:
+            if not isinstance(raw, str):
+                continue
+            for tok in re.findall(r"\b[A-Z][a-z]{2,}\b", raw):
+                if tok.lower() not in _NAME_STOPWORDS:
+                    names.add(tok)
+
+    for summary in schema.get("document_summaries", []) or []:
+        if not isinstance(summary, str):
+            continue
+        for tok in re.findall(r"\b([A-Z][a-z]{2,})'s\b", summary):
+            if tok.lower() not in _NAME_STOPWORDS:
+                names.add(tok)
+        for tok in re.findall(
+            r"\b([A-Z][a-z]{2,})\s+(?:contacted|requested|reported|called|experienced|faced|raised|encountered|asked|needed|had)\b",
+            summary,
+            flags=re.IGNORECASE,
+        ):
+            if tok.lower() not in _NAME_STOPWORDS:
+                names.add(tok)
+    return names
+
+
+def _collect_person_tokens_from_response(response: dict, org_label: str) -> set[str]:
+    tokens: set[str] = set()
+    corpus_parts = [
+        response.get("headline", ""),
+        response.get("summary", ""),
+        * (response.get("key_insights") or []),
+        * (response.get("standout_findings") or []),
+    ]
+    corpus = "\n".join(str(p) for p in corpus_parts if isinstance(p, str))
+
+    for tok in re.findall(r"\b([A-Z][a-z]{2,})'s\b", corpus):
+        if tok.lower() not in _NAME_STOPWORDS:
+            tokens.add(tok)
+    for tok in re.findall(
+        r"\b(?:by|from)\s+([A-Z][a-z]{2,})\b|\b([A-Z][a-z]{2,})\s+(?:frequently|consistently|contacted|requested|reported|expressed|raised|experienced)\b",
+        corpus,
+        flags=re.IGNORECASE,
+    ):
+        candidate = tok[0] or tok[1]
+        if candidate and candidate.lower() not in _NAME_STOPWORDS:
+            tokens.add(candidate)
+
+    org_words = {w for w in re.findall(r"\b[A-Za-z]{3,}\b", org_label)}
+    return {t for t in tokens if t not in org_words}
+
+
+def _anonymize_text(text: str, person_tokens: set[str], org_label: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text
+
+    out = text
+    for token in sorted(person_tokens, key=len, reverse=True):
+        out = re.sub(rf"\b{re.escape(token)}['’]s\b", f"{org_label}'s", out)
+        out = re.sub(rf"\b{re.escape(token)}\b", "users", out)
+
+    out = re.sub(
+        rf"\b{re.escape(org_label)}['’]s interactions? with (?:the )?{re.escape(org_label)}\b",
+        f"{org_label} support interactions",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
+def _apply_anonymization(response: dict, schema: dict) -> dict:
+    person_tokens = _collect_person_tokens(schema)
+    org_label = _infer_org_label(schema)
+    if not person_tokens:
+        person_tokens = _collect_person_tokens_from_response(response, org_label)
+    if not person_tokens:
+        return response
+
+    response["headline"] = _anonymize_text(response.get("headline", ""), person_tokens, org_label)
+    response["summary"] = _anonymize_text(response.get("summary", ""), person_tokens, org_label)
+    response["key_insights"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("key_insights") or [])
+    ]
+    response["standout_findings"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("standout_findings") or [])
+    ]
+    response["suggested_questions"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("suggested_questions") or [])
+    ]
+    return response
+
+
 def _plan(schema: dict) -> dict:
     settings = get_settings()
     client = get_llm_client()
@@ -1012,6 +1137,7 @@ class DashboardService:
                 "filters": avail_filters,
                 "suggested_questions": plan.get("suggested_questions", []),
             }
+            response = _apply_anonymization(response, schema)
             response["runtime"] = _to_runtime_payload(response)
             return response
         except Exception as e:

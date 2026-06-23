@@ -669,6 +669,92 @@ const getSeverityStyle = (severity: string) => {
   return { badge: "brand" as const, accent: "#2563eb", text: "#1d4ed8" };
 };
 
+const NARRATIVE_STOPWORDS = new Set([
+  "windows", "laptop", "printer", "scanner", "wifi", "network", "helpdesk", "support", "service", "team",
+]);
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const inferOrganizationLabel = (texts: string[]) => {
+  const corpus = texts.join("\n");
+  if (/\bWoodgrove IT Helpdesk\b/i.test(corpus)) return "Woodgrove IT Helpdesk";
+
+  const matches = Array.from(
+    corpus.matchAll(/([A-Z][A-Za-z0-9&-]*(?:\s+[A-Z][A-Za-z0-9&-]*){0,5}\s+(?:Helpdesk|Service|Department|Center|Desk|Support))/g),
+  ).map((m) => m[1].trim());
+
+  if (matches.length === 0) return "the organization";
+  const ranked = matches.sort((a, b) => b.length - a.length);
+  const best = ranked[0];
+  if (/^IT Support$/i.test(best)) return "the organization";
+  return best;
+};
+
+const extractLikelyPersonNames = (texts: string[], orgLabel: string): string[] => {
+  const corpus = texts.join("\n");
+  const candidates = new Set<string>();
+
+  for (const match of corpus.matchAll(/\b([A-Z][a-z]{2,})'s\b/g)) {
+    candidates.add(match[1]);
+  }
+  for (const match of corpus.matchAll(/\bby\s+([A-Z][a-z]{2,})\b/g)) {
+    candidates.add(match[1]);
+  }
+  for (const match of corpus.matchAll(/\b([A-Z][a-z]{2,})\s+(?:frequently|consistently|contacted|requested|reported|expressed|raised|experienced)\b/g)) {
+    candidates.add(match[1]);
+  }
+
+  const orgWords = new Set((orgLabel.match(/\b[A-Za-z]{3,}\b/g) || []));
+  return Array.from(candidates).filter((token) => {
+    const low = token.toLowerCase();
+    return !NARRATIVE_STOPWORDS.has(low) && !orgWords.has(token);
+  });
+};
+
+const sanitizeNarrative = (text: string, names: string[], orgLabel: string): string => {
+  let sanitized = text;
+  for (const name of names) {
+    const escaped = escapeRegExp(name);
+    sanitized = sanitized.replace(new RegExp(`\\b${escaped}['’]s\\b`, "g"), `${orgLabel}'s`);
+    sanitized = sanitized.replace(new RegExp(`\\b${escaped}\\b`, "g"), "users");
+  }
+  sanitized = sanitized.replace(
+    new RegExp(`\\b${escapeRegExp(orgLabel)}['’]s interactions? with (?:the )?${escapeRegExp(orgLabel)}\\b`, "gi"),
+    `${orgLabel} support interactions`,
+  );
+  sanitized = sanitized.replace(
+    new RegExp(`\\b${escapeRegExp(orgLabel)}['’]s\\s+IT Support\\b`, "gi"),
+    `${orgLabel} Support`,
+  );
+  sanitized = sanitized.replace(/\bIT Support['’]s\s+IT Support\b/gi, `${orgLabel} Support`);
+  sanitized = sanitized.replace(
+    /\bIT Support['’]s interactions? with (?:the )?Woodgrove IT Helpdesk\b/gi,
+    "Woodgrove IT Helpdesk support interactions",
+  );
+  return sanitized.replace(/\s+/g, " ").trim();
+};
+
+const sanitizeDashboardNarrative = (payload: DashboardResponse): DashboardResponse => {
+  const texts = [
+    payload.headline || "",
+    payload.summary || "",
+    ...(payload.key_insights || []),
+    ...(payload.standout_findings || []),
+  ].filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+
+  const orgLabel = inferOrganizationLabel(texts);
+  const names = extractLikelyPersonNames(texts, orgLabel);
+
+  return {
+    ...payload,
+    headline: sanitizeNarrative(payload.headline || "", names, orgLabel),
+    summary: sanitizeNarrative(payload.summary || "", names, orgLabel),
+    key_insights: (payload.key_insights || []).map((item) => sanitizeNarrative(item, names, orgLabel)),
+    standout_findings: (payload.standout_findings || []).map((item) => sanitizeNarrative(item, names, orgLabel)),
+    suggested_questions: (payload.suggested_questions || []).map((item) => sanitizeNarrative(item, names, orgLabel)),
+  };
+};
+
 const Insights: React.FC = () => {
   const styles = useStyles();
   const nav = useNavigate();
@@ -691,9 +777,10 @@ const Insights: React.FC = () => {
 
     try {
       const response = await getDashboard(filterValues, refresh);
-      setData(response.data);
-      setInsights(response.data);
-      if (response.data?.headline) setDashboardHeadline(response.data.headline);
+      const sanitized = sanitizeDashboardNarrative(response.data);
+      setData(sanitized);
+      setInsights(sanitized);
+      if (sanitized?.headline) setDashboardHeadline(sanitized.headline);
     } catch {
       setError("Failed to load dashboard. Please try again.");
     } finally {
@@ -703,10 +790,19 @@ const Insights: React.FC = () => {
   }, [setDashboardHeadline, setInsights]);
 
   useEffect(() => {
+    if (cachedData) {
+      const sanitizedCached = sanitizeDashboardNarrative(cachedData);
+      if (JSON.stringify(sanitizedCached) !== JSON.stringify(cachedData)) {
+        setData(sanitizedCached);
+        setInsights(sanitizedCached);
+        if (sanitizedCached?.headline) setDashboardHeadline(sanitizedCached.headline);
+      }
+    }
+
     if (!cachedData || !cachedData.runtime) {
       load();
     }
-  }, [cachedData, load]);
+  }, [cachedData, load, setDashboardHeadline, setInsights]);
 
   const runtime = useMemo(() => data?.runtime ?? (data ? deriveRuntimeFromDashboard(data) : null), [data]);
   const dataset = data?.datasetInfo || { name: "Dataset", sourceType: "documents", lastUpdated: new Date().toISOString() };
