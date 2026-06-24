@@ -1,5 +1,5 @@
 .page {
-  overflow-y: auto;
+  overflow: visible;
   height: 100%;
   background-color: var(--km-bg, #f5f5f5);
 }

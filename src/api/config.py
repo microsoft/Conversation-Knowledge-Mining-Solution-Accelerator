@@ -5,6 +5,10 @@ import os
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_DIR = os.path.dirname(__file__)
+_REPO_ROOT_ENV = os.path.abspath(os.path.join(_CONFIG_DIR, "..", "..", ".env"))
+_LOCAL_ENV = os.path.join(_CONFIG_DIR, ".env")
+
 
 class Settings(BaseSettings):
     # Azure AI Foundry (Foundry IQ) — preferred path for centralized model governance
@@ -92,7 +96,11 @@ class Settings(BaseSettings):
     external_data_source_default_batch_size: int = 1000
     external_data_source_timeout: int = 60
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {
+        "env_file": (_REPO_ROOT_ENV, _LOCAL_ENV, ".env"),
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
     def validate_startup(self) -> list[str]:
         """Check for missing configuration and return warnings.

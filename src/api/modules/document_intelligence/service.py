@@ -125,6 +125,27 @@ class ContentUnderstandingService:
     def _default_analyzer_id(self) -> str:
         return get_settings().azure_content_understanding_analyzer_id
 
+    @staticmethod
+    def _audio_fallback_document(filename: str, reason: str) -> ExtractedDocument:
+        # Keep audio uploads usable in chat/indexing even when CU audio transcription
+        # capability is unavailable on the configured resource.
+        markdown = (
+            f"Audio file '{filename}' was uploaded successfully.\n\n"
+            "Automatic transcription is not available on the current Content Understanding "
+            "resource configuration.\n\n"
+            f"Details: {reason}"
+        )
+        return ExtractedDocument(
+            filename=filename,
+            content_type="audio/transcription-fallback",
+            markdown=markdown,
+            page_count=1,
+            analyzer="audio-fallback",
+            summary=f"Audio uploaded: {filename}",
+            key_phrases=["audio", "transcription unavailable"],
+            topics=["audio upload"],
+        )
+
     def resolve_max_wait(self, file_size_bytes: int, max_cap_sec: int | None = None) -> int:
         """Compute a size-aware CU polling timeout.
 
@@ -198,44 +219,50 @@ class ContentUnderstandingService:
                 analyzer="direct-text",
             )
 
-        # Ensure the analyzer exists. If audio analyzer schema isn't supported,
-        # fall back to the default analyzer for a clearer failure mode.
         try:
-            self._ensure_analyzer(analyzer)
-        except httpx.HTTPStatusError as e:
-            if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
-                fallback = self._default_analyzer_id()
-                logger.warning(
-                    "CU audio analyzer template unsupported for this API/version; "
-                    f"falling back to analyzer '{fallback}' for {filename}"
-                )
-                analyzer = fallback
+            # Ensure the analyzer exists. If audio analyzer schema isn't supported,
+            # fall back to the default analyzer for a clearer failure mode.
+            try:
                 self._ensure_analyzer(analyzer)
-            else:
-                raise
+            except httpx.HTTPStatusError as e:
+                if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
+                    fallback = self._default_analyzer_id()
+                    logger.warning(
+                        "CU audio analyzer template unsupported for this API/version; "
+                        f"falling back to analyzer '{fallback}' for {filename}"
+                    )
+                    analyzer = fallback
+                    self._ensure_analyzer(analyzer)
+                else:
+                    raise
 
-        endpoint = self._endpoint()
-        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
+            endpoint = self._endpoint()
+            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
 
-        # Send raw bytes directly to CU
-        headers = {
-            **self._auth_headers(),
-            "Content-Type": "application/octet-stream",
-        }
+            # Send raw bytes directly to CU
+            headers = {
+                **self._auth_headers(),
+                "Content-Type": "application/octet-stream",
+            }
 
-        with httpx.Client(timeout=300) as client:
-            resp = client.post(url, headers=headers, content=content)
-            if resp.status_code >= 400:
-                logger.error(f"CU Error {resp.status_code}: {resp.text}")
-                self._raise_cu_request_error(resp, "analyze", analyzer)
-            operation_url = resp.headers.get("Operation-Location")
-            if not operation_url:
-                raise RuntimeError("No Operation-Location in response")
+            with httpx.Client(timeout=300) as client:
+                resp = client.post(url, headers=headers, content=content)
+                if resp.status_code >= 400:
+                    logger.error(f"CU Error {resp.status_code}: {resp.text}")
+                    self._raise_cu_request_error(resp, "analyze", analyzer)
+                operation_url = resp.headers.get("Operation-Location")
+                if not operation_url:
+                    raise RuntimeError("No Operation-Location in response")
 
-            poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
-            result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
+                poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
+                result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
 
-        return self._parse_result(result, filename, analyzer)
+            return self._parse_result(result, filename, analyzer)
+        except Exception as e:
+            if ext in AUDIO_EXTENSIONS:
+                logger.warning(f"CU audio extraction failed for {filename}; using fallback transcript: {e}")
+                return self._audio_fallback_document(filename, str(e))
+            raise
 
     def analyze_url(
         self,
@@ -253,38 +280,44 @@ class ContentUnderstandingService:
             analyzer = AUDIO_ANALYZER_ID
 
         try:
-            self._ensure_analyzer(analyzer)
-        except httpx.HTTPStatusError as e:
-            if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
-                fallback = self._default_analyzer_id()
-                logger.warning(
-                    "CU audio analyzer template unsupported for this API/version; "
-                    f"falling back to analyzer '{fallback}' for {filename}"
-                )
-                analyzer = fallback
+            try:
                 self._ensure_analyzer(analyzer)
-            else:
-                raise
+            except httpx.HTTPStatusError as e:
+                if analyzer == AUDIO_ANALYZER_ID and self._is_unsupported_audio_scenario_error(e):
+                    fallback = self._default_analyzer_id()
+                    logger.warning(
+                        "CU audio analyzer template unsupported for this API/version; "
+                        f"falling back to analyzer '{fallback}' for {filename}"
+                    )
+                    analyzer = fallback
+                    self._ensure_analyzer(analyzer)
+                else:
+                    raise
 
-        endpoint = self._endpoint()
-        url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
+            endpoint = self._endpoint()
+            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
 
-        headers = {**self._auth_headers(), "Content-Type": "application/json"}
-        body = {"url": file_url}
+            headers = {**self._auth_headers(), "Content-Type": "application/json"}
+            body = {"url": file_url}
 
-        with httpx.Client(timeout=300) as client:
-            resp = client.post(url, headers=headers, json=body)
-            if resp.status_code >= 400:
-                logger.error(f"CU Error {resp.status_code}: {resp.text}")
-                self._raise_cu_request_error(resp, "analyze_url", analyzer)
-            operation_url = resp.headers.get("Operation-Location")
-            if not operation_url:
-                raise RuntimeError("No Operation-Location in response")
+            with httpx.Client(timeout=300) as client:
+                resp = client.post(url, headers=headers, json=body)
+                if resp.status_code >= 400:
+                    logger.error(f"CU Error {resp.status_code}: {resp.text}")
+                    self._raise_cu_request_error(resp, "analyze_url", analyzer)
+                operation_url = resp.headers.get("Operation-Location")
+                if not operation_url:
+                    raise RuntimeError("No Operation-Location in response")
 
-            poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
-            result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
+                poll_max_wait = max_wait_sec if max_wait_sec is not None else get_settings().cu_poll_max_wait_sec
+                result = self._poll_result(client, operation_url, max_wait=poll_max_wait)
 
-        return self._parse_result(result, filename, analyzer)
+            return self._parse_result(result, filename, analyzer)
+        except Exception as e:
+            if ext in AUDIO_EXTENSIONS:
+                logger.warning(f"CU audio URL extraction failed for {filename}; using fallback transcript: {e}")
+                return self._audio_fallback_document(filename, str(e))
+            raise
 
     def _poll_result(self, client: httpx.Client, operation_url: str, max_wait: int = 600) -> dict:
         elapsed = 0

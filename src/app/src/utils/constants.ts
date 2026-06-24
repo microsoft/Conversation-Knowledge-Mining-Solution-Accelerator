@@ -1,10 +1,10 @@
 export const COLORS = ["#2563eb", "#059669", "#f59e0b", "#dc2626", "#7c3aed", "#ec4899", "#14b8a6", "#f97316"];
 
-export const FILE_TYPES = ["PDF", "DOCX", "JSON", "CSV", "XLSX", "TXT", "PNG", "JPG"];
+export const FILE_TYPES = ["PDF", "DOCX", "JSON", "CSV", "XLSX", "TXT", "PNG", "JPG", "WAV", "MP3", "MP4"];
 
-export const SUPPORTED_UPLOAD_ACCEPT = ".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg";
+export const SUPPORTED_UPLOAD_ACCEPT = ".json,.csv,.pdf,.docx,.xlsx,.txt,.png,.jpg,.jpeg,.wav,.mp3,.mp4";
 
-export const SUPPORTED_UPLOAD_DESCRIPTION = "PDF, DOCX, JSON, CSV, XLSX, TXT, PNG, and JPG";
+export const SUPPORTED_UPLOAD_DESCRIPTION = "PDF, DOCX, JSON, CSV, XLSX, TXT, PNG, JPG, WAV, MP3, and MP4";
 
 export const SUPPORTED_INGEST_ACCEPT = ".json,.csv";
 
