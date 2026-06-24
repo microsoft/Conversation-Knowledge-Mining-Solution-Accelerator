@@ -99,17 +99,10 @@ async def upload_document(
         raise HTTPException(status_code=413, detail=f"Too many files. Maximum is {settings.max_concurrent_uploads} per request.")
 
     # Validate all files and read their content
-    from src.api.utils.constants import AUDIO_VIDEO_FORMATS
     file_contents: list[tuple[str, str, bytes]] = []
     for file in files:
         filename = file.filename or "document"
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-        # Check for audio/video files first with user-friendly message
-        if ext in AUDIO_VIDEO_FORMATS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Audio and video files are not supported. Please use PDF, Word (.docx), or text files.",
-            )
         if ext not in DOCUMENT_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
@@ -130,6 +123,7 @@ async def upload_document(
         file_contents.append((filename, ext, content))
 
     # Save raw files to blob storage and create "processing" file records
+    skipped_count = 0
     for filename, ext, content in file_contents:
         file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
 
@@ -137,6 +131,7 @@ async def upload_document(
         ingestion_service._ensure_loaded()
         existing = ingestion_service._uploaded_files.get(file_id)
         if existing and existing.status == "ready":
+            skipped_count += 1
             continue
         if existing and existing.status == "processing":
             # Allow re-upload if processing appears stuck beyond configured timeout.
@@ -182,10 +177,12 @@ async def upload_document(
     # Clear insights cache to force regeneration with new data
     background_tasks.add_task(_clear_insights_cache)
 
+    newly_queued = len(file_contents) - skipped_count
     return IngestionResult(
-        total_loaded=0,
+        total_loaded=newly_queued,
         by_type={ext: 1 for _, ext, _ in file_contents},
         sample_ids=[fname.rsplit(".", 1)[0].replace(" ", "_") for fname, _, _ in file_contents],
+        skipped=skipped_count,
     )
 
 
@@ -367,9 +364,12 @@ async def upload_csv(
     tmp.write(await file.read())
     tmp.close()
     try:
-        result = ingestion_service.load_csv_file(tmp.name)
+        upload_name = file.filename or "uploaded.csv"
+        csv_docs = ingestion_service._build_csv_documents(tmp.name, upload_name)
+        result = ingestion_service.load_json_data(csv_docs, filename=upload_name)
     finally:
         os.unlink(tmp.name)
+    background_tasks.add_task(ingestion_service.finalize_ingestion, csv_docs, upload_name)
     background_tasks.add_task(_trigger_auto_pipeline)
     background_tasks.add_task(_clear_insights_cache)
     return result

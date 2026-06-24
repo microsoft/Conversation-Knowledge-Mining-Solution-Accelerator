@@ -2,6 +2,7 @@ import csv
 import json
 import logging
 import os
+import re
 import threading
 from typing import Optional
 
@@ -19,6 +20,16 @@ from src.api.modules.ingestion.models import (
 from src.api.modules.ingestion.error_messages import format_error_for_user
 
 logger = logging.getLogger(__name__)
+
+_CSV_TEXT_CANDIDATES = ("text", "content", "body", "description", "summary", "notes")
+_CSV_ID_CANDIDATES = ("id", "document_id", "record_id", "conversation_id")
+_CSV_TYPE_CANDIDATES = ("type", "document_type", "category")
+_ENTITY_FALLBACK_MAX_DOCS = 30
+_ENTITY_FALLBACK_TEXT_LIMIT = 6000
+_ENTITY_STOPWORDS = {
+    "The", "This", "That", "These", "Those", "And", "But", "For", "With", "From", "Into",
+    "Without", "After", "Before", "During", "Project", "Collection", "Document", "Documents",
+}
 
 
 class IngestionService:
@@ -135,6 +146,21 @@ class IngestionService:
                 except Exception as e:
                     logger.warning(f"Failed to clear stale filter schema: {e}")
 
+            # Do not auto-delete uploaded file records during reload.
+            # Files should only be removed via explicit clear/delete operations.
+            if self._uploaded_files:
+                for file_id, uploaded in list(self._uploaded_files.items()):
+                    # Keep doc_count aligned to current documents for accurate UI counts.
+                    if uploaded.filename:
+                        matched_count = sum(
+                            1 for doc in self._documents.values()
+                            if (doc.metadata.source_file or "") == uploaded.filename
+                        )
+                        if matched_count > 0 and matched_count != uploaded.doc_count:
+                            updated = uploaded.copy(update={"doc_count": matched_count})
+                            self._uploaded_files[file_id] = updated
+                            self._persist_file(updated)
+
             if self._documents:
                 logger.info(f"Loaded from Azure SQL: {len(self._documents)} docs, {len(self._uploaded_files)} files")
         except Exception as e:
@@ -194,6 +220,152 @@ class IngestionService:
             )
         except Exception as e:
             logger.warning(f"Azure persist failed (non-blocking): {e}")
+
+    @staticmethod
+    def _normalize_scalar(value) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
+
+    @staticmethod
+    def _synthesize_relationships(entities: list[dict], max_edges: int = 8) -> list[dict]:
+        """Create lightweight co-occurrence relationships when explicit edges are absent."""
+        names = []
+        seen = set()
+        for e in entities:
+            if not isinstance(e, dict):
+                continue
+            n = str(e.get("name", "")).strip()
+            if not n:
+                continue
+            key = n.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            names.append(n)
+
+        rels: list[dict] = []
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                rels.append({
+                    "subject": names[i],
+                    "relation": "co_occurs_with",
+                    "object": names[j],
+                    "context": "Entities co-mentioned in the same document",
+                    "confidence": 0.55,
+                })
+                if len(rels) >= max_edges:
+                    return rels
+        return rels
+
+    @staticmethod
+    def _extract_entities_heuristic(text: str, max_entities: int = 12) -> list[dict]:
+        """Deterministic fallback when AI extraction is unavailable."""
+        if not text:
+            return []
+
+        matches = re.findall(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\b", text)
+        entities: list[dict] = []
+        seen = set()
+        for candidate in matches:
+            name = " ".join(candidate.split()).strip()
+            if not name or name in _ENTITY_STOPWORDS:
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            entities.append({
+                "name": name,
+                "type": "unknown",
+                "context": "Extracted from document text",
+                "confidence": 0.45,
+            })
+            if len(entities) >= max_entities:
+                break
+        return entities
+
+    def _extract_entities_with_fallback(self, text: str, max_chars: int = _ENTITY_FALLBACK_TEXT_LIMIT) -> list[dict]:
+        text = (text or "").strip()
+        if not text:
+            return []
+
+        try:
+            from src.api.modules.processing.service import ProcessingService
+
+            processing_service = ProcessingService()
+            entity_resp = processing_service.extract_entities(text[:max_chars])
+            extracted_entities = []
+            for ent in entity_resp.entities:
+                if not ent.text:
+                    continue
+                extracted_entities.append({
+                    "name": ent.text,
+                    "type": ent.type or "Unknown",
+                    "context": "",
+                    "confidence": ent.confidence,
+                })
+            if extracted_entities:
+                return extracted_entities
+        except Exception as e:
+            logger.debug(f"Entity extraction via ProcessingService failed, using heuristic fallback: {e}")
+
+        return self._extract_entities_heuristic(text[:max_chars])
+
+    def _extract_relationships_with_fallback(self, text: str, entities: list[dict]) -> list[dict]:
+        """Extract semantic relationships via LLM; fall back to co-occurrence synthesis."""
+        text = (text or "").strip()
+        if not text or not entities:
+            return []
+        try:
+            from src.api.capabilities.extract_relationships import extract_relationships
+            resp = extract_relationships(text=text)
+            rels = resp.get("result", [])
+            if rels:
+                return rels
+        except Exception as e:
+            logger.debug(f"LLM relationship extraction failed, using synthesis fallback: {e}")
+        return self._synthesize_relationships(entities)
+
+    def _build_csv_documents(self, file_path: str, filename: str | None = None) -> list[dict]:
+        actual_filename = filename or os.path.basename(file_path)
+        documents: list[dict] = []
+        with open(file_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for index, row in enumerate(reader, start=1):
+                normalized = {str(k).strip(): self._normalize_scalar(v) for k, v in row.items() if k}
+                lowered = {k.lower(): v for k, v in normalized.items()}
+
+                doc_id = next((lowered[key] for key in _CSV_ID_CANDIDATES if lowered.get(key)), "")
+                if not doc_id:
+                    doc_id = f"{actual_filename.rsplit('.', 1)[0]}_{index}"
+
+                doc_type = next((lowered[key] for key in _CSV_TYPE_CANDIDATES if lowered.get(key)), "csv_row")
+
+                text = next((lowered[key] for key in _CSV_TEXT_CANDIDATES if lowered.get(key)), "")
+                if not text:
+                    text_parts = [
+                        f"{key}: {value}" for key, value in normalized.items()
+                        if value and key.lower() not in set(_CSV_ID_CANDIDATES)
+                    ]
+                    text = "; ".join(text_parts)
+
+                metadata = {
+                    key: value for key, value in normalized.items()
+                    if value and key.lower() not in set(_CSV_ID_CANDIDATES + _CSV_TYPE_CANDIDATES + _CSV_TEXT_CANDIDATES)
+                }
+                metadata["source_file"] = actual_filename
+                metadata["source_type"] = "csv"
+
+                documents.append({
+                    "id": doc_id,
+                    "type": doc_type,
+                    "text": text,
+                    "metadata": metadata,
+                })
+        return documents
 
     def _track_file(self, filename: str, data: list[dict]):
         """Track an uploaded file with AI-extracted summary, keywords, and filter schema.
@@ -293,6 +465,7 @@ class IngestionService:
             doc_extractions = extraction.get("doc_extractions", [])
             extraction_map = {d["id"]: d for d in doc_extractions if d.get("id")}
             filter_map = {df["id"]: df.get("values", {}) for df in doc_filters if df.get("id")}
+            fallback_budget = _ENTITY_FALLBACK_MAX_DOCS
 
             try:
                 from src.api.storage.sql_service import sql_service
@@ -306,10 +479,44 @@ class IngestionService:
 
                         # Merge per-doc extraction (summary, keywords)
                         ext = extraction_map.get(doc_id, {})
+                        if not isinstance(ext, dict):
+                            ext = {}
+
+                        # Deterministic fallback: if batch enrichment omitted entities,
+                        # call entity extraction directly for this document (bounded budget).
+                        if not ext.get("entities") and fallback_budget > 0:
+                            text_for_entities = str(item.get("text", "") or "").strip()
+                            if text_for_entities:
+                                try:
+                                    extracted_entities = self._extract_entities_with_fallback(text_for_entities)
+                                    if extracted_entities:
+                                        ext["entities"] = extracted_entities
+                                        if not ext.get("relationships"):
+                                            ext["relationships"] = self._extract_relationships_with_fallback(text_for_entities, extracted_entities)
+                                except Exception as e:
+                                    logger.debug(f"Entity fallback extraction failed for {doc_id}: {e}")
+                                finally:
+                                    fallback_budget -= 1
+
                         if ext.get("summary") and not meta.get("summary"):
                             meta["summary"] = ext["summary"]
                         if ext.get("keywords"):
                             meta["key_phrases"] = ext["keywords"]
+                        if ext.get("topics"):
+                            meta["topics"] = ext["topics"]
+                        if ext.get("metadata") and isinstance(ext.get("metadata"), dict):
+                            for meta_key, meta_value in ext["metadata"].items():
+                                if meta_value not in (None, "", []):
+                                    meta[meta_key] = meta_value
+                        if ext.get("entities"):
+                            entity_names = [
+                                e.get("name", "").strip() for e in ext["entities"]
+                                if isinstance(e, dict) and e.get("name")
+                            ]
+                            if entity_names:
+                                meta["entities"] = entity_names
+                        if ext.get("relationships"):
+                            item["relationships"] = ext["relationships"]
 
                         # Merge filter dimension values (sentiment, topic, etc.)
                         fvals = filter_map.get(doc_id, {})
@@ -321,22 +528,86 @@ class IngestionService:
                             else:
                                 meta[dim_id] = dim_vals
 
+                        if ext.get("keywords"):
+                            item["key_phrases"] = ext["keywords"]
+                        if ext.get("summary"):
+                            item["summary"] = ext["summary"]
+                        if ext.get("topics"):
+                            item["topics"] = ext["topics"]
+                        if ext.get("entities"):
+                            item["entities"] = ext["entities"]
+                        item["metadata"] = meta
+
                         sql_service.save_document(doc_id, {
                             **item,
                             "summary": ext.get("summary", item.get("summary", "")),
+                            "entities": ext.get("entities", item.get("entities", [])),
                             "key_phrases": ext.get("keywords", item.get("key_phrases", [])),
+                            "topics": ext.get("topics", item.get("topics", [])),
                             "metadata": meta,
                         })
+                        sql_service.save_entity_graph(
+                            doc_id=doc_id,
+                            source_file=meta.get("source_file", ""),
+                            entities=ext.get("entities", item.get("entities", [])),
+                            relationships=ext.get("relationships", item.get("relationships", [])),
+                        )
                     logger.info(f"Enriched metadata written to SQL for {len(data)} docs")
             except Exception as e:
                 logger.warning(f"Failed to write enriched metadata to SQL: {e}")
 
         except Exception as e:
             logger.warning(f"AI extraction failed (using fallback): {e}")
-            if not summary:
-                types = set(item.get("type", "unknown") for item in data)
+            if not summary and data:
+                types = set(d.get("type", "unknown") for d in data)
                 summary = f"{len(data)} {', '.join(sorted(types))} documents"
                 keywords = sorted(types)
+
+            # Keep graph persistence working even when enrichment service is unavailable.
+            try:
+                from src.api.storage.sql_service import sql_service
+
+                if sql_service.available:
+                    for item in data:
+                        doc_id = item.get("id", "")
+                        if not doc_id:
+                            continue
+
+                        meta = dict(item.get("metadata", {}))
+                        entities = item.get("entities", [])
+                        text_for_graph = str(item.get("text", "") or "").strip()
+                        if not entities:
+                            entities = self._extract_entities_with_fallback(text_for_graph)
+                        relationships = item.get("relationships", [])
+                        if entities and not relationships:
+                            relationships = self._extract_relationships_with_fallback(text_for_graph, entities)
+
+                        if entities:
+                            item["entities"] = entities
+                            item["relationships"] = relationships
+                            meta["entities"] = [
+                                e.get("name", "").strip()
+                                for e in entities
+                                if isinstance(e, dict) and e.get("name")
+                            ]
+                            item["metadata"] = meta
+
+                        sql_service.save_document(doc_id, {
+                            **item,
+                            "summary": item.get("summary", ""),
+                            "entities": item.get("entities", []),
+                            "key_phrases": item.get("key_phrases", []),
+                            "topics": item.get("topics", []),
+                            "metadata": item.get("metadata", {}),
+                        })
+                        sql_service.save_entity_graph(
+                            doc_id=doc_id,
+                            source_file=meta.get("source_file", ""),
+                            entities=item.get("entities", []),
+                            relationships=item.get("relationships", []),
+                        )
+            except Exception as persist_error:
+                logger.warning(f"Fallback SQL graph persistence failed: {persist_error}")
 
         existing = self._uploaded_files.get(file_id)
         doc_ids = existing.doc_ids if existing and existing.doc_ids else [d.get("id", "") for d in data]
@@ -544,29 +815,11 @@ class IngestionService:
         except Exception as e:
             logger.warning(f"Background Azure persist failed: {e}")
 
-    def load_csv_file(self, file_path: str) -> IngestionResult:
-        by_type: dict[str, int] = {}
-        with open(file_path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                doc = Document(
-                    id=str(row["id"]),
-                    type=row.get("type", "unknown"),
-                    text=row.get("text", ""),
-                    metadata=DocumentMetadata(
-                        product=row.get("product"),
-                        category=row.get("category"),
-                        timestamp=row.get("timestamp"),
-                    ),
-                )
-                self._documents[doc.id] = doc
-                by_type[doc.type] = by_type.get(doc.type, 0) + 1
-
-        return IngestionResult(
-            total_loaded=len(by_type) and sum(by_type.values()),
-            by_type=by_type,
-            sample_ids=list(self._documents.keys())[:5],
-        )
+    def load_csv_file(self, file_path: str, filename: str | None = None) -> IngestionResult:
+        self._ensure_loaded()
+        documents = self._build_csv_documents(file_path, filename)
+        actual_filename = filename or os.path.basename(file_path)
+        return self.load_json_data(documents, filename=actual_filename)
 
     def load_default_dataset(self) -> IngestionResult:
         settings = get_settings()
@@ -667,6 +920,9 @@ class IngestionService:
                 cursor.execute("DELETE FROM uploaded_files")
                 cursor.execute("DELETE FROM filter_schemas")
                 cursor.execute("DELETE FROM enrichment_cache")
+                cursor.execute("DELETE FROM document_entities")
+                cursor.execute("DELETE FROM entity_relationships")
+                cursor.execute("DELETE FROM entity_nodes")
                 conn.commit()
                 conn.close()
                 logger.info("Cleared all data from SQL")
@@ -696,6 +952,30 @@ class IngestionService:
                     logger.warning(f"Failed to clear AI Search index: {e}")
         except Exception as e:
             logger.warning(f"Failed to clear AI Search: {e}")
+
+        # Purge Azure Queue so background workers can't re-inject deleted documents.
+        try:
+            from src.api.modules.ingestion.queue_service import (
+                queue_service, EXTRACTION_QUEUE, ENRICHMENT_QUEUE,
+            )
+            if queue_service.available:
+                for q_name in (EXTRACTION_QUEUE, ENRICHMENT_QUEUE):
+                    try:
+                        client = queue_service._get_client(q_name)
+                        # Receive and delete all messages from the queue
+                        deleted_count = 0
+                        while True:
+                            messages = list(client.receive_messages(max_messages=32, visibility_timeout=1))
+                            if not messages:
+                                break
+                            for msg in messages:
+                                client.delete_message(msg.id, msg.pop_receipt)
+                                deleted_count += 1
+                        logger.info(f"Purged queue '{q_name}': deleted {deleted_count} messages")
+                    except Exception as e:
+                        logger.warning(f"Failed to purge queue '{q_name}': {e}")
+        except Exception as e:
+            logger.warning(f"Failed to purge queues: {e}")
 
     def delete_file(self, file_id: str) -> bool:
         """Delete an uploaded file and all its documents."""
@@ -744,7 +1024,22 @@ class IngestionService:
                 cursor = conn.cursor()
                 for doc_id in doc_ids_to_remove:
                     cursor.execute("DELETE FROM documents WHERE id = ?", doc_id)
+                for doc_id in doc_ids_to_remove:
+                    cursor.execute("DELETE FROM document_entities WHERE doc_id = ?", doc_id)
+                    cursor.execute("DELETE FROM entity_relationships WHERE doc_id = ?", doc_id)
                 cursor.execute("DELETE FROM uploaded_files WHERE id = ?", file_id)
+                cursor.execute(
+                    """
+                    DELETE FROM entity_nodes
+                    WHERE id NOT IN (
+                        SELECT DISTINCT entity_id FROM document_entities
+                        UNION
+                        SELECT DISTINCT subject_entity_id FROM entity_relationships
+                        UNION
+                        SELECT DISTINCT object_entity_id FROM entity_relationships WHERE object_entity_id IS NOT NULL
+                    )
+                    """
+                )
                 conn.commit()
                 conn.close()
         except Exception as e:

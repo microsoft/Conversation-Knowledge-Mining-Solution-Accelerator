@@ -5,6 +5,7 @@ import logging
 import re
 import struct
 import hashlib
+from datetime import datetime, timezone
 from collections import Counter
 
 from src.api.config import get_settings
@@ -131,6 +132,30 @@ def _extract_schema(cursor) -> dict:
         except Exception as e:
             logger.debug(f"Skipping malformed key_phrases row: {e}")
 
+    # Pull actual document summaries so the LLM can generate content-based insights
+    cursor.execute(
+        "SELECT TOP 15 summary FROM documents "
+        "WHERE summary IS NOT NULL AND LEN(summary) > 20"
+    )
+    document_summaries = []
+    for r in cursor.fetchall():
+        if r[0] and r[0].strip():
+            document_summaries.append(r[0].strip()[:600])
+
+    # Aggregate key phrases across all documents for the planner
+    cursor.execute(
+        "SELECT TOP 30 key_phrases FROM documents "
+        "WHERE key_phrases IS NOT NULL AND LEN(key_phrases) > 2"
+    )
+    phrase_pool: list[str] = []
+    for r in cursor.fetchall():
+        try:
+            phrases = json.loads(r[0])
+            if isinstance(phrases, list):
+                phrase_pool.extend(p.strip().lower() for p in phrases[:15] if isinstance(p, str) and len(p.strip()) > 2)
+        except Exception:
+            continue
+
     fields = []
     for name, info in field_info.items():
         classification = _classify_field(name, info["samples"], info["count"], sampled)
@@ -142,13 +167,20 @@ def _extract_schema(cursor) -> dict:
             **classification,
         })
 
-    return {"total_records": total, "fields": fields, "has_key_phrases": has_phrases}
+    return {
+        "total_records": total,
+        "fields": fields,
+        "has_key_phrases": has_phrases,
+        "document_summaries": document_summaries,
+        "top_key_phrases": list(dict.fromkeys(phrase_pool))[:60],  # deduplicated
+    }
 
 # --- LLM Planner ---
 
 _PLAN_PROMPT = """You are a data analyst designing an insight dashboard.
 
-DATASET SCHEMA:
+{content_section}
+DATASET SCHEMA (structural metadata fields):
 {schema}
 
 Each field includes:
@@ -167,17 +199,25 @@ Use semantic_type to guide insight design:
 - identifier/contact/pii fields → NEVER use in charts or filters
 - text fields → skip (use key_phrases instead if available)
 
-Return JSON with this structure:
+CONTENT-FIRST & ANONYMIZATION RULES (CRITICAL):
+- If DOCUMENT SUMMARIES are provided above, the headline, summary, key_insights and standout_findings MUST reflect the actual subject matter of those documents — what they discuss, what findings they contain, what decisions or topics they cover.
+- NEVER write key_insights that describe file format distributions (e.g. "PDFs are the most common file type") — that is not useful to users.
+- NEVER write key_insights about page counts, processing metadata, or document structure unless the data explicitly measures those things meaningfully.
+- The headline must describe the TOPIC of the content (e.g. "Non-Performing Loan Sales and Borrower Outcomes") not the collection type ("Document Processing Insights").
+- For document collections (uploaded files), lean on the summaries to identify themes, findings, entities, geographies, time periods, and outcomes that actually appear in the content.
+- Only use structural metadata fields (like file_format or document_type) in charts or filters if there are 4+ documents with real variation; even then, treat them as secondary to content insights.
+- ANONYMIZATION (MANDATORY): NEVER include individual customer/person/employee names anywhere in headline, summary, or key_insights. Replace all individual names with organizational/domain names (e.g. "Woodgrove IT Helpdesk Support Requests" not "Helena's IT Support"). If the data is about customer interactions, use the organization/service name as context. All insights must be institutional/organizational in scope, never individual.
+
 
 {{
-  "headline": "6-10 word use case headline",
-  "summary": "One sentence (max 30 words) describing what this data represents",
+  "headline": "6-10 word organizational/institutional headline (NO individual names, e.g. 'Woodgrove IT Helpdesk Support Interactions')",
+  "summary": "One sentence (max 30 words) describing organizational/institutional context (NO individual names, focus on organization/system/domain)",
 
   "key_insights": [
-    "First major pattern or finding (one sentence)",
-    "Second major pattern or finding (one sentence)",
-    "Third major pattern or finding (one sentence)",
-    "Fourth major pattern or finding (one sentence)"
+    "First major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Second major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Third major pattern or finding (one sentence, organizational scope, NO individual names)",
+    "Fourth major pattern or finding (one sentence, organizational scope, NO individual names)"
   ],
 
   "kpis": [
@@ -279,13 +319,154 @@ LABEL QUALITY RULES (critical for user clarity):
 - Return ONLY valid JSON"""
 
 
+_NAME_STOPWORDS = {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december",
+    "windows", "laptop", "printer", "scanner", "wifi", "network", "helpdesk", "support", "service", "team",
+}
+
+
+def _infer_org_label(schema: dict) -> str:
+    summaries = schema.get("document_summaries") or []
+    patterns = [
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+(?:Helpdesk|Support|Service|Department|Center|Desk))",
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+Contact Center)",
+        r"([A-Z][A-Za-z0-9&\-]*(?:\s+[A-Z][A-Za-z0-9&\-]*){0,5}\s+Customer Service)",
+    ]
+    for summary in summaries:
+        if not isinstance(summary, str):
+            continue
+        for p in patterns:
+            m = re.search(p, summary)
+            if m:
+                return m.group(1).strip()
+    return "the organization"
+
+
+def _collect_person_tokens(schema: dict) -> set[str]:
+    names: set[str] = set()
+    for field in schema.get("fields", []):
+        if not isinstance(field, dict):
+            continue
+        sem = str(field.get("semantic_type") or "").lower()
+        role = str(field.get("business_role") or "").lower()
+        if sem not in ("actor", "label"):
+            continue
+        if role not in ("customer", "workforce", "descriptive"):
+            continue
+        for raw in field.get("sample_values", []) or []:
+            if not isinstance(raw, str):
+                continue
+            for tok in re.findall(r"\b[A-Z][a-z]{2,}\b", raw):
+                if tok.lower() not in _NAME_STOPWORDS:
+                    names.add(tok)
+
+    for summary in schema.get("document_summaries", []) or []:
+        if not isinstance(summary, str):
+            continue
+        for tok in re.findall(r"\b([A-Z][a-z]{2,})'s\b", summary):
+            if tok.lower() not in _NAME_STOPWORDS:
+                names.add(tok)
+        for tok in re.findall(
+            r"\b([A-Z][a-z]{2,})\s+(?:contacted|requested|reported|called|experienced|faced|raised|encountered|asked|needed|had)\b",
+            summary,
+            flags=re.IGNORECASE,
+        ):
+            if tok.lower() not in _NAME_STOPWORDS:
+                names.add(tok)
+    return names
+
+
+def _collect_person_tokens_from_response(response: dict, org_label: str) -> set[str]:
+    tokens: set[str] = set()
+    corpus_parts = [
+        response.get("headline", ""),
+        response.get("summary", ""),
+        * (response.get("key_insights") or []),
+        * (response.get("standout_findings") or []),
+    ]
+    corpus = "\n".join(str(p) for p in corpus_parts if isinstance(p, str))
+
+    for tok in re.findall(r"\b([A-Z][a-z]{2,})'s\b", corpus):
+        if tok.lower() not in _NAME_STOPWORDS:
+            tokens.add(tok)
+    for tok in re.findall(
+        r"\b(?:by|from)\s+([A-Z][a-z]{2,})\b|\b([A-Z][a-z]{2,})\s+(?:frequently|consistently|contacted|requested|reported|expressed|raised|experienced)\b",
+        corpus,
+        flags=re.IGNORECASE,
+    ):
+        candidate = tok[0] or tok[1]
+        if candidate and candidate.lower() not in _NAME_STOPWORDS:
+            tokens.add(candidate)
+
+    org_words = {w for w in re.findall(r"\b[A-Za-z]{3,}\b", org_label)}
+    return {t for t in tokens if t not in org_words}
+
+
+def _anonymize_text(text: str, person_tokens: set[str], org_label: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text
+
+    out = text
+    for token in sorted(person_tokens, key=len, reverse=True):
+        out = re.sub(rf"\b{re.escape(token)}['’]s\b", f"{org_label}'s", out)
+        out = re.sub(rf"\b{re.escape(token)}\b", "users", out)
+
+    out = re.sub(
+        rf"\b{re.escape(org_label)}['’]s interactions? with (?:the )?{re.escape(org_label)}\b",
+        f"{org_label} support interactions",
+        out,
+        flags=re.IGNORECASE,
+    )
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
+def _apply_anonymization(response: dict, schema: dict) -> dict:
+    person_tokens = _collect_person_tokens(schema)
+    org_label = _infer_org_label(schema)
+    if not person_tokens:
+        person_tokens = _collect_person_tokens_from_response(response, org_label)
+    if not person_tokens:
+        return response
+
+    response["headline"] = _anonymize_text(response.get("headline", ""), person_tokens, org_label)
+    response["summary"] = _anonymize_text(response.get("summary", ""), person_tokens, org_label)
+    response["key_insights"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("key_insights") or [])
+    ]
+    response["standout_findings"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("standout_findings") or [])
+    ]
+    response["suggested_questions"] = [
+        _anonymize_text(s, person_tokens, org_label) for s in (response.get("suggested_questions") or [])
+    ]
+    return response
+
+
 def _plan(schema: dict) -> dict:
     settings = get_settings()
     client = get_llm_client()
+
+    # Build content section from actual document summaries and key phrases
+    content_parts: list[str] = []
+    summaries = schema.get("document_summaries", [])
+    if summaries:
+        numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(summaries))
+        content_parts.append(f"DOCUMENT SUMMARIES (actual content of the uploaded documents):\n{numbered}")
+    phrases = schema.get("top_key_phrases", [])
+    if phrases:
+        content_parts.append(f"KEY PHRASES ACROSS ALL DOCUMENTS:\n{', '.join(phrases[:50])}")
+    content_section = ("\n\n".join(content_parts) + "\n\n") if content_parts else ""
+
+    # Strip large content fields from schema before serialising to keep prompt compact
+    schema_for_prompt = {k: v for k, v in schema.items() if k not in ("document_summaries", "top_key_phrases")}
+
     resp = client.chat.completions.create(
         model=settings.azure_openai_chat_deployment,
         messages=[{"role": "user", "content": _PLAN_PROMPT.format(
-            schema=json.dumps(schema, indent=2, default=str))}],
+            content_section=content_section,
+            schema=json.dumps(schema_for_prompt, indent=2, default=str))}],
         temperature=0.1, max_tokens=2500,
         response_format={"type": "json_object"},
     )
@@ -636,6 +817,199 @@ def _exec_filters(cursor, filter_specs):
             logger.warning(f"Failed to load filter values for field '{f}': {e}")
     return result
 
+
+def _to_runtime_payload(payload: dict) -> dict:
+    """Adapt dashboard response fields into the runtime contract expected by the UI."""
+
+    def _num(v, default=0.0) -> float:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def _kpi_trend_direction(v) -> str:
+        t = str(v or "").strip().lower()
+        if t in ("up", "increase", "increasing", "rising"):
+            return "up"
+        if t in ("down", "decrease", "decreasing", "falling"):
+            return "down"
+        return "stable"
+
+    # KPIs
+    runtime_kpis = []
+    for i, k in enumerate(payload.get("kpis", []) or []):
+        if not isinstance(k, dict):
+            continue
+        runtime_kpis.append({
+            "id": str(k.get("metric") or f"kpi_{i + 1}"),
+            "label": str(k.get("label") or "KPI"),
+            "value": k.get("value", 0),
+            "format": k.get("format") or "number",
+            "trendDirection": _kpi_trend_direction(k.get("trend")),
+            "trendValue": None,
+            "confidence": None,
+        })
+
+    # Topics / entities inferred from chart payloads
+    topics_map: dict[str, float] = {}
+    entities_map: dict[str, float] = {}
+    relationships = []
+
+    for sec in payload.get("sections", []) or []:
+        if not isinstance(sec, dict):
+            continue
+        for ch in sec.get("charts", []) or []:
+            if not isinstance(ch, dict):
+                continue
+
+            vis = str(ch.get("visualization") or "").lower()
+            insight_type = str(ch.get("insight_type") or "").lower()
+            field_name = str(ch.get("field") or "").lower()
+            title = str(ch.get("title") or "").lower()
+            is_topic_like = (
+                vis == "word_cloud"
+                or any(t in field_name for t in ("topic", "theme", "phrase", "keyword"))
+                or any(t in title for t in ("topic", "theme", "phrase", "keyword"))
+            )
+
+            data = ch.get("data")
+            if isinstance(data, list):
+                for row in data:
+                    if not isinstance(row, dict):
+                        continue
+
+                    if vis == "word_cloud":
+                        name = str(row.get("text") or "").strip()
+                        score = _num(row.get("frequency") or row.get("weight") or 0)
+                        if name:
+                            topics_map[name] = topics_map.get(name, 0.0) + max(score, 0.0)
+                        continue
+
+                    label = str(row.get("label") or "").strip()
+                    if not label:
+                        continue
+                    value = max(_num(row.get("value"), 0.0), 0.0)
+
+                    if is_topic_like:
+                        topics_map[label] = topics_map.get(label, 0.0) + value
+                    else:
+                        entities_map[label] = entities_map.get(label, 0.0) + value
+
+            # Driver charts can be converted into lightweight relationship edges
+            if insight_type == "drivers" and isinstance(data, dict):
+                outcome_label = str(data.get("outcome_label") or "outcome")
+                for f in data.get("factors", []) or []:
+                    if not isinstance(f, dict):
+                        continue
+                    dim = str(f.get("dimension") or "Factor").strip()
+                    val = str(f.get("value") or "").strip()
+                    if not dim or not val:
+                        continue
+                    relationships.append({
+                        "from": dim,
+                        "to": val,
+                        "relation": f"affects {outcome_label}",
+                        "strength": max(abs(_num(f.get("deviation"), 0.0)), 0.1),
+                    })
+
+    topics = [
+        {"id": f"topic_{i + 1}", "name": name, "score": round(score, 2), "trendValue": None, "trendDirection": "stable"}
+        for i, (name, score) in enumerate(
+            sorted(topics_map.items(), key=lambda x: x[1], reverse=True)[:30]
+        )
+    ]
+
+    entities = [
+        {
+            "id": f"entity_{i + 1}",
+            "name": name,
+            "mentions": int(round(count)),
+            "trendDirection": "stable",
+            "trendValue": None,
+        }
+        for i, (name, count) in enumerate(
+            sorted(entities_map.items(), key=lambda x: x[1], reverse=True)[:30]
+        )
+    ]
+
+    # Insights derived from planner text outputs
+    def _insight_category(text: str) -> str:
+        t = text.lower()
+        if "risk" in t or "concern" in t:
+            return "Risk"
+        if "anomaly" in t or "unusual" in t or "spike" in t or "drop" in t:
+            return "Anomaly"
+        if "opportun" in t or "potential" in t:
+            return "Opportunity"
+        if "trend" in t or "increas" in t or "decreas" in t:
+            return "Trend"
+        return "Insight"
+
+    insights = []
+    key_insights = payload.get("key_insights", []) or []
+    standout = payload.get("standout_findings", []) or []
+    for i, text in enumerate([*key_insights, *standout]):
+        if not isinstance(text, str) or not text.strip():
+            continue
+        category = _insight_category(text)
+        insights.append({
+            "id": f"insight_{i + 1}",
+            "category": category,
+            "title": text.strip(),
+            "confidence": None,
+            "impactScore": 0.8 if category in ("Risk", "Anomaly") else 0.7,
+            "context": payload.get("headline", ""),
+            "explanation": payload.get("summary", ""),
+            "evidenceCount": 0,
+            "evidence": [],
+        })
+
+    unexpected_patterns = []
+    for i, text in enumerate(standout):
+        if not isinstance(text, str) or not text.strip():
+            continue
+        lower = text.lower()
+        is_high = any(tok in lower for tok in ("risk", "anomaly", "spike", "drop", "critical"))
+        unexpected_patterns.append({
+            "id": f"pattern_{i + 1}",
+            "pattern": text.strip(),
+            "severity": "high" if is_high else "medium",
+            "explanation": payload.get("summary", "Observed in the analyzed records."),
+        })
+
+    actions = [
+        {"id": f"action_{i + 1}", "label": q.strip(), "intentType": "explore"}
+        for i, q in enumerate(payload.get("suggested_questions", []) or [])
+        if isinstance(q, str) and q.strip()
+    ]
+
+    data_context = payload.get("data_context", {}) or {}
+    record_count = int(data_context.get("filtered_records") or data_context.get("total_records") or 0)
+
+    summary_signals = []
+    if payload.get("headline"):
+        summary_signals.append(str(payload["headline"]))
+    summary_signals.extend([s for s in key_insights if isinstance(s, str)])
+
+    return {
+        "schemaVersion": "1.0",
+        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "recordCount": record_count,
+        "counts": {
+            "topics": len(topics),
+            "entities": len(entities),
+            "relationships": len(relationships),
+        },
+        "summarySignals": summary_signals[:6],
+        "kpis": runtime_kpis,
+        "topics": topics,
+        "entities": entities,
+        "relationships": relationships[:20],
+        "insights": insights,
+        "unexpectedPatterns": unexpected_patterns,
+        "actions": actions,
+    }
+
 # --- Orchestrator ---
 
 class DashboardService:
@@ -748,7 +1122,7 @@ class DashboardService:
             avail_filters = _exec_filters(cursor, plan.get("filters", []))
 
             conn.close()
-            return {
+            response = {
                 "data_context": {
                     "total_records": schema["total_records"],
                     "filtered_records": filtered_count,
@@ -763,6 +1137,9 @@ class DashboardService:
                 "filters": avail_filters,
                 "suggested_questions": plan.get("suggested_questions", []),
             }
+            response = _apply_anonymization(response, schema)
+            response["runtime"] = _to_runtime_payload(response)
+            return response
         except Exception as e:
             logger.warning(f"Dashboard failed: {e}")
             try:
@@ -773,12 +1150,14 @@ class DashboardService:
 
     @staticmethod
     def _empty():
-        return {
+        response = {
             "data_context": {"total_records": 0, "filtered_records": 0, "filters_applied": {}},
             "headline": "No Data Available",
             "summary": "Upload documents or connect a data source to see insights.",
             "kpis": [], "sections": [], "filters": [], "suggested_questions": [],
         }
+        response["runtime"] = _to_runtime_payload(response)
+        return response
 
 
 dashboard_service = DashboardService()

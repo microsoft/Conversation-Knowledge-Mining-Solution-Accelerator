@@ -106,7 +106,7 @@ export interface ChartSpec {
   id: string;
   title: string;
   description?: string;
-  visualization: "donut" | "bar" | "line" | "word_cloud" | "table" | "trending_table";
+  visualization: "donut" | "bar" | "horizontal_bar" | "line" | "word_cloud" | "table" | "trending_table" | "driver_table";
   data: ChartDataPoint[];
   confidence?: number;
   sectionId?: string;
@@ -126,7 +126,110 @@ export interface DashboardFilter {
   values: string[];
 }
 
+export interface RuntimeKPI {
+  id: string;
+  label: string;
+  value: number | string;
+  format?: "percentage" | "minutes" | "number" | "currency";
+  trendDirection?: "up" | "down" | "stable";
+  trendValue?: number | null;
+  confidence?: number | null;
+}
+
+export interface RuntimeTopic {
+  id: string;
+  name: string;
+  score: number;
+  trendValue?: number | null;
+  trendDirection?: "up" | "down" | "stable";
+}
+
+export interface RuntimeEntity {
+  id: string;
+  name: string;
+  mentions: number;
+  trendDirection?: "up" | "down" | "stable";
+  trendValue?: number | null;
+}
+
+export interface RuntimeRelationship {
+  from: string;
+  to: string;
+  relation?: string;
+  strength: number;
+}
+
+export interface EvidenceItem {
+  text: string;
+  label?: string;
+  value?: number | string;
+  section?: string;
+}
+
+export interface RuntimeInsight {
+  id: string;
+  category: "Anomaly" | "Risk" | "Opportunity" | "Trend" | "Insight";
+  title: string;
+  confidence?: number | null;
+  impactScore?: number;
+  context?: string;
+  explanation?: string;
+  evidenceCount?: number;
+  evidence?: EvidenceItem[];
+}
+
+export interface UnexpectedPattern {
+  id: string;
+  pattern: string;
+  severity: "high" | "medium" | "low";
+  explanation: string;
+}
+
+export interface RuntimeAction {
+  id: string;
+  label: string;
+  intentType?: string;
+}
+
+export interface SentimentAnalysis {
+  positive: number;
+  neutral: number;
+  negative: number;
+}
+
+export interface TimelineEvent {
+  date: string;
+  event: string;
+  change: "positive" | "negative" | "neutral" | "alert";
+}
+
+export interface InsightRuntime {
+  schemaVersion: string;
+  generatedAt: string;
+  recordCount: number;
+  counts?: {
+    topics: number;
+    entities: number;
+    relationships: number;
+  };
+  summarySignals: string[];
+  kpis: RuntimeKPI[];
+  topics: RuntimeTopic[];
+  entities: RuntimeEntity[];
+  relationships: RuntimeRelationship[];
+  insights: RuntimeInsight[];
+  unexpectedPatterns?: UnexpectedPattern[];
+  actions: RuntimeAction[];
+  sentiment?: SentimentAnalysis;
+  events?: TimelineEvent[];
+}
+
 export interface DashboardResponse {
+  datasetInfo?: {
+    name: string;
+    sourceType: string;
+    lastUpdated: string;
+  };
   data_context: {
     total_records: number;
     filtered_records: number;
@@ -140,6 +243,7 @@ export interface DashboardResponse {
   sections: DashboardSection[];
   filters: DashboardFilter[];
   suggested_questions: string[];
+  runtime?: InsightRuntime;
 }
 
 // ── Data Sources ──

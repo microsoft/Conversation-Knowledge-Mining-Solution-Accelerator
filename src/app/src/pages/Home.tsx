@@ -28,6 +28,7 @@ import {
   listDataSources,
   getUploadedFiles,
   deleteFile,
+  refreshIngestionCache,
 } from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { FILE_TYPES, SUPPORTED_UPLOAD_ACCEPT, SUPPORTED_UPLOAD_DESCRIPTION } from "../utils/constants";
@@ -48,37 +49,49 @@ const Home: React.FC = () => {
   const [dragOver, setDragOver] = useState(false);
   const [dataSources, setDataSources] = useState<any[]>(homeData?.dataSources ?? []);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>(homeData?.uploadedFiles ?? []);
+  // Only show spinner on first ever load (no cached data). Subsequent mounts refresh silently.
   const [loadingSources, setLoadingSources] = useState(!homeData);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; count: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const refreshedCacheRef = useRef(false);
 
-  const loadStatus = () => {
-    // Always fetch both on initial load; during processing, only fetch files to reduce traffic
-    const hasProcessing = uploadedFiles.some((f: any) => f.status === "processing");
-    const requests: any[] = [getUploadedFiles()];
-    if (!hasProcessing) requests.push(listDataSources());
-    else requests.push(Promise.resolve({ data: dataSources }) as any); // Return cached sources during polling
-    
-    Promise.allSettled(requests)
-      .then(([filesRes, srcRes]) => {
-        const files = filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : [];
-        const sources = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : dataSources;
-        setDataSources(sources);
-        setUploadedFiles(files);
-        setHomeData({ dataSources: sources, uploadedFiles: files });
-        if (sources.length > 0 && sources[0].name) {
-          setDashboardHeadline(sources[0].name);
+  const loadStatus = async () => {
+    try {
+      // Ensure seeded or externally changed data is reflected before listing sources/files.
+      if (!refreshedCacheRef.current) {
+        try {
+          await refreshIngestionCache();
+        } catch {
+          // Continue with direct reads.
         }
-        // Clear insights cache if no data exists (data was cleared)
-        if (sources.length === 0 && files.length === 0) {
-          setInsights(null);
-          try { sessionStorage.removeItem("km_insights"); } catch {}
-        }
-      })
-      .finally(() => setLoadingSources(false));
+        refreshedCacheRef.current = true;
+      }
+
+      const [filesRes, srcRes] = await Promise.allSettled([getUploadedFiles(), listDataSources()]);
+      const files = filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : [];
+      const sources = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : [];
+
+      setDataSources(sources);
+      setUploadedFiles(files);
+      setHomeData({ dataSources: sources, uploadedFiles: files });
+      if (sources.length > 0 && sources[0].name) {
+        setDashboardHeadline(sources[0].name);
+      }
+      if (sources.length === 0 && files.length === 0) {
+        setInsights(null);
+        try { sessionStorage.removeItem("km_insights"); } catch {}
+      }
+    } catch {
+      // Never preserve stale list on failure.
+      setDataSources([]);
+      setUploadedFiles([]);
+      setHomeData({ dataSources: [], uploadedFiles: [] });
+    } finally {
+      setLoadingSources(false);
+    }
   };
 
-  // Always refresh on mount to avoid stale cached empty state.
+  // Always refresh on mount to avoid stale session-cached sources.
   useEffect(() => { loadStatus(); }, []);
 
   // Shared app-level polling updates this page through ingestionSnapshot.
@@ -139,6 +152,7 @@ const Home: React.FC = () => {
     try {
       let totalLoaded = 0;
       let docSubmitted = false;
+      let docUploadRes: any = null;
       const failures: string[] = [];
 
       for (const file of jsonFiles) {
@@ -152,7 +166,7 @@ const Home: React.FC = () => {
 
       if (docFiles.length > 0) {
         try {
-          await uploadDocument(docFiles);
+          docUploadRes = await uploadDocument(docFiles);
           docSubmitted = true;
         } catch (err) {
           failures.push(`Documents: ${getApiErrorMessage(err, "Document upload failed")}`);
@@ -164,7 +178,15 @@ const Home: React.FC = () => {
       } else if (jsonFiles.length > 0) {
         setUploadMsg(`${totalLoaded} records loaded`);
       } else {
-        setUploadMsg(`${docFiles.length} file(s) submitted — processing in background`);
+        const queued: number = docUploadRes?.data?.total_loaded ?? docFiles.length;
+        const skipped: number = docUploadRes?.data?.skipped ?? 0;
+        if (skipped > 0 && queued === 0) {
+          setUploadMsg(`${skipped} file(s) already processed — no changes needed`);
+        } else if (skipped > 0) {
+          setUploadMsg(`${queued} new file(s) queued for processing, ${skipped} already ready`);
+        } else {
+          setUploadMsg(`${queued} file(s) submitted — processing in background`);
+        }
       }
 
       if (failures.length > 0) {
@@ -286,79 +308,86 @@ const Home: React.FC = () => {
               <Text size={200} style={{ color: "#94a3b8" }}>
                 Use the upload box below to get started, or run a scenario pack from the command line.
               </Text>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                <Spinner size="tiny" />
+                <Text size={200} style={{ color: "#64748b" }}>
+                  Waiting for incoming scenario data. This page refreshes automatically.
+                </Text>
+              </div>
             </>
           )}
         </div>
 
-        {/* Upload card */}
-        <div
-          className={s.uploadCard}
-          onClick={() => !uploading && !uploadDone && fileInputRef.current?.click()}
-          onDragOver={(e) => { if (!uploadDone) { e.preventDefault(); setDragOver(true); } }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault(); setDragOver(false);
-            if (!uploadDone && e.dataTransfer.files.length > 0 && fileInputRef.current) {
-              fileInputRef.current.files = e.dataTransfer.files;
-              fileInputRef.current.dispatchEvent(new Event("change", { bubbles: true }));
-            }
-          }}
-          style={{
-            ...(dragOver ? { borderColor: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.1)" } : {}),
-            ...(uploadDone ? { cursor: "default", borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
-          }}
-        >
-          {/* Uploading state */}
-          {uploading && (
-            <>
-              <Spinner size="small" />
-              <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
-              <Text size={200} style={{ color: "#94a3b8" }}>This may take a moment for large files</Text>
-            </>
-          )}
+        {!hasData && (
+          <div
+            className={s.uploadCard}
+            onClick={() => !uploading && !uploadDone && fileInputRef.current?.click()}
+            onDragOver={(e) => { if (!uploadDone) { e.preventDefault(); setDragOver(true); } }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault(); setDragOver(false);
+              if (!uploadDone && e.dataTransfer.files.length > 0 && fileInputRef.current) {
+                fileInputRef.current.files = e.dataTransfer.files;
+                fileInputRef.current.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+            }}
+            style={{
+              ...(dragOver ? { borderColor: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.1)" } : {}),
+              ...(uploadDone ? { cursor: "default", borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
+            }}
+          >
+            {/* Uploading state */}
+            {uploading && (
+              <>
+                <Spinner size="small" />
+                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
+                <Text size={200} style={{ color: "#94a3b8" }}>This may take a moment for large files</Text>
+              </>
+            )}
 
-          {/* Success state */}
-          {uploadDone && !uploading && (
-            <>
-              <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
-              <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
-              <Text size={200} style={{ color: "#2563eb", cursor: "pointer", marginTop: 4 }}
-                onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
-                Upload more files
-              </Text>
-            </>
-          )}
+            {/* Success state */}
+            {uploadDone && !uploading && (
+              <>
+                <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
+                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
+                <Text size={200} style={{ color: "#2563eb", cursor: "pointer", marginTop: 4 }}
+                  onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
+                  Upload more files
+                </Text>
+              </>
+            )}
 
-          {/* Error state */}
-          {uploadError && !uploading && (
-            <>
-              <ErrorCircle24Regular style={{ color: "#dc2626", fontSize: 28 }} />
-              <Text weight="semibold" size={300} style={{ color: "#dc2626" }}>{uploadError}</Text>
-              <Button appearance="subtle" size="small" onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
-                Try again
-              </Button>
-            </>
-          )}
+            {/* Error state */}
+            {uploadError && !uploading && (
+              <>
+                <ErrorCircle24Regular style={{ color: "#dc2626", fontSize: 28 }} />
+                <Text weight="semibold" size={300} style={{ color: "#dc2626" }}>{uploadError}</Text>
+                <Button appearance="subtle" size="small" onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
+                  Try again
+                </Button>
+              </>
+            )}
 
-          {/* Default state */}
-          {!uploading && !uploadDone && !uploadError && (
-            <>
-              <div className={s.uploadIcon}>
-                <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
-              </div>
-              <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
-                Upload supported files
-              </Text>
-              <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
-              <div className={s.fileTypes}>
-                {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
-              </div>
-            </>
-          )}
+            {/* Default state */}
+            {!uploading && !uploadDone && !uploadError && (
+              <>
+                <div className={s.uploadIcon}>
+                  <ArrowUpload24Regular style={{ color: "#2563eb", fontSize: 24 }} />
+                </div>
+                <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>
+                  Upload supported files
+                </Text>
+                <Text size={200} style={{ color: "#94a3b8" }}>Drag & drop or click to browse</Text>
+                <div className={s.fileTypes}>
+                  {FILE_TYPES.map((ft) => <span key={ft} className={s.fileType}>{ft}</span>)}
+                </div>
+              </>
+            )}
 
-          <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
-            accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleUpload} />
-        </div>
+            <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
+              accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleUpload} />
+          </div>
+        )}
       </div>
 
       <div className={s.content}>

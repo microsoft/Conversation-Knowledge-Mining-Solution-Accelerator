@@ -23,9 +23,9 @@ def format_error_for_user(error_msg: str, filename: str = "", file_type: str = "
     if any(term in error_lower for term in ["corrupted", "invalid format", "not a valid", "unsupported format"]):
         return f"This file format is not supported or the file is corrupted. Please ensure you're uploading a valid PDF, Word, or text document."
     
-    # Category 2: Audio/Video unsupported
-    if file_type in ["wav", "mp3", "mp4"] or any(term in error_lower for term in ["audio", "wav", "mp3"]):
-        return "Audio and video files are not currently supported. Please use PDF, Word (.docx), or text files."
+    # Category 2: Unsupported audio/video formats
+    if file_type in ["flac", "aac", "ogg", "m4a"] or any(term in error_lower for term in ["flac", "aac", "ogg", "m4a"]):
+        return "This audio format is not supported. Please use WAV, MP3, MP4, PDF, Word (.docx), or text files."
     
     # Category 3: Empty file
     if any(term in error_lower for term in ["empty", "no content", "zero bytes", "no text"]):
@@ -55,7 +55,7 @@ def format_error_for_user(error_msg: str, filename: str = "", file_type: str = "
         # Truncate very long technical messages
         return "An error occurred while processing this file. Please verify the file is valid and try again. Contact support if the issue persists."
     
-    return f"Could not process this file. Please verify it's a valid PDF, Word, or text document and try again."
+    return f"Could not process this file. Please verify it's a supported format (for example PDF, Word, text, WAV, MP3, or MP4) and try again."
 
 
 def categorize_error(error_msg: str) -> str:

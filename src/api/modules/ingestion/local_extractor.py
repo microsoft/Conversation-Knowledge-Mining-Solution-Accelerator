@@ -46,16 +46,13 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, bool]:
         if ext == "pdf":
             return _extract_pdf(file_bytes)
 
-        # Audio and video files are not supported
+        # Audio/video should skip local extraction and go to CU transcription.
         if ext in ["wav", "mp3", "mp4", "m4a", "aac", "flac", "ogg"]:
-            raise ValueError(f"Audio and video files (.{ext}) are not supported. Please use PDF, Word (.docx), or text files.")
+            return "", True
 
         # Images and other formats always need CU
         return "", True
 
-    except ValueError:
-        # Re-raise validation errors (like unsupported formats)
-        raise
     except Exception as e:
         logger.warning(f"Local extraction failed for {filename}: {e} — will fall back to CU")
         return "", True

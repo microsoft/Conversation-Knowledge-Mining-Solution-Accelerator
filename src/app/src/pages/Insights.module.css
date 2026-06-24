@@ -1,221 +1,322 @@
-.page { min-height: 100%; height: 100%; background: var(--km-bg, #f5f5f5); display: flex; flex-direction: column; }
-
-/* ── Content ── */
-.content {
-  flex: 1;
-  padding: 16px 20px 24px;
+/* ── Page shell ─────────────────────────────────────────────────────────────── */
+.page {
+  min-height: 100%;
+  height: 100%;
+  background: #f1f5f9;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  overflow-y: auto;
 }
 
-/* ── Dataset header ── */
-.datasetHeader {
+.content {
+  flex: 1;
+  padding: 16px 20px 28px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .content { padding: 10px 12px 20px; gap: 10px; }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.dashHeader {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
-  padding: 14px 20px;
-  border-radius: 10px;
-  background: #ffffff;
+  padding: 14px 18px;
+  background: #fff;
   border: 1px solid #e5e7eb;
+  border-radius: 10px;
   flex-wrap: wrap;
 }
-.datasetTitle {
+.dashTitle {
   font-size: 16px;
   font-weight: 700;
   color: #0f172a;
   letter-spacing: -0.2px;
 }
-.datasetMeta {
-  font-size: 13px;
+.dashMeta {
+  font-size: 12px;
   color: #64748b;
-  margin-top: 4px;
-  line-height: 1.5;
+  margin-top: 3px;
 }
 
-/* ── Key Insights / Standout card ── */
-.insightsRow {
+/* ── 1. Insight Strip ───────────────────────────────────────────────────────── */
+.insightStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  max-width: 360px;
+  white-space: normal;
+  cursor: default;
+}
+.chipRising  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.chipFalling { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.chipAnomaly { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.chipNeutral { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+/* ── 2. KPI Overview ────────────────────────────────────────────────────────── */
+.kpiTileGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
 }
-@media (max-width: 900px) { .insightsRow { grid-template-columns: 1fr; } }
-.insightsCard {
-  padding: 16px 20px;
-  border-radius: 10px;
-  background: #ffffff;
+.kpiTile {
+  background: #fff;
   border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px 18px;
+  position: relative;
+  min-height: 96px;
 }
-.insightsTitle {
-  font-size: 14px;
-  font-weight: 600;
+.kpiNum {
+  font-size: 34px;
+  font-weight: 700;
   color: #0f172a;
-  margin-bottom: 12px;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
 }
-.insightsList {
-  margin: 0;
-  padding: 0 0 0 20px;
+.kpiLbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-top: 5px;
+}
+.kpiTrend {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ── Shared section + card ──────────────────────────────────────────────────── */
+.sectionBlock {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.insightsList li {
-  font-size: 13px;
-  color: #475569;
-  line-height: 1.6;
-}
-
-/* ── Hero chart ── */
-.heroChart {
-  display: flex;
-}
-.heroChart > * { flex: 1; }
-
-/* ── Filter row ── */
-.filterRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ── KPI row ── */
-.kpiRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-.kpi {
-  padding: 16px 18px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-}
-.kpiLabel {
+.sectionHeading {
   font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.kpiValue {
-  font-size: 28px;
+  letter-spacing: 0.6px;
   font-weight: 700;
+  color: #64748b;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px;
+}
+@media (max-width: 900px) { .card { padding: 14px; border-radius: 8px; } }
+
+.cardTitle {
+  font-size: 13px;
+  font-weight: 600;
   color: #0f172a;
-  line-height: 1.15;
-  margin-top: 6px;
-  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+}
+.cardDesc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.55;
+  margin-top: -8px;
+  margin-bottom: 12px;
+}
+.briefText {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.65;
+  margin: 0;
 }
 
-/* ── Dashboard grid ── */
+/* ── Dashboard 2-col grid ───────────────────────────────────────────────────── */
 .dashboardGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 @media (max-width: 900px) { .dashboardGrid { grid-template-columns: 1fr; } }
+
 .gridItem { display: flex; min-width: 0; }
 .gridItem > * { flex: 1; min-width: 0; }
 .gridItemFull { grid-column: 1 / -1; display: flex; min-width: 0; }
 .gridItemFull > * { flex: 1; min-width: 0; }
 
-/* ── Chart grid (within a card) ── */
-.chartGrid {
+/* ── 3. Topic Landscape treemap ─────────────────────────────────────────────── */
+.tmLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+.tmChip {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 14px;
+  cursor: default;
+}
+
+/* ── 6. Sentiment ───────────────────────────────────────────────────────────── */
+.sentimentRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sentimentChips { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sentimentChip  { display: flex; align-items: center; gap: 10px; }
+.sentimentSwatch{ width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.sentimentLabel { font-size: 13px; color: #475569; flex: 1; }
+.sentimentVal   { font-size: 14px; font-weight: 700; color: #0f172a; }
+
+/* ── 7. Relationship Graph SVG ──────────────────────────────────────────────── */
+.relSvg { width: 100%; display: block; }
+.relLegend {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 8px;
+}
+.emptySection { font-size: 13px; color: #94a3b8; padding: 24px 0; text-align: center; }
+
+/* ── 8. Entity Intelligence Table ───────────────────────────────────────────── */
+.entityTable { width: 100%; border-collapse: collapse; }
+.entityTable th {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.entityTable td {
+  padding: 9px 10px;
+  font-size: 13px;
+  color: #0f172a;
+  border-bottom: 1px solid #f8fafc;
+}
+.entityTable tr:last-child td { border-bottom: none; }
+.entityTable tr:hover td { background: #fafafa; }
+.miniBar { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; width: 80px; }
+.miniBarFill { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.4s; }
+
+/* ── 9. Anomaly Panel ───────────────────────────────────────────────────────── */
+.anomalyGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.anomalyCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.55;
+}
+.anomalyCardFull { flex-direction: column; align-items: stretch; }
+.anomalyIcon { font-size: 16px; flex-shrink: 0; }
+.anomalyText { flex: 1; }
+.anomalyRow  { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; border-bottom: 1px solid #f8fafc; }
+.anomalyRow:last-child { border-bottom: none; }
+
+/* ── 10. Cross-Source Insights ──────────────────────────────────────────────── */
+.crossRow { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.crossLabel { font-size: 12px; color: #475569; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crossBarWrap { flex: 1; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+.crossBar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.crossVal { font-size: 12px; font-weight: 600; color: #0f172a; width: 36px; text-align: right; }
+
+/* ── 11. Recommended Investigations ────────────────────────────────────────── */
+.recommendGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 8px;
 }
-@media (max-width: 900px) { .chartGrid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .recommendGrid { grid-template-columns: 1fr; } }
 
-/* ── Card ── */
-.card {
-  padding: 18px;
-  border-radius: 10px;
-  background: #ffffff;
+.recommendCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
   border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.15s;
 }
-.cardFull { composes: card; grid-column: 1 / -1; }
-.cardTitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: #0f172a;
-  margin-bottom: 16px;
+.recommendCard:hover { border-color: #2563eb; background: #eff6ff; }
+.recommendIdx {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+  opacity: 0.5;
+  flex-shrink: 0;
 }
-.cardDesc {
+.recommendText {
+  flex: 1;
   font-size: 12px;
-  color: #64748b;
-  margin-top: -10px;
-  margin-bottom: 14px;
-  line-height: 1.5;
+  color: #334155;
+  line-height: 1.45;
 }
+.recommendArrow { font-size: 16px; color: #2563eb; opacity: 0; transition: opacity 0.15s; }
+.recommendCard:hover .recommendArrow { opacity: 1; }
 
-/* ── Topic table ── */
-.topicTable { width: 100%; border-collapse: collapse; }
-.topicTable th {
-  font-size: 11px; font-weight: 600; color: #94a3b8;
-  text-align: left; padding: 10px 12px; border-bottom: 1px solid #f1f5f9;
-  text-transform: uppercase; letter-spacing: 0.3px;
+/* ── 12. Chat Entry ─────────────────────────────────────────────────────────── */
+.chatEntry {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
 }
-.topicTable td {
-  padding: 10px 12px; font-size: 13px; color: #0f172a;
-  border-bottom: 1px solid #f8fafc;
-}
-.topicTable tr:hover td { background: #fafafa; }
+.chatEntryTitle { font-size: 14px; font-weight: 700; color: #1e40af; }
+.chatEntrySub   { font-size: 12px; color: #3b82f6; margin-top: 2px; }
 
-/* ── Word cloud ── */
-.wordCloud {
-  display: flex; flex-wrap: wrap; align-items: center;
-  justify-content: center; gap: 10px 16px;
-  padding: 20px 12px; min-height: 180px;
-}
-.wordItem { cursor: default; font-weight: 500; line-height: 1; transition: opacity 0.15s; }
-.wordItem:hover { opacity: 0.7; }
-
-/* ── Driver table ── */
-.driverTable { width: 100%; border-collapse: collapse; }
-.driverTable th {
-  font-size: 11px; font-weight: 600; color: #94a3b8;
-  text-transform: uppercase; letter-spacing: 0.5px;
-  padding: 10px 12px; text-align: left; border-bottom: 1px solid #f1f5f9;
-}
-.driverTable td {
-  padding: 10px 12px; font-size: 12px; color: #0f172a;
-  border-bottom: 1px solid #f8fafc;
-}
-.driverTable tr:hover td { background: #fafafa; }
-.driverUp { color: #059669; font-weight: 600; }
-.driverDown { color: #dc2626; font-weight: 600; }
-.driverBar {
-  height: 6px; border-radius: 3px; background: #f1f5f9;
-  overflow: hidden; min-width: 60px;
-}
-.driverBarFill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-
-/* ── Questions ── */
-.questionRow { display: flex; flex-wrap: wrap; gap: 8px; }
-.questionBtn {
-  padding: 10px 16px; border-radius: 8px; border: 1px solid #e5e7eb;
-  background: #fff; font-size: 12px; color: #475569;
-  cursor: pointer; font-family: inherit; transition: all 0.15s;
-  line-height: 1.4;
-}
-.questionBtn:hover { border-color: #2563eb; color: #2563eb; }
-
-/* ── Disclaimer ── */
-.disclaimer { text-align: center; font-size: 11px; color: #94a3b8; padding: 8px 0; }
-
-/* ── Empty / Loading ── */
+/* ── Empty / Error ──────────────────────────────────────────────────────────── */
 .empty {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; flex: 1; gap: 12px;
-  padding: 60px 24px; color: #94a3b8; text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  padding: 60px 24px;
+  color: #94a3b8;
+  text-align: center;
 }
 .empty h2 { font-size: 16px; font-weight: 600; color: #475569; margin: 0; }
-.empty p { margin: 0; font-size: 13px; }
-.loading {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; flex: 1; gap: 20px; padding: 60px 40px;
-  width: 100%; max-width: 1000px; margin: 0 auto; box-sizing: border-box;
-}
+.empty p  { margin: 0; font-size: 13px; }
+
+/* ── Disclaimer ─────────────────────────────────────────────────────────────── */
+.disclaimer { text-align: center; font-size: 11px; color: #94a3b8; padding: 6px 0 2px; }

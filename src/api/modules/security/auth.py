@@ -22,7 +22,7 @@ def _parse_principal(b64_principal: str) -> dict:
 async def get_current_user(request: Request) -> User:
     """Extract user from EasyAuth headers. Falls back to dev user when not in Prod."""
     settings = get_settings()
-    is_prod = getattr(settings, "app_env", "").lower() == "prod"
+    is_prod = getattr(settings, "app_env", "").lower() in ("prod", "production")
 
     # Read EasyAuth headers
     principal_id = request.headers.get("X-Ms-Client-Principal-Id", "")
@@ -47,12 +47,15 @@ async def get_current_user(request: Request) -> User:
 
         return User(user_id=principal_id, name=name, email=email, roles=roles)
 
-    # No EasyAuth headers — allow anonymous access.
-    # When EasyAuth is enabled on the App Service, it intercepts unauthenticated
-    # requests BEFORE they reach this code, so if we get here without headers
-    # it means EasyAuth is not configured (dev or pre-auth-setup prod).
+    # No EasyAuth headers.
+    # In production, fail closed unless explicitly allowed for break-glass operations.
+    if is_prod and not getattr(settings, "auth_allow_anonymous_in_prod", False):
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     if is_prod:
-        logger.debug("No EasyAuth headers in prod — EasyAuth not configured, allowing anonymous")
+        logger.warning("No EasyAuth headers in prod — anonymous mode explicitly enabled")
+        return User(user_id="anonymous", name="User", email="", roles=["Reader"])
+
     return User(user_id="anonymous", name="User", email="", roles=["Admin"])
 
 

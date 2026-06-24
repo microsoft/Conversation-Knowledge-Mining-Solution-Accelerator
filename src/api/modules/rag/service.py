@@ -216,6 +216,85 @@ class RAGService:
             logger.error(f"Azure AI Search failed: {e}", exc_info=True)
             raise RuntimeError(f"Search service unavailable") from e
 
+    def _search_sql(self, query: str, top_k: int = 5,
+                    document_ids: Optional[list[str]] = None) -> list[dict]:
+        """Search documents in Azure SQL database by text matching."""
+        try:
+            from src.api.storage.sql_service import sql_service
+            sql_service._ensure_init()
+            if not sql_service._initialized:
+                logger.warning("SQL service not initialized, skipping SQL search")
+                return []
+            
+            conn = sql_service._get_connection()
+            cursor = conn.cursor()
+            
+            q = query.lower()
+            words = q.split()
+            
+            # Build WHERE clause
+            where_clauses = ["text_content IS NOT NULL AND LEN(text_content) > 0"]
+            params = []
+            
+            if document_ids:
+                ids_csv = ",".join([f"'{did}'" for did in document_ids[:50]])
+                where_clauses.append(f"id IN ({ids_csv})")
+            
+            where = " AND ".join(where_clauses)
+            
+            # Query all documents with text
+            cursor.execute(
+                f"SELECT id, text_content, summary, source_file, doc_type FROM documents WHERE {where}"
+            )
+            
+            scored = []
+            for row in cursor.fetchall():
+                doc_id, text, summary, source_file, doc_type = row
+                if not text or not text.strip():
+                    continue
+                
+                # Simple relevance: count query word matches
+                text_lower = text.lower()
+                matches = sum(1 for w in words if w in text_lower)
+                score = matches / max(len(words), 1) if matches > 0 else 0.05
+                
+                scored.append({
+                    "doc_id": doc_id,
+                    "text": text[:8000],  # Limit to 8K chars for context
+                    "summary": summary or "",
+                    "type": doc_type or "document",
+                    "source_file": source_file or "unknown",
+                    "score": score,
+                })
+            
+            conn.close()
+            
+            # If no keyword matches, return all docs as context
+            if not scored:
+                conn = sql_service._get_connection()
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT TOP {top_k} id, text_content, summary, source_file, doc_type FROM documents WHERE {where}"
+                )
+                for row in cursor.fetchall():
+                    doc_id, text, summary, source_file, doc_type = row
+                    if text and text.strip():
+                        scored.append({
+                            "doc_id": doc_id,
+                            "text": text[:8000],
+                            "summary": summary or "",
+                            "type": doc_type or "document",
+                            "source_file": source_file or "unknown",
+                            "score": 0.1,
+                        })
+                conn.close()
+            
+            scored.sort(key=lambda x: x["score"], reverse=True)
+            return scored[:top_k]
+        except Exception as e:
+            logger.warning(f"SQL search failed: {e}")
+            return []
+
     def _search_in_memory(self, query: str, top_k: int = 5,
                           document_ids: Optional[list[str]] = None) -> list[dict]:
         """Fallback: search in-memory documents by text matching."""
@@ -387,10 +466,26 @@ class RAGService:
                 extracted_docs = self._build_extracted_context(extracted_ids, question)
                 search_docs.extend(extracted_docs)
 
-        # Also search external live-query data sources
-        external_docs = self._search_external_data_sources(question, top_k)
-        if external_docs:
-            search_docs.extend(external_docs)
+        # Only include external live-query sources when user is not explicitly scoped to selected documents.
+        if not document_ids:
+            external_docs = self._search_external_data_sources(question, top_k)
+            if external_docs:
+                search_docs.extend(external_docs)
+
+        # Normalize mixed result shapes (AI Search, extracted context, external data sources)
+        normalized_docs = []
+        for doc in search_docs:
+            doc_id = doc.get("doc_id") or doc.get("id")
+            if not doc_id:
+                doc_id = str(doc.get("source_file") or f"doc-{len(normalized_docs)+1}")
+            normalized_docs.append({
+                **doc,
+                "doc_id": doc_id,
+                "text": doc.get("text", ""),
+                "type": doc.get("type", "unknown"),
+                "source_file": doc.get("source_file", "unknown"),
+            })
+        search_docs = normalized_docs
 
         # Deduplicate by doc_id (keep highest score per document)
         seen = {}
@@ -406,7 +501,11 @@ class RAGService:
         search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
 
         if not search_docs:
-            logger.info("AI Search returned no results, falling back to in-memory search")
+            logger.info("AI Search returned no results, falling back to SQL search")
+            search_docs = self._search_sql(question, top_k, document_ids)
+        
+        if not search_docs:
+            logger.info("SQL search returned no results, falling back to in-memory search")
             search_docs = self._search_in_memory(question, top_k, document_ids)
 
         # 3. Build context
@@ -430,9 +529,17 @@ class RAGService:
         context = "\n\n---\n\n".join(context_parts)
 
         # 3. Generate answer
+        scope_instruction = ""
+        if document_ids:
+            scope_instruction = (
+                "\nThe user has already selected the document scope. "
+                "Do not ask the user to specify or pick documents again."
+            )
+
         system_prompt = _get_prompt(
             "rag_system_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
+            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
+            scope_instruction=scope_instruction,
             context=context,
         )
 
@@ -502,12 +609,17 @@ class RAGService:
             if extracted_ids:
                 search_docs.extend(self._build_extracted_context(extracted_ids, last_user_message))
 
-        external_docs = self._search_external_data_sources(last_user_message, top_k)
-        if external_docs:
-            search_docs.extend(external_docs)
-            search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
-            search_docs = search_docs[:top_k]
+        if not document_ids:
+            external_docs = self._search_external_data_sources(last_user_message, top_k)
+            if external_docs:
+                search_docs.extend(external_docs)
+                search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
+                search_docs = search_docs[:top_k]
 
+        if not search_docs:
+            logger.info("AI Search returned no results, falling back to SQL search")
+            search_docs = self._search_sql(last_user_message, top_k, document_ids)
+        
         if not search_docs:
             search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
 
@@ -523,9 +635,17 @@ class RAGService:
             ))
 
         context = "\n\n---\n\n".join(context_parts)
+        scope_instruction = ""
+        if document_ids:
+            scope_instruction = (
+                "\nThe user has already selected the document scope. "
+                "Do not ask the user to specify or pick documents again."
+            )
+
         system_prompt = _get_prompt(
             "rag_conversation_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
+            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
+            scope_instruction=scope_instruction,
             context=context,
         )
 

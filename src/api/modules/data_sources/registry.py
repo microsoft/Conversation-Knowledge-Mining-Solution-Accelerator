@@ -261,6 +261,7 @@ class DataSourceRegistry:
 
         adapter = self._get_adapter(config.source_type)
         total = 0
+        ingested_docs: list[dict] = []
         try:
             from src.api.modules.ingestion.service import ingestion_service
 
@@ -268,7 +269,7 @@ class DataSourceRegistry:
                 # Transform to ingestion format
                 ingestion_data = []
                 for doc in batch:
-                    ingestion_data.append({
+                    normalized_doc = {
                         "id": doc.get("id", str(uuid.uuid4())[:8]),
                         "type": doc.get("type", "external"),
                         "text": doc.get("text", ""),
@@ -277,12 +278,23 @@ class DataSourceRegistry:
                             "source": f"data_source:{config.name}",
                             "data_source_id": config.id,
                         },
-                    })
+                    }
+                    if doc.get("summary"):
+                        normalized_doc["summary"] = doc["summary"]
+                    if doc.get("key_phrases"):
+                        normalized_doc["key_phrases"] = doc["key_phrases"]
+                    if doc.get("topics"):
+                        normalized_doc["topics"] = doc["topics"]
+                    ingestion_data.append(normalized_doc)
                 result = ingestion_service.load_json_data(
                     ingestion_data,
-                    filename=f"datasource_{config.name}",
+                    filename=f"datasource_{config.name}.json",
                 )
                 total += result.total_loaded
+                ingested_docs.extend(ingestion_data)
+
+            if ingested_docs:
+                ingestion_service.finalize_ingestion(ingested_docs, f"datasource_{config.name}.json")
 
             config.last_sync = datetime.now(timezone.utc).isoformat()
             config.doc_count = total

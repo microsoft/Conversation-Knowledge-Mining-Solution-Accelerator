@@ -11,7 +11,8 @@
 #>
 
 param(
-    [string]$BackendUrl = "http://localhost:8000"
+    [string]$BackendUrl = "http://localhost:8000",
+    [switch]$AllowDeployedFallback
 )
 
 Write-Host ""
@@ -22,10 +23,15 @@ Write-Host ""
 
 # Try to get backend URL from azd if not provided and not localhost
 if ($BackendUrl -eq "http://localhost:8000") {
-    $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
-    if ($azdUrl) {
-        Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
-        $BackendUrl = $azdUrl
+    if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
+        $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+        if ($azdUrl) {
+            Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
+            $BackendUrl = $azdUrl
+        } else {
+            Write-Host "ERROR: No deployed backend is configured." -ForegroundColor Red
+            exit 1
+        }
     } else {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
     }

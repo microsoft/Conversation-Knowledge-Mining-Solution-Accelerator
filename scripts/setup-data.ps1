@@ -42,7 +42,8 @@ param(
     [string]$Table,
     [string]$ConnectionString,
 
-    [string]$BackendUrl = "http://localhost:8000"
+    [string]$BackendUrl = "http://localhost:8000",
+    [switch]$AllowDeployedFallback
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,14 +60,83 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
 $scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
 
+function Resolve-ScenarioDataPath {
+    param(
+        [string]$Root,
+        [string]$ScenarioKey,
+        [string]$ConfiguredFolder
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ($ConfiguredFolder) { $candidates.Add($ConfiguredFolder) }
+
+    switch ($ScenarioKey) {
+        "mortgage-application" {
+            $candidates.Add("MortgageApplication_usecase")
+            $candidates.Add("MorgageApplication_usecase")
+        }
+        "telecom-analysis" {
+            $candidates.Add("telecom_analysis_usecase")
+            $candidates.Add("telecom_analysis_uscase")
+        }
+        "contact-center" {
+            $candidates.Add("ContactCenter_usecase")
+            $candidates.Add("ContactCeneter_usecase")
+        }
+    }
+
+    foreach ($folder in ($candidates | Select-Object -Unique)) {
+        if (-not $folder) { continue }
+        $path = Join-Path $Root "data" $folder
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
 # ── Resolve backend URL ──
-if ($BackendUrl -eq "http://localhost:8000") {
-    $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
-    if ($azdUrl) {
-        Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
-        $BackendUrl = $azdUrl
-    } else {
+if ($PSBoundParameters.ContainsKey("BackendUrl")) {
+    Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
+}
+elseif ($BackendUrl -eq "http://localhost:8000") {
+    $localHealthy = $false
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        $localHealthy = $true
+    } catch {
+        $localHealthy = $false
+    }
+
+    if (-not $localHealthy) {
+        $loopbackUrl = "http://127.0.0.1:8000"
+        try {
+            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+            $BackendUrl = $loopbackUrl
+            $localHealthy = $true
+        } catch {
+            $localHealthy = $false
+        }
+    }
+
+    if ($localHealthy) {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
+    } else {
+        if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
+            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+            if ($azdUrl) {
+                Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
+                $BackendUrl = $azdUrl
+            } else {
+                Write-Host "ERROR: Local backend is unavailable and no deployed backend is configured." -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "ERROR: Local backend is unavailable at $BackendUrl." -ForegroundColor Red
+            Write-Host "Start the local API first, pass -BackendUrl explicitly, or use -AllowDeployedFallback to target the deployed backend intentionally." -ForegroundColor Yellow
+            exit 1
+        }
     }
 }
 
@@ -151,10 +221,11 @@ if ($Scenario) {
     Write-Host "  $($pack.description)" -ForegroundColor White
     Write-Host ""
 
-    $scenarioDataPath = Join-Path $projectRoot "data" $pack.data_folder
+    $scenarioDataPath = Resolve-ScenarioDataPath -Root $projectRoot -ScenarioKey $Scenario -ConfiguredFolder $pack.data_folder
 
-    if (-not (Test-Path $scenarioDataPath)) {
-        Write-Host "ERROR: Scenario data folder not found: $scenarioDataPath" -ForegroundColor Red
+    if (-not $scenarioDataPath) {
+        Write-Host "ERROR: Scenario data folder not found for '$Scenario'." -ForegroundColor Red
+        Write-Host "Checked configured and known variant folder names under data/." -ForegroundColor Yellow
         exit 1
     }
 
@@ -183,6 +254,7 @@ if ($Scenario) {
 
         # Run seed-sample-data.py with the scenario data directory
         $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
+        $env:BACKEND_URL = $BackendUrl
         python (Join-Path $PSScriptRoot "seed-sample-data.py")
 
         if ($LASTEXITCODE -eq 0) {

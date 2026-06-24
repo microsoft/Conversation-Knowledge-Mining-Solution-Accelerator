@@ -260,8 +260,10 @@ After editing `scenarios.json`, run the setup script to see your new options:
 python -m venv venv
 venv\Scripts\activate
 pip install -r src/api/requirements.txt
-uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+./scripts/start-local-backend.ps1
 ```
+
+For single-process local development on Windows, prefer [scripts/start-local-backend.ps1](scripts/start-local-backend.ps1). It stops any existing listener on port 8000 before starting the API and avoids `--reload` by default, which is more stable on Windows.
 
 **Frontend:**
 ```bash
@@ -276,6 +278,8 @@ docker-compose up --build
 ```
 
 > **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
+
+> **Note:** To allow setup scripts to fall back to deployed Azure backend if local health check fails (useful for CI/CD), set `KM_ALLOW_DEPLOYED_BACKEND_FALLBACK=1`. See [DEPLOYMENT.md](DEPLOYMENT.md) for full environment variable reference.
 
 ### Azure Services and Costs
 

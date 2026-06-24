@@ -28,6 +28,17 @@
   flex-direction: column; font-size: 13px;
 }
 .leftSection { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+.sectionToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  color: #475569;
+  font-family: inherit;
+}
 .leftLabel {
   font-size: 10px; font-weight: 700; color: #94a3b8;
   text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;

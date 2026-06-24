@@ -1,7 +1,7 @@
-# Supported document formats - audio/video excluded (wav, mp3, mp4, etc.)
-DOCUMENT_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg"}
+# Supported upload formats, including telecom audio files.
+DOCUMENT_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "wav", "mp3", "mp4"}
 
-# Audio and video formats - explicitly rejected with user-friendly message
+# Known audio/video formats (not all are currently accepted by upload validation).
 AUDIO_VIDEO_FORMATS = {"wav", "mp3", "mp4", "m4a", "aac", "flac", "ogg"}
 
 

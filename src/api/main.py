@@ -28,6 +28,11 @@ from src.api.modules.insights.router import router as insights_router
 logger = logging.getLogger(__name__)
 
 
+def _parse_origins(raw: str) -> list[str]:
+    parts = [p.strip().rstrip("/") for p in (raw or "").split(",")]
+    return [p for p in parts if p]
+
+
 # ── Rate Limiter ──────────────────────────────────────────────
 _RATE_LIMIT = 60          # max requests per window
 _RATE_WINDOW_SEC = 60     # window size in seconds
@@ -115,14 +120,7 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: load persisted data from SQL (if any)
-    try:
-        from src.api.modules.ingestion.service import ingestion_service
-
-        docs = ingestion_service.documents
-        _ = docs
-    except Exception as e:
-        logger.warning(f"Startup data load failed: {e}")
+    # Startup: avoid eager ingestion service warm-up to prevent startup/import deadlocks.
 
     # Start queue worker for async document processing
     from src.api.modules.ingestion.queue_worker import queue_worker
@@ -145,10 +143,13 @@ app = FastAPI(
 _settings = get_settings()
 _allowed_origins = []
 if _settings.app_frontend_hostname:
-    _allowed_origins.append(_settings.app_frontend_hostname)
-    # Also allow without trailing slash
-    _allowed_origins.append(_settings.app_frontend_hostname.rstrip("/"))
-if not _allowed_origins or _settings.app_env in ("", "development", "local"):
+    _allowed_origins = _parse_origins(_settings.app_frontend_hostname)
+
+_is_prod = _settings.app_env.lower() in ("prod", "production")
+if _is_prod and not _allowed_origins:
+    raise RuntimeError("Production requires app_frontend_hostname for CORS allowlist.")
+
+if not _allowed_origins and _settings.app_env in ("", "development", "local"):
     _allowed_origins = ["http://localhost:3000", "http://localhost:8080"]
 
 app.add_middleware(
