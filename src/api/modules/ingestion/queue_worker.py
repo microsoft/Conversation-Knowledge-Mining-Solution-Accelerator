@@ -288,14 +288,24 @@ class QueueWorker:
                     max_wait_sec=cu_wait_sec,
                 )
 
+            # If CU returned empty markdown, fall back to local text if available
             if not extracted.markdown.strip():
-                error_msg = f"No text could be extracted from {filename} (CU returned empty markdown)"
-                logger.warning(f"[extraction] {error_msg}")
-                ingestion_service._update_file_status(
-                    file_id, "failed", error=error_msg
-                )
-                queue_service.delete(EXTRACTION_QUEUE, message)
-                return
+                if local_text.strip():
+                    # Use locally extracted text as fallback when CU OCR returns nothing
+                    logger.warning(
+                        f"[extraction] CU extraction returned empty markdown for {filename}; "
+                        f"falling back to {len(local_text)} chars of locally extracted text"
+                    )
+                    extracted.markdown = local_text
+                else:
+                    # No local text and no CU extraction — file is genuinely empty
+                    error_msg = f"No text could be extracted from {filename} (CU returned empty markdown and no local text)"
+                    logger.warning(f"[extraction] {error_msg}")
+                    ingestion_service._update_file_status(
+                        file_id, "failed", error=error_msg
+                    )
+                    queue_service.delete(EXTRACTION_QUEUE, message)
+                    return
 
             # Extract CU-enriched fields instead of discarding them
             cu_fields = {}
@@ -376,10 +386,18 @@ class QueueWorker:
                     )
 
                     if not extracted.markdown.strip():
-                        error_msg = f"No text could be extracted from {filename} after CU retry"
-                        logger.error(f"[extraction] {error_msg}")
-                        ingestion_service._update_file_status(file_id, "failed", error=error_msg)
-                        return
+                        # Fall back to local text if CU retry also returns empty
+                        if local_text.strip():
+                            logger.warning(
+                                f"[extraction] CU retry also returned empty markdown for {filename}; "
+                                f"falling back to {len(local_text)} chars of locally extracted text"
+                            )
+                            extracted.markdown = local_text
+                        else:
+                            error_msg = f"No text could be extracted from {filename} after CU retry and no local text available"
+                            logger.error(f"[extraction] {error_msg}")
+                            ingestion_service._update_file_status(file_id, "failed", error=error_msg)
+                            return
 
                     cu_fields = {}
                     if extracted.fields:
