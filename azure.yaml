@@ -36,6 +36,13 @@ hooks:
           Write-Host "WARNING: Agent setup failed — you can retry later with: ./infra/scripts/setup-agent.ps1" -ForegroundColor Yellow
         }
 
+        # ── Step 1.5: Grant API identity access to SQL ──
+        Write-Host ""
+        & ./infra/scripts/setup-sql-roles.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/setup-sql-roles.ps1" -ForegroundColor Yellow
+        }
+
         # ── Step 2: Choose use case or data source ──
         Write-Host ""
         & ./scripts/setup-data.ps1
@@ -72,6 +79,10 @@ hooks:
         echo ""
         echo "Setting up AI agent..."
         pwsh -File ./infra/scripts/setup-agent.ps1 || echo "WARNING: Agent setup failed — retry with: ./infra/scripts/setup-agent.ps1"
+
+        echo ""
+        echo "Granting API identity SQL access..."
+        pwsh -File ./infra/scripts/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/setup-sql-roles.ps1"
 
         echo ""
         pwsh -File ./scripts/setup-data.ps1
