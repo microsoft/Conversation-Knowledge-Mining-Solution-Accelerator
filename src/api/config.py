@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     azure_content_understanding_api_version: str = "2024-12-01-preview"
     azure_content_understanding_analyzer_id: str = "km-document"
 
+    # Admin API Key (local dev / script auth — never set in production)
+    admin_api_key: str = ""
+
     # Microsoft Entra ID (AAD)
     azure_ad_tenant_id: str = ""
     azure_ad_client_id: str = ""

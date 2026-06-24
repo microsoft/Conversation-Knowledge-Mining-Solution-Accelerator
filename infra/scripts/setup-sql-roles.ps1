@@ -43,8 +43,9 @@ $accountType = (az account show --query user.type -o tsv 2>$null)
 $isServicePrincipal = ($accountType -eq 'servicePrincipal')
 
 $roles = @(
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datareader"; isServicePrincipal = $isServicePrincipal },
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datawriter"; isServicePrincipal = $isServicePrincipal }
+    @{ principalId = $principalId; displayName = $apiName; role = "db_datareader";  isServicePrincipal = $isServicePrincipal },
+    @{ principalId = $principalId; displayName = $apiName; role = "db_datawriter";  isServicePrincipal = $isServicePrincipal },
+    @{ principalId = $principalId; displayName = $apiName; role = "db_ddladmin";    isServicePrincipal = $isServicePrincipal }
 )
 
 # Write to a temp file to avoid CLI JSON quoting issues across shells

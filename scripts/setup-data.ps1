@@ -142,11 +142,21 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
 
 # ── Auth token ──
 $token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
-if (-not $token) {
-    $token = "test"
-    Write-Host "Using test token (local dev)" -ForegroundColor Yellow
+$headers = @{}
+if ($token) {
+    $headers["Authorization"] = "Bearer $token"
+} else {
+    $adminKey = $env:ADMIN_API_KEY
+    if (-not $adminKey) {
+        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
+    }
+    if ($adminKey) {
+        Write-Host "Using admin API key for local auth" -ForegroundColor Yellow
+        $headers["X-Admin-Api-Key"] = $adminKey
+    } else {
+        Write-Host "No auth token or admin key found — requests may be rejected in prod" -ForegroundColor Yellow
+    }
 }
-$headers = @{ Authorization = "Bearer $token" }
 
 # ── Interactive mode if no params ──
 if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {

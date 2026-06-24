@@ -24,6 +24,13 @@ async def get_current_user(request: Request) -> User:
     settings = get_settings()
     is_prod = getattr(settings, "app_env", "").lower() in ("prod", "production")
 
+    # Admin API key bypass — key secrecy is the security boundary
+    admin_api_key = getattr(settings, "admin_api_key", "")
+    if admin_api_key:
+        provided_key = request.headers.get("X-Admin-Api-Key", "")
+        if provided_key == admin_api_key:
+            return User(user_id="admin", name="Admin", email="", roles=["Admin"])
+
     # Read EasyAuth headers
     principal_id = request.headers.get("X-Ms-Client-Principal-Id", "")
     principal_name = request.headers.get("X-Ms-Client-Principal-Name", "")
