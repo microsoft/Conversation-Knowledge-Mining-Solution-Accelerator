@@ -1,9 +1,19 @@
 import React from "react";
 
+function stripLinks(input: string): string {
+  // Convert markdown links to citation-style labels: [label](url) -> [label]
+  let out = input.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "[$1]");
+  // Remove raw URLs and sandbox/file-like link fragments in parentheses.
+  out = out.replace(/\bhttps?:\/\/\S+/gi, "");
+  out = out.replace(/\((?:sandbox\/|\/sandbox\/|file:\/\/)[^)]+\)/gi, "");
+  return out;
+}
+
 /** Simple markdown to JSX — handles bold, italic, lists, headers, line breaks */
 export function renderMarkdown(text: string): React.ReactNode {
+  const cleanText = stripLinks(text);
   // Normalize line endings
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = cleanText.replace(/\r\n/g, "\n").split("\n");
   const elements: React.ReactNode[] = [];
   let listItems: string[] = [];
   let isNumbered = false;

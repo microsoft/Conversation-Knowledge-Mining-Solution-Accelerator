@@ -77,6 +77,8 @@ const getFileStatusColor = (status?: string): string | undefined => {
   return undefined;
 };
 
+const FILTER_BLOCKLIST = new Set(["page_count", "pagecount", "pages", "page"]);
+
 /* ── Component ── */
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -259,6 +261,28 @@ const Explore: React.FC = () => {
   };
 
   const readyFiles = files.filter((f: any) => isFileSelectable(f.status));
+  const sourceFileNames = new Set(
+    readyFiles
+      .map((f: any) => String(f.filename || "").toLowerCase())
+      .filter(Boolean)
+  );
+  const visibleDimensions = Array.isArray(schema?.dimensions)
+    ? schema.dimensions.filter((dim: any) => {
+      const dimKey = String(dim?.id || dim?.label || "").toLowerCase().replace(/\s+/g, "_");
+      if (FILTER_BLOCKLIST.has(dimKey)) return false;
+      if (dimKey !== "source_file" && dimKey !== "sourcefile") return true;
+
+      const dimValues = Array.isArray(dim?.values) ? dim.values : [];
+      const normalizedValues = dimValues
+        .map((v: any) => String(v?.value || v?.label || "").toLowerCase())
+        .filter(Boolean);
+
+      if (sourceFileNames.size === 0 || normalizedValues.length === 0) return true;
+
+      const allValuesInSources = normalizedValues.every((v: string) => sourceFileNames.has(v));
+      return !allValuesInSources;
+    })
+    : [];
   const totalRecords = readyFiles.reduce((sum: number, f: any) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum: number, d: any) => sum + (d.doc_count || 0), 0);
   const sessionCount = sessions.filter((sess: any) => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
@@ -372,10 +396,10 @@ const Explore: React.FC = () => {
 
           </div>
 
-          {schema?.dimensions?.length > 0 && (
+          {visibleDimensions.length > 0 && (
             <div className={s.leftSection}>
               <div className={s.leftLabel} title="Use these to narrow records before asking questions">Filter dimensions</div>
-              {schema.dimensions.map((dim: any) => {
+              {visibleDimensions.map((dim: any) => {
                 const expanded = expandedDims.has(dim.id);
                 return (
                   <div key={dim.id} className={s.filterGroup}>

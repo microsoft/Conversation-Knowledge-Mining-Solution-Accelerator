@@ -1,6 +1,7 @@
 from typing import Optional
 import logging
 import os
+import re
 
 import yaml
 from azure.identity import DefaultAzureCredential
@@ -34,6 +35,14 @@ def _get_prompt(key: str, fallback: str, **kwargs) -> str:
     for token, value in kwargs.items():
         rendered = rendered.replace("{" + token + "}", str(value))
     return rendered
+
+
+def _strip_links_from_answer(text: str) -> str:
+    # Keep citation labels, remove markdown link destinations and raw URL/path targets.
+    out = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"[\1]", text)
+    out = re.sub(r"\bhttps?://\S+", "", out, flags=re.IGNORECASE)
+    out = re.sub(r"\((?:sandbox/|/sandbox/|file://)[^)]+\)", "", out, flags=re.IGNORECASE)
+    return out
 
 
 class RAGService:
@@ -383,7 +392,7 @@ class RAGService:
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Document {i+1}: {doc['doc_id']}]:\n{text}")
+            context_parts.append(f"[Source {i+1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
@@ -411,7 +420,7 @@ class RAGService:
 
         return QAResponse(
             question=question,
-            answer=response.choices[0].message.content,
+            answer=_strip_links_from_answer(response.choices[0].message.content),
             sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
@@ -517,7 +526,7 @@ class RAGService:
             if len(text) > 4000:
                 text = text[:4000] + "..."
             context_parts.append(
-                f"[Document {i+1}: {doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
+                f"[Source {i+1} | id={doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
             )
             sources.append(Source(
                 doc_id=doc["doc_id"],
@@ -556,7 +565,7 @@ class RAGService:
 
         return QAResponse(
             question=question,
-            answer=response.choices[0].message.content,
+            answer=_strip_links_from_answer(response.choices[0].message.content),
             sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
@@ -627,7 +636,7 @@ class RAGService:
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Document {i+1}: {doc['doc_id']}]:\n{text}")
+            context_parts.append(f"[Source {i+1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
                 text=text[:500],
@@ -661,7 +670,7 @@ class RAGService:
 
         return QAResponse(
             question=last_user_message,
-            answer=response.choices[0].message.content,
+            answer=_strip_links_from_answer(response.choices[0].message.content),
             sources=sources,
             model=settings.azure_openai_chat_deployment,
         )

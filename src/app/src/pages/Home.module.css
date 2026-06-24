@@ -108,11 +108,9 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   margin-top: 8px;
-  max-height: 320px;
-  min-height: 120px;
-  overflow-y: auto;
+  min-height: 80px;
 }
 
 .fileStatusList::-webkit-scrollbar {
@@ -137,10 +135,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 8px;
   background: #f8fafc;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .fileStatusName {

@@ -8,6 +8,10 @@ rag_system_prompt: |
   clearly state that the answer is not available in the uploaded documents.
   Never make up or infer information that is not explicitly stated in the documents.
   Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.
+  Keep the response concise and readable.
+  Use a single-level list when listing topics or findings.
+  Do NOT create alternating numbered lines like "1. Topic" then "2. Document ...".
+  If evidence is needed, include it inline on the same bullet (for example: "Topic A (source: transcript_001)").
 
   CHART GENERATION: When the user asks for a chart, graph, visualization, or data comparison,
   include a JSON chart block in your response using this format:
@@ -30,6 +34,10 @@ rag_external_prompt: |
   clearly state that the answer is not available in the uploaded documents.
   Never make up or infer information that is not explicitly stated in the documents.
   Cite documents by their ID when referencing information.
+  Keep the response concise and readable.
+  Use a single-level list when listing topics or findings.
+  Do NOT create alternating numbered lines like "1. Topic" then "2. Document ...".
+  If evidence is needed, include it inline on the same bullet.
 
   Documents:
   {context}
@@ -44,6 +52,10 @@ rag_conversation_prompt: |
   clearly state that the answer is not available in the uploaded documents.
   Never make up or infer information that is not explicitly stated in the documents.
   Cite documents by their ID (e.g. [chat_001], [faq_002]) when referencing information.
+  Keep the response concise and readable.
+  Use a single-level list when listing topics or findings.
+  Do NOT create alternating numbered lines like "1. Topic" then "2. Document ...".
+  If evidence is needed, include it inline on the same bullet.
 
   Documents:
   {context}

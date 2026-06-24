@@ -290,6 +290,8 @@ const Home: React.FC = () => {
                 </Text>
               )}
               <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                <Button appearance="subtle" size="medium" icon={<ArrowUpload24Regular />}
+                  onClick={() => fileInputRef.current?.click()}>Upload files</Button>
                 <span title={insightsAvailable ? "" : "Insights are still being generated. Chat is available now."}>
                   <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
                     disabled={!insightsAvailable}
@@ -321,19 +323,19 @@ const Home: React.FC = () => {
         {!hasData && (
           <div
             className={s.uploadCard}
-            onClick={() => !uploading && !uploadDone && fileInputRef.current?.click()}
-            onDragOver={(e) => { if (!uploadDone) { e.preventDefault(); setDragOver(true); } }}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={(e) => {
               e.preventDefault(); setDragOver(false);
-              if (!uploadDone && e.dataTransfer.files.length > 0 && fileInputRef.current) {
+              if (e.dataTransfer.files.length > 0 && fileInputRef.current) {
                 fileInputRef.current.files = e.dataTransfer.files;
                 fileInputRef.current.dispatchEvent(new Event("change", { bubbles: true }));
               }
             }}
             style={{
               ...(dragOver ? { borderColor: "#2563eb", boxShadow: "0 0 0 4px rgba(37,99,235,0.1)" } : {}),
-              ...(uploadDone ? { cursor: "default", borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
+              ...(uploadDone ? { borderStyle: "solid", borderColor: "#bbf7d0" } : {}),
             }}
           >
             {/* Uploading state */}
@@ -351,7 +353,7 @@ const Home: React.FC = () => {
                 <CheckmarkCircle24Regular style={{ color: "#059669", fontSize: 28 }} />
                 <Text weight="semibold" size={400} style={{ color: "#0f172a" }}>{uploadMsg}</Text>
                 <Text size={200} style={{ color: "#2563eb", cursor: "pointer", marginTop: 4 }}
-                  onClick={(e) => { e.stopPropagation(); resetUpload(); }}>
+                  onClick={(e) => { e.stopPropagation(); resetUpload(); fileInputRef.current?.click(); }}>
                   Upload more files
                 </Text>
               </>
@@ -384,10 +386,11 @@ const Home: React.FC = () => {
               </>
             )}
 
-            <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
-              accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleUpload} />
           </div>
         )}
+
+        <input ref={fileInputRef} type="file" multiple style={{ display: "none" }}
+          accept={SUPPORTED_UPLOAD_ACCEPT} onChange={handleUpload} />
       </div>
 
       <div className={s.content}>

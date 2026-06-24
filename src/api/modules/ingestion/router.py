@@ -501,7 +501,7 @@ def _build_sql_filters() -> FilterSchema:
                 continue
 
         # Skip identifiers/text, keep categorical fields (2-20 unique values)
-        skip_patterns = _re.compile(r"(^id$|_id$|ticket|transcript|text|body|content|description|notes|summary|name$|email|phone|url)", _re.I)
+        skip_patterns = _re.compile(r"(^id$|_id$|ticket|transcript|text|body|content|description|notes|summary|name$|email|phone|url|page_?count|pages?)", _re.I)
         dims = []
         for field, vals in field_values.items():
             if skip_patterns.search(field):

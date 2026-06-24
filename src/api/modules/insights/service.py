@@ -13,6 +13,7 @@ from src.api.capabilities._llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 _SAFE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_FILTER_BLOCKLIST = {"page_count", "pagecount", "pages", "page"}
 
 # --- Semantic Field Classifier ---
 
@@ -533,7 +534,11 @@ def _validate_plan(plan: dict, schema: dict) -> dict:
                 plan["include_drivers"] = None
 
     # Validate filters
-    plan["filters"] = [f for f in plan.get("filters", []) if _field_ok(f.get("field"))]
+    def _is_allowed_filter_field(field_name: str | None) -> bool:
+        f = str(field_name or "").strip().lower().replace(" ", "_")
+        return bool(f) and f not in _FILTER_BLOCKLIST and _field_ok(field_name)
+
+    plan["filters"] = [f for f in plan.get("filters", []) if _is_allowed_filter_field(f.get("field"))]
 
     return plan
 
@@ -543,9 +548,14 @@ def _build_where(filters: dict | None, params: list) -> str:
     clauses = ["1=1"]
     if filters:
         for field, value in filters.items():
+            normalized = str(field or "").strip().lower().replace(" ", "_")
+            if normalized in _FILTER_BLOCKLIST:
+                continue
             # Year filter (virtual field: realfield__year)
             if field.endswith("__year"):
                 real = field[:-6]
+                if real.strip().lower().replace(" ", "_") in _FILTER_BLOCKLIST:
+                    continue
                 if _SAFE.match(real):
                     clauses.append(
                         f"YEAR(TRY_CAST(JSON_VALUE(metadata, '$.{real}') AS DATE)) = ?")
@@ -553,6 +563,8 @@ def _build_where(filters: dict | None, params: list) -> str:
             # Month filter (virtual field: realfield__month)
             elif field.endswith("__month"):
                 real = field[:-7]
+                if real.strip().lower().replace(" ", "_") in _FILTER_BLOCKLIST:
+                    continue
                 if _SAFE.match(real):
                     clauses.append(
                         f"FORMAT(TRY_CAST(JSON_VALUE(metadata, '$.{real}') AS DATE), 'MMMM') = ?")
@@ -767,6 +779,8 @@ def _exec_filters(cursor, filter_specs):
     result = []
     for spec in filter_specs:
         f = spec.get("field", "")
+        if str(f).strip().lower().replace(" ", "_") in _FILTER_BLOCKLIST:
+            continue
         if not _SAFE.match(f):
             continue
         ftype = spec.get("type", "categorical")
@@ -1010,6 +1024,81 @@ def _to_runtime_payload(payload: dict) -> dict:
         "actions": actions,
     }
 
+
+def _parse_entity_values(raw) -> list[str]:
+    names: list[str] = []
+    if raw is None:
+        return names
+
+    value = raw
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return names
+        try:
+            value = json.loads(text)
+        except Exception:
+            # Fallback for comma-separated strings
+            return [p.strip() for p in text.split(",") if p and p.strip()]
+
+    if isinstance(value, dict):
+        candidate = value.get("name") or value.get("label") or value.get("text")
+        if isinstance(candidate, str) and candidate.strip():
+            names.append(candidate.strip())
+        return names
+
+    if isinstance(value, list):
+        for item in value:
+            if isinstance(item, str) and item.strip():
+                names.append(item.strip())
+            elif isinstance(item, dict):
+                candidate = item.get("name") or item.get("label") or item.get("text")
+                if isinstance(candidate, str) and candidate.strip():
+                    names.append(candidate.strip())
+    return names
+
+
+def _runtime_entities_from_documents(cursor, where: str, params: list, limit: int = 30) -> list[dict]:
+    """Fallback entity extraction from document rows when chart-derived entities are empty."""
+    counter: Counter = Counter()
+    try:
+        cursor.execute(
+            f"SELECT TOP 500 entities, metadata FROM documents WHERE {where}",
+            list(params),
+        )
+        for row in cursor.fetchall():
+            entities_col = row[0] if len(row) > 0 else None
+            metadata_col = row[1] if len(row) > 1 else None
+
+            for name in _parse_entity_values(entities_col):
+                counter[name] += 1
+
+            if metadata_col:
+                try:
+                    meta = json.loads(metadata_col) if isinstance(metadata_col, str) else metadata_col
+                    if isinstance(meta, dict):
+                        for name in _parse_entity_values(meta.get("entities")):
+                            counter[name] += 1
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.debug(f"Entity fallback query failed: {e}")
+        return []
+
+    if not counter:
+        return []
+
+    entities = []
+    for i, (name, count) in enumerate(counter.most_common(limit)):
+        entities.append({
+            "id": f"entity_fallback_{i + 1}",
+            "name": name,
+            "mentions": int(count),
+            "trendDirection": "stable",
+            "trendValue": None,
+        })
+    return entities
+
 # --- Orchestrator ---
 
 class DashboardService:
@@ -1121,7 +1210,6 @@ class DashboardService:
             # Filters
             avail_filters = _exec_filters(cursor, plan.get("filters", []))
 
-            conn.close()
             response = {
                 "data_context": {
                     "total_records": schema["total_records"],
@@ -1139,6 +1227,18 @@ class DashboardService:
             }
             response = _apply_anonymization(response, schema)
             response["runtime"] = _to_runtime_payload(response)
+
+            runtime = response.get("runtime") or {}
+            counts = runtime.get("counts") if isinstance(runtime, dict) else None
+            current_entity_count = 0
+            if isinstance(counts, dict):
+                current_entity_count = int(counts.get("entities") or 0)
+            if current_entity_count == 0:
+                fallback_entities = _runtime_entities_from_documents(cursor, where, params)
+                if fallback_entities:
+                    runtime["entities"] = fallback_entities
+                    runtime.setdefault("counts", {})
+                    runtime["counts"]["entities"] = len(fallback_entities)
             return response
         except Exception as e:
             logger.warning(f"Dashboard failed: {e}")
@@ -1147,6 +1247,11 @@ class DashboardService:
             except Exception as e:
                 logger.debug(f"Failed to close connection after dashboard error: {e}")
             return self._empty()
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     @staticmethod
     def _empty():

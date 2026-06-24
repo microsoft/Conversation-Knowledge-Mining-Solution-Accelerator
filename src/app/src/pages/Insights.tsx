@@ -340,6 +340,7 @@ const NOISE_ENTITY_TERMS = new Set([
   "undefined",
 ]);
 const GENERIC_CONNECTION_FROM = new Set(["topic", "mined topic", "sentiment", "complaint", "category", "type", "status", "outcome"]);
+const FILTER_BLOCKLIST = new Set(["page_count", "pagecount", "pages", "page"]);
 
 const isTestLabel = (value: string) => {
   const lower = (value || "").trim().toLowerCase();
@@ -761,7 +762,13 @@ const Insights: React.FC = () => {
 
   const runtime = useMemo(() => data?.runtime ?? (data ? deriveRuntimeFromDashboard(data) : null), [data]);
   const dataset = data?.datasetInfo || { name: "Dataset", sourceType: "documents", lastUpdated: new Date().toISOString() };
-  const availableFilters = useMemo(() => data?.filters || [], [data]);
+  const availableFilters = useMemo(
+    () => (data?.filters || []).filter((filter: any) => {
+      const key = String(filter?.field || filter?.label || "").toLowerCase().replace(/\s+/g, "_");
+      return !FILTER_BLOCKLIST.has(key);
+    }),
+    [data]
+  );
 
   const metrics = useMemo(() => {
     const topicsCount = runtime?.counts?.topics || runtime?.topics?.length || 0;
@@ -1358,7 +1365,7 @@ const Insights: React.FC = () => {
         <Card className={styles.tipCard}>
           <CardHeader
             header={<Text weight="semibold" size={400}>Tip</Text>}
-            description={<Text size={200}>Use the chat panel to dig into a finding and validate anomalies with follow-up questions.</Text>}
+            description={<Text size={200}>Use the Explore page to dig into a finding and validate anomalies with follow-up questions.</Text>}
           />
         </Card>
       </div>
