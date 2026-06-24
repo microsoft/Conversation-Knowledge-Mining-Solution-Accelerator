@@ -45,7 +45,7 @@ hooks:
 
         # ── Step 2: Choose use case or data source ──
         Write-Host ""
-        & ./scripts/setup-data.ps1
+        & ./scripts/setup-data.ps1 -AllowDeployedFallback
 
         # ── Done ──
         Write-Host ""
@@ -85,7 +85,7 @@ hooks:
         pwsh -File ./infra/scripts/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/setup-sql-roles.ps1"
 
         echo ""
-        pwsh -File ./scripts/setup-data.ps1
+        pwsh -File ./scripts/setup-data.ps1 -AllowDeployedFallback
 
         echo ""
         echo "========================================"
