@@ -43,6 +43,10 @@ param existingAiSearchConnectionName string = ''
 @description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
 param deployCosmos bool = false
 
+@description('Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable.')
+@secure()
+param adminApiKey string = ''
+
 @description('Location for Content Understanding service (must support CU preview API)')
 @allowed([
   'swedencentral'
@@ -272,6 +276,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           API_APP_NAME: backendWebSiteResourceName
           APP_FRONTEND_HOSTNAME: 'https://${frontendWebSiteResourceName}.azurewebsites.net'
           APP_ENV: 'Prod'
+          ADMIN_API_KEY: adminApiKey
         }
       }
     ]

@@ -43,6 +43,9 @@
     },
     "frontendContainerImageTag": {
       "value": "${FRONTEND_IMAGE_TAG=modularity}"
+    },
+    "adminApiKey": {
+      "value": "${ADMIN_API_KEY=}"
     }
   }
 }
