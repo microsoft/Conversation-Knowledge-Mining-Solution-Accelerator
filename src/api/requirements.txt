@@ -8,7 +8,7 @@ PyYAML==6.0.2
 httpx==0.28.1
 openai==1.58.1
 azure-ai-projects==1.0.0
-numpy==2.5.0
+numpy==2.4.6
 azure-identity==1.19.0
 azure-search-documents==11.6.0b8
 azure-storage-blob==12.24.1
