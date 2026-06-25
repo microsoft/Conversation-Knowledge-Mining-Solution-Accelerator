@@ -26,8 +26,10 @@ def validate_table_name(name: str) -> str:
     name = name.strip()
     if not name:
         raise ValueError("Table name cannot be empty")
-    if _TABLE_NAME_RE.match(name) and not any(kw in name.upper() for kw in
-            ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "EXEC ", "EXECUTE ", "--", ";", "/*")):
+    if _TABLE_NAME_RE.match(name) and not any(
+        kw in name.upper() for kw in
+        ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "EXEC ", "EXECUTE ", "--", ";", "/*")
+    ):
         return name
     raise ValueError(f"Invalid table name: {name!r}")
 

@@ -140,7 +140,7 @@ class ProcessingService:
 
     def generate_insights(self, file_ids: list[str] | None = None) -> dict:
         """Generate rich, generic, LLM-driven insights from the dataset.
-        
+
         Args:
             file_ids: Optional list of file IDs to scope insights to.
                       If None, analyzes all documents.

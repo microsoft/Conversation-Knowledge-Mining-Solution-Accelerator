@@ -480,7 +480,7 @@ class QueueWorker:
             tb = traceback.format_exc()
             logger.error(f"[extraction] {error_msg}\n{tb}")
             # Provide detailed error context to user
-            detailed_error = f"{error_msg} (See logs for details. File: {filename})" 
+            detailed_error = f"{error_msg} (See logs for details. File: {filename})"
             ingestion_service._update_file_status(file_id, "failed", error=detailed_error)
             queue_service.delete(EXTRACTION_QUEUE, message)
         finally:
@@ -600,7 +600,7 @@ class QueueWorker:
             tb = traceback.format_exc()
             logger.error(f"[enrichment] {error_msg}\n{tb}")
             # Provide detailed error context to user
-            detailed_error = f"{error_msg} (Check logs for details)" 
+            detailed_error = f"{error_msg} (Check logs for details)"
             ingestion_service._update_file_status(file_id, "failed", error=detailed_error)
         finally:
             ingestion_service.release_processing_lock(file_id)

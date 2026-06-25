@@ -184,7 +184,7 @@ class ContentExtractionService:
         # Phase 2
         schema = self.extract_filter_schema(doc_extractions)
         logger.info(f"Phase 2: domain='{schema.get('domain')}', "
-                     f"dimensions={len(schema.get('dimensions', []))}")
+                    f"dimensions={len(schema.get('dimensions', []))}")
 
         return {
             "domain": schema.get("domain", ""),

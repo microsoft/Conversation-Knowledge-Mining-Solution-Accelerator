@@ -129,7 +129,7 @@ async def stream_processing_status():
                     data = await asyncio.wait_for(queue.get(), timeout=30.0)
                     yield f"data: {data}\n\n"
                 except asyncio.TimeoutError:
-                    yield f": keepalive\n\n"  # Prevent connection timeout
+                    yield ": keepalive\n\n"  # Prevent connection timeout
         except asyncio.CancelledError:
             pass
         finally:

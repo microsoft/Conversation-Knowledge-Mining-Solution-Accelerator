@@ -6,7 +6,6 @@ Key extension points:
 - get_supported_types(): add UI metadata for new source types
 """
 
-import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -16,9 +15,7 @@ from src.api.modules.data_sources.base import (
     BaseExternalDataSource,
     DataSourceConfig,
     DataSourceType,
-    FieldMapping,
     QueryMode,
-    AuthMethod,
     ColumnInfo,
 )
 

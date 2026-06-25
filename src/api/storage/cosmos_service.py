@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Optional
 
 from azure.identity import DefaultAzureCredential
-from azure.cosmos import CosmosClient, PartitionKey, exceptions
+from azure.cosmos import CosmosClient, PartitionKey
 
 from src.api.config import get_settings
 
@@ -340,7 +340,7 @@ class CosmosService:
             # Cosmos can't store complex text types; normalize
             if isinstance(item.get("text"), list):
                 item["text"] = "\n".join(
-                    f"{s.get('speaker','')}: {s.get('text','')}" for s in item["text"]
+                    f"{s.get('speaker', '')}: {s.get('text', '')}" for s in item["text"]
                 )
             container.upsert_item(item)
             return True
