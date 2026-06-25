@@ -49,6 +49,16 @@ resource searchRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+resource searchContribRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(search.id, backendPrincipalId, roles.searchServiceContributor)
+  scope: search
+  properties: {
+    roleDefinitionId: roles.searchServiceContributor
+    principalId: backendPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storage.id, backendPrincipalId, roles.storageBlobDataContributor)
   scope: storage
