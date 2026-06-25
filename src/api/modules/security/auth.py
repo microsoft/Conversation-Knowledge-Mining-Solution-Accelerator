@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from src.api.config import get_settings
+from src.api.auth.auth_utils import get_authenticated_user_details
 from src.api.modules.security.models import User, UserInfo
 
 logger = logging.getLogger(__name__)
@@ -20,9 +21,9 @@ def _parse_principal(b64_principal: str) -> dict:
 
 
 async def get_current_user(request: Request) -> User:
-    """Extract user from EasyAuth headers. Falls back to dev user when not in Prod."""
+    """FastAPI Depends wrapper around get_authenticated_user_details().
+    """
     settings = get_settings()
-    is_prod = getattr(settings, "app_env", "").lower() in ("prod", "production")
 
     # Admin API key bypass — key secrecy is the security boundary
     admin_api_key = getattr(settings, "admin_api_key", "")
@@ -31,39 +32,30 @@ async def get_current_user(request: Request) -> User:
         if provided_key == admin_api_key:
             return User(user_id="admin", name="Admin", email="", roles=["Admin"])
 
-    # Read EasyAuth headers
-    principal_id = request.headers.get("X-Ms-Client-Principal-Id", "")
-    principal_name = request.headers.get("X-Ms-Client-Principal-Name", "")
-    principal_b64 = request.headers.get("X-Ms-Client-Principal", "")
+    # Delegate header reading + sample_user fallback to the shared GSA helper
+    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
 
-    if principal_id and principal_id != "default":
-        # EasyAuth is active — extract user details
-        name = principal_name or ""
-        email = ""
-        roles: list[str] = []
+    user_id = authenticated_user.get("user_principal_id") or "anonymous"
+    name = authenticated_user.get("user_name") or "Anonymous"
+    principal_b64 = authenticated_user.get("client_principal_b64", "")
 
-        if principal_b64:
-            claims = _parse_principal(principal_b64)
-            for claim in claims.get("claims", []):
-                if claim.get("typ") == "name":
-                    name = name or claim.get("val", "")
-                elif claim.get("typ") in ("preferred_username", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"):
-                    email = claim.get("val", "")
-                elif claim.get("typ") == "roles":
-                    roles.append(claim.get("val", ""))
+    # Parse email and AAD app roles from the base64 claims (only present when
+    # EasyAuth is active; the sample_user placeholder value is skipped).
+    email = ""
+    roles: list[str] = []
+    if principal_b64 and principal_b64 != "your_base_64_encoded_token":
+        claims_obj = _parse_principal(principal_b64)
+        for claim in claims_obj.get("claims", []):
+            typ = claim.get("typ", "")
+            val = claim.get("val", "")
+            if typ == "name":
+                name = name or val
+            elif typ in ("preferred_username", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"):
+                email = val
+            elif typ == "roles":
+                roles.append(val)
 
-        return User(user_id=principal_id, name=name, email=email, roles=roles)
-
-    # No EasyAuth headers.
-    # In production, fail closed unless explicitly allowed for break-glass operations.
-    if is_prod and not getattr(settings, "auth_allow_anonymous_in_prod", False):
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    if is_prod:
-        logger.warning("No EasyAuth headers in prod — anonymous mode explicitly enabled")
-        return User(user_id="anonymous", name="User", email="", roles=["Reader"])
-
-    return User(user_id="anonymous", name="User", email="", roles=["Admin"])
+    return User(user_id=user_id, name=name, email=email, roles=roles)
 
 
 def require_role(required_role: str):

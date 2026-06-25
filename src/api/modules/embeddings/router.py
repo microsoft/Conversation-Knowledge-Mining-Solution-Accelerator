@@ -9,7 +9,7 @@ from src.api.modules.embeddings.models import (
     SearchRequest,
     SearchResult,
 )
-from src.api.modules.security.auth import get_current_user, require_role
+from src.api.modules.security.auth import require_role
 from src.api.modules.security.models import User
 
 router = APIRouter()
@@ -18,7 +18,6 @@ router = APIRouter()
 @router.post("/generate", response_model=EmbeddingResponse)
 async def generate_embedding(
     request: EmbeddingRequest,
-    user: User = Depends(get_current_user),
 ):
     """Generate an embedding for a text string."""
     try:
@@ -43,7 +42,6 @@ async def index_documents(
 @router.post("/search", response_model=list[SearchResult])
 async def vector_search(
     request: SearchRequest,
-    user: User = Depends(get_current_user),
 ):
     """Perform vector similarity search."""
     try:
@@ -53,7 +51,7 @@ async def vector_search(
 
 
 @router.get("/stats")
-async def vector_store_stats(user: User = Depends(get_current_user)):
+async def vector_store_stats():
     return {"total_vectors": embeddings_service.store_size}
 
 

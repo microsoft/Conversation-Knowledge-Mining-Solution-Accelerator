@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Backgro
 
 from src.api.modules.ingestion.service import ingestion_service
 from src.api.modules.ingestion.models import Document, IngestionResult, IngestionStats, UploadedFile, FilterSchema, FilterDimension, FilterValue
-from src.api.modules.security.auth import get_current_user, require_role
+from src.api.modules.security.auth import require_role
 from src.api.modules.security.models import User
 from src.api.utils.constants import DOCUMENT_EXTENSIONS
 from src.api.config import get_settings
@@ -381,7 +381,6 @@ async def list_documents(
     product: Optional[str] = None,
     category: Optional[str] = None,
     query: Optional[str] = None,
-    user: User = Depends(get_current_user),
 ):
     """Search / filter ingested documents."""
     return ingestion_service.search_documents(
@@ -390,7 +389,7 @@ async def list_documents(
 
 
 @router.get("/documents/{doc_id}", response_model=Document)
-async def get_document(doc_id: str, user: User = Depends(get_current_user)):
+async def get_document(doc_id: str):
     doc = ingestion_service.get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -398,18 +397,18 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
 
 
 @router.get("/stats", response_model=IngestionStats)
-async def get_stats(user: User = Depends(get_current_user)):
+async def get_stats():
     return ingestion_service.get_stats()
 
 
 @router.get("/filters")
-async def get_available_filters(user: User = Depends(get_current_user)):
+async def get_available_filters():
     """Return dynamically detected metadata filter values."""
     return ingestion_service.get_available_filters()
 
 
 @router.get("/files", response_model=list[UploadedFile])
-async def list_uploaded_files(user: User = Depends(get_current_user)):
+async def list_uploaded_files():
     """Return list of uploaded files (document-level view).
     Auto-detects stale 'processing' files and marks them as failed."""
     from datetime import datetime, timedelta, timezone
@@ -431,14 +430,14 @@ async def list_uploaded_files(user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh")
-async def refresh_cache(user: User = Depends(get_current_user)):
+async def refresh_cache():
     """Force reload data from database. Use after external seeding."""
     ingestion_service.reload()
     return {"status": "refreshed", "files": len(ingestion_service.uploaded_files)}
 
 
 @router.get("/extraction", response_model=FilterSchema)
-async def get_filter_schema(user: User = Depends(get_current_user)):
+async def get_filter_schema():
     """Return the filter schema with dimensions and values.
     Merges AI-generated schema with SQL metadata-based filters."""
     schema = ingestion_service.filter_schema
@@ -522,7 +521,7 @@ def _build_sql_filters() -> FilterSchema:
 
 
 @router.delete("/clear")
-async def clear_documents(user: User = Depends(get_current_user)):
+async def clear_documents():
     ingestion_service.clear()
     # Also clear the insights plan cache so it regenerates for new data
     try:
@@ -651,7 +650,7 @@ async def connect_external_index(
 
 
 @router.get("/external/indexes", response_model=list[ExternalIndex])
-async def list_external_indexes(user: User = Depends(get_current_user)):
+async def list_external_indexes():
     """List all connected external indexes."""
     return external_index_service.list_all()
 
@@ -673,7 +672,6 @@ async def search_external_index(
     index_id: str,
     query: str,
     top_k: int = 5,
-    user: User = Depends(get_current_user),
 ):
     """Search an external index."""
     results = external_index_service.search(index_id, query, top_k)

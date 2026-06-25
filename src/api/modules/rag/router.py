@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
 import asyncio
@@ -6,8 +6,7 @@ import logging
 
 from src.api.modules.rag.service import rag_service
 from src.api.modules.rag.models import QARequest, QAResponse, ConversationRequest
-from src.api.modules.security.auth import get_current_user
-from src.api.modules.security.models import User
+from src.api.auth.auth_utils import get_authenticated_user_details
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -21,33 +20,35 @@ class SaveChatRequest(BaseModel):
 
 
 @router.post("/chat/save")
-async def save_chat(request: SaveChatRequest, user: User = Depends(get_current_user)):
+async def save_chat(body: SaveChatRequest, request: Request):
     """Save chat messages."""
+    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
+    user_id = authenticated_user["user_principal_id"]
     try:
         from src.api.storage.db_service import db_service
-        sessions = db_service.list_sessions(request.user_id)
-        session_exists = any(s["id"] == request.session_id for s in sessions)
+        sessions = db_service.list_sessions(user_id)
+        session_exists = any(s["id"] == body.session_id for s in sessions)
         if not session_exists:
             db_service.create_session(
-                session_id=request.session_id,
-                user_id=request.user_id,
-                title=request.title or "Chat session",
+                session_id=body.session_id,
+                user_id=user_id,
+                title=body.title or "Chat session",
             )
-        success = db_service.save_messages_bulk(request.session_id, request.messages)
+        success = db_service.save_messages_bulk(body.session_id, body.messages)
         if success:
             db_service.update_session(
-                request.session_id, request.user_id,
-                title=request.title,
-                message_count=len(request.messages),
+                body.session_id, user_id,
+                title=body.title,
+                message_count=len(body.messages),
             )
         return {"saved": success}
     except Exception as e:
-        logger.error(f"Failed to save chat session '{request.session_id}': {e}", exc_info=True)
+        logger.error(f"Failed to save chat session '{body.session_id}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save chat session. Please try again.")
 
 
 @router.get("/chat/load/{session_id}")
-async def load_chat(session_id: str, user: User = Depends(get_current_user)):
+async def load_chat(session_id: str):
     """Load chat messages."""
     try:
         from src.api.storage.db_service import db_service
@@ -59,8 +60,10 @@ async def load_chat(session_id: str, user: User = Depends(get_current_user)):
 
 
 @router.get("/chat/sessions")
-async def list_chat_sessions(user_id: str = "default", user: User = Depends(get_current_user)):
-    """List all chat sessions for a user."""
+async def list_chat_sessions(request: Request):
+    """List all chat sessions for the current user."""
+    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
+    user_id = authenticated_user["user_principal_id"]
     try:
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
@@ -71,8 +74,10 @@ async def list_chat_sessions(user_id: str = "default", user: User = Depends(get_
 
 
 @router.delete("/chat/session/{session_id}")
-async def delete_chat_session(session_id: str, user_id: str = "default", user: User = Depends(get_current_user)):
+async def delete_chat_session(session_id: str, request: Request):
     """Delete a chat session and all its messages."""
+    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
+    user_id = authenticated_user["user_principal_id"]
     try:
         from src.api.storage.db_service import db_service
         success = db_service.delete_session(session_id, user_id)
@@ -83,7 +88,7 @@ async def delete_chat_session(session_id: str, user_id: str = "default", user: U
 
 
 @router.post("/ask", response_model=QAResponse)
-async def ask_question(request: QARequest, user: User = Depends(get_current_user)):
+async def ask_question(request: QARequest):
     """Ask a question against the knowledge base or an external index."""
     try:
         doc_ids = request.document_ids if request.chat_scope == "documents" else None
@@ -102,7 +107,7 @@ async def ask_question(request: QARequest, user: User = Depends(get_current_user
 
 
 @router.post("/conversation", response_model=QAResponse)
-async def conversation(request: ConversationRequest, user: User = Depends(get_current_user)):
+async def conversation(request: ConversationRequest):
     """Multi-turn conversation with RAG retrieval."""
     messages = [{"role": m.role, "content": m.content} for m in request.messages]
     try:
