@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from "react";
 import { loadFromSession } from "../utils/storage";
 import type { DashboardResponse, ChatMessage } from "../types/api";
-import { getUploadedFiles, listDataSources, getExtractionInfo } from "../api/client";
+import { getUploadedFiles, listDataSources, getExtractionInfo, clearSessionCache } from "../api/client";
 
 interface AppState {
   // Insights cache
@@ -107,6 +107,7 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     let timer: number | null = null;
+    let previousFileIds: Set<string> = new Set();
 
     const tick = async () => {
       // Poll while processing is active OR while app has no known data yet,
@@ -127,6 +128,17 @@ export const AppStateProvider: React.FC<{ children: ReactNode }> = ({ children }
       try {
         const filesRes = await getUploadedFiles();
         const files = Array.isArray(filesRes.data) ? filesRes.data : [];
+
+        // Detect scenario change: if file IDs have completely changed, clear session cache
+        // to prevent duplicates from old scenarios appearing with new ones
+        const currentFileIds = new Set(files.map((f: any) => f.id));
+        if (previousFileIds.size > 0 && currentFileIds.size > 0 && 
+            previousFileIds.size !== currentFileIds.size &&
+            !Array.from(previousFileIds).some(id => currentFileIds.has(id))) {
+          // File IDs have completely changed = scenario changed
+          clearSessionCache();
+        }
+        previousFileIds = currentFileIds;
 
         const stillProcessing = files.some((f: any) => f.status === "processing");
 

@@ -910,22 +910,31 @@ class IngestionService:
         self._filter_schema = FilterSchema()
         self._loaded_from_db = False
 
-        # Clear SQL tables
+        # Clear SQL tables — individually wrap each to ensure all are attempted
+        cleared_tables = []
+        failed_tables = []
         try:
             from src.api.storage.sql_service import sql_service
             if sql_service.available:
                 conn = sql_service._get_connection()
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM documents")
-                cursor.execute("DELETE FROM uploaded_files")
-                cursor.execute("DELETE FROM filter_schemas")
-                cursor.execute("DELETE FROM enrichment_cache")
-                cursor.execute("DELETE FROM document_entities")
-                cursor.execute("DELETE FROM entity_relationships")
-                cursor.execute("DELETE FROM entity_nodes")
+                tables_to_clear = [
+                    "documents", "uploaded_files", "filter_schemas", 
+                    "enrichment_cache", "document_entities", "entity_relationships", "entity_nodes"
+                ]
+                for table in tables_to_clear:
+                    try:
+                        cursor.execute(f"DELETE FROM {table}")
+                        cleared_tables.append(table)
+                    except Exception as e:
+                        logger.warning(f"Failed to clear {table}: {e}")
+                        failed_tables.append(table)
                 conn.commit()
                 conn.close()
-                logger.info("Cleared all data from SQL")
+                if cleared_tables:
+                    logger.info(f"Cleared SQL tables: {', '.join(cleared_tables)}")
+                if failed_tables:
+                    logger.warning(f"Failed to clear some SQL tables: {', '.join(failed_tables)}")
         except Exception as e:
             logger.warning(f"Failed to clear SQL tables: {e}")
 
