@@ -320,27 +320,40 @@ class AzureStorageService:
 
     def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str]) -> dict:
         """Delete all data for a file: blob, search index entries, and search chunks."""
-        result = {"blob_deleted": False, "search_docs_deleted": 0, "search_chunks_deleted": 0}
+        result = {"blob_deleted": False, "search_docs_deleted": 0, "search_chunks_deleted": 0, "extracted_blob_deleted": False}
 
-        # Delete raw blob (raw/{file_id}/{filename})
+        # Delete blobs for this file
         settings = get_settings()
         if settings.azure_storage_account:
             try:
                 blob_service = self._get_blob_client()
                 container = blob_service.get_container_client(settings.azure_storage_container)
-                blob = container.get_blob_client(f"raw/{file_id}/{filename}")
-                blob.delete_blob()
-                result["blob_deleted"] = True
-            except Exception as e:
-                logger.warning(f"Blob delete failed for {file_id}: {e}")
-
-            # Delete doc-level blobs (documents/{doc_id}.json)
-            for doc_id in doc_ids:
+                
+                # Delete raw blob (raw/{file_id}/{filename})
                 try:
-                    blob = container.get_blob_client(f"documents/{doc_id}.json")
+                    blob = container.get_blob_client(f"raw/{file_id}/{filename}")
                     blob.delete_blob()
+                    result["blob_deleted"] = True
                 except Exception:
                     pass
+                
+                # Delete extracted text blob (extracted/{file_id}/content.txt)
+                try:
+                    blob = container.get_blob_client(f"extracted/{file_id}/content.txt")
+                    blob.delete_blob()
+                    result["extracted_blob_deleted"] = True
+                except Exception:
+                    pass
+
+                # Delete doc-level blobs (documents/{doc_id}.json)
+                for doc_id in doc_ids:
+                    try:
+                        blob = container.get_blob_client(f"documents/{doc_id}.json")
+                        blob.delete_blob()
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"Blob delete failed for {file_id}: {e}")
 
         # Delete from AI Search: doc-level entries + all chunks
         if settings.azure_search_endpoint:
