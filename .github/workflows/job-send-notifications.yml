@@ -76,6 +76,7 @@ env:
 jobs:
   send-notification:
     name: Send Notification
+    if: inputs.trigger_type != 'workflow_dispatch'
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
