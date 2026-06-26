@@ -47,7 +47,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           GPT_MIN_CAPACITY: ${{ env.GPT_MIN_CAPACITY }}
           TEXT_EMBEDDING_MIN_CAPACITY: ${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
-          AZURE_REGIONS: ${{ vars.AZURE_REGIONS_KM }}
+          AZURE_REGIONS: ${{ vars.AZURE_REGIONS }}
         run: |
           chmod +x infra/scripts/pre-provision/checkquota_km.sh
           if ! infra/scripts/pre-provision/checkquota_km.sh; then
