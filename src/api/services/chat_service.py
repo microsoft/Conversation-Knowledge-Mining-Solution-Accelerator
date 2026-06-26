@@ -7,6 +7,7 @@ Includes thread management, caching, and integration with Azure OpenAI and FastA
 """
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -24,14 +25,15 @@ from azure.ai.projects.aio import AIProjectClient
 
 from agent_framework import AgentSession
 from agent_framework_foundry import FoundryAgent
-# Restore Azure AI Search per-document URL enrichment on streaming citations
-# (regression at agent-framework GA; tracked upstream as microsoft/agent-framework#5995).
-# Must be imported BEFORE the first FoundryAgent.run() call.
-import services._patches.agent_framework_search_citations  # noqa: F401 - patch applied for side effects on import
 
 from cachetools import TTLCache
 
 from common.config.config import Config
+
+# Restore Azure AI Search per-document URL enrichment on streaming citations
+# (regression at agent-framework GA; tracked upstream as microsoft/agent-framework#5995).
+# Imported for its import-time side effects; must run BEFORE the first FoundryAgent.run() call.
+importlib.import_module("services._patches.agent_framework_search_citations")
 
 # Constants
 HOST_NAME = "CKM"

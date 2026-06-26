@@ -35,7 +35,7 @@ _DOC_INDEX_RE = re.compile(r"^doc_(\d+)$")
 
 logger = logging.getLogger(__name__)
 
-_PATCH_APPLIED = False  # prevents reapplying patch in apply() guard
+_PATCH_MARKER = "_kmsa_search_citations_patched"
 _CACHE_ATTR = "_kmsa_search_get_urls_cache"
 _TARGET_METHOD = "_parse_chunk_from_openai"
 _TARGET_CLASS = "RawOpenAIChatClient"
@@ -49,10 +49,6 @@ def apply() -> None:
     Logs a warning (does not raise) if upstream has renamed the target,
     so app startup still succeeds with degraded citations.
     """
-    global _PATCH_APPLIED
-    if _PATCH_APPLIED:
-        return
-
     try:
         from agent_framework_openai import _chat_client as _cc
     except ImportError:
@@ -70,6 +66,11 @@ def apply() -> None:
             "citations. See %s",
             _TARGET_CLASS, _TARGET_METHOD, _UPSTREAM_ISSUE,
         )
+        return
+
+    # Idempotency guard: the marker travels with the patched class, so a
+    # second call (or a re-import) is a no-op even across module reloads.
+    if getattr(target_cls, _PATCH_MARKER, False):
         return
 
     _original = getattr(target_cls, _TARGET_METHOD)
@@ -162,7 +163,7 @@ def apply() -> None:
         return result
 
     setattr(target_cls, _TARGET_METHOD, _patched)
-    _PATCH_APPLIED = True  # marks patch as applied (checked in apply() guard)
+    setattr(target_cls, _PATCH_MARKER, True)  # marks patch as applied (checked in apply() guard)
     logger.info(
         "Applied Azure AI Search citation patch on %s.%s (workaround for %s)",
         _TARGET_CLASS, _TARGET_METHOD, _UPSTREAM_ISSUE,
