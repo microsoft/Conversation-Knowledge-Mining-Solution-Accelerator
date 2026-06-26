@@ -236,6 +236,8 @@ jobs:
           else
             echo "🔧 Configuring $INPUT_DEPLOYMENT_FLAVOR deployment - using default main.parameters.json..."
           fi
+
+      - name: Setup AZD
         uses: Azure/setup-azd@v2
           
       - name: Login to Azure
