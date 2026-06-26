@@ -374,7 +374,7 @@ class IngestionService:
         """
         from datetime import datetime
 
-        file_id = filename.rsplit(".", 1)[0]
+        file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
 
         summary = ""
         keywords: list[str] = []
@@ -739,7 +739,7 @@ class IngestionService:
         # Track doc_ids for reliable delete
         ingested_ids = [item["id"] for item in raw_data]
         from datetime import datetime
-        file_id = filename.rsplit(".", 1)[0]
+        file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
         self._uploaded_files[file_id] = UploadedFile(
             id=file_id,
             filename=filename,
@@ -778,7 +778,7 @@ class IngestionService:
 
         # Track file immediately (in-memory) so it appears in the file list right away
         from datetime import datetime
-        file_id = filename.rsplit(".", 1)[0]
+        file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
         ingested_ids = [item["id"] for item in data]
 
         # Preserve existing status/error if file already exists (e.g., set to "processing" by upload)
@@ -975,6 +975,14 @@ class IngestionService:
                         logger.warning(f"Failed to purge queue '{q_name}': {e}")
         except Exception as e:
             logger.warning(f"Failed to purge queues: {e}")
+
+        # Delete all blobs (raw/, extracted/, documents/) so stale files from a
+        # previous scenario are not left behind in storage.
+        try:
+            from src.api.modules.ingestion.azure_storage import azure_storage_service
+            azure_storage_service.clear_all_blobs()
+        except Exception as e:
+            logger.warning(f"Failed to clear blobs: {e}")
 
     def delete_file(self, file_id: str) -> bool:
         """Delete an uploaded file and all its documents."""
