@@ -1,0 +1,158 @@
+name: Post-Deploy Steps
+
+on:
+  workflow_call:
+    inputs:
+      RESOURCE_GROUP_NAME:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      RESOURCE_GROUP_NAME:
+        description: 'Resource group name of the deployed resources'
+        required: true
+        type: string
+
+jobs:
+  post-deploy:
+    name: Post Deployment Steps
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Login to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install ODBC Driver 18 for SQL Server
+        shell: bash
+        run: |
+          if ! [[  "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
+          then
+              echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
+              exit 1;
+          fi
+
+          curl -fsSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb || { echo "Failed to download Microsoft packages config"; exit 1; }
+          sudo dpkg -i packages-microsoft-prod.deb
+          rm packages-microsoft-prod.deb
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+          echo "✅ ODBC Driver 18 for SQL Server installed successfully."
+
+      - name: Re-authenticate with Azure (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Create Agents Scripts
+        id: run_create_agents_scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+        run: |
+          echo "Running run_create_agents_scripts.sh..."
+          bash ./infra/scripts/post-provision/run_create_agents_scripts.sh "$RESOURCE_GROUP_NAME"
+          echo "✅ Create agents scripts completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Run Create Agents Scripts
+        if: steps.run_create_agents_scripts.outcome == 'failure'
+        shell: bash
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+        run: |
+          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
+          sleep 20
+          bash ./infra/scripts/post-provision/run_create_agents_scripts.sh "$RESOURCE_GROUP_NAME"
+          echo "✅ Create agents scripts completed successfully on retry."
+
+      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Process Sample Data
+        id: process_sample_data
+        continue-on-error: true
+        shell: bash
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+        run: |
+          echo "Running process_sample_data.sh..."
+          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME"
+          echo "✅ Sample data processing completed successfully."
+
+      - name: Re-authenticate with Azure before retry (refresh OIDC token)
+        if: steps.process_sample_data.outcome == 'failure'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Retry Process Sample Data
+        if: steps.process_sample_data.outcome == 'failure'
+        shell: bash
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+        run: |
+          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
+          sleep 20
+          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME"
+          echo "✅ Sample data processing completed successfully on retry."
+
+      - name: Generate Post-Deploy Summary
+        if: always()
+        shell: bash
+        env:
+          INPUT_RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          AGENTS_RESULT: ${{ steps.run_create_agents_scripts.outcome }}
+          SAMPLE_DATA_RESULT: ${{ steps.process_sample_data.outcome }}
+        run: |
+          status_icon() {
+            case "$1" in
+              success) echo "✅ Success" ;;
+              failure) echo "❌ Failed" ;;
+              skipped) echo "⏭️ Skipped" ;;
+              *) echo "➖ Did not run" ;;
+            esac
+          }
+          {
+            echo "## 🚀 Post-Deploy Job Summary"
+            echo ""
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| Resource Group | \`${INPUT_RESOURCE_GROUP_NAME}\` |"
+            echo ""
+            echo "### Step Results"
+            echo ""
+            echo "| Step | Result |"
+            echo "| --- | --- |"
+            echo "| Create Agents | $(status_icon "$AGENTS_RESULT") |"
+            echo "| Process Sample Data | $(status_icon "$SAMPLE_DATA_RESULT") |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logout from Azure
+        if: always()
+        shell: bash
+        run: |
+          az logout || true
+          echo "Logged out from Azure."

@@ -24,14 +24,14 @@ on:
       EXP:
         required: true
         type: string
-      WAF_ENABLED:
+      DEPLOYMENT_FLAVOR:
         required: false
         type: string
-        default: 'false'
+        default: 'bicep'
       ENABLE_SCALABILITY:
         required: false
         type: string
-        default: 'false'
+        default: 'true'
         description: 'Enable scalability features for WAF deployments (true|false)'
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID:
         required: false
@@ -57,6 +57,7 @@ on:
 
 jobs:
   deploy-windows:
+    name: Deploy on Windows
     runs-on: windows-latest
     environment: production
     env:
@@ -75,7 +76,7 @@ jobs:
           INPUT_IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
           INPUT_BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           INPUT_EXP: ${{ inputs.EXP }}
-          INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
           INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}
           INPUT_USE_CASE: ${{ inputs.USE_CASE }}
@@ -157,12 +158,12 @@ jobs:
             echo "✅ EXP: '$INPUT_EXP' is valid"
           fi
           
-          # Validate WAF_ENABLED (must be 'true' or 'false')
-          if [[ "$INPUT_WAF_ENABLED" != "true" && "$INPUT_WAF_ENABLED" != "false" ]]; then
-            echo "❌ ERROR: WAF_ENABLED must be 'true' or 'false', got: '$INPUT_WAF_ENABLED'"
+          # Validate DEPLOYMENT_FLAVOR (must be bicep | avm | avm-waf)
+          if [[ "$INPUT_DEPLOYMENT_FLAVOR" != "bicep" && "$INPUT_DEPLOYMENT_FLAVOR" != "avm" && "$INPUT_DEPLOYMENT_FLAVOR" != "avm-waf" ]]; then
+            echo "❌ ERROR: DEPLOYMENT_FLAVOR must be 'bicep', 'avm', or 'avm-waf', got: '$INPUT_DEPLOYMENT_FLAVOR'"
             VALIDATION_FAILED=true
           else
-            echo "✅ WAF_ENABLED: '$INPUT_WAF_ENABLED' is valid"
+            echo "✅ DEPLOYMENT_FLAVOR: '$INPUT_DEPLOYMENT_FLAVOR' is valid"
           fi
           
           # Validate AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID (optional, if provided must be valid Resource ID)
@@ -211,17 +212,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
 
-      - name: Configure Parameters Based on WAF Setting
+      - name: Configure Parameters Based on Deployment Flavor
         shell: bash
         env:
-          INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           INPUT_ENABLE_SCALABILITY: ${{ inputs.ENABLE_SCALABILITY }}
         run: |
           set -euo pipefail
-          if [[ "$INPUT_WAF_ENABLED" == "true" ]]; then
+          if [[ "$INPUT_DEPLOYMENT_FLAVOR" == "avm-waf" ]]; then
             cp infra/main.waf.parameters.json infra/main.parameters.json
             echo "✅ Successfully copied WAF parameters to main parameters file"
-            SCALABILITY_VALUE="${INPUT_ENABLE_SCALABILITY:-false}"
+            SCALABILITY_VALUE="${INPUT_ENABLE_SCALABILITY:-true}"
             if [[ "$SCALABILITY_VALUE" != "true" && "$SCALABILITY_VALUE" != "false" ]]; then
               echo "❌ ERROR: ENABLE_SCALABILITY must be 'true' or 'false', got: '$SCALABILITY_VALUE'"
               exit 1
@@ -236,7 +237,7 @@ jobs:
             mv "$tmpfile" infra/main.parameters.json
             echo "✅ enableScalability set to ${SCALABILITY_VALUE}"
           else
-            echo "🔧 Configuring Non-WAF deployment - using default main.parameters.json..."
+            echo "🔧 Configuring $INPUT_DEPLOYMENT_FLAVOR deployment - using default main.parameters.json..."
           fi
 
       - name: Setup Azure Developer CLI (Windows)
@@ -456,7 +457,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           INPUT_EXP: ${{ inputs.EXP }}
           INPUT_RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
           INPUT_AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
@@ -470,18 +471,7 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Job Status** | ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           
-          # Determine configuration type
-          if [[ "$INPUT_WAF_ENABLED" == "true" && "$INPUT_EXP" == "true" ]]; then
-            CONFIG_TYPE="WAF + EXP"
-          elif [[ "$INPUT_WAF_ENABLED" == "true" && "$INPUT_EXP" != "true" ]]; then
-            CONFIG_TYPE="WAF + Non-EXP"
-          elif [[ "$INPUT_WAF_ENABLED" != "true" && "$INPUT_EXP" == "true" ]]; then
-            CONFIG_TYPE="Non-WAF + EXP"
-          else
-            CONFIG_TYPE="Non-WAF + Non-EXP"
-          fi
-          
-          echo "| **Configuration Type** | \`$CONFIG_TYPE\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment Flavor** | \`$INPUT_DEPLOYMENT_FLAVOR\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Resource Group** | \`$INPUT_RESOURCE_GROUP_NAME\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure Region (Infrastructure)** | \`$INPUT_AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure AI Service Region** | \`$INPUT_AZURE_ENV_AI_SERVICE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
@@ -493,8 +483,6 @@ jobs:
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
-            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "- Deployment process encountered an error" >> $GITHUB_STEP_SUMMARY

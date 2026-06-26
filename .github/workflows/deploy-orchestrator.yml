@@ -17,15 +17,15 @@ on:
         required: false
         default: ''
         type: string
-      waf_enabled:
-        description: 'Enable WAF'
+      deployment_flavor:
+        description: 'Deployment Flavour (bicep | avm | avm-waf)'
         required: false
-        default: false
-        type: boolean
+        default: 'bicep'
+        type: string
       enable_scalability:
-        description: 'Enable scalability features for WAF deployments (opt-in)'
+        description: 'Enable Scalability (only used when WAF is enabled)'
         required: false
-        default: false
+        default: true
         type: boolean
       exp:
         description: 'Enable EXP'
@@ -92,7 +92,7 @@ jobs:
       runner_os: ${{ inputs.runner_os }}
       azure_location: ${{ inputs.azure_location }}
       resource_group_name: ${{ inputs.resource_group_name }}
-      waf_enabled: ${{ inputs.waf_enabled }}
+      deployment_flavor: ${{ inputs.deployment_flavor }}
       enable_scalability: ${{ inputs.enable_scalability }}
       exp: ${{ inputs.exp }}
       build_docker_image: ${{ inputs.build_docker_image }}
@@ -117,6 +117,7 @@ jobs:
     secrets: inherit
 
   cleanup-deployment:
+    name: Delete RG
     if: "!cancelled() && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources)"
     needs: [docker-build, deploy, e2e-test]
     uses: ./.github/workflows/job-cleanup-resources.yml
@@ -138,7 +139,7 @@ jobs:
     uses: ./.github/workflows/job-send-notifications.yml
     with:
       trigger_type: ${{ inputs.trigger_type }}
-      waf_enabled: ${{ inputs.waf_enabled }}
+      deployment_flavor: ${{ inputs.deployment_flavor }}
       exp: ${{ inputs.exp }}
       run_e2e_tests: ${{ inputs.run_e2e_tests }}
       existing_webapp_url: ${{ inputs.existing_webapp_url }}

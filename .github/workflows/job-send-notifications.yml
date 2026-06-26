@@ -7,11 +7,11 @@ on:
         description: 'Trigger type (workflow_dispatch, pull_request, schedule)'
         required: true
         type: string
-      waf_enabled:
-        description: 'Enable WAF'
+      deployment_flavor:
+        description: 'Deployment Flavour (bicep | avm | avm-waf)'
         required: false
-        default: false
-        type: boolean
+        default: 'bicep'
+        type: string
       exp:
         description: 'Enable EXP'
         required: false
@@ -68,14 +68,14 @@ on:
         type: string
 
 env:
-  GPT_MIN_CAPACITY: 100
   BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
-  WAF_ENABLED: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.waf_enabled || false) || false }}
+  DEPLOYMENT_FLAVOR: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.deployment_flavor || 'bicep') || 'bicep' }}
   EXP: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.exp || false) || false }}
   RUN_E2E_TESTS: ${{ inputs.trigger_type == 'workflow_dispatch' && (inputs.run_e2e_tests || 'GoldenPath-Testing') || 'GoldenPath-Testing' }}
 
 jobs:
   send-notification:
+    name: Send Notification
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
@@ -123,12 +123,15 @@ jobs:
         id: config
         shell: bash
         env:
-          WAF_ENABLED: ${{ env.WAF_ENABLED }}
+          DEPLOYMENT_FLAVOR: ${{ env.DEPLOYMENT_FLAVOR }}
           EXP: ${{ env.EXP }}
         run: |
-          WAF_LABEL=$( [ "$WAF_ENABLED" = "true" ] && echo "WAF" || echo "Non-WAF" )
-          EXP_LABEL=$( [ "$EXP" = "true" ] && echo "EXP" || echo "Non-EXP" )
-          echo "CONFIG_LABEL=${WAF_LABEL} + ${EXP_LABEL}" >> $GITHUB_OUTPUT
+          FLAVOR_LABEL="${DEPLOYMENT_FLAVOR:-bicep}"
+          if [ "$EXP" = "true" ]; then
+            echo "CONFIG_LABEL=${FLAVOR_LABEL} + EXP" >> $GITHUB_OUTPUT
+          else
+            echo "CONFIG_LABEL=${FLAVOR_LABEL}" >> $GITHUB_OUTPUT
+          fi
 
       # ------------------------------------------------------------------
       # Quota failure

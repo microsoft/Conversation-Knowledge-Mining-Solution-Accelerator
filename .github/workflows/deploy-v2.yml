@@ -49,25 +49,30 @@ on:
         required: false
         default: ''
         type: string
+      deployment_flavor:
+        description: 'Deployment Type'
+        required: false
+        default: 'bicep'
+        type: choice
+        options:
+          - 'bicep'
+          - 'avm'
+          - 'avm-waf'
+      EXP:
+        description: 'Deploy EXP'
+        required: false
+        default: false
+        type: boolean
       build_docker_image:
         description: 'Build & Use Custom Images (Optional)'
         required: false
         default: false
         type: boolean
-      waf_enabled:
-        description: 'Deploy WAF'
-        required: false
-        default: false
-        type: boolean
+      
       enable_scalability:
-        description: 'Enable Scalability (WAF only)'
+        description: 'Enable Scalability (avm-waf only)'
         required: false
-        default: false
-        type: boolean
-      EXP:
-        description: 'Deploy EXP'
-        required: false
-        default: false
+        default: true
         type: boolean
       cleanup_resources:
         description: 'Auto Delete RG'
@@ -116,12 +121,13 @@ permissions:
 
 jobs:
   validate-inputs:
+    name: Validate Workflow Inputs
     runs-on: ubuntu-latest
     outputs:
       validation_passed: ${{ steps.validate.outputs.passed }}
       azure_location: ${{ steps.validate.outputs.azure_location }}
       resource_group_name: ${{ steps.validate.outputs.resource_group_name }}
-      waf_enabled: ${{ steps.validate.outputs.waf_enabled }}
+      deployment_flavor: ${{ steps.validate.outputs.deployment_flavor }}
       enable_scalability: ${{ steps.validate.outputs.enable_scalability }}
       exp: ${{ steps.validate.outputs.exp }}
       build_docker_image: ${{ steps.validate.outputs.build_docker_image }}
@@ -140,7 +146,7 @@ jobs:
         env:
           INPUT_AZURE_LOCATION: ${{ github.event.inputs.azure_location }}
           INPUT_RESOURCE_GROUP_NAME: ${{ github.event.inputs.resource_group_name }}
-          INPUT_WAF_ENABLED: ${{ github.event.inputs.waf_enabled }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ github.event.inputs.deployment_flavor }}
           INPUT_ENABLE_SCALABILITY: ${{ github.event.inputs.enable_scalability }}
           INPUT_EXP: ${{ github.event.inputs.EXP }}
           INPUT_BUILD_DOCKER_IMAGE: ${{ github.event.inputs.build_docker_image }}
@@ -195,17 +201,12 @@ jobs:
             echo "✅ resource_group_name: Not provided (will be auto-generated)"
           fi
           
-          # Validate waf_enabled (boolean)
-          WAF_ENABLED="${INPUT_WAF_ENABLED:-false}"
-          if [[ "$WAF_ENABLED" != "true" && "$WAF_ENABLED" != "false" ]]; then
-            echo "❌ ERROR: waf_enabled must be 'true' or 'false', got: '$WAF_ENABLED'"
-            VALIDATION_FAILED=true
-          else
-            echo "✅ waf_enabled: '$WAF_ENABLED' is valid"
-          fi
+          # Resolve deployment flavour (choice input is already constrained to bicep | avm | avm-waf)
+          DEPLOYMENT_FLAVOR="${INPUT_DEPLOYMENT_FLAVOR:-bicep}"
+          echo "✅ deployment_flavor: '$DEPLOYMENT_FLAVOR'"
           
           # Validate enable_scalability (boolean)
-          ENABLE_SCALABILITY="${INPUT_ENABLE_SCALABILITY:-false}"
+          ENABLE_SCALABILITY="${INPUT_ENABLE_SCALABILITY:-true}"
           if [[ "$ENABLE_SCALABILITY" != "true" && "$ENABLE_SCALABILITY" != "false" ]]; then
             echo "❌ ERROR: enable_scalability must be 'true' or 'false', got: '$ENABLE_SCALABILITY'"
             VALIDATION_FAILED=true
@@ -312,7 +313,7 @@ jobs:
           echo "passed=true" >> $GITHUB_OUTPUT
           echo "azure_location=$LOCATION" >> $GITHUB_OUTPUT
           echo "resource_group_name=$INPUT_RESOURCE_GROUP_NAME" >> $GITHUB_OUTPUT
-          echo "waf_enabled=$WAF_ENABLED" >> $GITHUB_OUTPUT
+          echo "deployment_flavor=$DEPLOYMENT_FLAVOR" >> $GITHUB_OUTPUT
           echo "enable_scalability=$ENABLE_SCALABILITY" >> $GITHUB_OUTPUT
           echo "exp=$EXP_ENABLED" >> $GITHUB_OUTPUT
           echo "build_docker_image=$BUILD_DOCKER" >> $GITHUB_OUTPUT
@@ -333,7 +334,7 @@ jobs:
       runner_os: ${{ needs.validate-inputs.outputs.runner_os || 'ubuntu-latest' }}
       azure_location: ${{ needs.validate-inputs.outputs.azure_location || 'australiaeast' }}
       resource_group_name: ${{ needs.validate-inputs.outputs.resource_group_name || '' }}
-      waf_enabled: ${{ needs.validate-inputs.outputs.waf_enabled == 'true' }}
+      deployment_flavor: ${{ needs.validate-inputs.outputs.deployment_flavor }}
       enable_scalability: ${{ needs.validate-inputs.outputs.enable_scalability == 'true' }}
       exp: ${{ needs.validate-inputs.outputs.exp == 'true' }}
       build_docker_image: ${{ needs.validate-inputs.outputs.build_docker_image == 'true' }}

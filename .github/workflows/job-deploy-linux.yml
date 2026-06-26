@@ -24,14 +24,14 @@ on:
       EXP:
         required: true
         type: string
-      WAF_ENABLED:
+      DEPLOYMENT_FLAVOR:
         required: false
         type: string
-        default: 'false'
+        default: 'bicep'
       ENABLE_SCALABILITY:
         required: false
         type: string
-        default: 'false'
+        default: 'true'
         description: 'Enable scalability features for WAF deployments (true|false)'
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID:
         required: false
@@ -53,6 +53,7 @@ on:
 
 jobs:
   deploy-linux:
+    name: Deploy on Linux
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -72,7 +73,7 @@ jobs:
           INPUT_IMAGE_TAG: ${{ inputs.IMAGE_TAG }}
           INPUT_BUILD_DOCKER_IMAGE: ${{ inputs.BUILD_DOCKER_IMAGE }}
           INPUT_EXP: ${{ inputs.EXP }}
-          INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           INPUT_AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID }}
           INPUT_AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.AZURE_EXISTING_AIPROJECT_RESOURCE_ID }}
           INPUT_USE_CASE: ${{ inputs.USE_CASE }}
@@ -154,12 +155,12 @@ jobs:
             echo "✅ EXP: '$INPUT_EXP' is valid"
           fi
           
-          # Validate WAF_ENABLED (must be 'true' or 'false')
-          if [[ "$INPUT_WAF_ENABLED" != "true" && "$INPUT_WAF_ENABLED" != "false" ]]; then
-            echo "❌ ERROR: WAF_ENABLED must be 'true' or 'false', got: '$INPUT_WAF_ENABLED'"
+          # Validate DEPLOYMENT_FLAVOR (must be bicep | avm | avm-waf)
+          if [[ "$INPUT_DEPLOYMENT_FLAVOR" != "bicep" && "$INPUT_DEPLOYMENT_FLAVOR" != "avm" && "$INPUT_DEPLOYMENT_FLAVOR" != "avm-waf" ]]; then
+            echo "❌ ERROR: DEPLOYMENT_FLAVOR must be 'bicep', 'avm', or 'avm-waf', got: '$INPUT_DEPLOYMENT_FLAVOR'"
             VALIDATION_FAILED=true
           else
-            echo "✅ WAF_ENABLED: '$INPUT_WAF_ENABLED' is valid"
+            echo "✅ DEPLOYMENT_FLAVOR: '$INPUT_DEPLOYMENT_FLAVOR' is valid"
           fi
           
           # Validate AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID (optional, if provided must be valid Resource ID)
@@ -208,17 +209,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v6
       
-      - name: Configure Parameters Based on WAF Setting
+      - name: Configure Parameters Based on Deployment Flavor
         shell: bash
         env:
-          INPUT_WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          INPUT_DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           INPUT_ENABLE_SCALABILITY: ${{ inputs.ENABLE_SCALABILITY }}
         run: |
           set -euo pipefail
-          if [[ "$INPUT_WAF_ENABLED" == "true" ]]; then
+          if [[ "$INPUT_DEPLOYMENT_FLAVOR" == "avm-waf" ]]; then
             cp infra/main.waf.parameters.json infra/main.parameters.json
             echo "✅ Successfully copied WAF parameters to main parameters file"
-            SCALABILITY_VALUE="${INPUT_ENABLE_SCALABILITY:-false}"
+            SCALABILITY_VALUE="${INPUT_ENABLE_SCALABILITY:-true}"
             if [[ "$SCALABILITY_VALUE" != "true" && "$SCALABILITY_VALUE" != "false" ]]; then
               echo "❌ ERROR: ENABLE_SCALABILITY must be 'true' or 'false', got: '$SCALABILITY_VALUE'"
               exit 1
@@ -233,10 +234,8 @@ jobs:
             mv "$tmpfile" infra/main.parameters.json
             echo "✅ enableScalability set to ${SCALABILITY_VALUE}"
           else
-            echo "🔧 Configuring Non-WAF deployment - using default main.parameters.json..."
+            echo "🔧 Configuring $INPUT_DEPLOYMENT_FLAVOR deployment - using default main.parameters.json..."
           fi
-
-      - name: Install azd
         uses: Azure/setup-azd@v2
           
       - name: Login to Azure
@@ -332,99 +331,12 @@ jobs:
           echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_ENV
           echo "WEB_APP_URL=${WEB_APP_URL}" >> $GITHUB_OUTPUT
 
-      - name: Install ODBC Driver 18 for SQL Server
-        shell: bash
-        run: |
-          if ! [[ "18.04 20.04 22.04 24.04 24.10" == *"$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)"* ]];
-          then
-              echo "Ubuntu $(grep VERSION_ID /etc/os-release | cut -d '"' -f 2) is not currently supported.";
-              exit 1;
-          fi
-              
-          # Download the package to configure the Microsoft repo
-          curl -fsSL -O https://packages.microsoft.com/config/ubuntu/$(grep VERSION_ID /etc/os-release | cut -d '"' -f 2)/packages-microsoft-prod.deb || { echo "Failed to download Microsoft packages config"; exit 1; }
-          # Install the package
-          sudo dpkg -i packages-microsoft-prod.deb
-          # Delete the file
-          rm packages-microsoft-prod.deb
-              
-          # Install the driver
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
-          echo "✅ ODBC Driver 18 for SQL Server installed successfully."
-
-      - name: Re-authenticate with Azure (refresh OIDC token)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Run Create Agents Scripts
-        id: run_create_agents_scripts
-        continue-on-error: true
-        shell: bash
-        run: |
-          echo "Running run_create_agents_scripts.sh..."
-          bash ./infra/scripts/run_create_agents_scripts.sh
-          echo "✅ Create agents scripts completed successfully."
-
-      - name: Re-authenticate with Azure before retry (refresh OIDC token)
-        if: steps.run_create_agents_scripts.outcome == 'failure'
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Retry Run Create Agents Scripts
-        if: steps.run_create_agents_scripts.outcome == 'failure'
-        shell: bash
-        run: |
-          echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
-          sleep 20
-          bash ./infra/scripts/run_create_agents_scripts.sh
-          echo "✅ Create agents scripts completed successfully on retry."
-
-      - name: Re-authenticate with Azure before processing sample data (refresh OIDC token)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Process Sample Data
-        id: process_sample_data
-        continue-on-error: true
-        shell: bash
-        run: |
-          echo "Running process_sample_data.sh..."
-          bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully."
-
-      - name: Re-authenticate with Azure before retry (refresh OIDC token)
-        if: steps.process_sample_data.outcome == 'failure'
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Retry Process Sample Data
-        if: steps.process_sample_data.outcome == 'failure'
-        shell: bash
-        run: |
-          echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
-          sleep 20
-          bash ./infra/scripts/process_sample_data.sh
-          echo "✅ Sample data processing completed successfully on retry."
-
       - name: Generate Deployment Summary
         if: always()
         shell: bash
         env:
           RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
-          WAF_ENABLED: ${{ inputs.WAF_ENABLED }}
+          DEPLOYMENT_FLAVOR: ${{ inputs.DEPLOYMENT_FLAVOR }}
           EXP: ${{ inputs.EXP }}
           AZURE_LOCATION: ${{ inputs.AZURE_LOCATION }}
           AZURE_ENV_AI_SERVICE_LOCATION: ${{ inputs.AZURE_ENV_AI_SERVICE_LOCATION }}
@@ -437,7 +349,7 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Job Status** | ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Resource Group** | \`$RESOURCE_GROUP_NAME\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Configuration Type** | \`${{ inputs.WAF_ENABLED == 'true' && inputs.EXP == 'true' && 'WAF + EXP' || inputs.WAF_ENABLED == 'true' && inputs.EXP != 'true' && 'WAF + Non-EXP' || inputs.WAF_ENABLED != 'true' && inputs.EXP == 'true' && 'Non-WAF + EXP' || 'Non-WAF + Non-EXP' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployment Flavor** | \`$DEPLOYMENT_FLAVOR\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure Region (Infrastructure)** | \`$AZURE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Azure AI Service Region** | \`$AZURE_ENV_AI_SERVICE_LOCATION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Docker Image Tag** | \`$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
@@ -448,8 +360,6 @@ jobs:
             echo "- **Container Web App URL**: [${{ env.WEB_APP_URL }}](${{ env.WEB_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- **Container API App URL**: [${{ env.API_APP_URL }}](${{ env.API_APP_URL }})" >> $GITHUB_STEP_SUMMARY
             echo "- Successfully deployed to Azure with all resources configured" >> $GITHUB_STEP_SUMMARY
-            echo "- Agents created and configured successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- Schemas registered and sample data uploaded successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
             echo "- Deployment process encountered an error" >> $GITHUB_STEP_SUMMARY
