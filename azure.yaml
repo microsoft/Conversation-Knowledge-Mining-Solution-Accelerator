@@ -55,13 +55,13 @@ hooks:
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
 
-        # # ── Step 1: Create AI agent ──
-        # Write-Host ""
-        # Write-Host "Setting up AI agent..." -ForegroundColor Yellow
-        # & ./infra/scripts/setup-agent.ps1
-        # if ($LASTEXITCODE -ne 0) {
-        #   Write-Host "WARNING: Agent setup failed — you can retry later with: ./infra/scripts/setup-agent.ps1" -ForegroundColor Yellow
-        # }
+        # ── Step 1: Create AI agent ──
+        Write-Host ""
+        Write-Host "Setting up AI agent..." -ForegroundColor Yellow
+        & ./infra/scripts/setup-agent.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "WARNING: Agent setup failed — you can retry later with: ./infra/scripts/setup-agent.ps1" -ForegroundColor Yellow
+        }
 
         # ── Step 1.5: Grant API identity access to SQL ──
         Write-Host ""
@@ -103,9 +103,9 @@ hooks:
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
 
-        # echo ""
-        # echo "Setting up AI agent..."
-        # pwsh -File ./infra/scripts/setup-agent.ps1 || echo "WARNING: Agent setup failed — retry with: ./infra/scripts/setup-agent.ps1"
+        echo ""
+        echo "Setting up AI agent..."
+        pwsh -File ./infra/scripts/setup-agent.ps1 || echo "WARNING: Agent setup failed — retry with: ./infra/scripts/setup-agent.ps1"
 
         echo ""
         echo "Granting API identity SQL access..."

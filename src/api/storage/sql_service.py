@@ -106,6 +106,7 @@ class AzureSqlService:
                 summary NVARCHAR(MAX),
                 keywords NVARCHAR(MAX),
                 filter_values NVARCHAR(MAX),
+                doc_ids NVARCHAR(MAX),
                 uploaded_at NVARCHAR(50)
             )
         """)
@@ -335,21 +336,23 @@ class AzureSqlService:
                 MERGE uploaded_files AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
-                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, uploaded_at=?
+                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, doc_ids=?, uploaded_at=?
                 WHEN NOT MATCHED THEN INSERT
-                    (id, filename, doc_count, summary, keywords, filter_values, uploaded_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?);
+                    (id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
                 file_data.get("summary", ""), json.dumps(file_data.get("keywords", [])),
                 json.dumps(file_data.get("filter_values", {})),
+                json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
                 # INSERT
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
                 file_data.get("summary", ""), json.dumps(file_data.get("keywords", [])),
                 json.dumps(file_data.get("filter_values", {})),
+                json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
             )
             conn.commit()
@@ -366,7 +369,7 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, uploaded_at FROM uploaded_files")
+            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at FROM uploaded_files")
             rows = cursor.fetchall()
             conn.close()
             return [
@@ -375,7 +378,8 @@ class AzureSqlService:
                     "summary": r[3],
                     "keywords": json.loads(r[4]) if r[4] else [],
                     "filter_values": json.loads(r[5]) if r[5] else {},
-                    "uploaded_at": r[6] or "",
+                    "doc_ids": json.loads(r[6]) if r[6] else [],
+                    "uploaded_at": r[7] or "",
                 }
                 for r in rows
             ]

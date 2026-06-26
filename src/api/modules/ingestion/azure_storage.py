@@ -345,10 +345,11 @@ class AzureStorageService:
                 except Exception:
                     pass
 
-                # Delete doc-level blobs (documents/{doc_id}.json)
+                # Delete doc-level blobs ({doc_id}.json at container root,
+                # matching the path used by upload_to_blob)
                 for doc_id in doc_ids:
                     try:
-                        blob = container.get_blob_client(f"documents/{doc_id}.json")
+                        blob = container.get_blob_client(f"{doc_id}.json")
                         blob.delete_blob()
                     except Exception:
                         pass
@@ -386,6 +387,33 @@ class AzureStorageService:
 
         logger.info(f"Cleanup for file '{file_id}': {result}")
         return result
+
+    def clear_all_blobs(self) -> int:
+        """Delete every blob in the storage container (raw/, extracted/, documents/, etc.).
+
+        Used when clearing all data before loading a new scenario so that stale
+        files from a previous scenario are not left behind in storage.
+        Returns the number of blobs deleted.
+        """
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return 0
+
+        deleted = 0
+        try:
+            blob_service = self._get_blob_client()
+            container = blob_service.get_container_client(settings.azure_storage_container)
+            blob_names = [b.name for b in container.list_blobs()]
+            for name in blob_names:
+                try:
+                    container.delete_blob(name)
+                    deleted += 1
+                except Exception:
+                    pass
+            logger.info(f"Cleared all blobs from container '{settings.azure_storage_container}': deleted {deleted}")
+        except Exception as e:
+            logger.warning(f"Failed to clear blobs: {e}")
+        return deleted
 
 
 azure_storage_service = AzureStorageService()
