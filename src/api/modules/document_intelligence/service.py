@@ -1,6 +1,6 @@
 import time
 import logging
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
 import httpx
 from azure.identity import DefaultAzureCredential
@@ -499,7 +499,7 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
 
     def enrich_batch(self, documents: list[dict]) -> dict:
         """Enrich a batch of documents and generate a unified filter schema.
-        
+
         Returns:
             {
                 "doc_extractions": [{id, summary, keywords, entities, topics, metadata, relationships}],
@@ -520,7 +520,7 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
         for doc in documents:
             text = doc.get("text", "")
             if isinstance(text, list):
-                text = "\n".join(f"{s.get('speaker','')}: {s.get('text','')}" for s in text)
+                text = "\n".join(f"{s.get('speaker', '')}: {s.get('text', '')}" for s in text)
             snippet = text[:max_snippet] + ("..." if len(text) > max_snippet else "")
 
             # Include CU-extracted fields when available for richer context
@@ -618,7 +618,7 @@ Documents:
 
             except Exception as e:
                 import logging
-                logging.getLogger(__name__).warning(f"Batch enrichment chunk {i//CHUNK_SIZE} failed: {e}")
+                logging.getLogger(__name__).warning(f"Batch enrichment chunk {i // CHUNK_SIZE} failed: {e}")
 
         return {
             "domain": domain,

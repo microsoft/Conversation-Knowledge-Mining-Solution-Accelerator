@@ -14,6 +14,10 @@ from src.api.modules.security.models import User
 from src.api.utils.constants import DOCUMENT_EXTENSIONS
 from src.api.config import get_settings
 
+from src.api.modules.ingestion.external_index import (
+    external_index_service, ConnectIndexRequest, ExternalIndex,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -135,7 +139,7 @@ async def upload_document(
             continue
         if existing and existing.status == "processing":
             # Allow re-upload if processing appears stuck beyond configured timeout.
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             try:
                 started = datetime.fromisoformat(existing.uploaded_at.replace("Z", "+00:00"))
                 stale_minutes = max(1, settings.processing_stale_timeout_minutes)
@@ -345,7 +349,7 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
         elif "timeout" in error_msg.lower():
             user_msg = f"Processing took too long for {filename}. The file may be very large or the service may be busy. Please try again."
         elif "corrupted" in error_msg.lower() or "invalid" in error_msg.lower():
-            user_msg = f"The file appears to be corrupted or invalid. Please check the file and try uploading again."
+            user_msg = "The file appears to be corrupted or invalid. Please check the file and try uploading again."
         else:
             user_msg = f"Failed to process {filename}. Please check that the file is valid and try again."
         ingestion_service._update_file_status(file_id, "failed", error=user_msg)
@@ -479,7 +483,8 @@ def _build_sql_filters() -> FilterSchema:
             "SELECT TOP 100 metadata FROM documents "
             "WHERE metadata IS NOT NULL AND LEN(metadata) > 2"
         )
-        import json as _json, re as _re
+        import json as _json
+        import re as _re
         _SAFE_RE = _re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
         field_values: dict[str, dict[str, int]] = {}
         for row in cursor.fetchall():
@@ -631,11 +636,6 @@ async def retry_file(
 # ══════════════════════════════════════════════
 # External Index (Bring Your Own Index)
 # ══════════════════════════════════════════════
-
-from src.api.modules.ingestion.external_index import (
-    external_index_service, ConnectIndexRequest, ExternalIndex,
-)
-
 
 @router.post("/external/connect", response_model=ExternalIndex)
 async def connect_external_index(

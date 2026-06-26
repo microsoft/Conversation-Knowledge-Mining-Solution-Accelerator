@@ -8,7 +8,6 @@ from src.api.modules.data_sources.base import (
     BaseExternalDataSource,
     ColumnInfo,
     DataSourceConfig,
-    FieldMapping,
     validate_table_name,
 )
 

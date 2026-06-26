@@ -13,7 +13,6 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from typing import BinaryIO
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ def _extract_docx(file_bytes: bytes) -> str:
         text = re.sub(r"\s+", " ", text).strip()
         if text:
             return text
-        logger.warning(f"OOXML fallback for DOCX returned empty text (file may be corrupted or have no content)")
+        logger.warning("OOXML fallback for DOCX returned empty text (file may be corrupted or have no content)")
         return ""
     except Exception as e:
         logger.error(f"DOCX extraction failed (both python-docx and OOXML fallback): {e}")

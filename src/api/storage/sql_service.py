@@ -31,7 +31,6 @@ class AzureSqlService:
             return
 
         try:
-            import pyodbc
             from azure.identity import DefaultAzureCredential
             import struct
             import time
@@ -247,11 +246,12 @@ class AzureSqlService:
         try:
             text = doc_data.get("text", "")
             if isinstance(text, list):
-                text = "\n".join(f"{s.get('speaker','')}: {s.get('text','')}" for s in text)
+                text = "\n".join(f"{s.get('speaker', '')}: {s.get('text', '')}" for s in text)
 
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 MERGE documents AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
@@ -260,7 +260,7 @@ class AzureSqlService:
                 WHEN NOT MATCHED THEN INSERT
                     (id, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
+                """,
                 doc_id,
                 doc_data.get("type", ""), text, doc_data.get("summary", ""),
                 json.dumps(doc_data.get("entities", [])),
@@ -330,7 +330,8 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 MERGE uploaded_files AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
@@ -338,7 +339,7 @@ class AzureSqlService:
                 WHEN NOT MATCHED THEN INSERT
                     (id, filename, doc_count, summary, keywords, filter_values, uploaded_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?);
-            """,
+                """,
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
                 file_data.get("summary", ""), json.dumps(file_data.get("keywords", [])),
@@ -368,13 +369,16 @@ class AzureSqlService:
             cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, uploaded_at FROM uploaded_files")
             rows = cursor.fetchall()
             conn.close()
-            return [{
-                "id": r[0], "filename": r[1], "doc_count": r[2],
-                "summary": r[3],
-                "keywords": json.loads(r[4]) if r[4] else [],
-                "filter_values": json.loads(r[5]) if r[5] else {},
-                "uploaded_at": r[6] or "",
-            } for r in rows]
+            return [
+                {
+                    "id": r[0], "filename": r[1], "doc_count": r[2],
+                    "summary": r[3],
+                    "keywords": json.loads(r[4]) if r[4] else [],
+                    "filter_values": json.loads(r[5]) if r[5] else {},
+                    "uploaded_at": r[6] or "",
+                }
+                for r in rows
+            ]
         except Exception as e:
             logger.warning(f"Failed to load uploaded files: {e}")
             self._refresh_token()
@@ -390,12 +394,13 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 MERGE filter_schemas AS target
                 USING (SELECT 'global_schema' AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET domain=?, dimensions=?
                 WHEN NOT MATCHED THEN INSERT (id, domain, dimensions) VALUES ('global_schema', ?, ?);
-            """,
+                """,
                 schema_data.get("domain", ""), json.dumps(schema_data.get("dimensions", [])),
                 schema_data.get("domain", ""), json.dumps(schema_data.get("dimensions", [])),
             )
@@ -454,12 +459,13 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 MERGE enrichment_cache AS target
                 USING (SELECT ? AS doc_hash) AS source ON target.doc_hash = source.doc_hash
                 WHEN MATCHED THEN UPDATE SET filename=?, enrichment=?, cached_at=GETUTCDATE()
                 WHEN NOT MATCHED THEN INSERT (doc_hash, filename, enrichment) VALUES (?, ?, ?);
-            """,
+                """,
                 doc_hash, filename, json.dumps(enrichment),
                 doc_hash, filename, json.dumps(enrichment),
             )
@@ -573,7 +579,8 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 MERGE external_data_sources AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
@@ -587,7 +594,7 @@ class AzureSqlService:
                      field_mapping, query_mode, status, doc_count,
                      last_sync, error_message)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
+                """,
                 data["id"],
                 data.get("name", ""), data.get("source_type", ""),
                 data.get("connection_string", ""), data.get("endpoint", ""),
@@ -649,6 +656,17 @@ class AzureSqlService:
 
     def delete_data_source(self, source_id: str) -> bool:
         if not self.available:
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM external_data_sources WHERE id = ?", source_id)
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete data source: {e}")
+            self._refresh_token()
             return False
 
     # ══════════════════════════════════════════════
@@ -813,17 +831,6 @@ class AzureSqlService:
             return True
         except Exception as e:
             logger.warning(f"Failed to delete entity graph docs: {e}")
-            self._refresh_token()
-            return False
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM external_data_sources WHERE id = ?", source_id)
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to delete data source: {e}")
             self._refresh_token()
             return False
 

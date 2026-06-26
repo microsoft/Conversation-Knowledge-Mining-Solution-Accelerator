@@ -369,7 +369,7 @@ class IngestionService:
 
     def _track_file(self, filename: str, data: list[dict]):
         """Track an uploaded file with AI-extracted summary, keywords, and filter schema.
-        
+
         Uses Content Understanding service for all extraction + filter schema generation.
         """
         from datetime import datetime
@@ -651,7 +651,7 @@ class IngestionService:
                 logger.warning(f"[{file_id}] File failed: {error} (user message: {formatted_error})")
             else:
                 formatted_error = error
-            
+
             updates: dict = {"status": status, "error": formatted_error}
             # Recalculate doc_count when marking ready or extracted
             if status in ("ready", "extracted") and f.doc_count == 0:
@@ -933,7 +933,6 @@ class IngestionService:
         try:
             from src.api.config import get_settings
             from azure.identity import DefaultAzureCredential
-            from azure.search.documents import SearchClient
             from azure.search.documents.indexes import SearchIndexClient
             settings = get_settings()
             if settings.azure_search_endpoint:

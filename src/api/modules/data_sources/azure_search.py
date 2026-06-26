@@ -11,7 +11,6 @@ from src.api.modules.data_sources.base import (
     BaseExternalDataSource,
     ColumnInfo,
     DataSourceConfig,
-    FieldMapping,
 )
 
 logger = logging.getLogger(__name__)

@@ -223,7 +223,7 @@ class RAGService:
             return docs
         except Exception as e:
             logger.error(f"Azure AI Search failed: {e}", exc_info=True)
-            raise RuntimeError(f"Search service unavailable") from e
+            raise RuntimeError("Search service unavailable") from e
 
     def _search_sql(self, query: str, top_k: int = 5,
                     document_ids: Optional[list[str]] = None) -> list[dict]:
@@ -234,39 +234,38 @@ class RAGService:
             if not sql_service._initialized:
                 logger.warning("SQL service not initialized, skipping SQL search")
                 return []
-            
+
             conn = sql_service._get_connection()
             cursor = conn.cursor()
-            
+
             q = query.lower()
             words = q.split()
-            
+
             # Build WHERE clause
             where_clauses = ["text_content IS NOT NULL AND LEN(text_content) > 0"]
-            params = []
-            
+
             if document_ids:
                 ids_csv = ",".join([f"'{did}'" for did in document_ids[:50]])
                 where_clauses.append(f"id IN ({ids_csv})")
-            
+
             where = " AND ".join(where_clauses)
-            
+
             # Query all documents with text
             cursor.execute(
                 f"SELECT id, text_content, summary, source_file, doc_type FROM documents WHERE {where}"
             )
-            
+
             scored = []
             for row in cursor.fetchall():
                 doc_id, text, summary, source_file, doc_type = row
                 if not text or not text.strip():
                     continue
-                
+
                 # Simple relevance: count query word matches
                 text_lower = text.lower()
                 matches = sum(1 for w in words if w in text_lower)
                 score = matches / max(len(words), 1) if matches > 0 else 0.05
-                
+
                 scored.append({
                     "doc_id": doc_id,
                     "text": text[:8000],  # Limit to 8K chars for context
@@ -275,9 +274,9 @@ class RAGService:
                     "source_file": source_file or "unknown",
                     "score": score,
                 })
-            
+
             conn.close()
-            
+
             # If no keyword matches, return all docs as context
             if not scored:
                 conn = sql_service._get_connection()
@@ -297,7 +296,7 @@ class RAGService:
                             "score": 0.1,
                         })
                 conn.close()
-            
+
             scored.sort(key=lambda x: x["score"], reverse=True)
             return scored[:top_k]
         except Exception as e:
@@ -374,8 +373,10 @@ class RAGService:
             logger.warning(f"External data source search failed: {e}")
             return []
 
-    def _answer_from_external(self, question: str, top_k: int,
-                               external_index_id: str, include_sources: bool) -> QAResponse:
+    def _answer_from_external(
+        self, question: str, top_k: int,
+        external_index_id: str, include_sources: bool,
+    ) -> QAResponse:
         """Answer a question using an external Azure AI Search index."""
         from src.api.modules.ingestion.external_index import external_index_service
         settings = get_settings()
@@ -392,7 +393,7 @@ class RAGService:
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i+1} | id={doc['doc_id']}]:\n{text}")
+            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
@@ -486,7 +487,7 @@ class RAGService:
         for doc in search_docs:
             doc_id = doc.get("doc_id") or doc.get("id")
             if not doc_id:
-                doc_id = str(doc.get("source_file") or f"doc-{len(normalized_docs)+1}")
+                doc_id = str(doc.get("source_file") or f"doc-{len(normalized_docs) + 1}")
             normalized_docs.append({
                 **doc,
                 "doc_id": doc_id,
@@ -512,7 +513,7 @@ class RAGService:
         if not search_docs:
             logger.info("AI Search returned no results, falling back to SQL search")
             search_docs = self._search_sql(question, top_k, document_ids)
-        
+
         if not search_docs:
             logger.info("SQL search returned no results, falling back to in-memory search")
             search_docs = self._search_in_memory(question, top_k, document_ids)
@@ -526,7 +527,7 @@ class RAGService:
             if len(text) > 4000:
                 text = text[:4000] + "..."
             context_parts.append(
-                f"[Source {i+1} | id={doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
+                f"[Source {i + 1} | id={doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
             )
             sources.append(Source(
                 doc_id=doc["doc_id"],
@@ -628,7 +629,7 @@ class RAGService:
         if not search_docs:
             logger.info("AI Search returned no results, falling back to SQL search")
             search_docs = self._search_sql(last_user_message, top_k, document_ids)
-        
+
         if not search_docs:
             search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
 
@@ -636,7 +637,7 @@ class RAGService:
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i+1} | id={doc['doc_id']}]:\n{text}")
+            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
                 text=text[:500],

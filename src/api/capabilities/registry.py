@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Callable
 
 _registry: dict[str, Callable] = {}
 

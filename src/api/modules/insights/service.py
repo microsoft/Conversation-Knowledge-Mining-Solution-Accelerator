@@ -92,6 +92,7 @@ def _is_datetime(val: str) -> bool:
         r"^\d{1,2}[-/]\d{1,2}[-/]\d{4}", val
     ))
 
+
 # --- Schema Extractor ---
 
 def _extract_schema(cursor) -> dict:
@@ -175,6 +176,7 @@ def _extract_schema(cursor) -> dict:
         "document_summaries": document_summaries,
         "top_key_phrases": list(dict.fromkeys(phrase_pool))[:60],  # deduplicated
     }
+
 
 # --- LLM Planner ---
 
@@ -453,7 +455,7 @@ def _plan(schema: dict) -> dict:
     content_parts: list[str] = []
     summaries = schema.get("document_summaries", [])
     if summaries:
-        numbered = "\n".join(f"{i+1}. {s}" for i, s in enumerate(summaries))
+        numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(summaries))
         content_parts.append(f"DOCUMENT SUMMARIES (actual content of the uploaded documents):\n{numbered}")
     phrases = schema.get("top_key_phrases", [])
     if phrases:
@@ -475,6 +477,7 @@ def _plan(schema: dict) -> dict:
         return json.loads(resp.choices[0].message.content or "{}")
     except json.JSONDecodeError:
         return {}
+
 
 # --- Plan Validator ---
 
@@ -541,6 +544,7 @@ def _validate_plan(plan: dict, schema: dict) -> dict:
     plan["filters"] = [f for f in plan.get("filters", []) if _is_allowed_filter_field(f.get("field"))]
 
     return plan
+
 
 # --- Query Engine ---
 
@@ -623,7 +627,7 @@ def _exec_kpi(cursor, spec, where, params):
             return {**base, "value": round(float(r[0])) if r and r[0] else 0, "format": "minutes",
                     "confidence": _confidence_level(n), "sample_size": n}
     except Exception as e:
-        logger.warning(f"KPI failed ({spec.get('label','')}): {e}")
+        logger.warning(f"KPI failed ({spec.get('label', '')}): {e}")
     return None
 
 
@@ -658,7 +662,7 @@ def _exec_chart(cursor, spec, where, params):
                 f"FROM documents WHERE {where} AND JSON_VALUE(metadata,'$.{df}') IS NOT NULL "
                 f"GROUP BY JSON_VALUE(metadata,'$.{df}') ORDER BY COUNT(*) DESC",
                 [pos] + list(params))
-            data = [{"label": r[0], "value": round(r[1]*100.0/r[2], 1), "positive": r[1], "total": r[2]}
+            data = [{"label": r[0], "value": round(r[1] * 100.0 / r[2], 1), "positive": r[1], "total": r[2]}
                     for r in cursor.fetchall() if r[0] and r[2] > 0]
             n = sum(d["total"] for d in data)
             if len(data) > 6:
@@ -709,7 +713,7 @@ def _exec_chart(cursor, spec, where, params):
             mx = top[0][1]
             return _with_confidence(
                 {**base, "visualization": "word_cloud",
-                 "data": [{"text": t, "frequency": f, "weight": round(f/mx, 2)} for t, f in top]},
+                 "data": [{"text": t, "frequency": f, "weight": round(f / mx, 2)} for t, f in top]},
                 doc_count)
 
         if it == "trending_table":
@@ -722,7 +726,7 @@ def _exec_chart(cursor, spec, where, params):
             n = sum(d["value"] for d in data)
             return _with_confidence({**base, "visualization": "table", "data": data}, n) if data else None
     except Exception as e:
-        logger.warning(f"Chart failed ({spec.get('title','')}): {e}")
+        logger.warning(f"Chart failed ({spec.get('title', '')}): {e}")
     return None
 
 
@@ -751,7 +755,7 @@ def _exec_drivers(cursor, config, where, params):
                 [pos] + list(params))
             for row in cursor.fetchall():
                 if row[0] and row[2] > 0:
-                    rate = round(row[1]*100.0/row[2], 1)
+                    rate = round(row[1] * 100.0 / row[2], 1)
                     dev = round(rate - baseline, 1)
                     if abs(dev) >= 3:
                         factors.append({
@@ -1099,6 +1103,7 @@ def _runtime_entities_from_documents(cursor, where: str, params: list, limit: in
         })
     return entities
 
+
 # --- Orchestrator ---
 
 class DashboardService:
@@ -1168,8 +1173,8 @@ class DashboardService:
             # Plan (cached, validated, with TTL)
             key = self._schema_hash
             import time
-            cache_expired = (key in self._plan_cache_ts and
-                             time.time() - self._plan_cache_ts.get(key, 0) > self._CACHE_TTL_SEC)
+            cache_expired = (key in self._plan_cache_ts
+                             and time.time() - self._plan_cache_ts.get(key, 0) > self._CACHE_TTL_SEC)
             if refresh or key not in self._plan_cache or cache_expired:
                 raw_plan = _plan(schema)
                 self._plan_cache[key] = _validate_plan(raw_plan, schema)
