@@ -731,6 +731,7 @@ module sqlDBModule './modules/data/sql-database.bicep' = {
     tags: tags
     enableTelemetry: enableTelemetry
     deployerPrincipalId: deployingUserPrincipalId
+    deployerPrincipalType: deployingUserPrincipalType == 'ServicePrincipal' ? 'Application' : 'User'
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     enablePrivateNetworking: enablePrivateNetworking
     privateEndpointSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.backendSubnetResourceId : ''
