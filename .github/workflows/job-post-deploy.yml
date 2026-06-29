@@ -36,13 +36,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Setup Azure Developer CLI
-        uses: Azure/setup-azd@v2
-
-      - name: Configure AZD to use Azure CLI authentication
-        shell: bash
-        run: azd config set auth.useAzCliAuth "true"
-
       - name: Install ODBC Driver 18 for SQL Server
         shell: bash
         run: |
