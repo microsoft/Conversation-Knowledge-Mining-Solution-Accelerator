@@ -171,6 +171,6 @@ def apply() -> None:
 
 
 # Apply on import so a single
-# `import services._patches.agent_framework_search_citations`
-# from chat_service.py is enough.
+# `import services._patches.agent_framework_search_citations` (or the
+# equivalent importlib.import_module call) from chat_service.py is enough.
 apply()
