@@ -1,21 +1,16 @@
-name: Docker Build Job
+name: Build & Push Test Images (Feature Branch)
 
 on:
   workflow_call:
-    inputs:
-      trigger_type:
-        description: 'Trigger type (workflow_dispatch, pull_request, schedule)'
-        required: true
-        type: string
-      build_docker_image:
-        description: 'Build And Push Docker Image (Optional)'
-        required: false
-        default: false
-        type: boolean
     outputs:
       IMAGE_TAG:
         description: "Generated Docker Image Tag"
         value: ${{ jobs.docker-build.outputs.IMAGE_TAG }}
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 env:
   BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
@@ -23,7 +18,6 @@ env:
 jobs:
   docker-build:
     name: Build & Push Images
-    if: inputs.trigger_type == 'workflow_dispatch' && inputs.build_docker_image == true
     runs-on: ubuntu-latest
     environment: production
     outputs:
@@ -58,7 +52,7 @@ jobs:
 
       - name: Log in to Azure Container Registry
         run: |
-          ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}" | sed 's/\.azurecr\.io$//')
+          ACR_NAME=$(echo "${{ vars.ACR_TEST_LOGIN_SERVER }}" | sed 's/\.azurecr\.io$//')
           az acr login --name "$ACR_NAME"
 
       - name: Build and Push Docker Image for WebApp
@@ -70,8 +64,8 @@ jobs:
           file: ./src/App/WebApp.Dockerfile
           push: True
           tags: |
-            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
-            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
+            ${{ vars.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
+            ${{ vars.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
 
       - name: Build and Push Docker Image for API
         uses: docker/build-push-action@v6
@@ -82,8 +76,8 @@ jobs:
           file: ./src/api/ApiApp.Dockerfile
           push: True
           tags: |
-            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
-            ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
+            ${{ vars.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
+            ${{ vars.ACR_TEST_LOGIN_SERVER }}/km-api:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
 
       - name: Verify Docker Image Build
         shell: bash
@@ -95,7 +89,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}")
+          ACR_NAME=$(echo "${{ vars.ACR_TEST_LOGIN_SERVER }}")
           echo "## 🐳 Docker Build Job Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
