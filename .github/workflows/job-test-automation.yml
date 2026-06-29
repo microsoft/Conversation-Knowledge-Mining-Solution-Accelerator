@@ -42,6 +42,7 @@ env:
 
 jobs:
   test:
+    name: Test Automation
     runs-on: ubuntu-latest
     outputs:
       TEST_SUCCESS: ${{ steps.test1.outcome == 'success' || steps.test2.outcome == 'success' || steps.test3.outcome == 'success' }}
