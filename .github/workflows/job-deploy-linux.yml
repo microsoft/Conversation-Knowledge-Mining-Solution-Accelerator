@@ -288,6 +288,7 @@ jobs:
           azd env set AZURE_RESOURCE_GROUP="$RESOURCE_GROUP_NAME"
           azd env set AZURE_ENV_IMAGE_TAG="$IMAGE_TAG"
           azd env set USE_CASE="$USE_CASE"
+          azd env set DEPLOYING_USER_PRINCIPAL_TYPE="ServicePrincipal"
           
           if [[ "$BUILD_DOCKER_IMAGE" == "true" ]]; then
             ACR_NAME=$(echo "${{ secrets.ACR_TEST_LOGIN_SERVER }}")

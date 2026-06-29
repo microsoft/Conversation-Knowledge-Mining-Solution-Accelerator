@@ -742,15 +742,6 @@ jobs:
       USE_CASE: ${{ inputs.use_case }}
     secrets: inherit
 
-  post-deploy:
-    name: Post Deployment Steps
-    needs: [azure-setup, deploy-linux, deploy-windows]
-    if: "!cancelled() && needs.azure-setup.result == 'success' && (needs.deploy-linux.result == 'success' || needs.deploy-windows.result == 'success')"
-    uses: ./.github/workflows/job-post-deploy.yml
-    with:
-      RESOURCE_GROUP_NAME: ${{ needs.azure-setup.outputs.RESOURCE_GROUP_NAME }}
-    secrets: inherit
-
   deploy-windows:
     name: Deploy on Windows
     needs: azure-setup
@@ -769,4 +760,13 @@ jobs:
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
       AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.azure_existing_aiproject_resource_id }}
       USE_CASE: ${{ inputs.use_case }}
+    secrets: inherit
+
+  post-deploy:
+    name: Post Deployment Steps
+    needs: [azure-setup, deploy-linux, deploy-windows]
+    if: "!cancelled() && needs.azure-setup.result == 'success' && (needs.deploy-linux.result == 'success' || needs.deploy-windows.result == 'success')"
+    uses: ./.github/workflows/job-post-deploy.yml
+    with:
+      RESOURCE_GROUP_NAME: ${{ needs.azure-setup.outputs.RESOURCE_GROUP_NAME }}
     secrets: inherit
