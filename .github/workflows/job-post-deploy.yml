@@ -36,6 +36,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Setup Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Configure AZD to use Azure CLI authentication
+        shell: bash
+        run: azd config set auth.useAzCliAuth "true"
+
       - name: Install ODBC Driver 18 for SQL Server
         shell: bash
         run: |
@@ -105,7 +112,7 @@ jobs:
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           echo "Running process_sample_data.sh..."
-          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME"
+          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME" "$AZURE_SUBSCRIPTION_ID"
           echo "✅ Sample data processing completed successfully."
 
       - name: Re-authenticate with Azure before retry (refresh OIDC token)
@@ -125,7 +132,7 @@ jobs:
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
           sleep 20
-          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME"
+          bash ./infra/scripts/post-provision/process_sample_data.sh "$RESOURCE_GROUP_NAME" "$AZURE_SUBSCRIPTION_ID"
           echo "✅ Sample data processing completed successfully on retry."
 
       - name: Generate Post-Deploy Summary
