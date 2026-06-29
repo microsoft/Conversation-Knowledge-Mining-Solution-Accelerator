@@ -43,24 +43,6 @@ const PROMPTS = [
   "Summarize the data",
 ];
 
-/* ── Source display helpers ── */
-const getSourceLabel = (src: any, index: number): string => {
-  const file = src.source_file || src.metadata?.source_file;
-  if (file) {
-    const name = file.split(/[/\\]/).pop() || file;
-    return name;
-  }
-  if (src.title) return src.title;
-  return `Source ${index + 1}`;
-};
-
-const getSourceSnippet = (text: string, maxLen = 120): string => {
-  if (!text) return "";
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (clean.length <= maxLen) return clean;
-  return clean.slice(0, maxLen).replace(/\s\S*$/, "") + "…";
-};
-
 const isFileSelectable = (status?: string): boolean => status === "ready" || status === "extracted" || !status;
 
 const getFileStatusText = (status?: string): string | null => {
@@ -105,7 +87,6 @@ const Explore: React.FC = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [expandedSources, setExpandedSources] = useState<Set<number>>(new Set());
-  const [lastSources, setLastSources] = useState<any[]>([]);
   const processedAutoQueryRef = useRef<string>("");
 
   // Sessions
@@ -210,7 +191,6 @@ const Explore: React.FC = () => {
       setSessionId(activeSessionId);
       setMessages([]);
       setExpandedSources(new Set());
-      setLastSources([]);
     }
 
     const userMsg = { role: "user" as const, content: q };
@@ -228,7 +208,6 @@ const Explore: React.FC = () => {
       const res = await askQuestion(q, 5, filters, scope, docIds);
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
       setMessages((prev: any[]) => [...prev, asstMsg]);
-      if (res.data.sources?.length) setLastSources(res.data.sources);
       const allMsgs = [...existingMessages, userMsg, asstMsg];
       const title = existingMessages.length === 0 ? q.slice(0, 60) : undefined;
       saveChatHistory(activeSessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
@@ -249,7 +228,7 @@ const Explore: React.FC = () => {
   const toggleSource = (idx: number) => {
     setExpandedSources((prev: Set<number>) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   };
-  const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); setLastSources([]); };
+  const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); };
   const loadSession = async (sid: string) => {
     try {
       const r = await loadChatHistory(sid);
@@ -401,18 +380,19 @@ const Explore: React.FC = () => {
               <div className={s.leftLabel} title="Use these to narrow records before asking questions">Filter dimensions</div>
               {visibleDimensions.map((dim: any) => {
                 const expanded = expandedDims.has(dim.id);
+                const dimValues = Array.isArray(dim.values) ? dim.values : [];
                 return (
                   <div key={dim.id} className={s.filterGroup}>
                     <button className={s.filterBtn} onClick={() => toggleDim(dim.id)}>
                       <ChevronRight20Regular style={{ fontSize: 14, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
-                      {dim.label}
+                      {dim.label} {dimValues.length > 0 ? `(${dimValues.length})` : ""}
                     </button>
-                    {expanded && dim.values?.map((v: any) => (
-                      <button key={v.value}
+                    {expanded && dimValues.length > 0 && dimValues.map((v: any) => (
+                      <button key={`${dim.id}-${v.value}`}
                         className={activeFilters[dim.id] === v.value ? s.filterValueActive : s.filterValue}
                         onClick={() => toggleFilter(dim.id, v.value)}>
-                        <span style={{ flex: 1 }}>{v.label}</span>
-                        <Caption1>{v.count}</Caption1>
+                        <span style={{ flex: 1 }}>{v.label || v.value}</span>
+                        <Caption1>{v.count || 0}</Caption1>
                       </button>
                     ))}
                   </div>
@@ -457,10 +437,10 @@ const Explore: React.FC = () => {
                               {(msg.sources || []).map((src: any, j: number) => (
                                 <div key={j} className={s.evidenceItem}>
                                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                    <span style={{ fontWeight: 600, color: "#0f172a" }} title={src.doc_id}>{getSourceLabel(src, j)}</span>
+                                    <span style={{ fontWeight: 600, color: "#0f172a" }} title={src.doc_id}>{src.doc_id}</span>
                                     <span style={{ color: "#2563eb", fontWeight: 600, fontSize: 11 }}>{(src.score * 100).toFixed(0)}%</span>
                                   </div>
-                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{getSourceSnippet(src.text, 180)}</div>}
+                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}</div>}
                                 </div>
                               ))}
                             </div>

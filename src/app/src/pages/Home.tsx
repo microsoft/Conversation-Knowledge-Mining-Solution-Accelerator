@@ -128,13 +128,37 @@ const Home: React.FC = () => {
   };
 
   const buildSummary = () => {
+    // Prioritize uploaded files with source field (scenario data)
+    if (uploadedFileCount > 0 && uploadedFiles.length > 0) {
+      const firstFile = uploadedFiles[0];
+      // Use summary if available (user-friendly), otherwise clean up the filename
+      let scenarioName = "My data";
+      if (firstFile.summary) {
+        // Use summary directly as it's human-readable (e.g., "188 sample call transcripts")
+        scenarioName = firstFile.summary;
+      } else if (firstFile.filename) {
+        // Clean up filename: remove .json, replace underscores with spaces, title case
+        scenarioName = firstFile.filename
+          .replace(/\.json$/i, "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c: string) => c.toUpperCase());
+      }
+      const fileCount = uploadedFiles.length;
+      const isReady = !uploadedFiles.some((f: any) => f.status === "processing" || f.status === "failed");
+      const status = isReady ? "READY" : uploadedFiles.some((f: any) => f.status === "failed") ? "ERROR" : "PROCESSING";
+      return `${scenarioName} • ${fileCount} ${fileCount === 1 ? "file" : "files"} • ${status}`;
+    }
+    // Fallback to data sources if no uploaded files
     const parts: string[] = [];
     if (totalRecords > 0) parts.push(`${totalRecords.toLocaleString()} records`);
     if (dataSources.length > 0) {
-      const types = dataSources.map((ds: any) => ds.source_type);
-      parts.push(types.join(" + "));
+      const names = dataSources.map((ds: any) => {
+        // If use_case is set, use that; otherwise fall back to display_name or name
+        if (ds.use_case) return ds.use_case;
+        return ds.display_name || ds.name || "External Data";
+      });
+      parts.push(names.join(" + "));
     }
-    if (uploadedFileCount > 0) parts.push(`${uploadedFileCount} ${uploadedFileCount === 1 ? "document" : "documents"}`);
     return parts.join(" \u00b7 ");
   };
 
@@ -249,49 +273,75 @@ const Home: React.FC = () => {
             <Spinner size="small" />
           ) : hasData ? (
             <>
-              <div className={s.sourceLabel}>Active Dataset</div>
-              <Text size={300} style={{ color: "#64748b" }}>
-                {buildSummary()}
-              </Text>
-              {/* File status list */}
-              {uploadedFiles.length > 0 && (
-                <div className={s.fileStatusList}>
-                  {uploadedFiles.map((f: any) => (
-                    <div key={f.id} className={s.fileStatusItem}>
-                      <span className={s.fileStatusName}>{f.filename}</span>
-                      <span className={s.fileStatusBadge} style={getFileStatusStyle(f.status)}
-                        title={
-                          f.status === "extracted"
-                            ? "You can ask questions about this document now. Insights and indexing are still processing."
-                            : f.status === "failed"
-                              ? f.error || "Processing failed"
-                              : undefined
-                        }>
-                        {getFileStatusLabel(f.status)}
-                      </span>
-                      <button
-                        className={s.fileDeleteBtn}
-                        title="Delete"
-                        onClick={(e) => { e.stopPropagation(); handleDeleteFile(f.id, f.filename, f.doc_count || 0); }}
-                      >
-                        <Delete20Regular />
-                      </button>
-                    </div>
-                  ))}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <Text weight="bold" size={500} style={{ color: "#0f172a", flex: 1 }}>
+                    {buildSummary().split("•")[0].trim()}
+                  </Text>
+                  <div style={{ 
+                    display: "inline-flex", 
+                    alignItems: "center", 
+                    gap: 6,
+                    backgroundColor: "#f1f5f9",
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "#475569"
+                  }}>
+                    📎 {uploadedFiles.length} {uploadedFiles.length === 1 ? "file" : "files"}
+                  </div>
                 </div>
-              )}
-              {uploadedFiles.length > 0 && (
-                <Text size={200} style={{ color: "#64748b", marginTop: 6 }}>
-                  {chatReadyCount > 0 ? `${chatReadyCount} ${chatReadyCount === 1 ? "document" : "documents"} ready for chat` : ""}
-                  {chatReadyCount > 0 && (readyCount > 0 || processingCount > 0) ? ", " : ""}
-                  {readyCount > 0 ? `${readyCount} fully processed` : ""}
-                  {processingCount > 0 && (chatReadyCount > 0 || readyCount > 0) ? ", " : ""}
-                  {processingCount > 0 ? `${processingCount} still processing` : ""}
-                </Text>
-              )}
-              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                <Button appearance="subtle" size="medium" icon={<ArrowUpload24Regular />}
-                  onClick={() => fileInputRef.current?.click()}>Upload files</Button>
+                {/* Status indicators */}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {readyCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#d1fae5",
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      color: "#059669",
+                      fontWeight: 500
+                    }}>
+                      ✓ {readyCount} processed
+                    </div>
+                  )}
+                  {chatReadyCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#dbeafe",
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      color: "#2563eb",
+                      fontWeight: 500
+                    }}>
+                      💬 {chatReadyCount} ready to chat
+                    </div>
+                  )}
+                  {processingCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#fef3c7",
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      color: "#d97706",
+                      fontWeight: 500
+                    }}>
+                      ⏳ {processingCount} processing
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
                 <span title={insightsAvailable ? "" : "Insights are still being generated. Chat is available now."}>
                   <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
                     disabled={!insightsAvailable}
@@ -308,14 +358,8 @@ const Home: React.FC = () => {
                 No data loaded yet
               </Text>
               <Text size={200} style={{ color: "#94a3b8" }}>
-                Use the upload box below to get started, or run a scenario pack from the command line.
+                Choose how you'd like to connect your data to get started.
               </Text>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                <Spinner size="tiny" />
-                <Text size={200} style={{ color: "#64748b" }}>
-                  Waiting for incoming scenario data. This page refreshes automatically.
-                </Text>
-              </div>
             </>
           )}
         </div>
@@ -406,12 +450,19 @@ const Home: React.FC = () => {
                 <div className={s.valueTitle}>Upload files</div>
                 <div className={s.valueDesc}>Supported formats: {SUPPORTED_UPLOAD_DESCRIPTION}. Files are processed automatically.</div>
               </div>
+              <div className={s.valueCard} style={{ cursor: "pointer" }} onClick={() => navigate("/data-sources")}>
+                <div className={s.valueIcon} style={{ backgroundColor: "#fef3c7" }}>
+                  <Database24Regular style={{ color: "#d97706" }} />
+                </div>
+                <div className={s.valueTitle}>Connect external data</div>
+                <div className={s.valueDesc}>Link Azure AI Search, SQL, Fabric, Synapse, or other data sources to start analyzing immediately.</div>
+              </div>
               <div className={s.valueCard}>
                 <div className={s.valueIcon} style={{ backgroundColor: "#d1fae5" }}>
                   <TextBulletListSquare20Regular style={{ color: "#059669" }} />
                 </div>
                 <div className={s.valueTitle}>Load a scenario pack</div>
-                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario or connect an external data source.</div>
+                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario with sample data.</div>
               </div>
             </div>
           </div>

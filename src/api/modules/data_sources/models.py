@@ -15,6 +15,7 @@ from src.api.modules.data_sources.base import (
 class CreateDataSourceRequest(BaseModel):
     name: str
     source_type: DataSourceType
+    use_case: str = ""  # Optional: which use case does this data belong to?
     connection_string: str = ""
     endpoint: str = ""
     database: str = ""
@@ -26,6 +27,7 @@ class CreateDataSourceRequest(BaseModel):
 
 class UpdateDataSourceRequest(BaseModel):
     name: Optional[str] = None
+    use_case: Optional[str] = None
     connection_string: Optional[str] = None
     endpoint: Optional[str] = None
     database: Optional[str] = None
@@ -48,6 +50,8 @@ class DataSourceResponse(BaseModel):
     id: str
     name: str
     source_type: DataSourceType
+    display_name: str  # User-friendly label (e.g., "Azure AI Search" instead of "azure_search")
+    use_case: str = ""  # Use case name (e.g., "Contact Center", "Mortgage Application")
     endpoint: str = ""
     database: str = ""
     table_or_query: str = ""

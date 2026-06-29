@@ -4,6 +4,7 @@ from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from src.api.config import get_settings
 
 _client: Optional[AzureOpenAI] = None
+_agent_chat_client: Optional[object] = None
 
 
 def get_llm_client() -> AzureOpenAI:
@@ -40,3 +41,41 @@ def get_llm_client() -> AzureOpenAI:
                 timeout=settings.llm_request_timeout_sec,
             )
     return _client
+
+
+def get_llm_chat_client():
+    """Return an OpenAIChatCompletionClient compatible with agent_framework Agent.
+
+    agent_framework requires its own BaseChatClient subclass — the raw AzureOpenAI
+    client does not satisfy the get_response protocol. OpenAIChatCompletionClient
+    from agent_framework_openai wraps AzureOpenAI and implements that protocol.
+    """
+    global _agent_chat_client
+    if _agent_chat_client is None:
+        from agent_framework_openai import OpenAIChatCompletionClient
+        settings = get_settings()
+
+        if settings.azure_foundry_endpoint:
+            # Foundry path — reuse the underlying project client
+            from azure.ai.projects import AIProjectClient
+            credential = DefaultAzureCredential()
+            project = AIProjectClient(
+                endpoint=settings.azure_foundry_endpoint,
+                credential=credential,
+            )
+            openai_client = project.inference.get_azure_openai_client()
+            from openai import AsyncAzureOpenAI
+            _agent_chat_client = OpenAIChatCompletionClient(
+                model=settings.azure_openai_chat_deployment,
+                async_client=openai_client,
+            )
+        else:
+            # Direct Azure OpenAI path
+            credential = DefaultAzureCredential()
+            _agent_chat_client = OpenAIChatCompletionClient(
+                model=settings.azure_openai_chat_deployment,
+                azure_endpoint=settings.azure_openai_endpoint,
+                credential=credential,
+                api_version=settings.azure_openai_api_version,
+            )
+    return _agent_chat_client

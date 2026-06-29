@@ -16,7 +16,7 @@ class Source(BaseModel):
     doc_id: str
     score: float
     text: str
-    metadata: dict
+    source_file: str = ""
 
 
 class QAResponse(BaseModel):
