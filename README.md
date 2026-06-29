@@ -62,7 +62,7 @@ Upload (instant response)
 <summary>Click to learn more about the key features this solution enables</summary>
 
 - **Chat-based insights discovery**
-  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
+  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. An intelligent agent automatically routes queries to the best tool — document search or SQL queries — to ground answers in your data. Source citations appear inline under each answer with clean filenames and snippets.
 
 - **Multi-modal information processing**
   Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
@@ -77,7 +77,7 @@ Upload (instant response)
   YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
 
 - **Dynamic filter generation**
-  Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels.
+  Filters are generated automatically from your data's actual metadata fields and values — not predefined. Different datasets produce different filter panels. The system analyzes document metadata to discover categorical dimensions (e.g., sentiment, topic, category) and creates interactive filters for each.
 
 - **Document explorer**
   Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
@@ -98,7 +98,7 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 | What adapts | How |
 |-------------|-----|
 | **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-4o to decide which visualizations make sense. |
-| **Search filters** | Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels. |
+| **Search filters** | Filters are automatically generated from your data's metadata fields. The system analyzes document metadata (extracted from JSON fields) to discover categorical dimensions and creates interactive filter panels. |
 | **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml`. |
 | **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. |
 
@@ -289,7 +289,7 @@ Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/g
 |---------|---------|---------|
 | [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-4o), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
 | [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Hybrid search (BM25 + HNSW vector) for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
-| [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration, centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
+| [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration with intelligent tool routing (search vs. SQL), centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
 | [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
 | [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
 | [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Primary database — structured data, chat history, metadata, enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
@@ -326,6 +326,7 @@ This solution addresses those challenges by enabling:
 | Vector + keyword search | **Azure AI Search** | Hybrid search (BM25 + HNSW) in one service, managed |
 | Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
 | Agent orchestration | **Azure AI Foundry** | Managed agent service with tool support |
+| Intelligent tool routing | **Agent Framework** (`agent_framework`, `agent_framework_openai`) | Python framework for binding tools, intelligent routing, and multi-turn agentic workflows |
 | LLM client layer | **Foundry IQ (`azure-ai-projects`)** | All model access goes through a single Foundry Project for centralized governance, tracing, and quotas |
 | Structured data | **Azure SQL Database** (default) | Primary database — metadata, chat history, enrichment cache, data source configs |
 | Structured data (alt) | **Azure Cosmos DB** (optional) | Alternative database — set `DATABASE_PROVIDER=cosmos` |
