@@ -432,39 +432,49 @@ if [ -z "$currentSubscriptionId" ] || [ -z "$currentSubscriptionName" ]; then
 fi
 if [ "$currentSubscriptionId" != "$azSubscriptionId" ]; then
 	echo "Current selected subscription is $currentSubscriptionName ( $currentSubscriptionId )."
-	read -rp "Do you want to continue with this subscription?(y/n): " confirmation
-	if [[ "$confirmation" != "y" && "$confirmation" != "Y" ]]; then
-		echo "Fetching available subscriptions..."
-		availableSubscriptions=$(az account list --query "[?state=='Enabled'].[name,id]" --output tsv)
-		while true; do
-			echo ""
-			echo "Available Subscriptions:"
-			echo "========================"
-			echo "$availableSubscriptions" | awk '{printf "%d. %s ( %s )\n", NR, $1, $2}'
-			echo "========================"
-			echo ""
-			read -rp "Enter the number of the subscription (1-$(echo "$availableSubscriptions" | wc -l)) to use: " subscriptionIndex
-			if [[ "$subscriptionIndex" =~ ^[0-9]+$ ]] && [ "$subscriptionIndex" -ge 1 ] && [ "$subscriptionIndex" -le $(echo "$availableSubscriptions" | wc -l) ]; then
-				selectedSubscription=$(echo "$availableSubscriptions" | sed -n "${subscriptionIndex}p")
-				selectedSubscriptionName=$(echo "$selectedSubscription" | cut -f1)
-				selectedSubscriptionId=$(echo "$selectedSubscription" | cut -f2)
-
-				# Set the selected subscription
-				if  az account set --subscription "$selectedSubscriptionId"; then
-					echo "Switched to subscription: $selectedSubscriptionName ( $selectedSubscriptionId )"
-					break
-				else
-					echo "Failed to switch to subscription: $selectedSubscriptionName ( $selectedSubscriptionId )."
-				fi
-			else
-				echo "Invalid selection. Please try again."
-			fi
-		done
-	else
-		echo "Proceeding with the current subscription: $currentSubscriptionName ( $currentSubscriptionId )"
-		if ! az account set --subscription "$currentSubscriptionId"; then
-			echo "✗ Failed to set subscription"
+	if [ -n "$azSubscriptionId" ]; then
+		# Non-interactive (CI/CD): auto-switch to the target subscription
+		echo "Switching to target subscription: $azSubscriptionId"
+		if ! az account set --subscription "$azSubscriptionId"; then
+			echo "✗ Failed to set subscription to $azSubscriptionId"
 			exit 1
+		fi
+		echo "Switched to subscription: $azSubscriptionId"
+	else
+		read -rp "Do you want to continue with this subscription?(y/n): " confirmation
+		if [[ "$confirmation" != "y" && "$confirmation" != "Y" ]]; then
+			echo "Fetching available subscriptions..."
+			availableSubscriptions=$(az account list --query "[?state=='Enabled'].[name,id]" --output tsv)
+			while true; do
+				echo ""
+				echo "Available Subscriptions:"
+				echo "========================"
+				echo "$availableSubscriptions" | awk '{printf "%d. %s ( %s )\n", NR, $1, $2}'
+				echo "========================"
+				echo ""
+				read -rp "Enter the number of the subscription (1-$(echo "$availableSubscriptions" | wc -l)) to use: " subscriptionIndex
+				if [[ "$subscriptionIndex" =~ ^[0-9]+$ ]] && [ "$subscriptionIndex" -ge 1 ] && [ "$subscriptionIndex" -le $(echo "$availableSubscriptions" | wc -l) ]; then
+					selectedSubscription=$(echo "$availableSubscriptions" | sed -n "${subscriptionIndex}p")
+					selectedSubscriptionName=$(echo "$selectedSubscription" | cut -f1)
+					selectedSubscriptionId=$(echo "$selectedSubscription" | cut -f2)
+
+					# Set the selected subscription
+					if  az account set --subscription "$selectedSubscriptionId"; then
+						echo "Switched to subscription: $selectedSubscriptionName ( $selectedSubscriptionId )"
+						break
+					else
+						echo "Failed to switch to subscription: $selectedSubscriptionName ( $selectedSubscriptionId )."
+					fi
+				else
+					echo "Invalid selection. Please try again."
+				fi
+			done
+		else
+			echo "Proceeding with the current subscription: $currentSubscriptionName ( $currentSubscriptionId )"
+			if ! az account set --subscription "$currentSubscriptionId"; then
+				echo "✗ Failed to set subscription"
+				exit 1
+			fi
 		fi
 	fi
 else
