@@ -1,6 +1,9 @@
 name: Post-Deploy Steps
 
 on:
+  push:
+    branches:
+      - psl-vk-infrapipeline-changes1
   workflow_call:
     inputs:
       RESOURCE_GROUP_NAME:
@@ -57,7 +60,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME || 'arg-kmgeneric-aa41b698' }}
         run: |
           echo "Running run_create_agents_scripts.sh..."
           bash ./infra/scripts/post-provision/run_create_agents_scripts.sh "$RESOURCE_GROUP_NAME"
@@ -75,7 +78,7 @@ jobs:
         if: steps.run_create_agents_scripts.outcome == 'failure'
         shell: bash
         env:
-          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME || 'arg-kmgeneric-aa41b698' }}
         run: |
           echo "⚠️ First attempt failed. Retrying run_create_agents_scripts.sh..."
           sleep 20
@@ -94,7 +97,7 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME || 'arg-kmgeneric-aa41b698' }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           echo "Running process_sample_data.sh..."
@@ -113,7 +116,7 @@ jobs:
         if: steps.process_sample_data.outcome == 'failure'
         shell: bash
         env:
-          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME || 'arg-kmgeneric-aa41b698' }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           echo "⚠️ First attempt failed. Retrying process_sample_data.sh..."
@@ -125,7 +128,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          INPUT_RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME }}
+          INPUT_RESOURCE_GROUP_NAME: ${{ inputs.RESOURCE_GROUP_NAME || 'arg-kmgeneric-aa41b698' }}
           AGENTS_RESULT: ${{ steps.run_create_agents_scripts.outcome }}
           SAMPLE_DATA_RESULT: ${{ steps.process_sample_data.outcome }}
         run: |
