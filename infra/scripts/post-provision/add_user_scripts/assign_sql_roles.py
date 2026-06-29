@@ -64,7 +64,7 @@ def assign_sql_roles(server, database, roles_json):
         server: SQL Server fully qualified name
         database: Database name
         roles_json: JSON array of role assignments
-            Format: [{"principalId": "...", "displayName": "...", "role": "db_datareader"}, ...]
+            Format: [{"principalId": "...", "clientId": "...", "displayName": "...", "role": "db_datareader"}, ...]
     """
     try:
         # Parse roles JSON
@@ -79,6 +79,7 @@ def assign_sql_roles(server, database, roles_json):
         # Process each role assignment
         for role_assignment in roles:
             principal_id = role_assignment.get("principalId")
+            client_id = role_assignment.get("clientId")
             display_name = role_assignment.get("displayName")
             role = role_assignment.get("role")
             is_service_principal = role_assignment.get("isServicePrincipal", False)
@@ -92,21 +93,32 @@ def assign_sql_roles(server, database, roles_json):
             user_exists = cursor.fetchone()[0] > 0
             
             if not user_exists:
+                created = False
+                # Prefer EXTERNAL PROVIDER: SQL resolves the correct SID via MS Graph,
+                # which avoids object-id vs application-id mismatches for managed identities.
                 try:
-                    if is_service_principal:
-                        # For service principals/managed identities, use SID-based approach
-                        # This doesn't require MS Graph permissions on SQL Server
-                        sid = client_id_to_sid(principal_id)
-                        create_user_sql = f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E"
-                    else:
-                        # For regular users, use standard external provider approach
-                        create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
-                    
-                    cursor.execute(create_user_sql)
+                    cursor.execute(f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER")
                     conn.commit()
+                    created = True
                     print(f"✓ Created user: {display_name}")
-                except Exception as e:
-                    print(f"✗ Failed to create user: {e}")
+                except Exception as ext_err:
+                    conn.rollback()
+                    if is_service_principal:
+                        # Fall back to SID-based creation when MS Graph is unavailable.
+                        # SQL maps managed-identity tokens by their application (client) id,
+                        # so build the SID from clientId when provided (objectId only as last resort).
+                        sid_source = client_id or principal_id
+                        sid = client_id_to_sid(sid_source)
+                        try:
+                            cursor.execute(f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E")
+                            conn.commit()
+                            created = True
+                            print(f"✓ Created user: {display_name}")
+                        except Exception as e:
+                            print(f"✗ Failed to create user: {e}")
+                    else:
+                        print(f"✗ Failed to create user: {ext_err}")
+                if not created:
                     continue
             
             # Check if user already has the role

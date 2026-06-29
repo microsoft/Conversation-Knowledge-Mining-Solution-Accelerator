@@ -177,9 +177,13 @@ if [ -n "$apiAppPrincipleId" ] && [ -n "$apiAppName" ] && [ -n "$sqlDatabaseName
     else
         is_sp="false"
     fi
-    
+
+    # Resolve the API app's managed identity client (application) id. SQL maps
+    # managed-identity tokens by client id, so SID-based fallback must use it.
+    apiAppClientId=$(az ad sp show --id "$apiAppPrincipleId" --query appId -o tsv 2>/dev/null)
+
     # Managed identity role assignments
-    roles_json="[{\"principalId\":\"$apiAppPrincipleId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\",\"isServicePrincipal\":$is_sp},{\"principalId\":\"$apiAppPrincipleId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\",\"isServicePrincipal\":$is_sp}]"
+    roles_json="[{\"principalId\":\"$apiAppPrincipleId\",\"clientId\":\"$apiAppClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datareader\",\"isServicePrincipal\":$is_sp},{\"principalId\":\"$apiAppPrincipleId\",\"clientId\":\"$apiAppClientId\",\"displayName\":\"$mi_display_name\",\"role\":\"db_datawriter\",\"isServicePrincipal\":$is_sp}]"
 
     if [ -f "$SCRIPT_DIR/add_user_scripts/assign_sql_roles.py" ]; then
         echo "✓ Assigning SQL roles to managed identity"
