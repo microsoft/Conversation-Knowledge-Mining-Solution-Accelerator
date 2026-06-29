@@ -329,6 +329,7 @@ module roles 'modules/roles.bicep' = {
     frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
     // acrName: !empty(backendContainerRegistryHostname) ? split(backendContainerRegistryHostname, '.')[0] : ''
     deployerPrincipalId: deployer().objectId
+    aiProjectPrincipalId: useExistingAiProject ? '' : aiServices!.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId
   }
 }
 

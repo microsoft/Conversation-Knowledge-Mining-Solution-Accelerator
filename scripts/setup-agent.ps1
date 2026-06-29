@@ -5,9 +5,15 @@
 .DESCRIPTION
     Creates the KnowledgeMiningAgent in Azure AI Foundry with
     Azure AI Search as a tool. Run after azd up.
+.PARAMETER Scenario
+    Scenario key from data/config/scenarios.json used to generate the agent prompt.
 .EXAMPLE
-    ./infra/scripts/setup-agent.ps1
+    ./scripts/setup-agent.ps1 -Scenario contact-center
 #>
+
+param(
+    [string]$Scenario
+)
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -34,8 +40,19 @@ if (Test-Path $venvPath) {
     & $venvPath
 }
 
+Write-Host "Generating scenario-based agent prompt..." -ForegroundColor Yellow
+$genArgs = @()
+if ($Scenario) { $genArgs += @("--scenario", $Scenario) }
+python (Join-Path $PSScriptRoot "generate_agent_prompt.py") @genArgs
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Prompt generation failed." -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "Creating agents..." -ForegroundColor Yellow
-python (Join-Path $PSScriptRoot "create_agent.py")
+$createArgs = @()
+if ($Scenario) { $createArgs += @("--scenario", $Scenario) }
+python (Join-Path $PSScriptRoot "create_agent.py") @createArgs
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
