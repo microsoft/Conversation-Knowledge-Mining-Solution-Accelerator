@@ -26,7 +26,6 @@ from azure.ai.projects.models import PromptAgentDefinition
 from azure.identity.aio import AzureCliCredential as AsyncAzureCliCredential
 from azure.identity import AzureCliCredential, get_bearer_token_provider
 from azure.search.documents import SearchClient
-from azure.search.documents.indexes import SearchIndexClient
 from azure.storage.filedatalake import DataLakeServiceClient
 
 from agent_framework_foundry import FoundryAgent
