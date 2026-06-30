@@ -1,0 +1,75 @@
+.citationPanel {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    background: radial-gradient(108.78% 108.78% at 50.02% 19.78%, #ffffff 57.29%, #eef6fe 100%);
+    height: 93%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .citationPanelInner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ccc;
+  }
+  
+  .citationPanelInner span {
+    font-weight: bold;
+    font-size: 16px;
+    color: #333;
+  }
+  
+  .citationPanelInner svg {
+    cursor: pointer;
+    transition: transform 0.3s;
+  }
+  
+  .citationPanelInner svg:hover {
+    transform: scale(1.1);
+  }
+  
+  h5 {
+    word-break: break-all;
+    margin: 12px 0;
+    font-size: 14px;
+    color: #555;
+  }
+  
+  h5 a {
+    color: #0078d4;
+    text-decoration: none;
+  }
+  
+  h5 a:hover {
+    text-decoration: underline;
+  }
+  
+  p {
+    margin: 10px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #444;
+  }
+  
+  p a {
+    word-break: break-all;
+  }
+
+  .citationPanel::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .citationPanel::-webkit-scrollbar-thumb {
+    background-color: #888;
+    border-radius: 4px;
+  }
+  
+  .citationPanel::-webkit-scrollbar-thumb:hover {
+    background-color: #555;
+  }

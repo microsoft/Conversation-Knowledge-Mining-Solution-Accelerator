@@ -1,0 +1,386 @@
+name: KMGeneric Deploy-Test-Cleanup Pipeline
+on:
+  workflow_run:
+    workflows: ["Build Docker and Optional Push"]
+    types:
+      - completed
+    branches:
+      - main
+      - dev
+      - demo
+  schedule:
+    - cron: '0 9,21 * * *'  # Runs at 9:00 AM and 9:00 PM GMT
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+env:
+  GPT_MIN_CAPACITY: 150
+  TEXT_EMBEDDING_MIN_CAPACITY: 80
+  BRANCH_NAME: ${{ github.event.workflow_run.head_branch || github.head_ref || github.ref_name }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      RESOURCE_GROUP_NAME: ${{ steps.check_create_rg.outputs.RESOURCE_GROUP_NAME }}
+      WEBAPP_URL: ${{ steps.get_output.outputs.WEBAPP_URL }}
+      DEPLOYMENT_SUCCESS: ${{ steps.deployment_status.outputs.SUCCESS }}
+      API_APP_URL: ${{ steps.get_output.outputs.API_APP_URL }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Quota Check
+        id: quota-check
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          GPT_MIN_CAPACITY: ${{ env.GPT_MIN_CAPACITY }}
+          TEXT_EMBEDDING_MIN_CAPACITY: ${{ env.TEXT_EMBEDDING_MIN_CAPACITY }}
+          AZURE_REGIONS: ${{ vars.AZURE_REGIONS_KM }}
+        run: |
+          chmod +x infra/scripts/checkquota_km.sh
+          infra/scripts/checkquota_km.sh
+
+          quota_failed="$(grep -E '^QUOTA_FAILED=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+          valid_region="$(grep -E '^VALID_REGION=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+
+          if [[ "${quota_failed:-false}" == "true" ]]; then
+            echo "❌ Quota check failed: no region has required model quota."
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -z "${valid_region:-}" ]]; then
+            echo "❌ Quota check did not provide VALID_REGION. Marking quota check as failed."
+            echo "QUOTA_FAILED=true" >> "$GITHUB_ENV"
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -n "${valid_region:-}" ]]; then
+            echo "✅ Quota check passed. Selected region: ${valid_region}"
+          fi
+      - name: Send Notification on Quota Failure
+        if: env.QUOTA_FAILED == 'true'
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EMAIL_BODY=$(cat <<EOF
+          {
+            "body": "<p>Dear Team,</p><p>The KMGeneric quota check has failed, and the pipeline cannot proceed.</p><p><strong>Build URL:</strong> <a href=\"${RUN_URL}\">${RUN_URL}</a></p><p>Please take necessary action.</p><p>Best regards,<br>Your Automation Team</p>",
+            "subject": "KMGeneric Deployment - Quota Check Failed"
+          }
+          EOF
+          )
+          curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$EMAIL_BODY" || echo "Failed to send notification"
+      - name: Fail Pipeline if Quota Check Fails
+        if: env.QUOTA_FAILED == 'true'
+        run: exit 1
+      - name: Install Bicep CLI
+        run: az bicep install
+      
+      - name: Set Deployment Region
+        run: |
+          if [[ -z "${VALID_REGION:-}" ]]; then
+            echo "❌ ERROR: VALID_REGION is empty after quota check."
+            exit 1
+          fi
+
+          echo "Selected Region: $VALID_REGION"
+          echo "AZURE_LOCATION=$VALID_REGION" >> $GITHUB_ENV
+      - name: Generate Resource Group Name
+        id: generate_rg_name
+        run: |
+          echo "Generating a unique resource group name..."
+
+          ACCL_NAME="kmgeneric"
+
+          SHORT_UUID=$(uuidgen | cut -d'-' -f1)
+          UNIQUE_RG_NAME="arg-${ACCL_NAME}-${SHORT_UUID}"
+          echo "RESOURCE_GROUP_NAME=${UNIQUE_RG_NAME}" >> $GITHUB_ENV
+          echo "Generated RESOURCE_GROUP_NAME: ${UNIQUE_RG_NAME}"
+      
+      - name: Check and Create Resource Group
+        id: check_create_rg
+        run: |
+          set -e
+          OWNER_TAG_VALUE="${{ github.actor }}"
+          echo "🔍 Checking if resource group '${{ env.RESOURCE_GROUP_NAME }}' exists..."
+          rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
+          if [ "$rg_exists" = "false" ]; then
+            echo "📦 Resource group does not exist. Creating..."
+            echo "🏷️  Adding Owner tag: Owner=${OWNER_TAG_VALUE}"
+            az group create --name ${{ env.RESOURCE_GROUP_NAME }} --location ${{ env.AZURE_LOCATION }} --tags "Owner=${OWNER_TAG_VALUE}" || { echo "❌ Error creating resource group"; exit 1; }
+          else
+            echo "✅ Resource group already exists."
+            echo "🏷️  Adding Owner tag on existing resource group: Owner=${OWNER_TAG_VALUE}"
+            az group update --name "${{ env.RESOURCE_GROUP_NAME }}" --set tags.Owner="${OWNER_TAG_VALUE}" --output none || echo "⚠️  Warning: failed to update Owner tag on existing resource group '${{ env.RESOURCE_GROUP_NAME }}'."
+          fi
+          echo "RESOURCE_GROUP_NAME=${{ env.RESOURCE_GROUP_NAME }}" >> $GITHUB_OUTPUT
+      - name: Generate Unique Solution Prefix
+        id: generate_solution_prefix
+        run: |
+          set -e
+          COMMON_PART="kmg"
+          TIMESTAMP=$(date +%s)  
+          UPDATED_TIMESTAMP=$(echo $TIMESTAMP | tail -c 6) 
+          UNIQUE_SOLUTION_PREFIX="${COMMON_PART}${UPDATED_TIMESTAMP}"
+          echo "SOLUTION_PREFIX=${UNIQUE_SOLUTION_PREFIX}" >> $GITHUB_ENV
+          echo "Generated SOLUTION_PREFIX: ${UNIQUE_SOLUTION_PREFIX}" 
+      - name: Determine Tag Name Based on Branch
+        id: determine_tag
+        run: echo "tagname=${{ github.ref_name == 'main' && 'latest_afv2' || github.ref_name == 'dev' && 'dev' || github.ref_name == 'demo' && 'demo' || github.ref_name == 'dependabotchanges' && 'dependabotchanges' || 'latest_afv2' }}" >> $GITHUB_OUTPUT
+      - name: Deploy Bicep Template
+        id: deploy
+        run: |
+          set -e
+
+          # Generate current timestamp in desired format: YYYY-MM-DDTHH:MM:SS.SSSSSSSZ
+            current_date=$(date -u +"%Y-%m-%dT%H:%M:%S.%7NZ")
+          
+          az deployment group create \
+            --resource-group ${{ env.RESOURCE_GROUP_NAME }} \
+            --template-file infra/main.bicep \
+            --parameters solutionName=${{env.SOLUTION_PREFIX}} location="${{ env.AZURE_LOCATION }}" secondaryLocation="${{ env.AZURE_LOCATION }}" gptDeploymentCapacity=150 aiServiceLocation="${{ env.AZURE_LOCATION }}" createdBy="Pipeline" tags="{'Purpose':'Deploying and Cleaning Up Resources for Validation','CreatedDate':'$current_date'}"
+
+     
+
+      - name: Extract Web App and API App URLs
+        id: get_output  # <-- Add this
+        run: |
+          echo "Fetching Web Apps..."
+          
+          WEBAPP_NAMES=$(az webapp list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --query "[].name" -o tsv)
+          echo "Detected Web Apps: $WEBAPP_NAMES"
+          for NAME in $WEBAPP_NAMES; do
+            if [[ $NAME == app-* ]]; then
+              WEBAPP_URL="https://${NAME}.azurewebsites.net"
+              echo "WEBAPP_URL=$WEBAPP_URL" >> $GITHUB_OUTPUT
+              echo "WEBAPP_URL=$WEBAPP_URL" 
+            elif [[ $NAME == api-* ]]; then
+              API_APP_URL="https://${NAME}.azurewebsites.net"
+              echo "API_APP_URL=$API_APP_URL" >> $GITHUB_OUTPUT
+              echo "API_APP_URL=$API_APP_URL"
+            fi
+          done
+      - name: Extract AI Services and Key Vault Names
+        if: always()
+        run: |
+              echo "Fetching AI Services and Key Vault names before deletion..."
+              
+              # Get Key Vault name
+              KEYVAULT_NAME=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
+              echo "Detected Key Vault: $KEYVAULT_NAME"
+              echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
+          
+              # Get AI Services names and convert them into a space-separated string
+              AI_SERVICES=$(az resource list --resource-group ${{ env.RESOURCE_GROUP_NAME }} --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv | tr '\n' ' ')
+              
+              echo "Detected AI Services: $AI_SERVICES"
+              echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV          
+      - name: Set Deployment Status
+        id: deployment_status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "SUCCESS=true" >> $GITHUB_OUTPUT
+          else
+            echo "SUCCESS=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Logout from Azure
+        if: always()
+        run: |
+          az logout
+          echo "Logged out from Azure."
+  # NEW: E2E Test Job that calls the reusable workflow
+  e2e-test:
+    needs: deploy
+    if: needs.deploy.outputs.DEPLOYMENT_SUCCESS == 'true'
+    uses: ./.github/workflows/test-automation.yml
+    with:
+      KMGENERIC_URL: ${{ needs.deploy.outputs.WEBAPP_URL }}
+      KMGENERIC_URL_API: ${{ needs.deploy.outputs.API_APP_URL }}
+    secrets: inherit
+  cleanup-deployment:
+    if: always() && needs.deploy.outputs.RESOURCE_GROUP_NAME != ''
+    needs: [deploy, e2e-test]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RESOURCE_GROUP_NAME: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Extract AI Services and Key Vault Names
+        if: always()
+        run: |
+          echo "Fetching AI Services and Key Vault names before deletion..."
+          
+          # Get Key Vault name
+          KEYVAULT_NAME=$(az resource list --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --resource-type "Microsoft.KeyVault/vaults" --query "[].name" -o tsv)
+          echo "Detected Key Vault: $KEYVAULT_NAME"
+          echo "KEYVAULT_NAME=$KEYVAULT_NAME" >> $GITHUB_ENV
+          # Extract AI Services names
+          echo "Fetching AI Services..."
+          AI_SERVICES=$(az resource list --resource-group '${{ env.RESOURCE_GROUP_NAME }}' --resource-type "Microsoft.CognitiveServices/accounts" --query "[].name" -o tsv)
+          # Flatten newline-separated values to space-separated
+          AI_SERVICES=$(echo "$AI_SERVICES" | paste -sd ' ' -)
+          echo "Detected AI Services: $AI_SERVICES"
+          echo "AI_SERVICES=$AI_SERVICES" >> $GITHUB_ENV
+      
+      - name: Delete Bicep Deployment
+        if: always()
+        run: |
+          set -e  
+          echo "Checking if resource group exists..."
+          rg_exists=$(az group exists --name ${{ env.RESOURCE_GROUP_NAME }})
+          if [ "$rg_exists" = "true" ]; then
+            echo "Resource group exists. Cleaning..."
+            az group delete \
+                --name ${{ env.RESOURCE_GROUP_NAME }} \
+                --yes \
+                --no-wait
+            echo "Resource group deleted... ${{ env.RESOURCE_GROUP_NAME }}"
+          else
+            echo "Resource group does not exist."
+          fi
+      - name: Wait for Resource Deletion to Complete
+        if: always()
+        run: |
+          echo "Waiting for all deployed resources (including AI Services) to be deleted..."
+      
+          # Convert AI_SERVICES space-separated string into an array
+          IFS=' ' read -r -a resources_to_check <<< "${{ env.AI_SERVICES }}"
+      
+          echo "Resources to check for deletion:"
+          printf '%s\n' "${resources_to_check[@]}"
+      
+          # Get the current resource list in YAML
+          resource_list=$(az resource list --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}" --output yaml)
+      
+          # Set up retry logic
+          max_retries=3
+          retry_intervals=(30 60 120)
+          retries=0
+      
+          while true; do
+            resource_found=false
+            for resource in "${resources_to_check[@]}"; do
+              echo "Checking if resource '$resource' still exists..."
+              if echo "$resource_list" | grep -q "name: $resource"; then
+                echo "Resource '$resource' still exists."
+                resource_found=true
+              else
+                echo "Resource '$resource' has been deleted."
+              fi
+            done
+      
+            if [ "$resource_found" = true ]; then
+              retries=$((retries + 1))
+              if [ "$retries" -ge "$max_retries" ]; then
+                echo "Reached max retry attempts. Exiting wait loop."
+                break
+              else
+                echo "Some resources still exist. Waiting for ${retry_intervals[$((retries-1))]} seconds..."
+                sleep "${retry_intervals[$((retries-1))]}"
+                resource_list=$(az resource list --subscription "${{ secrets.AZURE_SUBSCRIPTION_ID }}" --output yaml)
+              fi
+            else
+              echo "All resources have been deleted."
+              break
+            fi
+          done
+      - name: Wait for Soft Deletion of Key Vault and AI Services
+        if: always()
+        run: |
+          echo "Waiting for resources to be soft deleted..."
+      
+          # Wait for Key Vault to be soft deleted
+          if [ -n "${{ env.KEYVAULT_NAME }}" ]; then
+            while true; do
+              DELETED_VAULT=$(az keyvault show-deleted --name ${{ env.KEYVAULT_NAME }} --query "id" -o tsv 2>/dev/null || echo "")
+              if [ -n "$DELETED_VAULT" ]; then
+                echo "Key Vault soft deleted!"
+                break
+              fi
+              echo "Key Vault not yet soft deleted. Retrying in 15s..."
+              sleep 15
+            done
+          fi
+          # Wait for AI Services to be soft deleted
+          for AI_SERVICE in ${{ env.AI_SERVICES }}; do
+            while true; do
+              DELETED_AI_SERVICE=$(az cognitiveservices account list-deleted --query "[?name=='$AI_SERVICE'].id" -o tsv 2>/dev/null || echo "")
+              if [ -n "$DELETED_AI_SERVICE" ]; then
+                echo "AI Service $AI_SERVICE is soft deleted!"
+                break
+              fi
+              echo "AI Service $AI_SERVICE not yet soft deleted. Retrying in 15s..."
+              sleep 15
+            done
+          done
+        
+      - name: Purge Key Vault and AI Services
+        if: always()
+        run: |
+          echo "Purging soft deleted resources..."
+          
+          # Ensure AI_SERVICES is properly split into individual services
+          IFS=' ' read -r -a SERVICES <<< "${{ env.AI_SERVICES }}"
+          for AI_SERVICE in "${SERVICES[@]}"; do
+            echo "Checking location for AI Service: $AI_SERVICE"
+            # Fetch AI Service location
+            SERVICE_LOCATION=$(az cognitiveservices account list-deleted --query "[?name=='$AI_SERVICE'].location" -o tsv 2>/dev/null || echo "")
+            if [ -n "$SERVICE_LOCATION" ]; then
+              echo "Purging AI Service $AI_SERVICE in $SERVICE_LOCATION"
+              az cognitiveservices account purge --location "$SERVICE_LOCATION" --resource-group "${{ env.RESOURCE_GROUP_NAME }}" --name "$AI_SERVICE"
+            else
+              echo "Could not determine location for AI Service: $AI_SERVICE. Skipping purge."
+            fi
+          done
+          # Purge Key Vaults
+          echo "Starting purge for Key Vaults..."
+          IFS=' ' read -r -a VAULTS <<< "${{ env.KEYVAULT_NAME }}"
+          for VAULT in "${VAULTS[@]}"; do
+            echo "Checking location for Key Vault: $VAULT"
+            # Fetch Key Vault location
+            VAULT_LOCATION=$(az keyvault list-deleted --query "[?name=='$VAULT'].properties.location" -o tsv 2>/dev/null || echo "")
+            if [ -n "$VAULT_LOCATION" ]; then
+              echo "Purging Key Vault $VAULT in $VAULT_LOCATION"
+              az keyvault purge --name "$VAULT" --location "$VAULT_LOCATION"
+            else
+              echo "Could not determine location for Key Vault: $VAULT. Skipping purge."
+            fi
+          done
+      - name: Send Notification on Failure
+        if: failure() || needs.deploy.result == 'failure' || needs.e2e-test.result == 'failure'
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EMAIL_BODY=$(cat <<EOF
+          {
+            "body": "<p>Dear Team,</p><p>We would like to inform you that the KMGeneric Deployment Automation process has encountered an issue and has failed to complete successfully.</p><p><strong>Build URL:</strong> <a href=\"${RUN_URL}\">${RUN_URL}</a><br></p><p>Please investigate the matter at your earliest convenience.</p><p>Best regards,<br>Your Automation Team</p>",
+            "subject": "KMGeneric Deployment - Pipeline Failed"
+          }
+          EOF
+          )
+          curl -X POST "${{ secrets.LOGIC_APP_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$EMAIL_BODY" || echo "Failed to send notification"
+      - name: Logout from Azure
+        if: always()
+        run: |
+          az logout
+          echo "Logged out from Azure."

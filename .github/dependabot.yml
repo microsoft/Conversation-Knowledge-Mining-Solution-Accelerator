@@ -1,0 +1,66 @@
+version: 2
+
+updates:
+  # GitHub Actions - grouped
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Python backend dependencies - grouped
+  - package-ecosystem: "pip"
+    directory: "/src/api"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      backend-deps:
+        patterns:
+          - "*"
+
+  # Python index scripts dependencies - grouped
+  - package-ecosystem: "pip"
+    directory: "/infra/scripts/index_scripts"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    groups:
+      index-scripts-deps:
+        patterns:
+          - "*"
+
+  # Frontend npm dependencies - grouped
+  - package-ecosystem: "npm"
+    directory: "/src/App"
+    schedule:
+      interval: "monthly"
+    target-branch: "dependabotchanges"
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 10
+    registries:
+      - npm_public_registry
+    groups:
+      frontend-deps:
+        patterns:
+          - "*"
+
+registries:
+  npm_public_registry:
+    type: "npm-registry"
+    url: "https://registry.npmjs.org/"
+    token: ${{ secrets.TOKEN }}

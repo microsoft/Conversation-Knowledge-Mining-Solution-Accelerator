@@ -1,0 +1,153 @@
+name: Deployment orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      runner_os:
+        description: 'Runner OS (ubuntu-latest or windows-latest)'
+        required: true
+        type: string
+      azure_location:
+        description: 'Azure Location For Deployment'
+        required: false
+        default: 'australiaeast'
+        type: string
+      resource_group_name:
+        description: 'Resource Group Name (Optional)'
+        required: false
+        default: ''
+        type: string
+      waf_enabled:
+        description: 'Enable WAF'
+        required: false
+        default: false
+        type: boolean
+      enable_scalability:
+        description: 'Enable scalability features for WAF deployments (opt-in)'
+        required: false
+        default: false
+        type: boolean
+      exp:
+        description: 'Enable EXP'
+        required: false
+        default: false
+        type: boolean
+      build_docker_image:
+        description: 'Build And Push Docker Image (Optional)'
+        required: false
+        default: false
+        type: boolean
+      cleanup_resources:
+        description: 'Cleanup Deployed Resources'
+        required: false
+        default: false
+        type: boolean
+      run_e2e_tests:
+        description: 'Run End-to-End Tests'
+        required: false
+        default: 'GoldenPath-Testing'
+        type: string
+      azure_env_existing_log_analytics_workspace_rid:
+        description: 'Log Analytics Workspace ID (Optional)'
+        required: false
+        default: ''
+        type: string
+      azure_existing_aiproject_resource_id:
+        description: 'AI Project Resource ID (Optional)'
+        required: false
+        default: ''
+        type: string
+      existing_webapp_url:
+        description: 'Existing WebApp URL (Skips Deployment)'
+        required: false
+        default: ''
+        type: string
+      use_case:
+        description: 'Azure Environment Use Case (telecom or IT_helpdesk)'
+        required: false
+        default: 'telecom'
+        type: string
+      trigger_type:
+        description: 'Trigger type (workflow_dispatch, pull_request, schedule)'
+        required: true
+        type: string
+
+env:
+  AZURE_DEV_COLLECT_TELEMETRY: ${{ vars.AZURE_DEV_COLLECT_TELEMETRY }}
+
+jobs:
+  docker-build:
+    uses: ./.github/workflows/job-docker-build.yml
+    with:
+      trigger_type: ${{ inputs.trigger_type }}
+      build_docker_image: ${{ inputs.build_docker_image }}
+    secrets: inherit
+
+  deploy:
+    if: "!cancelled() && (needs.docker-build.result == 'success' || needs.docker-build.result == 'skipped') && (inputs.trigger_type != 'workflow_dispatch' || inputs.existing_webapp_url == '' || inputs.existing_webapp_url == null)"
+    needs: docker-build
+    uses: ./.github/workflows/job-azure-deploy.yml
+    with:
+      trigger_type: ${{ inputs.trigger_type }}
+      runner_os: ${{ inputs.runner_os }}
+      azure_location: ${{ inputs.azure_location }}
+      resource_group_name: ${{ inputs.resource_group_name }}
+      waf_enabled: ${{ inputs.waf_enabled }}
+      enable_scalability: ${{ inputs.enable_scalability }}
+      exp: ${{ inputs.exp }}
+      build_docker_image: ${{ inputs.build_docker_image }}
+      existing_webapp_url: ${{ inputs.existing_webapp_url }}
+      azure_env_existing_log_analytics_workspace_rid: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
+      azure_existing_aiproject_resource_id: ${{ inputs.azure_existing_aiproject_resource_id }}
+      use_case: ${{ inputs.use_case }}
+      docker_image_tag: ${{ needs.docker-build.outputs.IMAGE_TAG }}
+      run_e2e_tests: ${{ inputs.run_e2e_tests }}
+      cleanup_resources: ${{ inputs.cleanup_resources }}
+    secrets: inherit
+
+  e2e-test:
+    if: "!cancelled() && ((needs.deploy.result == 'success' && needs.deploy.outputs.WEB_APP_URL != '') || (inputs.existing_webapp_url != '' && inputs.existing_webapp_url != null)) && (inputs.trigger_type != 'workflow_dispatch' || (inputs.run_e2e_tests && inputs.run_e2e_tests != 'None'))"
+    needs: [docker-build, deploy]
+    uses: ./.github/workflows/job-test-automation.yml
+    with:
+      KMGENERIC_URL: ${{ needs.deploy.outputs.WEB_APP_URL || inputs.existing_webapp_url }}
+      KMGENERIC_URL_API: ${{ needs.deploy.outputs.API_APP_URL || inputs.existing_webapp_url }}
+      TEST_SUITE: ${{ inputs.trigger_type == 'workflow_dispatch' && inputs.run_e2e_tests || 'GoldenPath-Testing' }}
+      USE_CASE: ${{ inputs.use_case }}
+    secrets: inherit
+
+  cleanup-deployment:
+    if: "!cancelled() && needs.deploy.outputs.RESOURCE_GROUP_NAME != '' && inputs.existing_webapp_url == '' && (inputs.trigger_type != 'workflow_dispatch' || inputs.cleanup_resources)"
+    needs: [docker-build, deploy, e2e-test]
+    uses: ./.github/workflows/job-cleanup-resources.yml
+    with:
+      runner_os: ${{ inputs.runner_os }}
+      trigger_type: ${{ inputs.trigger_type }}
+      cleanup_resources: ${{ inputs.cleanup_resources }}
+      existing_webapp_url: ${{ inputs.existing_webapp_url }}
+      resource_group_name: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
+      azure_location: ${{ needs.deploy.outputs.AZURE_LOCATION }}
+      azure_env_ai_service_location: ${{ needs.deploy.outputs.AZURE_ENV_AI_SERVICE_LOCATION }}
+      env_name: ${{ needs.deploy.outputs.ENV_NAME }}
+      image_tag: ${{ needs.deploy.outputs.IMAGE_TAG }}
+    secrets: inherit
+
+  send-notification:
+    if: "!cancelled()"
+    needs: [docker-build, deploy, e2e-test, cleanup-deployment]
+    uses: ./.github/workflows/job-send-notifications.yml
+    with:
+      trigger_type: ${{ inputs.trigger_type }}
+      waf_enabled: ${{ inputs.waf_enabled }}
+      exp: ${{ inputs.exp }}
+      run_e2e_tests: ${{ inputs.run_e2e_tests }}
+      existing_webapp_url: ${{ inputs.existing_webapp_url }}
+      deploy_result: ${{ needs.deploy.result }}
+      e2e_test_result: ${{ needs.e2e-test.result }}
+      web_app_url: ${{ needs.deploy.outputs.WEB_APP_URL }}
+      resource_group_name: ${{ needs.deploy.outputs.RESOURCE_GROUP_NAME }}
+      quota_failed: ${{ needs.deploy.outputs.QUOTA_FAILED }}
+      test_success: ${{ needs.e2e-test.outputs.TEST_SUCCESS }}
+      test_report_url: ${{ needs.e2e-test.outputs.TEST_REPORT_URL }}
+      cleanup_result: ${{ needs.cleanup-deployment.result }}
+    secrets: inherit

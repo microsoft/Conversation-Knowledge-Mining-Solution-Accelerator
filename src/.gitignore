@@ -1,0 +1,32 @@
+# TeamsFx files
+env/.env.*.user
+env/.env.local
+.localConfigs
+appPackage/build
+
+# dependencies
+node_modules/
+/node_modules
+App/frontend/node_modules
+App/.venv/
+
+# misc
+.venv/
+.deployment
+.DS_Store
+
+# build
+lib/
+/lib
+/build
+
+.venv
+frontend/node_modules
+# static
+.azure/
+__pycache__/
+.ipynb_checkpoints/
+
+.myenv
+/myenv
+myenv

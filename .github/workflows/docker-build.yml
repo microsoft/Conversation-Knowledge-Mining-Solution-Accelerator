@@ -1,0 +1,109 @@
+name: Build Docker and Optional Push - KM Generic
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - demo
+    paths:
+      - 'src/App/**'
+      - 'src/api/**'
+      - 'src/**/*.Dockerfile'
+      - 'src/gunicorn.conf.py'
+      - 'src/start.sh'
+      - 'src/start.cmd'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    types:
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
+    branches:
+      - main
+      - dev
+      - demo
+    paths:
+      - 'src/App/**'
+      - 'src/api/**'
+      - 'src/**/*.Dockerfile'
+      - 'src/gunicorn.conf.py'
+      - 'src/start.sh'
+      - 'src/start.cmd'
+      - '.github/workflows/docker-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Azure
+        if: ${{ (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) || (github.event_name == 'workflow_dispatch' && (github.ref_name == 'dependabotchanges'||github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        if: ${{ (github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) || (github.event_name == 'workflow_dispatch' && (github.ref_name == 'dependabotchanges'||github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo')) }}
+        run: |
+          ACR_NAME=$(echo "${{ secrets.ACR_LOGIN_SERVER }}" | sed 's/\.azurecr\.io$//')
+          az acr login --name "$ACR_NAME"
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        
+      - name: Output ACR Login Server
+        run: |
+          echo "ACR Login Server: ${{ secrets.ACR_LOGIN_SERVER }}"
+
+      - name: Determine Tag Name Based on Branch
+        id: determine_tag
+        run: |
+         if [[ "${{ github.ref_name }}" == "main" ]]; then
+          echo "tagname=latest_afv2" >> $GITHUB_OUTPUT
+         elif [[ "${{ github.ref_name }}" == "dev" ]]; then
+          echo "tagname=dev" >> $GITHUB_OUTPUT
+         elif [[ "${{ github.ref_name }}" == "demo" ]]; then
+          echo "tagname=demo" >> $GITHUB_OUTPUT
+         elif [[ "${{ github.ref_name }}" == "dependabotchanges" ]]; then
+          echo "tagname=dependabotchanges" >> $GITHUB_OUTPUT
+         else
+          echo "tagname=default" >> $GITHUB_OUTPUT
+       
+         fi
+      - name: Build and Push Docker Image for WebApp
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/App
+          file: ./src/App/WebApp.Dockerfile
+          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
+
+      - name: Build and Push Docker Image for api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./src/api
+          file: ./src/api/ApiApp.Dockerfile
+          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}
+            ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}

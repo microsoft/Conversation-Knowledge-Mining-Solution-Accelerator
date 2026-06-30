@@ -1,0 +1,27 @@
+.listContainer {
+  height: 100%;
+  overflow: hidden auto; 
+}
+
+.chatGroup {
+  width: 100%;
+}
+
+.chatMonth {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  padding-left: 15px;
+}
+
+.chatList {
+  width: 100%;
+}
+
+.spinnerContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 22px;
+  margin-top: -8px;
+}

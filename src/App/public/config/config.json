@@ -1,0 +1,63 @@
+{
+  "appConfig": {
+    "THREE_COLUMN": {
+      "DASHBOARD": 50,
+      "CHAT": 33,
+      "CHATHISTORY": 17
+    },
+    "TWO_COLUMN": {
+      "DASHBOARD_CHAT": {
+        "DASHBOARD": 65,
+        "CHAT": 35
+      },
+      "CHAT_CHATHISTORY": {
+        "CHAT": 80,
+        "CHATHISTORY": 20
+      }
+    }
+  },
+  "charts": [
+    {
+      "id": "SATISFIED",
+      "chart_name": "Satisfied",
+      "chart_type": "card",
+      "layout": { "row": 1, "column": 1, "height": 11 }
+    },
+    {
+      "id": "TOTAL_CALLS",
+      "chart_name": "Total Calls",
+      "chart_type": "card",
+      "layout": { "row": 1, "column": 2, "span": 1 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME",
+      "chart_name": "Average Handling Time",
+      "chart_type": "card",
+      "layout": { "row": 1, "column": 3, "span": 1 }
+    },
+    {
+      "id": "SENTIMENT",
+      "chart_name": "Topics Overview",
+      "chart_type": "donutchart",
+      "layout": { "row": 2, "column": 1, "width": 40, "height": 44.5 }
+    },
+    {
+      "id": "AVG_HANDLING_TIME_BY_TOPIC",
+      "chart_name": "Average Handling Time By Topic",
+      "chart_type": "bar",
+      "layout": { "row": 2, "column": 2, "row-span": 2, "width": 60 }
+    },
+    {
+      "id": "TOPICS",
+      "chart_name": "Trending Topics",
+      "chart_type": "table",
+      "layout": { "row": 3, "column": 1, "span": 2 }
+    },
+    {
+      "id": "KEY_PHRASES",
+      "chart_name": "Key Phrases",
+      "chart_type": "wordcloud",
+      "layout": { "row": 3, "column": 2, "height": 44.5 }
+    }
+  ]
+}

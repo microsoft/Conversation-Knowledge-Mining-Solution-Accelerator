@@ -1,0 +1,293 @@
+
+.filterOuterContainer {
+  box-shadow: 0px 4px 8px 0px rgba(0, 0, 0, 0.14),
+    0px 0px 2px 0px rgba(0, 0, 0, 0.12);
+  display: flex;
+  gap: 8px;
+  padding: 0.25rem 1rem;
+  border-radius: 9px;
+  background: white;
+}
+
+.applyBtn {
+  background-color: rgb(0, 120, 212) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+.applyBtn:disabled {
+  background-color: inherit !important;
+  color: inherit !important;
+}
+
+.dropdown {
+  color: #424242;
+  width: 200px;
+  background-color: white;
+  box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.14),
+    0px 0px 2px 0px rgba(0, 0, 0, 0.12);
+}
+
+.filters-container {
+  padding-top: .3rem;
+  justify-content: center;
+  position: absolute; /* Updated to fixed positioning */
+  height: auto;
+  bottom: 0;
+  width: 100%;
+  z-index: 10; /* Ensures it stays on top of other components */
+}
+
+.ms-Checkbox-checkbox {
+  visibility: hidden;
+}
+
+.filterOuterContainer button {
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  margin: 0 5px;
+  color: #333;
+  border: none;
+}
+.filterOuterContainer button:hover {
+  background-color: #e0e0e0;
+}
+
+.filterOuterContainer button:disabled {
+  cursor: not-allowed;
+}
+
+.resetTopicsButton:focus {
+  outline: none; 
+  border: 1px solid #000000; 
+  padding: 2px; 
+}
+
+.capitalize-text {
+  text-transform: capitalize;
+}
+.options {
+  outline: transparent;
+  position: relative;
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+  font-size: 0.8rem;
+  font-weight: 400;
+  background-color: transparent;
+  border: none;
+  width: 100%;
+  height: 2.25rem;
+  line-height: 2.25rem;
+  display: block;
+  cursor: pointer;
+  padding: 0 0.5rem 0 0.25rem;
+  text-align: left;
+}
+
+.deselectIcon {
+  width: 1rem;
+  display: inline-block;
+  text-decoration: inherit;
+  min-height: 0.0625rem;
+  max-height: 2.25rem;
+  margin: 0 0.25rem;
+  vertical-align: middle;
+}
+
+.no-result {
+  display: flex;
+  justify-content: center;
+  gap: 4%;
+  margin-block: 0.5rem;
+  align-items: center;
+}
+
+
+/* Large screens (≥992px) */
+@media (min-width: 992px) {
+  .custom-dropdown > div > span:nth-of-type(1) {
+    height: 1.3rem;
+  }
+
+  .filters-container {
+    height: 1.5rem;
+  }
+
+  .filterOuterContainer {
+    gap: 0;
+    padding: 0.25rem 0rem;
+  }
+
+  .filterOuterContainer button {
+    font-size: 0.5rem;
+    min-height: fit-content;
+  }
+  .filterOuterContainer button i {
+    font-size: .7rem;
+  }
+
+  ul>li>button{
+    font-size: 0.6rem !important;
+    height: 1.5rem !important;
+    line-height: unset !important;
+  }
+
+  .options{
+    height: 1.5rem;
+    line-height: 1.5rem;
+  }
+
+  .ms-BaseButton-menuhost{
+    min-width: fit-content;
+  }
+  .options span{
+    font-size: 0.6rem !important;
+  }
+
+  .searchTopics {
+    height: 2rem; 
+    font-size: 0.7rem !important;
+  }
+
+  .searchTopics input{
+    font-size: .69rem;
+  }
+  .ms-SearchBox-iconContainer {
+    font-size: .6rem;
+  }
+
+  .no-result{
+    font-size: 0.7rem;
+  }
+
+  .ms-ContextualMenu-checkmarkIcon{
+    font-size:  0.7rem !important;
+    width: 0.7rem !important;
+  }
+}
+
+/* Extra Large screens (≥1200px) */
+@media (min-width: 1200px) {
+  .custom-dropdown > div > span:nth-of-type(1) {
+    height: 1.6rem;
+  }
+
+  .filters-container {
+    height: 1.8rem;
+  }
+
+  .filterOuterContainer button {
+    font-size: 0.7rem;
+    min-height: fit-content;
+  }
+
+  .filterOuterContainer button i {
+    font-size: .8rem;
+  }
+
+  .options span{
+    font-size: 0.8rem !important;
+  }
+
+  ul>li>button{
+    font-size: 0.8rem !important;
+    height: 2rem !important;
+    line-height: unset !important;
+  }
+
+  .options{
+    height: 2rem !important;
+  }
+
+  .ms-BaseButton-menuhost{
+    min-width: fit-content;
+  }
+}
+
+/* Extra Extra Large screens (≥1400px) */
+@media (min-width: 1400px) {
+  .custom-dropdown > div > span:nth-of-type(1) {
+    height: 2.1rem;
+  }
+  .filters-container {
+    height: 2.4rem;
+  }
+  .filterOuterContainer button {
+    font-size: 0.8rem;
+    min-height: fit-content;
+  }
+  .filterOuterContainer button i {
+    font-size: 1rem;
+  }
+
+  .ms-BaseButton-menuhost{
+    min-width: fit-content;
+  }
+
+  .options span{
+    font-size: 0.8rem !important;
+  }
+
+  ul>li>button{
+    font-size: 0.8rem !important;
+    height: 2rem !important;
+    line-height: unset !important;
+  }
+
+  .options{
+    height: 2rem !important;
+  }
+
+}
+
+/* Very Extra Large screens (≥1600px) */
+@media (min-width: 1600px) {
+  .custom-dropdown > div > span:nth-of-type(1) {
+    height: 2.3rem;
+  }
+
+  .filters-container {
+    height: 2.8rem;
+  }
+
+  .filterOuterContainer button {
+    font-size: 0.9rem;
+    min-height: fit-content;
+  }
+  .filterOuterContainer button i {
+    font-size: 1.2rem;
+  }
+
+  .options span{
+    font-size: 1rem !important;
+  }
+
+  ul>li>button{
+    font-size: 1rem !important;
+    height: 2.5rem !important;
+    line-height: unset !important;
+  }
+
+  .options{
+    height: 2.5rem !important;
+  }
+
+  .ms-BaseButton-menuhost{
+    min-width: fit-content;
+  }
+  .options span{
+    font-size: 1rem !important;
+  }
+  .searchTopics{
+    height: 25px;
+    font-size: 1rem !important;
+  }
+
+  .no-result{
+    font-size: 1rem;
+  }
+
+  .ms-ContextualMenu-checkmarkIcon{
+    font-size:  0.7rem !important;
+    width: 0.7rem !important;
+  }
+}
