@@ -1,17 +1,25 @@
 from typing import Optional
+import asyncio
 import logging
 import os
 import re
 
 import yaml
 from azure.identity import DefaultAzureCredential
-from openai import AzureOpenAI
+from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
+from azure.ai.projects.aio import AIProjectClient
+from agent_framework import AgentSession
+from agent_framework_foundry import FoundryAgent
+from cachetools import TTLCache
 
 from src.api.config import get_settings
-from src.api.capabilities._llm import get_llm_client
 from src.api.modules.rag.models import QAResponse, Source
 
 logger = logging.getLogger(__name__)
+
+# Maps a stable conversation_id (from UI) -> Foundry conversation/thread id, so
+# multi-turn chats reuse server-side history. Mirrors chat_service.py's thread cache.
+_thread_cache: TTLCache = TTLCache(maxsize=1000, ttl=3600.0)
 
 # Load prompts from config file (editable without code changes)
 _PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "config", "prompts.yaml")
@@ -49,12 +57,68 @@ class RAGService:
     """Retrieval-Augmented Generation service for question answering."""
 
     def __init__(self):
-        self._client: Optional[AzureOpenAI] = None
+        pass
 
-    def _get_client(self) -> AzureOpenAI:
-        if self._client is None:
-            self._client = get_llm_client()
-        return self._client
+    def _run_agent(self, user_input: str, conversation_id: Optional[str] = None) -> tuple[str, list[Source]]:
+        """Invoke the single pre-created Foundry agent and return (text, citations).
+
+        Reuses a cached Foundry conversation/thread per conversation_id so multi-turn
+        history is kept server-side, matching the reference chat_service.py.
+        """
+        settings = get_settings()
+
+        async def _run() -> tuple[str, list[Source]]:
+            citations: list = []
+            marker_map: dict[str, int] = {}
+
+            def _replace_marker(match):
+                marker = match.group(0)
+                if marker not in marker_map:
+                    marker_map[marker] = len(marker_map) + 1
+                return f"[{marker_map[marker]}]"
+
+            async with (
+                AsyncDefaultAzureCredential() as credential,
+                AIProjectClient(
+                    endpoint=os.getenv("AZURE_AI_AGENT_ENDPOINT", settings.azure_ai_agent_endpoint),
+                    credential=credential,
+                ) as project_client,
+            ):
+                agent = FoundryAgent(project_client=project_client, agent_name=os.getenv("AGENT_NAME_CHAT", settings.agent_name_chat))
+
+                # Reuse or create a server-side conversation thread for continuity
+                thread_id = _thread_cache.get(conversation_id) if conversation_id else None
+                if not thread_id:
+                    openai_client = project_client.get_openai_client()
+                    conversation = await openai_client.conversations.create()
+                    thread_id = conversation.id
+                    if conversation_id:
+                        _thread_cache[conversation_id] = thread_id
+
+                session = AgentSession(service_session_id=thread_id)
+                out = ""
+                async for chunk in agent.run(user_input, stream=True, session=session):
+                    for content in getattr(chunk, "contents", []) or []:
+                        annotations = getattr(content, "annotations", []) or []
+                        if annotations:
+                            citations.extend(annotations)
+                    text = str(chunk.text) if chunk.text else ""
+                    text = re.sub(r"【\d+:\d+†?[^】]*】", _replace_marker, text)
+                    out += text
+
+            sources: list[Source] = []
+            seen: set[str] = set()
+            for c in citations:
+                add_props = (c.get("additional_properties") or {}) if isinstance(c, dict) else {}
+                url = add_props.get("get_url") or c.get("url") or add_props.get("url") or "N/A"
+                title = c.get("title", "N/A") if isinstance(c, dict) else "N/A"
+                if title in seen:
+                    continue
+                seen.add(title)
+                sources.append(Source(doc_id=title, score=0.0, text=title, metadata={"url": url}))
+            return out, sources
+
+        return asyncio.run(_run())
 
     def _get_blob_text_for_file(self, file_id: str) -> str:
         """Read extracted text from blob storage for 'extracted'-status files."""
@@ -376,6 +440,7 @@ class RAGService:
     def _answer_from_external(
         self, question: str, top_k: int,
         external_index_id: str, include_sources: bool,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         """Answer a question using an external Azure AI Search index."""
         from src.api.modules.ingestion.external_index import external_index_service
@@ -402,26 +467,12 @@ class RAGService:
             ))
 
         context = "\n\n---\n\n".join(context_parts)
-        system_prompt = _get_prompt(
-            "rag_external_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
-            context=context,
-        )
 
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model=settings.azure_openai_chat_deployment,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-        )
-
+        answer, agent_sources = self._run_agent(question, conversation_id)
+        sources = sources + agent_sources
         return QAResponse(
             question=question,
-            answer=_strip_links_from_answer(response.choices[0].message.content),
+            answer=_strip_links_from_answer(answer),
             sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
@@ -434,12 +485,13 @@ class RAGService:
         include_sources: bool = True,
         document_ids: Optional[list[str]] = None,
         external_index_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         settings = get_settings()
 
         # External index path
         if external_index_id:
-            return self._answer_from_external(question, top_k, external_index_id, include_sources)
+            return self._answer_from_external(question, top_k, external_index_id, include_sources, conversation_id)
 
         # 1. If filters are active, narrow document_ids to matching files
         if filters and not document_ids:
@@ -539,35 +591,12 @@ class RAGService:
         context = "\n\n---\n\n".join(context_parts)
 
         # 3. Generate answer
-        scope_instruction = ""
-        if document_ids:
-            scope_instruction = (
-                "\nThe user has already selected the document scope. "
-                "Do not ask the user to specify or pick documents again."
-            )
-
-        system_prompt = _get_prompt(
-            "rag_system_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
-            scope_instruction=scope_instruction,
-            context=context,
-        )
-
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model=settings.azure_openai_chat_deployment,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-        )
+        answer, agent_sources = self._run_agent(question, conversation_id)
 
         return QAResponse(
             question=question,
-            answer=_strip_links_from_answer(response.choices[0].message.content),
-            sources=sources if include_sources else [],
+            answer=_strip_links_from_answer(answer),
+            sources=agent_sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
 
@@ -577,6 +606,7 @@ class RAGService:
         top_k: int = 5,
         filters: Optional[dict] = None,
         document_ids: Optional[list[str]] = None,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         """Multi-turn conversation with RAG context."""
         settings = get_settings()
@@ -645,36 +675,19 @@ class RAGService:
             ))
 
         context = "\n\n---\n\n".join(context_parts)
-        scope_instruction = ""
-        if document_ids:
-            scope_instruction = (
-                "\nThe user has already selected the document scope. "
-                "Do not ask the user to specify or pick documents again."
-            )
 
-        system_prompt = _get_prompt(
-            "rag_conversation_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
-            scope_instruction=scope_instruction,
-            context=context,
-        )
-
-        all_messages = [{"role": "system", "content": system_prompt}] + messages
-
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model=settings.azure_openai_chat_deployment,
-            messages=all_messages,
-            temperature=0.3,
-            max_tokens=1000,
-        )
+        all_messages = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
+        answer, agent_sources = self._run_agent(all_messages, conversation_id)
 
         return QAResponse(
             question=last_user_message,
-            answer=_strip_links_from_answer(response.choices[0].message.content),
-            sources=sources,
+            answer=_strip_links_from_answer(answer),
+            sources=agent_sources,
             model=settings.azure_openai_chat_deployment,
         )
 
 
 rag_service = RAGService()
+
+
+

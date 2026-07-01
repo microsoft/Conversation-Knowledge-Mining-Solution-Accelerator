@@ -100,6 +100,7 @@ async def ask_question(request: QARequest):
             include_sources=request.include_sources,
             document_ids=doc_ids,
             external_index_id=request.external_index_id if request.chat_scope == "external" else None,
+            conversation_id=request.conversation_id,
         )
     except Exception as e:
         logger.error(f"RAG query failed: {e}", exc_info=True)
@@ -115,6 +116,7 @@ async def conversation(request: ConversationRequest):
         return await asyncio.to_thread(
             rag_service.answer_conversation,
             messages=messages, top_k=request.top_k, filters=request.filters, document_ids=doc_ids,
+            conversation_id=request.conversation_id,
         )
     except Exception as e:
         logger.error(f"Conversation failed: {e}", exc_info=True)

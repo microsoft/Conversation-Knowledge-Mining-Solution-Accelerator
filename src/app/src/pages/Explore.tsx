@@ -225,7 +225,7 @@ const Explore: React.FC = () => {
       const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) as string[] : undefined;
       const scope = docIds ? "documents" as const : "all" as const;
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
-      const res = await askQuestion(q, 5, filters, scope, docIds);
+      const res = await askQuestion(q, 5, filters, scope, docIds, activeSessionId);
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
       setMessages((prev: any[]) => [...prev, asstMsg]);
       if (res.data.sources?.length) setLastSources(res.data.sources);

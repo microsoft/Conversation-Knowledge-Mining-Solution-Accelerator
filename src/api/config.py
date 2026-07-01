@@ -11,6 +11,11 @@ _LOCAL_ENV = os.path.join(_CONFIG_DIR, ".env")
 
 
 class Settings(BaseSettings):
+    # Azure AI Foundry Agent — single pre-created chat agent (created by a separate script).
+    # The agent owns its system prompt/model; backend only references it by name.
+    azure_ai_agent_endpoint: str = ""  # AZURE_AI_AGENT_ENDPOINT
+    agent_name_chat: str = ""          # AGENT_NAME_CHAT
+
     # Azure AI Foundry (Foundry IQ) — preferred path for centralized model governance
     azure_foundry_endpoint: str = ""  # e.g., https://<project>.services.ai.azure.com
 

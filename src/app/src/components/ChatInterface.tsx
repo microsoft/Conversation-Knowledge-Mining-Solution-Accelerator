@@ -119,6 +119,7 @@ const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationId] = useState<string>(() => crypto.randomUUID());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -133,7 +134,7 @@ const ChatInterface: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await askQuestion(input);
+      const response = await askQuestion(input, 5, undefined, "all", undefined, conversationId);
       const data = response.data;
       setMessages((prev) => [
         ...prev,
