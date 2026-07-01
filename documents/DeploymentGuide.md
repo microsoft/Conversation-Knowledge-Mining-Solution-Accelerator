@@ -312,9 +312,39 @@ After successful deployment:
 4. Click on the App Service to open its overview page
 5. Copy the **Default domain** URL (e.g., `app-abc123def.azurewebsites.net`)
 
-⚠️ **Important:** Complete the following steps to process sample data and configure authentication before accessing the application.
+⚠️ **Important:** Complete the following steps to build the application container images, process sample data, and configure authentication before accessing the application.
 
-### 4.4 Process Sample Data
+### 4.4 Build and Push Container Images
+
+This solution provisions a dedicated **Azure Container Registry (ACR)** in your resource group. During provisioning, the backend and frontend App Services start with a temporary *hello-world* placeholder image. Run the following script to build the backend (`km-api`) and frontend (`km-app`) images, push them to your ACR, and update the App Services to run them.
+
+**Run the build and push script:**
+
+The `azd up` deployment output includes a ready-to-use bash script command. Look for the script in the deployment output and run it:
+
+```bash
+bash ./infra/scripts/build_and_push_images.sh
+```
+
+The images are **built remotely in ACR** using `az acr build`, so no local Docker installation is required.
+
+**If you don't have `azd env` configured**, pass the resource group name so the script can resolve values from the deployment outputs:
+
+```bash
+bash ./infra/scripts/build_and_push_images.sh <resource-group>
+```
+
+**What the script does:**
+- Builds the backend image from [src/api/ApiApp.Dockerfile](../src/api/ApiApp.Dockerfile)
+- Builds the frontend image from [src/App/WebApp.Dockerfile](../src/App/WebApp.Dockerfile)
+- Pushes both images to the provisioned Azure Container Registry
+- Updates the backend and frontend App Services to run the new images (pulled via managed identity) and restarts them
+
+> **Note:** For Production (WAF) deployments, ACR public network access is disabled. The script temporarily enables it to build/push the images and restores the original setting when it finishes.
+
+**Expected Processing Time:** 5-10 minutes depending on network speed.
+
+### 4.5 Process Sample Data
 
 After the infrastructure deployment completes, follow these steps to process and load the sample data:
 

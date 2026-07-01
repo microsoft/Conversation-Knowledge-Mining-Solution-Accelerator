@@ -93,23 +93,17 @@ param embeddingModel string = 'text-embedding-3-small'
 @description('Optional. Capacity of the Embedding Model deployment.')
 param embeddingDeploymentCapacity int = 80
 
-@description('Optional. The Container Registry hostname where the docker images for the backend are located.')
-param backendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
-
 @description('Optional. The Container Image Name to deploy on the backend.')
 param backendContainerImageName string = 'km-api'
 
 @description('Optional. The Container Image Tag to deploy on the backend.')
-param backendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
-
-@description('Optional. The Container Registry hostname where the docker images for the frontend are located.')
-param frontendContainerRegistryHostname string = 'kmcontainerreg.azurecr.io'
+param backendContainerImageTag string = 'latest'
 
 @description('Optional. The Container Image Name to deploy on the frontend.')
 param frontendContainerImageName string = 'km-app'
 
 @description('Optional. The Container Image Tag to deploy on the frontend.')
-param frontendContainerImageTag string = 'latest_afv2_2026-03-10_1326'
+param frontendContainerImageTag string = 'latest'
 
 @description('Optional. The tags to apply to all deployed Azure resources.')
 param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
@@ -163,7 +157,6 @@ var solutionSuffix = toLower(trim(replace(
   ''
 )))
 
-var acrName = 'kmcontainerreg'
 // Replica regions list based on article in [Azure regions list](https://learn.microsoft.com/azure/reliability/regions-list) and [Enhance resilience by replicating your Log Analytics workspace across regions](https://learn.microsoft.com/azure/azure-monitor/logs/workspace-replication#supported-regions) for supported regions for Log Analytics Workspace.
 var replicaRegionPairs = {
   australiaeast: 'australiasoutheast'
@@ -579,6 +572,7 @@ var privateDnsZones = [
   'privatelink${environment().suffixes.sqlServerHostname}'
   'privatelink.search.windows.net'
   'privatelink.azurewebsites.net'
+  'privatelink.azurecr.io'
 ]
 
 // DNS Zone Index Constants
@@ -594,6 +588,7 @@ var dnsZoneIndex = {
   sqlServer: 8
   search: 9
   webApp: 10
+  containerRegistry: 11
 }
 
 // ===================================================
@@ -1375,11 +1370,14 @@ module webSiteBackend 'modules/web-sites.bicep' = {
     managedIdentities: {
       systemAssigned: true
       userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
         backendUserAssignedIdentity.outputs.resourceId
       ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}'
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      acrUseManagedIdentityCreds: true
+      acrUserManagedIdentityID: userAssignedIdentity.outputs.clientId
       minTlsVersion: '1.2'
     }
     configs: [
@@ -1459,9 +1457,14 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     serverFarmResourceId: webServerFarm.outputs.resourceId
     managedIdentities: {
       systemAssigned: true
+      userAssignedResourceIds: [
+        userAssignedIdentity.outputs.resourceId
+      ]
     }
     siteConfig: {
-      linuxFxVersion: 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}'
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      acrUseManagedIdentityCreds: true
+      acrUserManagedIdentityID: userAssignedIdentity.outputs.clientId
       minTlsVersion: '1.2'
     }
     configs: [
@@ -1480,6 +1483,57 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webSubnetResourceId : null
     diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
     publicNetworkAccess: 'Enabled'
+  }
+}
+
+// ========== Azure Container Registry ========== //
+var acrName = 'cr${solutionSuffix}'
+var acrPullRoleDefinitionId = '7f951dda-4ed3-4680-a7ca-43fe172d538d' // AcrPull
+var acrPushRoleDefinitionId = '8311e382-0749-4cb8-b61a-304f252e45ec' // AcrPush
+var deployerObjectId = deployer().objectId
+var deployerPrincipalType = contains(deployer(), 'userPrincipalName') ? 'User' : 'ServicePrincipal'
+
+module containerRegistry 'br/public:avm/res/container-registry/registry:0.9.1' = {
+  name: take('avm.res.container-registry.registry.${acrName}', 64)
+  params: {
+    name: acrName
+    location: location
+    tags: tags
+    enableTelemetry: enableTelemetry
+    acrSku: enablePrivateNetworking ? 'Premium' : 'Standard'
+    acrAdminUserEnabled: false
+    publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
+    networkRuleSetDefaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
+    exportPolicyStatus: 'enabled'
+    managedIdentities: { systemAssigned: true }
+    roleAssignments: [
+      {
+        principalId: userAssignedIdentity.outputs.principalId
+        roleDefinitionIdOrName: acrPullRoleDefinitionId
+        principalType: 'ServicePrincipal'
+      }
+      {
+        principalId: deployerObjectId
+        roleDefinitionIdOrName: acrPushRoleDefinitionId
+        principalType: deployerPrincipalType
+      }
+    ]
+    diagnosticSettings: enableMonitoring ? [{ workspaceResourceId: logAnalyticsWorkspaceResourceId }] : null
+    privateEndpoints: enablePrivateNetworking
+      ? [
+          {
+            name: 'pep-${acrName}'
+            customNetworkInterfaceName: 'nic-${acrName}'
+            privateDnsZoneGroup: {
+              privateDnsZoneGroupConfigs: [
+                { privateDnsZoneResourceId: avmPrivateDnsZones[dnsZoneIndex.containerRegistry]!.outputs.resourceId }
+              ]
+            }
+            service: 'registry'
+            subnetResourceId: virtualNetwork!.outputs.pepsSubnetResourceId
+          }
+        ]
+      : []
   }
 }
 
@@ -1590,7 +1644,25 @@ output AZURE_AI_AGENT_ENDPOINT string = !empty(existingProjEndpoint) ? existingP
 output AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME string = gptModelName
 
 @description('Contains Azure Container Registry name.')
-output ACR_NAME string = acrName
+output ACR_NAME string = containerRegistry.outputs.name
+
+@description('Contains Azure Container Registry login server URL.')
+output ACR_LOGIN_SERVER string = containerRegistry.outputs.loginServer
+
+@description('Contains the backend container image name (repository) to build and push to ACR.')
+output BACKEND_CONTAINER_IMAGE_NAME string = backendContainerImageName
+
+@description('Contains the backend container image tag to build and push to ACR.')
+output BACKEND_CONTAINER_IMAGE_TAG string = backendContainerImageTag
+
+@description('Contains the frontend container image name (repository) to build and push to ACR.')
+output FRONTEND_CONTAINER_IMAGE_NAME string = frontendContainerImageName
+
+@description('Contains the frontend container image tag to build and push to ACR.')
+output FRONTEND_CONTAINER_IMAGE_TAG string = frontendContainerImageTag
+
+@description('Contains web (frontend) application name.')
+output FRONTEND_APP_NAME string = webSiteResourceName
 
 @description('Contains Azure environment image tag.')
 output AZURE_ENV_IMAGE_TAG string = backendContainerImageTag
