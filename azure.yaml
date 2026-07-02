@@ -48,29 +48,21 @@ hooks:
         # ── Step 0: Python environment ──
         Write-Host ""
         Write-Host "Preparing Python environment..." -ForegroundColor Yellow
-        if (-not (Test-Path "venv")) {
-          python -m venv venv
+        if (-not (Test-Path ".venv")) {
+          python -m venv .venv
         }
-        & ./venv/Scripts/Activate.ps1
+        & ./.venv/Scripts/Activate.ps1
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
 
-        # ── Step 1: Create AI agent ──
-        Write-Host ""
-        Write-Host "Setting up AI agent..." -ForegroundColor Yellow
-        & ./infra/scripts/setup-agent.ps1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "WARNING: Agent setup failed — you can retry later with: ./infra/scripts/setup-agent.ps1" -ForegroundColor Yellow
-        }
-
-        # ── Step 1.5: Grant API identity access to SQL ──
+        # ── Step 1: Grant API identity access to SQL ──
         Write-Host ""
         & ./infra/scripts/setup-sql-roles.ps1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/setup-sql-roles.ps1" -ForegroundColor Yellow
         }
 
-        # ── Step 2: Choose use case or data source ──
+        # ── Step 2: Choose use case, load data, then create the scenario agent ──
         Write-Host ""
         & ./scripts/setup-data.ps1 -AllowDeployedFallback
 
@@ -96,16 +88,12 @@ hooks:
 
         echo ""
         echo "Preparing Python environment..."
-        if [ ! -d venv ]; then
-          python3 -m venv venv
+        if [ ! -d .venv ]; then
+          python3 -m venv .venv
         fi
-        . ./venv/bin/activate
+        . ./.venv/bin/activate
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
-
-        echo ""
-        echo "Setting up AI agent..."
-        pwsh -File ./infra/scripts/setup-agent.ps1 || echo "WARNING: Agent setup failed — retry with: ./infra/scripts/setup-agent.ps1"
 
         echo ""
         echo "Granting API identity SQL access..."

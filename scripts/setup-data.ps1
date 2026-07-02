@@ -483,3 +483,17 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "  Setup complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
+
+# ══════════════════════════════════════════
+# Create scenario-based AI agent
+# ══════════════════════════════════════════
+# The agent prompt is dynamic per scenario (SQL+Search vs Search-only), so the
+# agent is (re)created here once the scenario data is loaded.
+if ($Scenario) {
+    Write-Host ""
+    Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
+    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: Agent setup failed — retry with: ./scripts/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
+    }
+}
