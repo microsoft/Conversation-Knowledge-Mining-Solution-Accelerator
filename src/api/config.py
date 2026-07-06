@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     azure_openai_endpoint: str = ""
     azure_openai_api_version: str = "2024-10-21"
     azure_openai_embedding_deployment: str = "text-embedding-ada-002"
-    azure_openai_chat_deployment: str = "gpt-4o"
+    azure_openai_chat_deployment: str = "gpt-5.1"
 
     # Azure Cognitive Search
     azure_search_endpoint: str = ""

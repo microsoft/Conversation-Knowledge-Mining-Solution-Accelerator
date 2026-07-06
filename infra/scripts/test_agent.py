@@ -141,7 +141,7 @@ agent_def = dict(agent_details)
 agent_version = agent_def.get("versions", {}).get("latest", {})
 agent_defn = agent_version.get("definition", {})
 AGENT_INSTRUCTIONS = agent_defn.get("instructions", "")
-AGENT_MODEL = agent_defn.get("model", "gpt-4o")
+AGENT_MODEL = agent_defn.get("model", "gpt-5.1")
 
 # Build search tool config from agent definition — convert to plain dicts
 AGENT_TOOLS = []

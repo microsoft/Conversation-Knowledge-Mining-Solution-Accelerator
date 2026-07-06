@@ -10,13 +10,13 @@ param environmentName string
 param location string
 
 @description('Name of the Azure OpenAI chat deployment')
-param chatDeploymentName string = 'gpt-4o'
+param chatDeploymentName string = 'gpt-5.1'
 
 @description('Name of the Azure OpenAI embedding deployment')
 param embeddingDeploymentName string = 'text-embedding-ada-002'
 
 @description('GPT model version')
-param gptModelVersion string = '2024-11-20'
+param gptModelVersion string = '2025-11-13'
 
 @description('Azure AD tenant ID for authentication')
 param azureAdTenantId string = ''

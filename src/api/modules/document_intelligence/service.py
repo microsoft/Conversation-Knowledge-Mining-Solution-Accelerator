@@ -410,7 +410,7 @@ class ContentUnderstandingService:
 
     def enrich(self, doc: ExtractedDocument) -> ExtractedDocument:
         """Enrich a CU-extracted document with AI-generated summary, entities, key phrases, topics.
-        Results are cached in Cosmos DB by content hash to avoid repeated GPT-4o calls."""
+        Results are cached in Cosmos DB by content hash to avoid repeated GPT-5.1 calls."""
         import hashlib
         import json
         from src.api.capabilities._llm import get_llm_client
@@ -454,7 +454,7 @@ class ContentUnderstandingService:
                 logging.getLogger(__name__).info(f"Enrichment cache hit for {doc.filename}")
                 return doc
         except Exception:
-            pass  # Cache miss or Cosmos not available — proceed with GPT-4o
+            pass  # Cache miss or Cosmos not available — proceed with GPT-5.1
 
         try:
             client = get_llm_client()

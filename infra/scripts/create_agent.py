@@ -16,7 +16,7 @@ Prerequisites:
 
 Environment Variables:
     - AZURE_AI_AGENT_ENDPOINT: Azure AI Foundry project endpoint
-    - AZURE_AI_AGENT_MODEL: Model deployment name (default: gpt-4o)
+    - AZURE_AI_AGENT_MODEL: Model deployment name (default: gpt-5.1)
     - AZURE_SEARCH_ENDPOINT: Azure AI Search endpoint
     - AZURE_SEARCH_INDEX_NAME: AI Search index name
     - AZURE_AI_SEARCH_CONNECTION_NAME: AI Search connection name in AI Foundry
@@ -65,7 +65,7 @@ from azure.ai.projects.models import (
 # ============================================================================
 
 ENDPOINT = os.getenv("AZURE_AI_AGENT_ENDPOINT")
-MODEL = os.getenv("AZURE_AI_AGENT_MODEL") or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o")
+MODEL = os.getenv("AZURE_AI_AGENT_MODEL") or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-5.1")
 
 # Search configuration
 SEARCH_CONNECTION_NAME = args.connection_name or os.getenv("AZURE_AI_SEARCH_CONNECTION_NAME")
