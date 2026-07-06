@@ -14,7 +14,7 @@ az login --use-device-code
 
 ### 📌 Default Models & Capacities:
 ```
-gpt-4o:150, gpt-4o-mini:150, gpt-4:150, text-embedding-3-small:80
+gpt-5.4-mini:150, text-embedding-3-small:80
 ```
 ### 📌 Default Regions:
 ```
@@ -40,7 +40,7 @@ eastus, eastus2, australiaeast, uksouth, swedencentral, westus, westus3, japanea
    ```
 ✔️ Check specific model(s) in default regions:
   ```
-  ./quota_check_params.sh --models gpt-4o:150,text-embedding-3-small:80
+  ./quota_check_params.sh --models gpt-5.4-mini:150,text-embedding-3-small:80
   ```
 ✔️ Check default models in specific region(s):
   ```
@@ -48,11 +48,11 @@ eastus, eastus2, australiaeast, uksouth, swedencentral, westus, westus3, japanea
   ```
 ✔️ Passing Both models and regions:  
   ```
-  ./quota_check_params.sh --models gpt-4o:150 --regions eastus,westus2
+  ./quota_check_params.sh --models gpt-5.4-mini:150 --regions eastus,westus2
   ```
 ✔️ All parameters combined:
   ```
- ./quota_check_params.sh --models gpt-4:150,text-embedding-3-small:80 --regions eastus,westus --verbose
+ ./quota_check_params.sh --models gpt-5.4-mini:150,text-embedding-3-small:80 --regions eastus,westus --verbose
   ```
 
 ### **Sample Output**
