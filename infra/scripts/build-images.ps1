@@ -32,21 +32,23 @@ if (-not $backendRegistry -or -not $frontendRegistry) {
     exit 0
 }
 
-$acrName = $backendRegistry.Split('.')[0]
-
-# Log in to ACR
-Write-Host "Logging in to ACR: $backendRegistry" -ForegroundColor Yellow
-az acr login --name $acrName
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Failed to log in to ACR." -ForegroundColor Red
-    exit 1
+# Log in to each unique ACR registry (backend/frontend may differ)
+$registries = @($backendRegistry, $frontendRegistry) | Where-Object { $_ } | Select-Object -Unique
+foreach ($registry in $registries) {
+    $acrName = $registry.Split('.')[0]
+    Write-Host "Logging in to ACR: $registry" -ForegroundColor Yellow
+    az acr login --name $acrName
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to log in to ACR: $registry" -ForegroundColor Red
+        exit 1
+    }
 }
 
 # Build backend image
 $backendImage = "$backendRegistry/km-api:$backendTag"
 Write-Host ""
 Write-Host "Building backend image: $backendImage" -ForegroundColor Yellow
-docker build -t $backendImage -f src/api/Dockerfile .
+docker build -t $backendImage -f src/api/ApiApp.Dockerfile .
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Backend image build failed." -ForegroundColor Red
     exit 1
@@ -72,7 +74,7 @@ if ($backendUri) {
     Write-Host "  API URL: $apiUrl" -ForegroundColor DarkGray
 }
 
-docker build $buildArgs -t $frontendImage -f src/app/Dockerfile src/app
+docker build $buildArgs -t $frontendImage -f src/app/WebApp.Dockerfile src/app
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Frontend image build failed." -ForegroundColor Red
     exit 1

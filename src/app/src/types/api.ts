@@ -10,6 +10,8 @@ export interface Source {
   score: number;
   text?: string;
   filename?: string;
+  source_file?: string;
+  url?: string;
   metadata?: Record<string, unknown>;
 }
 

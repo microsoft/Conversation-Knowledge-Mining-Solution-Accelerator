@@ -25,6 +25,6 @@ def summarize(text: str | list[str] = "", style: str = "concise", max_length: in
             {"role": "user", "content": text},
         ],
         temperature=0.3,
-        max_tokens=max_length * 2,
+        max_completion_tokens=max_length * 2,
     )
     return {"result": response.choices[0].message.content, "meta": {"style": style, "original_length": len(text.split())}}

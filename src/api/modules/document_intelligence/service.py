@@ -473,7 +473,7 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
                     {"role": "user", "content": f"Extract intelligence from this document:\n\nFilename: {doc.filename}\n\n{text}"},
                 ],
                 temperature=0.2,
-                max_tokens=2000,
+                max_completion_tokens=2000,
                 response_format={"type": "json_object"},
             )
 
@@ -590,7 +590,7 @@ Documents:
                         {"role": "user", "content": prompt},
                     ],
                     temperature=0.2,
-                    max_tokens=4000,
+                    max_completion_tokens=4000,
                     response_format={"type": "json_object"},
                 )
                 chunk_result = json.loads(response.choices[0].message.content)

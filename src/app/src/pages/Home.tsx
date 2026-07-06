@@ -3,11 +3,6 @@ import {
   Text,
   Button,
   Spinner,
-  Dialog,
-  DialogSurface,
-  DialogBody,
-  DialogTitle,
-  DialogContent,
 } from "@fluentui/react-components";
 import {
   ArrowUpload24Regular,
@@ -19,7 +14,6 @@ import {
   LightbulbFilament20Regular,
   ChatBubblesQuestion20Regular,
   TextBulletListSquare20Regular,
-  Delete20Regular,
 } from "@fluentui/react-icons";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,12 +21,12 @@ import {
   uploadDocument,
   listDataSources,
   getUploadedFiles,
-  deleteFile,
   refreshIngestionCache,
 } from "../api/client";
 import { getApiErrorMessage } from "../utils/errors";
 import { FILE_TYPES, SUPPORTED_UPLOAD_ACCEPT, SUPPORTED_UPLOAD_DESCRIPTION } from "../utils/constants";
 import { useAppState } from "../context/AppStateContext";
+import uiConfig from "../config/ui-config.json";
 import s from "./Home.module.css";
 
 /* ── Component ── */
@@ -51,8 +45,6 @@ const Home: React.FC = () => {
   const [uploadedFiles, setUploadedFiles] = useState<any[]>(homeData?.uploadedFiles ?? []);
   // Only show spinner on first ever load (no cached data). Subsequent mounts refresh silently.
   const [loadingSources, setLoadingSources] = useState(!homeData);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; count: number } | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const refreshedCacheRef = useRef(false);
 
   const loadStatus = async () => {
@@ -127,26 +119,83 @@ const Home: React.FC = () => {
     return { color: "#059669", background: "#d1fae5" };
   };
 
+  const toTitleCase = (value: string) =>
+    value.replace(/\b([a-z])/g, (m) => m.toUpperCase());
+
+  const formatFriendlyFileTitle = (filename?: string) => {
+    if (!filename) return "My data";
+
+    const base = filename.replace(/\.[^.]+$/, "");
+    const ext = (filename.match(/\.([^.]+)$/)?.[1] || "").toUpperCase();
+
+    const timestampMatch = base.match(/(20\d{2})[-_ ]?(\d{2})[-_ ]?(\d{2})(?:[ T_-]?(\d{2})[ _:-]?(\d{2})(?:[ _:-]?(\d{2}))?)?/);
+    const timestampLabel = timestampMatch
+      ? `${timestampMatch[1]}-${timestampMatch[2]}-${timestampMatch[3]}${timestampMatch[4] ? ` ${timestampMatch[4]}:${timestampMatch[5] || "00"}` : ""}`
+      : "";
+
+    let friendly = base
+      .replace(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, "")
+      .replace(/(20\d{2})[-_ ]?(\d{2})[-_ ]?(\d{2})(?:[ T_-]?(\d{2})[ _:-]?(\d{2})(?:[ _:-]?(\d{2}))?)?/g, "")
+      .replace(/\bconvo\b/gi, "Conversation")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!friendly) {
+      friendly = "Conversation";
+    }
+
+    friendly = toTitleCase(friendly);
+
+    const title = timestampLabel ? `${friendly} ${timestampLabel}` : friendly;
+    return ext ? `${title} (${ext})` : title;
+  };
+
+  const toFriendlyUseCaseName = (value?: string) => {
+    if (!value) return "";
+    const normalized = value
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return toTitleCase(normalized);
+  };
+
+  const getUseCaseDisplayTitle = () => {
+    const firstSource = dataSources[0];
+    const sourceName = toFriendlyUseCaseName(
+      firstSource?.use_case ||
+      firstSource?.display_name ||
+      firstSource?.name ||
+      uiConfig?.useCaseName
+    );
+    if (sourceName) {
+      return `${sourceName} Sample Data`;
+    }
+    return "My Data";
+  };
+
   const buildSummary = () => {
+    const useCaseTitle = getUseCaseDisplayTitle();
+    if (hasData && useCaseTitle !== "My Data") {
+      return useCaseTitle;
+    }
+
+    if (dataSources.length > 0) {
+      return getUseCaseDisplayTitle();
+    }
+
     // Prioritize uploaded files with source field (scenario data)
     if (uploadedFileCount > 0 && uploadedFiles.length > 0) {
       const firstFile = uploadedFiles[0];
-      // Use summary if available (user-friendly), otherwise clean up the filename
+      // Prefer use-case title when available; fallback to file-derived title.
       let scenarioName = "My data";
-      if (firstFile.summary) {
-        // Use summary directly as it's human-readable (e.g., "188 sample call transcripts")
-        scenarioName = firstFile.summary;
+      if (firstFile.summary && firstFile.summary.trim().length > 0) {
+        const summaryLooksLikeFile = /\.(json|wav|mp3|pdf|docx|txt|csv)$/i.test(firstFile.summary) || /convo[_ -]/i.test(firstFile.summary);
+        scenarioName = summaryLooksLikeFile ? formatFriendlyFileTitle(firstFile.summary) : firstFile.summary;
       } else if (firstFile.filename) {
-        // Clean up filename: remove .json, replace underscores with spaces, title case
-        scenarioName = firstFile.filename
-          .replace(/\.json$/i, "")
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (c: string) => c.toUpperCase());
+        scenarioName = formatFriendlyFileTitle(firstFile.filename);
       }
-      const fileCount = uploadedFiles.length;
-      const isReady = !uploadedFiles.some((f: any) => f.status === "processing" || f.status === "failed");
-      const status = isReady ? "READY" : uploadedFiles.some((f: any) => f.status === "failed") ? "ERROR" : "PROCESSING";
-      return `${scenarioName} • ${fileCount} ${fileCount === 1 ? "file" : "files"} • ${status}`;
+      return scenarioName;
     }
     // Fallback to data sources if no uploaded files
     const parts: string[] = [];
@@ -236,26 +285,6 @@ const Home: React.FC = () => {
     setUploadMsg("");
   };
 
-  const handleDeleteFile = (id: string, name: string, count: number) => {
-    setDeleteTarget({ id, name, count });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await deleteFile(deleteTarget.id);
-      setExploreData(null);
-      setInsights(null);
-      loadStatus();
-    } catch (e) {
-      setUploadError(`Failed to delete: ${getApiErrorMessage(e, "Unknown error")}`);
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  };
-
   return (
     <div className={s.page}>
       {/* Hero */}
@@ -274,10 +303,55 @@ const Home: React.FC = () => {
           ) : hasData ? (
             <>
               <div style={{ marginBottom: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap", justifyContent: "center" }}>
                   <Text weight="bold" size={500} style={{ color: "#0f172a", flex: 1 }}>
-                    {buildSummary().split("•")[0].trim()}
+                    {buildSummary()}
                   </Text>
+                  {readyCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#d1fae5",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#059669",
+                      fontWeight: 500
+                    }}>
+                      ✓ {readyCount} processed
+                    </div>
+                  )}
+                  {chatReadyCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#dbeafe",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#2563eb",
+                      fontWeight: 500
+                    }}>
+                      💬 {chatReadyCount} chat ready
+                    </div>
+                  )}
+                  {processingCount > 0 && (
+                    <div style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      backgroundColor: "#fef3c7",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#d97706",
+                      fontWeight: 500
+                    }}>
+                      ⏳ {processingCount} processing
+                    </div>
+                  )}
                   <div style={{ 
                     display: "inline-flex", 
                     alignItems: "center", 
@@ -291,54 +365,6 @@ const Home: React.FC = () => {
                   }}>
                     📎 {uploadedFiles.length} {uploadedFiles.length === 1 ? "file" : "files"}
                   </div>
-                </div>
-                {/* Status indicators */}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {readyCount > 0 && (
-                    <div style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      backgroundColor: "#d1fae5",
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      color: "#059669",
-                      fontWeight: 500
-                    }}>
-                      ✓ {readyCount} processed
-                    </div>
-                  )}
-                  {chatReadyCount > 0 && (
-                    <div style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      backgroundColor: "#dbeafe",
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      color: "#2563eb",
-                      fontWeight: 500
-                    }}>
-                      💬 {chatReadyCount} ready to chat
-                    </div>
-                  )}
-                  {processingCount > 0 && (
-                    <div style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      backgroundColor: "#fef3c7",
-                      padding: "6px 12px",
-                      borderRadius: 6,
-                      fontSize: 13,
-                      color: "#d97706",
-                      fontWeight: 500
-                    }}>
-                      ⏳ {processingCount} processing
-                    </div>
-                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
@@ -498,30 +524,6 @@ const Home: React.FC = () => {
         </div>
         )}
       </div>
-
-      {/* Delete confirmation dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(_, d) => { if (!d.open) setDeleteTarget(null); }}>
-        <DialogSurface style={{ maxWidth: 360, borderRadius: 12, padding: "20px 24px" }}>
-          <DialogBody style={{ padding: 0 }}>
-            <DialogTitle style={{ padding: 0, margin: "0 0 8px", fontSize: 16 }}>Remove file?</DialogTitle>
-            <DialogContent style={{ padding: 0 }}>
-              <p style={{ margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.5 }}>
-                <strong style={{ color: "#1e293b" }}>{deleteTarget?.name}</strong>
-                {deleteTarget && deleteTarget.count > 0 && (
-                  <> and its {deleteTarget.count.toLocaleString()} {deleteTarget.count === 1 ? "record" : "records"}</>
-                )} will be permanently removed.
-              </p>
-            </DialogContent>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-              <Button appearance="subtle" size="medium" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
-              <Button appearance="primary" size="medium" onClick={confirmDelete} disabled={deleting}
-                style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}>
-                {deleting ? <Spinner size="tiny" /> : "Remove"}
-              </Button>
-            </div>
-          </DialogBody>
-        </DialogSurface>
-      </Dialog>
 
     </div>
   );

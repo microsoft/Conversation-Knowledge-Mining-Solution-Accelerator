@@ -1,15 +1,14 @@
-from typing import Optional
+from typing import Optional, Any
 import asyncio
 import logging
 import os
 import re
-import json
 
 import yaml
 from azure.identity import DefaultAzureCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
-from agent_framework import AgentSession
+from agent_framework import Agent, AgentSession
 from agent_framework_foundry import FoundryAgent
 from cachetools import TTLCache
 
@@ -63,7 +62,37 @@ class RAGService:
     """Retrieval-Augmented Generation service for question answering."""
 
     def __init__(self):
-        pass
+        self._agent = None
+
+    @staticmethod
+    def _annotation_get(annotation: Any, key: str, default: Any = None) -> Any:
+        """Read annotation fields from either dict-like or object-like payloads."""
+        if isinstance(annotation, dict):
+            return annotation.get(key, default)
+        return getattr(annotation, key, default)
+
+    @staticmethod
+    def _extract_citation_source(annotation: Any) -> tuple[str, str]:
+        """Extract (title, url) from a citation annotation payload."""
+        title = "N/A"
+        url = "N/A"
+
+        add_props = RAGService._annotation_get(annotation, "additional_properties", {}) or {}
+        if not isinstance(add_props, dict):
+            add_props = {}
+
+        title = (
+            RAGService._annotation_get(annotation, "title")
+            or add_props.get("title")
+            or title
+        )
+        url = (
+            add_props.get("get_url")
+            or RAGService._annotation_get(annotation, "url")
+            or add_props.get("url")
+            or url
+        )
+        return str(title), str(url)
 
     def _run_agent(self, user_input: str, conversation_id: Optional[str] = None) -> tuple[str, list[Source]]:
         """Invoke the single pre-created Foundry agent and return (text, citations).
@@ -74,6 +103,13 @@ class RAGService:
         settings = get_settings()
 
         async def _run() -> tuple[str, list[Source]]:
+            agent_endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or settings.azure_ai_agent_endpoint).strip()
+            agent_name = (os.getenv("AGENT_NAME_CHAT") or settings.agent_name_chat).strip()
+            if not agent_name:
+                raise ValueError("AGENT_NAME_CHAT is not configured. Set AGENT_NAME_CHAT in .env or environment.")
+            if not agent_endpoint:
+                raise ValueError("AZURE_AI_AGENT_ENDPOINT is not configured. Set AZURE_AI_AGENT_ENDPOINT in .env or environment.")
+
             citations: list = []
             marker_map: dict[str, int] = {}
 
@@ -86,11 +122,11 @@ class RAGService:
             async with (
                 AsyncDefaultAzureCredential() as credential,
                 AIProjectClient(
-                    endpoint=os.getenv("AZURE_AI_AGENT_ENDPOINT", settings.azure_ai_agent_endpoint),
+                    endpoint=agent_endpoint,
                     credential=credential,
                 ) as project_client,
             ):
-                agent = FoundryAgent(project_client=project_client, agent_name=os.getenv("AGENT_NAME_CHAT", settings.agent_name_chat))
+                agent = FoundryAgent(project_client=project_client, agent_name=agent_name)
 
                 # Reuse or create a server-side conversation thread for continuity
                 thread_id = _thread_cache.get(conversation_id) if conversation_id else None
@@ -113,20 +149,172 @@ class RAGService:
                     out += text
 
             sources: list[Source] = []
-            seen: set[str] = set()
+            seen: set[tuple[str, str]] = set()
             for c in citations:
-                add_props = (c.get("additional_properties") or {}) if isinstance(c, dict) else {}
-                url = add_props.get("get_url") or c.get("url") or add_props.get("url") or "N/A"
-                title = c.get("title", "N/A") if isinstance(c, dict) else "N/A"
-                if title in seen:
+                title, url = self._extract_citation_source(c)
+                dedup_key = (title, url)
+                if dedup_key in seen:
                     continue
-                seen.add(title)
-                sources.append(Source(doc_id=title, score=0.0, text=title, metadata={"url": url}))
+                seen.add(dedup_key)
+                sources.append(Source(
+                    doc_id=title,
+                    score=0.0,
+                    text=title,
+                    source_file=title,
+                    url=url,
+                    metadata={"url": url},
+                ))
             return out, sources
 
         return asyncio.run(_run())
 
-    def _get_agent(self) -> Agent:
+    def generate_title(self, messages: list[dict]) -> Optional[str]:
+        """Generate a short conversation title using the configured title agent."""
+        settings = get_settings()
+
+        def _first_user_message() -> str:
+            for msg in messages:
+                if msg.get("role") == "user":
+                    return str(msg.get("content") or "")
+            return ""
+
+        async def _run() -> Optional[str]:
+            agent_endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or settings.azure_ai_agent_endpoint).strip()
+            title_agent_name = (os.getenv("AGENT_NAME_TITLE") or "SummaryAgent").strip()
+            if not agent_endpoint or not title_agent_name:
+                return None
+
+            prompt_input = _first_user_message() or "Generate a concise title for this chat."
+
+            async with (
+                AsyncDefaultAzureCredential() as credential,
+                AIProjectClient(
+                    endpoint=agent_endpoint,
+                    credential=credential,
+                ) as project_client,
+            ):
+                agent = FoundryAgent(project_client=project_client, agent_name=title_agent_name)
+                out = ""
+                async for chunk in agent.run(prompt_input, stream=True):
+                    text = str(chunk.text) if chunk.text else ""
+                    out += text
+
+            title = out.strip().strip('"').replace("\n", " ")
+            title = re.sub(r"\s+", " ", title).strip()
+            if not title:
+                return None
+            return title[:80]
+
+        try:
+            return asyncio.run(_run())
+        except Exception as e:
+            logger.warning(f"Title generation failed: {e}")
+            return None
+
+    @staticmethod
+    def _merge_sources(primary: list[Source], fallback: list[Source]) -> list[Source]:
+        """Merge sources while preserving order and removing duplicates."""
+        merged: list[Source] = []
+        seen: set[tuple[str, str]] = set()
+        for src in [*primary, *fallback]:
+            key = (src.doc_id, src.source_file or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(src)
+        return merged
+
+    @staticmethod
+    def _build_fallback_answer(question: str, docs: list[dict]) -> str:
+        """Return a non-empty deterministic answer when agent output is unavailable."""
+        if not docs:
+            return (
+                "I could not generate an answer right now. "
+                "No relevant content was found in the current data scope."
+            )
+
+        lines = [
+            "I could not generate a full agent response right now, but here are the top relevant findings:",
+        ]
+        for i, doc in enumerate(docs[:3], 1):
+            source_name = doc.get("source_file") or doc.get("doc_id") or f"Source {i}"
+            snippet = (doc.get("summary") or doc.get("text") or "").strip()
+            snippet = re.sub(r"\s+", " ", snippet)
+            if len(snippet) > 220:
+                snippet = snippet[:220].rstrip() + "..."
+            if not snippet:
+                snippet = "Relevant content found, but no preview text is available."
+            lines.append(f"{i}. {source_name}: {snippet}")
+
+        lines.append("You can retry the same question or narrow filters for a more specific answer.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _is_noise_doc(doc: dict) -> bool:
+        """Detect ingestion/error blobs that should not be used for QA grounding."""
+        text = str(doc.get("text") or "")
+        summary = str(doc.get("summary") or "")
+        source_file = str(doc.get("source_file") or "").lower()
+        doc_type = str(doc.get("type") or "").lower()
+        blob = f"{summary} {text}".lower()
+
+        # Noise signatures from failed audio extraction and upload-status artifacts.
+        hard_markers = [
+            "automatic transcription is not available",
+            "cu analyze_url failed",
+            "errorprocessingfile",
+            "file is corrupted or format is unsupported",
+        ]
+        if any(marker in blob for marker in hard_markers):
+            return True
+
+        # Audio-transcription fallback docs are operational status artifacts, not business knowledge.
+        if "audio/transcription-fallback" in doc_type:
+            return True
+
+        # WAV upload status snippets with no semantic content are low-signal for QA.
+        # Keep this broad to catch truncated or partially indexed variants.
+        if source_file.endswith(".wav") and (
+            "uploaded successfully" in blob
+            or "audio uploaded:" in blob
+            or "automatic transcription" in blob
+        ):
+            return True
+
+        return False
+
+    def _filter_noise_sources(self, sources: list[Source], phase: str) -> list[Source]:
+        """Filter noisy source entries before returning them to the UI."""
+        if not sources:
+            return sources
+        filtered: list[Source] = []
+        removed = 0
+        for src in sources:
+            doc = {
+                "text": src.text,
+                "summary": "",
+                "source_file": src.source_file,
+                "type": "",
+            }
+            if self._is_noise_doc(doc):
+                removed += 1
+                continue
+            filtered.append(src)
+        if removed > 0:
+            logger.info(f"Filtered {removed} noisy sources during {phase}")
+        return filtered
+
+    def _filter_noise_docs(self, docs: list[dict], phase: str) -> list[dict]:
+        """Remove noisy retrieval results while preserving order of useful documents."""
+        if not docs:
+            return docs
+        filtered = [d for d in docs if not self._is_noise_doc(d)]
+        removed = len(docs) - len(filtered)
+        if removed > 0:
+            logger.info(f"Filtered {removed} noisy docs during {phase}")
+        return filtered
+
+    def _get_agent(self) -> Any:
         """Get or create the RAG agent with AI Search and SQL tools."""
         if self._agent is None:
             from src.api.capabilities._llm import get_llm_chat_client
@@ -349,7 +537,7 @@ class RAGService:
                     "source_file": r.get("source_file", ""),
                     "score": score,
                 })
-            return docs
+            return self._filter_noise_docs(docs, "azure-ai-search")
         except Exception as e:
             logger.error(f"Azure AI Search failed: {e}", exc_info=True)
             raise RuntimeError("Search service unavailable") from e
@@ -426,6 +614,7 @@ class RAGService:
                         })
                 conn.close()
 
+            scored = self._filter_noise_docs(scored, "sql-search")
             scored.sort(key=lambda x: x["score"], reverse=True)
             return scored[:top_k]
         except Exception as e:
@@ -473,6 +662,7 @@ class RAGService:
                     "score": 0.1,
                 })
 
+        scored = self._filter_noise_docs(scored, "in-memory-search")
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
@@ -519,11 +709,9 @@ class RAGService:
                 sources=[], model=settings.azure_openai_chat_deployment,
             )
 
-        context_parts = []
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
@@ -531,9 +719,17 @@ class RAGService:
                 source_file=doc.get("source_file", ""),
             ))
 
-        context = "\n\n---\n\n".join(context_parts)
+        try:
+            answer, agent_sources = self._run_agent(question, conversation_id)
+        except Exception as e:
+            logger.warning(f"Agent call failed in external index path, using fallback answer: {e}")
+            answer = self._build_fallback_answer(question, search_docs)
+            agent_sources = []
 
-        answer, agent_sources = self._run_agent(question, conversation_id)
+        if not (answer or "").strip():
+            logger.warning("Agent returned empty answer in external index path, using fallback answer")
+            answer = self._build_fallback_answer(question, search_docs)
+
         sources = sources + agent_sources
         return QAResponse(
             question=question,
@@ -625,7 +821,8 @@ class RAGService:
                 continue
             seen[did] = len(deduped)
             deduped.append(doc)
-        search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
+        search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)
+        search_docs = self._filter_noise_docs(search_docs, "answer-question-post-merge")[:top_k]
 
         if not search_docs:
             logger.info("AI Search returned no results, falling back to SQL search")
@@ -635,17 +832,13 @@ class RAGService:
             logger.info("SQL search returned no results, falling back to in-memory search")
             search_docs = self._search_in_memory(question, top_k, document_ids)
 
-        # 3. Build context
-        context_parts = []
+        # 3. Build source list
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"]
             # Truncate very long texts to fit context window
             if len(text) > 4000:
                 text = text[:4000] + "..."
-            context_parts.append(
-                f"[Source {i + 1} | id={doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
-            )
             sources.append(Source(
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
@@ -653,15 +846,24 @@ class RAGService:
                 source_file=doc.get("source_file", ""),
             ))
 
-        context = "\n\n---\n\n".join(context_parts)
-
         # 3. Generate answer
-        answer, agent_sources = self._run_agent(question, conversation_id)
+        try:
+            answer, agent_sources = self._run_agent(question, conversation_id)
+        except Exception as e:
+            logger.warning(f"Agent call failed in answer_question, using fallback answer: {e}")
+            answer = self._build_fallback_answer(question, search_docs)
+            agent_sources = []
 
+        if not (answer or "").strip():
+            logger.warning("Agent returned empty answer in answer_question, using fallback answer")
+            answer = self._build_fallback_answer(question, search_docs)
+
+        combined_sources = self._merge_sources(agent_sources, sources)
+        combined_sources = self._filter_noise_sources(combined_sources, "answer-question-response")
         return QAResponse(
             question=question,
             answer=_strip_links_from_answer(answer),
-            sources=agent_sources if include_sources else [],
+            sources=combined_sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
 
@@ -721,6 +923,8 @@ class RAGService:
                 search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
                 search_docs = search_docs[:top_k]
 
+        search_docs = self._filter_noise_docs(search_docs, "answer-conversation-post-merge")
+
         if not search_docs:
             logger.info("AI Search returned no results, falling back to SQL search")
             search_docs = self._search_sql(last_user_message, top_k, document_ids)
@@ -728,26 +932,33 @@ class RAGService:
         if not search_docs:
             search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
 
-        context_parts = []
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
                 text=text[:500],
                 source_file=doc.get("source_file", ""),
             ))
 
-        context = "\n\n---\n\n".join(context_parts)
-
         all_messages = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
-        answer, agent_sources = self._run_agent(all_messages, conversation_id)
+        try:
+            answer, agent_sources = self._run_agent(all_messages, conversation_id)
+        except Exception as e:
+            logger.warning(f"Agent call failed in answer_conversation, using fallback answer: {e}")
+            answer = self._build_fallback_answer(last_user_message, search_docs)
+            agent_sources = []
 
+        if not (answer or "").strip():
+            logger.warning("Agent returned empty answer in answer_conversation, using fallback answer")
+            answer = self._build_fallback_answer(last_user_message, search_docs)
+
+        combined_sources = self._merge_sources(agent_sources, sources)
+        combined_sources = self._filter_noise_sources(combined_sources, "answer-conversation-response")
         return QAResponse(
             question=last_user_message,
             answer=_strip_links_from_answer(answer),
-            sources=agent_sources,
+            sources=combined_sources,
             model=settings.azure_openai_chat_deployment,
         )
 
