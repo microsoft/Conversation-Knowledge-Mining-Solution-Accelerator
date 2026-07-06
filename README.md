@@ -29,7 +29,7 @@ This solution processes structured and unstructured data — PDFs, DOCX, images,
                      ▼                                      ▼                  ▼
             ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
             │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
-            │  GPT-4o + ada-2 │                    │  Search     │   │  Understanding   │
+            │  GPT-5.1 + ada-2 │                    │  Search     │   │  Understanding   │
             └─────────────────┘                    │  (HNSW)     │   └────────┬────────┘
                      │                             └──────┬──────┘            │
                      ▼                                    ▼                   ▼
@@ -62,7 +62,7 @@ Upload (instant response)
 <summary>Click to learn more about the key features this solution enables</summary>
 
 - **Chat-based insights discovery**
-  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
+  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-5.1 for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
 
 - **Multi-modal information processing**
   Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
@@ -97,7 +97,7 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 
 | What adapts | How |
 |-------------|-----|
-| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-4o to decide which visualizations make sense. |
+| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-5.1 to decide which visualizations make sense. |
 | **Search filters** | Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels. |
 | **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml`. |
 | **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. |
@@ -287,7 +287,7 @@ Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/g
 
 | Service | Purpose | Pricing |
 |---------|---------|---------|
-| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-4o), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
+| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-5.1), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
 | [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Hybrid search (BM25 + HNSW vector) for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
 | [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration, centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
 | [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
@@ -321,7 +321,7 @@ This solution addresses those challenges by enabling:
 |-----------|---------|-----|
 | Backend API | **FastAPI** | Async-native, auto-generated OpenAPI docs, dependency injection |
 | Frontend | **React + Fluent UI 2** | Microsoft design system, accessible components, TypeScript |
-| LLM (chat + insights) | **Azure OpenAI GPT-4o** | model for grounded Q&A and reasoning |
+| LLM (chat + insights) | **Azure OpenAI GPT-5.1** | model for grounded Q&A and reasoning |
 | Embeddings | **text-embedding-ada-002** | Proven embedding model, 1536 dims, good cost/quality ratio |
 | Vector + keyword search | **Azure AI Search** | Hybrid search (BM25 + HNSW) in one service, managed |
 | Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
