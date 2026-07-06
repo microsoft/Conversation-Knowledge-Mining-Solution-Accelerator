@@ -318,13 +318,20 @@ class AzureStorageService:
         logger.info(f"Persisted {blob_count} to blob, {search_count} to search index")
         return {"blob_uploaded": blob_count, "search_indexed": search_count}
 
-    def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str]) -> dict:
-        """Delete all data for a file: blob, search index entries, and search chunks."""
+    def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str], has_blobs: bool = True) -> dict:
+        """Delete all data for a file: blob, search index entries, and search chunks.
+        
+        Args:
+            file_id: The file identifier
+            filename: The filename
+            doc_ids: List of document IDs to delete
+            has_blobs: Whether this file has blob storage (False for seed data)
+        """
         result = {"blob_deleted": False, "search_docs_deleted": 0, "search_chunks_deleted": 0, "extracted_blob_deleted": False}
 
-        # Delete blobs for this file
+        # Delete blobs for this file (only if it was uploaded, not seed data)
         settings = get_settings()
-        if settings.azure_storage_account:
+        if has_blobs and settings.azure_storage_account:
             try:
                 blob_service = self._get_blob_client()
                 container = blob_service.get_container_client(settings.azure_storage_container)
@@ -334,16 +341,18 @@ class AzureStorageService:
                     blob = container.get_blob_client(f"raw/{file_id}/{filename}")
                     blob.delete_blob()
                     result["blob_deleted"] = True
-                except Exception:
-                    pass
+                    logger.debug(f"Deleted raw blob: raw/{file_id}/{filename}")
+                except Exception as e:
+                    logger.debug(f"Raw blob delete failed for raw/{file_id}/{filename}: {e}")
                 
                 # Delete extracted text blob (extracted/{file_id}/content.txt)
                 try:
                     blob = container.get_blob_client(f"extracted/{file_id}/content.txt")
                     blob.delete_blob()
                     result["extracted_blob_deleted"] = True
-                except Exception:
-                    pass
+                    logger.debug(f"Deleted extracted blob: extracted/{file_id}/content.txt")
+                except Exception as e:
+                    logger.debug(f"Extracted blob delete failed for extracted/{file_id}/content.txt: {e}")
 
                 # Delete doc-level blobs ({doc_id}.json at container root,
                 # matching the path used by upload_to_blob)

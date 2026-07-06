@@ -164,6 +164,7 @@ class AzureSqlService:
                 id NVARCHAR(255) PRIMARY KEY,
                 name NVARCHAR(500),
                 source_type NVARCHAR(50),
+                use_case NVARCHAR(100) DEFAULT '',
                 connection_string NVARCHAR(MAX),
                 endpoint NVARCHAR(500),
                 database_name NVARCHAR(500),
@@ -178,6 +179,21 @@ class AzureSqlService:
                 created_at DATETIME2 DEFAULT GETUTCDATE(),
                 updated_at DATETIME2 DEFAULT GETUTCDATE()
             )
+        """)
+        cursor.execute("""
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'external_data_sources')
+            AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('external_data_sources') AND name = 'use_case')
+            ALTER TABLE external_data_sources ADD use_case NVARCHAR(100) DEFAULT ''
+        """)
+        cursor.execute("""
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'uploaded_files')
+            AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('uploaded_files') AND name = 'doc_ids')
+            ALTER TABLE uploaded_files ADD doc_ids NVARCHAR(MAX) DEFAULT ''
+        """)
+        cursor.execute("""
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'uploaded_files')
+            AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('uploaded_files') AND name = 'source')
+            ALTER TABLE uploaded_files ADD source NVARCHAR(50) DEFAULT 'uploaded'
         """)
         cursor.execute("""
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'entity_nodes')
@@ -336,10 +352,10 @@ class AzureSqlService:
                 MERGE uploaded_files AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
-                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, doc_ids=?, uploaded_at=?
+                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, doc_ids=?, uploaded_at=?, source=?
                 WHEN NOT MATCHED THEN INSERT
-                    (id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    (id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
@@ -347,6 +363,7 @@ class AzureSqlService:
                 json.dumps(file_data.get("filter_values", {})),
                 json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
+                file_data.get("source", "uploaded"),
                 # INSERT
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
@@ -354,6 +371,7 @@ class AzureSqlService:
                 json.dumps(file_data.get("filter_values", {})),
                 json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
+                file_data.get("source", "uploaded"),
             )
             conn.commit()
             conn.close()
@@ -369,7 +387,7 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at FROM uploaded_files")
+            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source FROM uploaded_files")
             rows = cursor.fetchall()
             conn.close()
             return [
@@ -380,6 +398,7 @@ class AzureSqlService:
                     "filter_values": json.loads(r[5]) if r[5] else {},
                     "doc_ids": json.loads(r[6]) if r[6] else [],
                     "uploaded_at": r[7] or "",
+                    "source": r[8] or "uploaded",
                 }
                 for r in rows
             ]
@@ -588,19 +607,20 @@ class AzureSqlService:
                 MERGE external_data_sources AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
-                    name=?, source_type=?, connection_string=?, endpoint=?,
+                    name=?, source_type=?, use_case=?, connection_string=?, endpoint=?,
                     database_name=?, table_or_query=?, auth_method=?,
                     field_mapping=?, query_mode=?, status=?, doc_count=?,
                     last_sync=?, error_message=?, updated_at=GETUTCDATE()
                 WHEN NOT MATCHED THEN INSERT
-                    (id, name, source_type, connection_string, endpoint,
+                    (id, name, source_type, use_case, connection_string, endpoint,
                      database_name, table_or_query, auth_method,
                      field_mapping, query_mode, status, doc_count,
                      last_sync, error_message)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 data["id"],
                 data.get("name", ""), data.get("source_type", ""),
+                data.get("use_case", ""),
                 data.get("connection_string", ""), data.get("endpoint", ""),
                 data.get("database", ""), data.get("table_or_query", ""),
                 data.get("auth_method", ""), json.dumps(data.get("field_mapping", {})),
@@ -610,6 +630,7 @@ class AzureSqlService:
                 # INSERT values
                 data["id"],
                 data.get("name", ""), data.get("source_type", ""),
+                data.get("use_case", ""),
                 data.get("connection_string", ""), data.get("endpoint", ""),
                 data.get("database", ""), data.get("table_or_query", ""),
                 data.get("auth_method", ""), json.dumps(data.get("field_mapping", {})),
@@ -632,7 +653,7 @@ class AzureSqlService:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, name, source_type, connection_string, endpoint,
+                SELECT id, name, source_type, use_case, connection_string, endpoint,
                        database_name, table_or_query, auth_method,
                        field_mapping, query_mode, status, doc_count,
                        last_sync, error_message
@@ -642,15 +663,16 @@ class AzureSqlService:
             conn.close()
             results = []
             for r in rows:
-                fm = json.loads(r[8]) if r[8] else {}
+                fm = json.loads(r[9]) if r[9] else {}
                 results.append({
                     "id": r[0], "name": r[1], "source_type": r[2],
-                    "connection_string": r[3], "endpoint": r[4],
-                    "database": r[5], "table_or_query": r[6],
-                    "auth_method": r[7], "field_mapping": fm,
-                    "query_mode": r[9], "status": r[10],
-                    "doc_count": r[11] or 0, "last_sync": r[12] or "",
-                    "error_message": r[13] or "",
+                    "use_case": r[3] or "",
+                    "connection_string": r[4], "endpoint": r[5],
+                    "database": r[6], "table_or_query": r[7],
+                    "auth_method": r[8], "field_mapping": fm,
+                    "query_mode": r[10], "status": r[11],
+                    "doc_count": r[12] or 0, "last_sync": r[13] or "",
+                    "error_message": r[14] or "",
                 })
             return results
         except Exception as e:

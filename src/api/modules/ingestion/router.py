@@ -53,7 +53,6 @@ async def load_default_dataset(
     try:
         result = ingestion_service.load_default_dataset()
         background_tasks.add_task(_trigger_auto_pipeline)
-        background_tasks.add_task(_clear_insights_cache)
         return result
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Dataset file not found: {e}")
@@ -81,7 +80,6 @@ async def upload_json(
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
     background_tasks.add_task(ingestion_service.finalize_ingestion, data, file.filename or "uploaded.json")
     background_tasks.add_task(_trigger_auto_pipeline)
-    background_tasks.add_task(_clear_insights_cache)
     return result
 
 
@@ -167,6 +165,7 @@ async def upload_document(
             doc_ids=[],
             uploaded_at=datetime.utcnow().isoformat() + "Z",
             status="processing",
+            source="uploaded",  # This file has blobs in storage
         )
         ingestion_service._ensure_loaded()
         ingestion_service._uploaded_files[file_id] = uploaded_file
@@ -177,9 +176,6 @@ async def upload_document(
             pass
         else:
             _processing_pool.submit(_process_single_document, file_id, filename, ext, content)
-
-    # Clear insights cache to force regeneration with new data
-    background_tasks.add_task(_clear_insights_cache)
 
     newly_queued = len(file_contents) - skipped_count
     return IngestionResult(
@@ -375,7 +371,6 @@ async def upload_csv(
         os.unlink(tmp.name)
     background_tasks.add_task(ingestion_service.finalize_ingestion, csv_docs, upload_name)
     background_tasks.add_task(_trigger_auto_pipeline)
-    background_tasks.add_task(_clear_insights_cache)
     return result
 
 

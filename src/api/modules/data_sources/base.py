@@ -69,6 +69,7 @@ class DataSourceConfig(BaseModel):
     id: str = ""
     name: str
     source_type: DataSourceType
+    use_case: str = ""  # Optional: e.g., "contact-center", "mortgage-application", "telecom-analysis"
     connection_string: str = ""
     endpoint: str = ""
     database: str = ""

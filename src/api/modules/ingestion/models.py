@@ -51,6 +51,7 @@ class UploadedFile(BaseModel):
     status: str = "ready"  # "processing", "extracted", "ready", "failed"
     # "extracted": text extracted, available for chat; still chunking/indexing in background
     error: str = ""
+    source: str = "uploaded"  # "uploaded" or "seed" - determines if blobs exist
 
 
 class FilterValue(BaseModel):

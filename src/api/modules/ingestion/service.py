@@ -115,6 +115,7 @@ class IngestionService:
                         filter_values=item.get("filter_values", {}),
                         doc_ids=item.get("doc_ids", []),
                         uploaded_at=item.get("uploaded_at", ""),
+                        source=item.get("source", "uploaded"),
                     )
                     # If doc_ids not stored in SQL, rebuild from loaded documents
                     if not uf.doc_ids:
@@ -422,7 +423,8 @@ class IngestionService:
             extraction = cu_service.enrich_batch(all_docs_for_schema)
 
             # Replace schema entirely (not merge) to prevent stale dimensions
-            dimensions_raw = extraction.get("dimensions", [])
+            # Dimensions disabled per user request - not useful for this use case
+            dimensions_raw = []
             new_dims = []
             for dim in dimensions_raw:
                 values = [
@@ -740,7 +742,7 @@ class IngestionService:
         ingested_ids = [item["id"] for item in raw_data]
         from datetime import datetime
         file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
-        self._uploaded_files[file_id] = UploadedFile(
+        uploaded_file = UploadedFile(
             id=file_id,
             filename=filename,
             doc_count=len(raw_data),
@@ -749,7 +751,10 @@ class IngestionService:
             filter_values={},
             doc_ids=ingested_ids,
             uploaded_at=datetime.utcnow().isoformat() + "Z",
+            source="seed",  # Files from local disk have no blob storage
         )
+        self._uploaded_files[file_id] = uploaded_file
+        self._persist_file(uploaded_file)
 
         self._track_file(filename, raw_data)
         self._persist_to_azure(raw_data)
@@ -794,8 +799,10 @@ class IngestionService:
             uploaded_at=existing.uploaded_at if existing else datetime.utcnow().isoformat() + "Z",
             status=existing.status if existing else "ready",
             error=existing.error if existing else "",
+            source=existing.source if existing else "uploaded",  # Preserve source or default to uploaded
         )
         self._uploaded_files[file_id] = uploaded_file
+        self._persist_file(uploaded_file)
 
         return IngestionResult(
             total_loaded=len(data),
@@ -910,22 +917,31 @@ class IngestionService:
         self._filter_schema = FilterSchema()
         self._loaded_from_db = False
 
-        # Clear SQL tables
+        # Clear SQL tables — individually wrap each to ensure all are attempted
+        cleared_tables = []
+        failed_tables = []
         try:
             from src.api.storage.sql_service import sql_service
             if sql_service.available:
                 conn = sql_service._get_connection()
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM documents")
-                cursor.execute("DELETE FROM uploaded_files")
-                cursor.execute("DELETE FROM filter_schemas")
-                cursor.execute("DELETE FROM enrichment_cache")
-                cursor.execute("DELETE FROM document_entities")
-                cursor.execute("DELETE FROM entity_relationships")
-                cursor.execute("DELETE FROM entity_nodes")
+                tables_to_clear = [
+                    "documents", "uploaded_files", "filter_schemas", 
+                    "enrichment_cache", "document_entities", "entity_relationships", "entity_nodes"
+                ]
+                for table in tables_to_clear:
+                    try:
+                        cursor.execute(f"DELETE FROM {table}")
+                        cleared_tables.append(table)
+                    except Exception as e:
+                        logger.warning(f"Failed to clear {table}: {e}")
+                        failed_tables.append(table)
                 conn.commit()
                 conn.close()
-                logger.info("Cleared all data from SQL")
+                if cleared_tables:
+                    logger.info(f"Cleared SQL tables: {', '.join(cleared_tables)}")
+                if failed_tables:
+                    logger.warning(f"Failed to clear some SQL tables: {', '.join(failed_tables)}")
         except Exception as e:
             logger.warning(f"Failed to clear SQL tables: {e}")
 
@@ -1057,7 +1073,9 @@ class IngestionService:
         all_ids_for_search = list(set(doc_ids_to_remove + [file_id]))
         try:
             from src.api.modules.ingestion.azure_storage import azure_storage_service
-            azure_storage_service.delete_file_data(file_id, uploaded_file.filename, all_ids_for_search)
+            # Only attempt blob deletion if this is an uploaded file with blob storage
+            has_blobs = uploaded_file.source == "uploaded"
+            azure_storage_service.delete_file_data(file_id, uploaded_file.filename, all_ids_for_search, has_blobs=has_blobs)
         except Exception as e:
             logger.warning(f"Storage/search cleanup failed for {file_id}: {e}")
 

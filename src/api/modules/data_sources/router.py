@@ -3,7 +3,7 @@
 import logging
 from fastapi import APIRouter, HTTPException
 
-from src.api.modules.data_sources.base import DataSourceConfig, FieldMapping
+from src.api.modules.data_sources.base import DataSourceConfig, FieldMapping, DataSourceType
 from src.api.modules.data_sources.models import (
     CreateDataSourceRequest,
     UpdateDataSourceRequest,
@@ -18,11 +18,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# Friendly display names for data source types
+_SOURCE_TYPE_LABELS = {
+    DataSourceType.AZURE_SEARCH: "Azure AI Search",
+    DataSourceType.SQL: "SQL Database",
+    DataSourceType.FABRIC: "Microsoft Fabric",
+    DataSourceType.SYNAPSE: "Azure Synapse",
+    DataSourceType.ODBC: "ODBC Connection",
+}
+
+
+def _get_display_name(source_type: DataSourceType) -> str:
+    """Get user-friendly display name for a data source type."""
+    return _SOURCE_TYPE_LABELS.get(source_type, str(source_type))
+
+
 def _to_response(config: DataSourceConfig) -> DataSourceResponse:
     return DataSourceResponse(
         id=config.id,
         name=config.name,
         source_type=config.source_type,
+        display_name=_get_display_name(config.source_type),
+        use_case=config.use_case,
         endpoint=config.endpoint,
         database=config.database,
         table_or_query=config.table_or_query,

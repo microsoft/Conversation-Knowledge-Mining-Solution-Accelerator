@@ -69,6 +69,24 @@ export const getIngestionStats = () => apiClient.get("/ingestion/stats");
 export const getAvailableFilters = () => apiClient.get("/ingestion/filters");
 export const getUploadedFiles = () => apiClient.get("/ingestion/files");
 export const refreshIngestionCache = () => apiClient.post("/ingestion/refresh");
+
+/**
+ * Clear frontend session storage caches when scenario data changes.
+ * This prevents duplicate files from appearing when switching scenarios.
+ */
+export const clearSessionCache = () => {
+  try {
+    sessionStorage.removeItem("km_home_data");
+    sessionStorage.removeItem("km_explore_data");
+    sessionStorage.removeItem("km_insights");
+    sessionStorage.removeItem("km_chat");
+    sessionStorage.removeItem("km_explore_chat");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const deleteFile = (fileId: string) =>
   apiClient.delete(`/ingestion/files/${encodeURIComponent(fileId)}`);
 export const retryFile = (fileId: string) =>

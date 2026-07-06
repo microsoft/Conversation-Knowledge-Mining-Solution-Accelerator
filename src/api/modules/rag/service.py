@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import re
+import json
 
 import yaml
 from azure.identity import DefaultAzureCredential
@@ -14,6 +15,7 @@ from cachetools import TTLCache
 
 from src.api.config import get_settings
 from src.api.modules.rag.models import QAResponse, Source
+from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +48,15 @@ def _get_prompt(key: str, fallback: str, **kwargs) -> str:
 
 
 def _strip_links_from_answer(text: str) -> str:
-    # Keep citation labels, remove markdown link destinations and raw URL/path targets.
-    out = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"[\1]", text)
-    out = re.sub(r"\bhttps?://\S+", "", out, flags=re.IGNORECASE)
-    out = re.sub(r"\((?:sandbox/|/sandbox/|file://)[^)]+\)", "", out, flags=re.IGNORECASE)
-    return out
+    """Remove embedded source citations from answer text, keeping the actual content."""
+    out = text
+    # Remove (sources: ...) or (source: ...) - only this pattern
+    out = re.sub(r'\s*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
+    # Remove standalone bracketed doc IDs like [842c7caf] but not other brackets
+    out = re.sub(r'\s*\[[a-f0-9]{8}\]\s*', ' ', out, flags=re.IGNORECASE)
+    # Clean up multiple spaces
+    out = re.sub(r'\s+', ' ', out)
+    return out.strip()
 
 
 class RAGService:
@@ -119,6 +125,65 @@ class RAGService:
             return out, sources
 
         return asyncio.run(_run())
+
+    def _get_agent(self) -> Agent:
+        """Get or create the RAG agent with AI Search and SQL tools."""
+        if self._agent is None:
+            from src.api.capabilities._llm import get_llm_chat_client
+            from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
+            
+            chat_client = get_llm_chat_client()
+            self._agent = Agent(
+                name="rag_agent",
+                instructions=(
+                    "You are a helpful assistant for answering questions about documents and data. "
+                    "You have access to two tools:\n"
+                    "1. search_azure_ai_search - Search document content, summaries, and text from Azure AI Search\n"
+                    "2. get_sql_response - Query the SQL database for structured data, statistics, and records\n\n"
+                    "Strategy:\n"
+                    "- For document content, text search, or document-based questions: use search_azure_ai_search\n"
+                    "- For statistics, counts, aggregations, or structured queries: use get_sql_response\n"
+                    "- Always cite your sources when providing information from documents\n"
+                    "- Be accurate and only use information from the tool results\n"
+                    "- If you cannot answer from the available tools, say so explicitly"
+                ),
+                client=chat_client,
+                tools=[search_azure_ai_search, get_sql_response],
+            )
+        return self._agent
+
+    def _invoke_agent(self, system_prompt: str, user_query: str) -> str:
+        """Invoke the agent with a system prompt and user query, return the response."""
+        import asyncio
+        try:
+            agent = self._get_agent()
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query},
+            ]
+
+            # agent.run() is async — run it in a new event loop since we're called
+            # from asyncio.to_thread (a worker thread with no running event loop).
+            response = asyncio.run(agent.run(messages=messages))
+
+            # AgentResponse exposes the final assistant text via .text
+            if hasattr(response, 'text') and response.text:
+                return str(response.text)
+
+            # Fallback: look for last assistant message
+            if hasattr(response, 'messages') and response.messages:
+                for msg in reversed(response.messages):
+                    content = getattr(msg, 'content', None)
+                    role = getattr(msg, 'role', None)
+                    if content and role in ('assistant', None):
+                        return str(content)
+
+            return str(response) if response else ""
+
+        except Exception as e:
+            logger.error(f"Agent invocation failed: {e}", exc_info=True)
+            raise
 
     def _get_blob_text_for_file(self, file_id: str) -> str:
         """Read extracted text from blob storage for 'extracted'-status files."""
@@ -463,7 +528,7 @@ class RAGService:
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
                 text=text[:500],
-                metadata={k: v for k, v in doc.items() if k not in ("text", "score")},
+                source_file=doc.get("source_file", ""),
             ))
 
         context = "\n\n---\n\n".join(context_parts)
@@ -585,7 +650,7 @@ class RAGService:
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
                 text=text[:500],
-                metadata={"type": doc["type"], "source_file": doc["source_file"]},
+                source_file=doc.get("source_file", ""),
             ))
 
         context = "\n\n---\n\n".join(context_parts)
@@ -671,7 +736,7 @@ class RAGService:
             sources.append(Source(
                 doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
                 text=text[:500],
-                metadata={"type": doc["type"], "source_file": doc["source_file"]},
+                source_file=doc.get("source_file", ""),
             ))
 
         context = "\n\n---\n\n".join(context_parts)
