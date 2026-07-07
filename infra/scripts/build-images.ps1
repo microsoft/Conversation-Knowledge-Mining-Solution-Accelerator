@@ -1,112 +1,137 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Build and push Docker images to Azure Container Registry.
+    Build and push the backend (km-api) and frontend (km-app) container images to
+    the Azure Container Registry (ACR) provisioned during `azd up`, then switch the
+    App Services to run them.
 .DESCRIPTION
-    Reads ACR hostname from azd env (BACKEND_CONTAINER_REGISTRY / FRONTEND_CONTAINER_REGISTRY).
-    Builds backend (km-api) and frontend (km-app) images and pushes them to ACR.
-    The frontend image is built with REACT_APP_API_BASE_URL baked in.
+    Uses `az acr build` so the images are built remotely inside ACR — no local
+    Docker is required. Configuration is resolved from the azd environment
+    (ACR_NAME, ACR_LOGIN_SERVER, API_APP_NAME, FRONTEND_APP_NAME, image names/tags,
+    RESOURCE_GROUP_NAME). After pushing, each App Service is pointed at its ACR
+    image and set to pull via managed identity, then restarted.
+.EXAMPLE
+    bash/pwsh: ./infra/scripts/build-images.ps1
 #>
 
 $ErrorActionPreference = "Stop"
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Building & Pushing Docker Images" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
+# Repo root is two levels up from this script (infra/scripts -> repo root)
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 
-# Read env values
-$backendRegistry = (azd env get-value BACKEND_CONTAINER_REGISTRY 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-$frontendRegistry = (azd env get-value FRONTEND_CONTAINER_REGISTRY 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-$backendTag = (azd env get-value BACKEND_IMAGE_TAG 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-$frontendTag = (azd env get-value FRONTEND_IMAGE_TAG 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-$backendUri = (azd env get-value SERVICE_BACKEND_URI 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-
-if (-not $backendTag) { $backendTag = "latest" }
-if (-not $frontendTag) { $frontendTag = "latest" }
-
-if (-not $backendRegistry -or -not $frontendRegistry) {
-    Write-Host "No container registry configured — skipping image build." -ForegroundColor Yellow
-    Write-Host "Set BACKEND_CONTAINER_REGISTRY and FRONTEND_CONTAINER_REGISTRY in azd env to enable." -ForegroundColor Yellow
-    exit 0
+function Get-AzdValue([string]$key) {
+    $val = (azd env get-value $key 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $val -or $val -match 'ERROR|not found') { return "" }
+    return $val.Trim()
 }
 
-# Log in to each unique ACR registry (backend/frontend may differ)
-$registries = @($backendRegistry, $frontendRegistry) | Where-Object { $_ } | Select-Object -Unique
-foreach ($registry in $registries) {
-    $acrName = $registry.Split('.')[0]
-    Write-Host "Logging in to ACR: $registry" -ForegroundColor Yellow
-    az acr login --name $acrName
+Write-Host ""
+Write-Host "===============================================" -ForegroundColor Cyan
+Write-Host "  Build & Push Container Images" -ForegroundColor Cyan
+Write-Host "===============================================" -ForegroundColor Cyan
+Write-Host ""
+
+# ── Ensure Azure CLI is authenticated ──
+az account show *> $null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Not logged in to Azure CLI. Launching 'az login'..." -ForegroundColor Yellow
+    az login | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Failed to log in to ACR: $registry" -ForegroundColor Red
+        Write-Host "ERROR: Azure CLI login failed." -ForegroundColor Red
         exit 1
     }
 }
 
-# Build backend image
-$backendImage = "$backendRegistry/km-api:$backendTag"
+# ── Resolve configuration from azd environment ──
+$resourceGroup   = Get-AzdValue "RESOURCE_GROUP_NAME"
+$acrName         = Get-AzdValue "ACR_NAME"
+$acrLoginServer  = Get-AzdValue "ACR_LOGIN_SERVER"
+$backendImage    = Get-AzdValue "BACKEND_CONTAINER_IMAGE_NAME"
+$backendTag      = Get-AzdValue "BACKEND_CONTAINER_IMAGE_TAG"
+$frontendImage   = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_NAME"
+$frontendTag     = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_TAG"
+$backendApp      = Get-AzdValue "API_APP_NAME"
+$frontendApp     = Get-AzdValue "FRONTEND_APP_NAME"
+
+# ── Fallbacks / defaults ──
+if (-not $acrLoginServer -and $acrName) { $acrLoginServer = "$acrName.azurecr.io" }
+if (-not $backendImage)  { $backendImage  = "km-api" }
+if (-not $backendTag)    { $backendTag    = "latest" }
+if (-not $frontendImage) { $frontendImage = "km-app" }
+if (-not $frontendTag)   { $frontendTag   = "latest" }
+
+if (-not $acrName -or -not $backendApp -or -not $frontendApp) {
+    Write-Host "ERROR: Could not resolve ACR / App Service names from azd env." -ForegroundColor Red
+    Write-Host "       Ensure 'azd provision' (or 'azd up') has completed for this environment." -ForegroundColor Yellow
+    Write-Host "       Required azd outputs: ACR_NAME, API_APP_NAME, FRONTEND_APP_NAME." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "Resource Group:   $resourceGroup"
+Write-Host "ACR Name:         $acrName"
+Write-Host "ACR Login Server: $acrLoginServer"
+Write-Host "Backend Image:    ${backendImage}:${backendTag}  -> App: $backendApp"
+Write-Host "Frontend Image:   ${frontendImage}:${frontendTag}  -> App: $frontendApp"
 Write-Host ""
-Write-Host "Building backend image: $backendImage" -ForegroundColor Yellow
-docker build -t $backendImage -f src/api/ApiApp.Dockerfile .
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Backend image build failed." -ForegroundColor Red
-    exit 1
-}
 
-Write-Host "Pushing backend image..." -ForegroundColor Yellow
-docker push $backendImage
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Backend image push failed." -ForegroundColor Red
-    exit 1
-}
-Write-Host "Backend image pushed." -ForegroundColor Green
+# Build contexts and Dockerfiles
+$backendContext    = Join-Path $repoRoot "src/api"
+$backendDockerfile = Join-Path $repoRoot "src/api/ApiApp.Dockerfile"
+$frontendContext    = Join-Path $repoRoot "src/app"
+$frontendDockerfile = Join-Path $repoRoot "src/app/WebApp.Dockerfile"
 
-# Build frontend image
-$frontendImage = "$frontendRegistry/km-app:$frontendTag"
-Write-Host ""
-Write-Host "Building frontend image: $frontendImage" -ForegroundColor Yellow
-
-$buildArgs = @()
-if ($backendUri) {
-    $apiUrl = "$backendUri/api"
-    $buildArgs = @("--build-arg", "REACT_APP_API_BASE_URL=$apiUrl")
-    Write-Host "  API URL: $apiUrl" -ForegroundColor DarkGray
-}
-
-docker build $buildArgs -t $frontendImage -f src/app/WebApp.Dockerfile src/app
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Frontend image build failed." -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "Pushing frontend image..." -ForegroundColor Yellow
-docker push $frontendImage
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "ERROR: Frontend image push failed." -ForegroundColor Red
-    exit 1
-}
-Write-Host "Frontend image pushed." -ForegroundColor Green
-
-# Restart webapps to pull new images
-$envName = (azd env get-value AZURE_ENV_NAME 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-if ($envName) {
-    $rgName = "rg-$envName"
-    $resourceToken = (azd env get-value SERVICE_BACKEND_URI 2>$null) | Where-Object { $_ -notmatch 'ERROR' }
-    # Extract resource token from backend URI (e.g. https://api-XXXX.azurewebsites.net -> XXXX)
-    if ($resourceToken -match 'api-([^.]+)\.azurewebsites') {
-        $token = $Matches[1]
-        $apiApp = "api-$token"
-        $webApp = "app-$token"
-
-        Write-Host ""
-        Write-Host "Restarting webapps..." -ForegroundColor Yellow
-        az webapp restart --name $apiApp --resource-group $rgName 2>$null
-        az webapp restart --name $webApp --resource-group $rgName 2>$null
-        Write-Host "Webapps restarted." -ForegroundColor Green
+function Build-Image([string]$image, [string]$tag, [string]$dockerfile, [string]$context) {
+    if (-not (Test-Path $dockerfile)) {
+        Write-Host "ERROR: Dockerfile not found: $dockerfile" -ForegroundColor Red
+        exit 1
     }
+    Write-Host "Building '${image}:${tag}' remotely in ACR '$acrName'..." -ForegroundColor Yellow
+    az acr build --registry $acrName --image "${image}:${tag}" --file $dockerfile --platform linux $context
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Build of '${image}:${tag}' failed." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "Pushed '${image}:${tag}'." -ForegroundColor Green
 }
 
+function Update-WebAppImage([string]$appName, [string]$image, [string]$tag) {
+    $fullImage = "$acrLoginServer/${image}:${tag}"
+    Write-Host ""
+    Write-Host "Pointing App Service '$appName' at '$fullImage'..." -ForegroundColor Yellow
+    az webapp config container set `
+        --name $appName `
+        --resource-group $resourceGroup `
+        --container-image-name $fullImage `
+        --container-registry-url "https://$acrLoginServer" `
+        --only-show-errors `
+        --output none
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: Failed to set container image on '$appName'." -ForegroundColor Red
+        exit 1
+    }
+    # Pull via managed identity (no admin credentials)
+    az resource update `
+        --resource-group $resourceGroup `
+        --namespace Microsoft.Web `
+        --resource-type sites `
+        --name $appName `
+        --set properties.siteConfig.acrUseManagedIdentityCreds=true `
+        --output none 2>$null
+    Write-Host "Restarting App Service '$appName'..." -ForegroundColor Yellow
+    az webapp restart --name $appName --resource-group $resourceGroup --output none
+    Write-Host "App Service '$appName' updated." -ForegroundColor Green
+}
+
+# ── Build & push both images ──
+Build-Image $backendImage  $backendTag  $backendDockerfile  $backendContext
+Build-Image $frontendImage $frontendTag $frontendDockerfile $frontendContext
+
+# ── Switch App Services to the freshly pushed images ──
+Update-WebAppImage $backendApp  $backendImage  $backendTag
+Update-WebAppImage $frontendApp $frontendImage $frontendTag
+
 Write-Host ""
-Write-Host "All images built, pushed, and deployed." -ForegroundColor Green
+Write-Host "===============================================" -ForegroundColor Green
+Write-Host "  Images built & pushed; App Services updated." -ForegroundColor Green
+Write-Host "===============================================" -ForegroundColor Green
 Write-Host ""

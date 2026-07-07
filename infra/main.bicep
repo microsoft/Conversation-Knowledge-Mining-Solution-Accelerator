@@ -55,19 +55,16 @@ param adminApiKey string = ''
 param contentUnderstandingLocation string = 'swedencentral'
 
 // ── Container Image Configuration ──
-@description('Container registry hostname for backend image')
-param backendContainerRegistryHostname string = ''
-
-@description('Backend container image name')
+// Images are built and pushed to the dedicated ACR provisioned below by the
+// post-deployment script (infra/scripts/build-images.ps1). App Services boot on
+// a public hello-world image and are switched to these images by that script.
+@description('Backend container image name (repository) to build and push to the provisioned ACR')
 param backendContainerImageName string = 'km-api'
 
 @description('Backend container image tag')
 param backendContainerImageTag string = 'latest'
 
-@description('Container registry hostname for frontend image')
-param frontendContainerRegistryHostname string = ''
-
-@description('Frontend container image name')
+@description('Frontend container image name (repository) to build and push to the provisioned ACR')
 param frontendContainerImageName string = 'km-app'
 
 @description('Frontend container image tag')
@@ -221,6 +218,19 @@ module cosmos 'modules/cosmos.bicep' = if (deployCosmos) {
   }
 }
 
+// ========== Azure Container Registry ========== //
+var acrName = 'cr${resourceToken}'
+module containerRegistry 'modules/container-registry.bicep' = {
+  name: 'container-registry'
+  scope: rg
+  params: {
+    name: acrName
+    location: location
+    tags: tags
+  }
+}
+var acrLoginServer = containerRegistry.outputs.loginServer
+
 // ========== App Service Plan ========== //
 var webServerFarmResourceName = '${abbrs.compute.appServicePlan}${resourceToken}'
 module webServerFarm 'modules/app-service-plan.bicep' = {
@@ -248,15 +258,16 @@ module webSiteBackend 'modules/web-sites.bicep' = {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: !empty(backendContainerRegistryHostname) ? 'DOCKER|${backendContainerRegistryHostname}/${backendContainerImageName}:${backendContainerImageTag}' : 'PYTHON|3.13'
-      appCommandLine: !empty(backendContainerRegistryHostname) ? '' : 'pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000'
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      acrUseManagedIdentityCreds: true
+      appCommandLine: ''
       minTlsVersion: '1.2'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
-          DOCKER_REGISTRY_SERVER_URL: !empty(backendContainerRegistryHostname) ? 'https://${backendContainerRegistryHostname}' : ''
+          DOCKER_REGISTRY_SERVER_URL: 'https://${acrLoginServer}'
           WEBSITES_PORT: '8000'
           AZURE_OPENAI_ENDPOINT: aiServicesEndpoint
           AZURE_OPENAI_CHAT_DEPLOYMENT: chatDeploymentName
@@ -298,17 +309,18 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
       systemAssigned: true
     }
     siteConfig: {
-      linuxFxVersion: !empty(frontendContainerRegistryHostname) ? 'DOCKER|${frontendContainerRegistryHostname}/${frontendContainerImageName}:${frontendContainerImageTag}' : 'NODE|22-lts'
-      appCommandLine: !empty(frontendContainerRegistryHostname) ? '' : 'pm2 serve /home/site/wwwroot --no-daemon --spa --port 8080'
+      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+      acrUseManagedIdentityCreds: true
+      appCommandLine: ''
       minTlsVersion: '1.2'
     }
     configs: [
       {
         name: 'appsettings'
         properties: {
-          DOCKER_REGISTRY_SERVER_URL: !empty(frontendContainerRegistryHostname) ? 'https://${frontendContainerRegistryHostname}' : ''
+          DOCKER_REGISTRY_SERVER_URL: 'https://${acrLoginServer}'
           APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
-          WEBSITES_PORT: !empty(frontendContainerRegistryHostname) ? '80' : '8080'
+          WEBSITES_PORT: '80'
         }
       }
     ]
@@ -327,7 +339,7 @@ module roles 'modules/roles.bicep' = {
     cuName: cuResourceName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
     frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
-    // acrName: !empty(backendContainerRegistryHostname) ? split(backendContainerRegistryHostname, '.')[0] : ''
+    acrName: containerRegistry.outputs.name
     deployerPrincipalId: deployer().objectId
     aiProjectPrincipalId: useExistingAiProject ? '' : aiServices!.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId
   }
@@ -378,3 +390,27 @@ output SERVICE_FRONTEND_URI string = 'https://${webSiteFrontend.outputs.defaultH
 
 @description('AI Search connection name in AI Foundry.')
 output AZURE_AI_SEARCH_CONNECTION_NAME string = useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
+
+@description('Azure Container Registry name.')
+output ACR_NAME string = containerRegistry.outputs.name
+
+@description('Azure Container Registry login server URL.')
+output ACR_LOGIN_SERVER string = containerRegistry.outputs.loginServer
+
+@description('Backend container image repository name to build and push to ACR.')
+output BACKEND_CONTAINER_IMAGE_NAME string = backendContainerImageName
+
+@description('Backend container image tag to build and push to ACR.')
+output BACKEND_CONTAINER_IMAGE_TAG string = backendContainerImageTag
+
+@description('Frontend container image repository name to build and push to ACR.')
+output FRONTEND_CONTAINER_IMAGE_NAME string = frontendContainerImageName
+
+@description('Frontend container image tag to build and push to ACR.')
+output FRONTEND_CONTAINER_IMAGE_TAG string = frontendContainerImageTag
+
+@description('Frontend web application (App Service) name.')
+output FRONTEND_APP_NAME string = frontendWebSiteResourceName
+
+@description('Resource group name.')
+output RESOURCE_GROUP_NAME string = rg.name
