@@ -1,18 +1,14 @@
-FROM node:24-alpine AS build 
-WORKDIR /home/node/app  
-
-COPY ./package*.json ./  
-  
+# Stage 1: Build
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package*.json ./
 RUN npm ci --include=dev
- 
-COPY . .  
- 
-RUN npm run build  
-  
-FROM nginx:alpine  
+COPY . .
+RUN npm run build
 
-COPY --from=build /home/node/app/dist /usr/share/nginx/html  
-
+# Stage 2: Runtime (Nginx only - no Node)
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
 COPY env.sh /docker-entrypoint.d/env.sh
 RUN chmod +x /docker-entrypoint.d/env.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.d/env.sh
