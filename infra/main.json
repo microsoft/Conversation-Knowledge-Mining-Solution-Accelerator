@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "14762525687624362093"
+      "templateHash": "14236391042983007298"
     }
   },
   "parameters": {
@@ -76,7 +76,7 @@
     },
     "secondaryLocation": {
       "type": "string",
-      "defaultValue": "eastus2",
+      "defaultValue": "australiaeast",
       "minLength": 1,
       "metadata": {
         "description": "Optional. Secondary location for databases creation (example: eastus2)."
