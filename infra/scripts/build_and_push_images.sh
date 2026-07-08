@@ -203,6 +203,7 @@ update_web_app_image() {
 		--resource-group "$resourceGroupName" \
 		--container-image-name "$fullImage" \
 		--container-registry-url "https://${acrLoginServer}" \
+		--only-show-errors \
 		--output none
 
 	# Ensure the app pulls the image using its managed identity (no admin credentials)
