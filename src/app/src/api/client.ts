@@ -182,6 +182,11 @@ export const sendConversation = (
     conversation_id: conversationId,
   });
 
+// Fetch the full content of a cited document (lazy, on citation click).
+// Matches the backend /rag/fetch-azure-search-content endpoint.
+export const fetchCitationContent = (url: string) =>
+  apiClient.post("/rag/fetch-azure-search-content", { url });
+
 // --- Processing ---
 export const summarizeText = (text: string, maxLength = 200, style = "concise") =>
   apiClient.post("/processing/summarize", { text, max_length: maxLength, style });

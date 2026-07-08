@@ -7,7 +7,8 @@ import {
   Checkmark24Regular, ArrowUpload24Regular,
 } from "@fluentui/react-icons";
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources,
-  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession, refreshIngestionCache } from "../api/client";
+  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession, refreshIngestionCache,
+  fetchCitationContent } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
@@ -93,6 +94,8 @@ const Explore: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeCitation, setActiveCitation] = useState<{ title: string; content: string } | null>(null);
+  const [citationLoading, setCitationLoading] = useState(false);
   const refreshedCacheRef = useRef(false);
 
   useEffect(() => {
@@ -229,6 +232,28 @@ const Explore: React.FC = () => {
     setExpandedSources((prev: Set<number>) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   };
   const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); };
+  const openCitation = async (src: any) => {
+    const url = src?.url || src?.metadata?.url;
+    const label = src?.source_file || src?.doc_id || "Citation";
+    if (!url || url === "N/A") {
+      setActiveCitation({ title: label, content: "No source URL available for this citation." });
+      return;
+    }
+    setActiveCitation({ title: label, content: "" });
+    setCitationLoading(true);
+    try {
+      const res = await fetchCitationContent(url);
+      const data = res.data || {};
+      setActiveCitation({
+        title: data.title || label,
+        content: data.content || data.error || "No content available.",
+      });
+    } catch {
+      setActiveCitation({ title: label, content: "Failed to load citation content." });
+    } finally {
+      setCitationLoading(false);
+    }
+  };
   const loadSession = async (sid: string) => {
     try {
       const r = await loadChatHistory(sid);
@@ -436,25 +461,14 @@ const Explore: React.FC = () => {
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
                                 <div key={j} className={s.evidenceItem}>
-                                  <div style={{ display: "flex" }}>
-                                    <span
-                                      style={{ fontWeight: 600, color: "#0f172a" }}
-                                      title={src.source_file || src.doc_id}
-                                    >
-                                      {src.source_file || src.doc_id}
-                                    </span>
-                                  </div>
-                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}</div>}
-                                  {src.url && src.url !== "N/A" && (
-                                    <a
-                                      href={src.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={{ color: "#2563eb", marginTop: 4, display: "inline-block", fontSize: 11 }}
-                                    >
-                                      Open source
-                                    </a>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => openCitation(src)}
+                                    title={src.source_file || src.doc_id}
+                                    style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontWeight: 600, color: "#2563eb", textAlign: "left", textDecoration: "underline", fontSize: 12 }}
+                                  >
+                                    {src.source_file || src.doc_id}
+                                  </button>
                                 </div>
                               ))}
                             </div>
@@ -539,6 +553,34 @@ const Explore: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ═══ CITATION PANEL ═══ */}
+      {activeCitation && (
+        <>
+          <div className={s.overlay} onClick={() => setActiveCitation(null)} />
+          <div className={s.histDrawer} style={{ width: 440 }}>
+            <div className={s.histHeader}>
+              Citation
+              <button onClick={() => setActiveCitation(null)}
+                style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8" }}>
+                x
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, padding: 16 }}>
+              <h5 style={{ margin: "0 0 10px", fontSize: 13, color: "#0f172a", wordBreak: "break-all" }}>
+                {activeCitation.title}
+              </h5>
+              {citationLoading ? (
+                <div style={{ color: "#94a3b8", fontSize: 14 }}>Loading…</div>
+              ) : (
+                <div style={{ fontSize: 14, lineHeight: 1.75, color: "#334155", wordBreak: "break-word" }}>
+                  {renderMarkdown(activeCitation.content)}
+                </div>
+              )}
             </div>
           </div>
         </>

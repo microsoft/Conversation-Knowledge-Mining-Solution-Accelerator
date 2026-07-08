@@ -51,7 +51,11 @@ export function renderMarkdown(text: string): React.ReactNode {
         return <code key={i} style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3, fontSize: "0.9em" }}>{part.slice(1, -1)}</code>;
       }
       if (part.startsWith("[") && part.endsWith("]")) {
-        return <span key={i} style={{ color: "#2563eb", fontSize: "0.85em" }}>{part.slice(1, -1)}</span>;
+        return (
+          <sup key={i} style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super" }}>
+            [{part.slice(1, -1)}]
+          </sup>
+        );
       }
       return part;
     });
