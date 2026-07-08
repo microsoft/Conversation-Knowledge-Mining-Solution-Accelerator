@@ -3,18 +3,19 @@ import asyncio
 import logging
 import os
 import re
+from urllib.parse import unquote
 
-import yaml
 from azure.identity import DefaultAzureCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.ai.projects.aio import AIProjectClient
-from agent_framework import Agent, AgentSession
+from agent_framework import AgentSession
 from agent_framework_foundry import FoundryAgent
+from agent_framework_openai._chat_client import RawOpenAIChatClient
 from cachetools import TTLCache
 
 from src.api.config import get_settings
 from src.api.modules.rag.models import QAResponse, Source
-from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
+from src.api.modules.rag.agent_tools import get_sql_response
 
 logger = logging.getLogger(__name__)
 
@@ -22,28 +23,61 @@ logger = logging.getLogger(__name__)
 # multi-turn chats reuse server-side history. Mirrors chat_service.py's thread cache.
 _thread_cache: TTLCache = TTLCache(maxsize=1000, ttl=3600.0)
 
-# Load prompts from config file (editable without code changes)
-_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "config", "prompts.yaml")
-_PROMPTS: dict = {}
-try:
-    with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
-        _PROMPTS = yaml.safe_load(f) or {}
-except Exception:
-    logger.warning("Could not load prompts.yaml — using built-in defaults")
+
+def _extract_get_urls(response: Any) -> list:
+    """Extract per-document get_urls from the raw Azure AI Search stream events.
+
+    Mirrors scripts/test_agent.py: the GA annotations payload only carries the
+    root search URL for doc_N citations, so the per-document URLs must be pulled
+    from the raw stream events.
+    """
+    get_urls: list = []
+    for raw_agent_update in getattr(response, "raw_representation", None) or []:
+        raw_chat_update = getattr(raw_agent_update, "raw_representation", raw_agent_update)
+        event = getattr(raw_chat_update, "raw_representation", raw_chat_update)
+        try:
+            for url in RawOpenAIChatClient._extract_azure_ai_search_get_urls(event):
+                if url not in get_urls:
+                    get_urls.append(url)
+        except Exception:
+            continue
+    return get_urls
 
 
-def _get_prompt(key: str, fallback: str, **kwargs) -> str:
-    """Load a prompt from config, falling back to the built-in default."""
-    template = _PROMPTS.get(key, fallback)
-    if not kwargs:
-        return template
+def _collect_citations(response: Any, get_urls: list) -> list:
+    """Build a citation list from the final response, enriching doc_N citations
+    with the per-document get_urls extracted from the raw Azure AI Search stream.
 
-    # Use literal token replacement (e.g., {context}) so JSON examples in prompts
-    # do not trigger str.format() KeyError on keys like {"type": ...}.
-    rendered = template
-    for token, value in kwargs.items():
-        rendered = rendered.replace("{" + token + "}", str(value))
-    return rendered
+    Mirrors scripts/test_agent.py::collect_citations.
+    """
+    citations: list = []
+    seen: set = set()
+    url_iter = iter(get_urls)
+    for message in getattr(response, "messages", None) or []:
+        for content in getattr(message, "contents", None) or []:
+            for ann in getattr(content, "annotations", None) or []:
+                if not isinstance(ann, dict) or ann.get("type") != "citation":
+                    continue
+                title = ann.get("title", "N/A")
+                add_props = ann.get("additional_properties") or {}
+                url = add_props.get("get_url") or ann.get("url")
+                # GA regression: doc_N citations only carry the root search URL,
+                # so fall back to the next per-document get_url from the raw stream.
+                if isinstance(title, str) and title.startswith("doc_"):
+                    url = add_props.get("get_url") or next(url_iter, url)
+                    # Derive the real document id from the get_url so the citation
+                    # label shows the actual doc id instead of the ordinal doc_N.
+                    # get_url format: .../indexes/{index}/docs/{document_id}?api-version=...
+                    if isinstance(url, str):
+                        m = re.search(r"/docs/([^?]+)", url)
+                        if m:
+                            title = unquote(m.group(1))
+                key = (title, url)
+                if key in seen:
+                    continue
+                seen.add(key)
+                citations.append({"title": title, "url": url or "N/A"})
+    return citations
 
 
 def _strip_links_from_answer(text: str) -> str:
@@ -62,37 +96,7 @@ class RAGService:
     """Retrieval-Augmented Generation service for question answering."""
 
     def __init__(self):
-        self._agent = None
-
-    @staticmethod
-    def _annotation_get(annotation: Any, key: str, default: Any = None) -> Any:
-        """Read annotation fields from either dict-like or object-like payloads."""
-        if isinstance(annotation, dict):
-            return annotation.get(key, default)
-        return getattr(annotation, key, default)
-
-    @staticmethod
-    def _extract_citation_source(annotation: Any) -> tuple[str, str]:
-        """Extract (title, url) from a citation annotation payload."""
-        title = "N/A"
-        url = "N/A"
-
-        add_props = RAGService._annotation_get(annotation, "additional_properties", {}) or {}
-        if not isinstance(add_props, dict):
-            add_props = {}
-
-        title = (
-            RAGService._annotation_get(annotation, "title")
-            or add_props.get("title")
-            or title
-        )
-        url = (
-            add_props.get("get_url")
-            or RAGService._annotation_get(annotation, "url")
-            or add_props.get("url")
-            or url
-        )
-        return str(title), str(url)
+        pass
 
     def _run_agent(self, user_input: str, conversation_id: Optional[str] = None) -> tuple[str, list[Source]]:
         """Invoke the single pre-created Foundry agent and return (text, citations).
@@ -110,7 +114,6 @@ class RAGService:
             if not agent_endpoint:
                 raise ValueError("AZURE_AI_AGENT_ENDPOINT is not configured. Set AZURE_AI_AGENT_ENDPOINT in .env or environment.")
 
-            citations: list = []
             marker_map: dict[str, int] = {}
 
             def _replace_marker(match):
@@ -126,7 +129,14 @@ class RAGService:
                     credential=credential,
                 ) as project_client,
             ):
-                agent = FoundryAgent(project_client=project_client, agent_name=agent_name)
+                # Attach the SQL tool only when the agent was created with it
+                # (USE_SQL is scenario-dependent and set at agent-creation time).
+                use_sql = (os.getenv("USE_SQL") or str(settings.use_sql)).strip().lower() in ("1", "true", "yes", "on")
+                agent = FoundryAgent(
+                    project_client=project_client,
+                    agent_name=agent_name,
+                    tools=[get_sql_response] if use_sql else [],
+                )
 
                 # Reuse or create a server-side conversation thread for continuity
                 thread_id = _thread_cache.get(conversation_id) if conversation_id else None
@@ -139,23 +149,22 @@ class RAGService:
 
                 session = AgentSession(service_session_id=thread_id)
                 out = ""
-                async for chunk in agent.run(user_input, stream=True, session=session):
-                    for content in getattr(chunk, "contents", []) or []:
-                        annotations = getattr(content, "annotations", []) or []
-                        if annotations:
-                            citations.extend(annotations)
+                stream = agent.run(user_input, stream=True, session=session)
+                async for chunk in stream:
                     text = str(chunk.text) if chunk.text else ""
                     text = re.sub(r"【\d+:\d+†?[^】]*】", _replace_marker, text)
                     out += text
 
+                # Citations come from the final response, matching test_agent.py:
+                # collect annotations + recover per-document get_urls from the raw stream.
+                response = await stream.get_final_response()
+                get_urls = _extract_get_urls(response)
+                citation_dicts = _collect_citations(response, get_urls)
+
             sources: list[Source] = []
-            seen: set[tuple[str, str]] = set()
-            for c in citations:
-                title, url = self._extract_citation_source(c)
-                dedup_key = (title, url)
-                if dedup_key in seen:
-                    continue
-                seen.add(dedup_key)
+            for c in citation_dicts:
+                title = c["title"]
+                url = c["url"]
                 sources.append(Source(
                     doc_id=title,
                     score=0.0,
@@ -313,65 +322,6 @@ class RAGService:
         if removed > 0:
             logger.info(f"Filtered {removed} noisy docs during {phase}")
         return filtered
-
-    def _get_agent(self) -> Any:
-        """Get or create the RAG agent with AI Search and SQL tools."""
-        if self._agent is None:
-            from src.api.capabilities._llm import get_llm_chat_client
-            from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
-            
-            chat_client = get_llm_chat_client()
-            self._agent = Agent(
-                name="rag_agent",
-                instructions=(
-                    "You are a helpful assistant for answering questions about documents and data. "
-                    "You have access to two tools:\n"
-                    "1. search_azure_ai_search - Search document content, summaries, and text from Azure AI Search\n"
-                    "2. get_sql_response - Query the SQL database for structured data, statistics, and records\n\n"
-                    "Strategy:\n"
-                    "- For document content, text search, or document-based questions: use search_azure_ai_search\n"
-                    "- For statistics, counts, aggregations, or structured queries: use get_sql_response\n"
-                    "- Always cite your sources when providing information from documents\n"
-                    "- Be accurate and only use information from the tool results\n"
-                    "- If you cannot answer from the available tools, say so explicitly"
-                ),
-                client=chat_client,
-                tools=[search_azure_ai_search, get_sql_response],
-            )
-        return self._agent
-
-    def _invoke_agent(self, system_prompt: str, user_query: str) -> str:
-        """Invoke the agent with a system prompt and user query, return the response."""
-        import asyncio
-        try:
-            agent = self._get_agent()
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query},
-            ]
-
-            # agent.run() is async — run it in a new event loop since we're called
-            # from asyncio.to_thread (a worker thread with no running event loop).
-            response = asyncio.run(agent.run(messages=messages))
-
-            # AgentResponse exposes the final assistant text via .text
-            if hasattr(response, 'text') and response.text:
-                return str(response.text)
-
-            # Fallback: look for last assistant message
-            if hasattr(response, 'messages') and response.messages:
-                for msg in reversed(response.messages):
-                    content = getattr(msg, 'content', None)
-                    role = getattr(msg, 'role', None)
-                    if content and role in ('assistant', None):
-                        return str(content)
-
-            return str(response) if response else ""
-
-        except Exception as e:
-            logger.error(f"Agent invocation failed: {e}", exc_info=True)
-            raise
 
     def _get_blob_text_for_file(self, file_id: str) -> str:
         """Read extracted text from blob storage for 'extracted'-status files."""
@@ -738,6 +688,39 @@ class RAGService:
             model=settings.azure_openai_chat_deployment,
         )
 
+    def fetch_citation_content(self, url: str) -> dict:
+        """Fetch a cited document's content directly from Azure AI Search using the
+        citation's get_url.
+
+        Mirrors upstream CKM's /fetch-azure-search-content endpoint, adapted to our
+        index field names (``text``/``source_file`` instead of ``content``/``sourceurl``).
+        The get_url points at ``.../indexes/{index}/docs/{key}?api-version=...`` and is
+        fetched with an Entra bearer token scoped to Azure Cognitive Search.
+        """
+        import requests
+
+        credential = DefaultAzureCredential()
+        token = credential.get_token("https://search.azure.com/.default")
+        try:
+            response = requests.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token.token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                content = data.get("text") or data.get("content") or ""
+                title = data.get("source_file") or data.get("sourceurl") or ""
+                return {"content": content, "title": title}
+            logger.warning(f"Citation content fetch failed: url={url}, status={response.status_code}")
+            return {"error": f"HTTP {response.status_code}"}
+        except Exception:
+            logger.exception("Exception while fetching citation content")
+            return {"error": "Unable to fetch content"}
+
     def answer_question(
         self,
         question: str,
@@ -832,20 +815,6 @@ class RAGService:
             logger.info("SQL search returned no results, falling back to in-memory search")
             search_docs = self._search_in_memory(question, top_k, document_ids)
 
-        # 3. Build source list
-        sources = []
-        for i, doc in enumerate(search_docs):
-            text = doc["text"]
-            # Truncate very long texts to fit context window
-            if len(text) > 4000:
-                text = text[:4000] + "..."
-            sources.append(Source(
-                doc_id=doc["doc_id"],
-                score=round(doc.get("score", 0), 4),
-                text=text[:500],
-                source_file=doc.get("source_file", ""),
-            ))
-
         # 3. Generate answer
         try:
             answer, agent_sources = self._run_agent(question, conversation_id)
@@ -858,8 +827,9 @@ class RAGService:
             logger.warning("Agent returned empty answer in answer_question, using fallback answer")
             answer = self._build_fallback_answer(question, search_docs)
 
-        combined_sources = self._merge_sources(agent_sources, sources)
-        combined_sources = self._filter_noise_sources(combined_sources, "answer-question-response")
+        # Surface the agent's own citations. Content is fetched lazily on click
+        # via /api/rag/fetch-azure-search-content using each citation's get_url.
+        combined_sources = self._filter_noise_sources(agent_sources, "answer-question-response")
         return QAResponse(
             question=question,
             answer=_strip_links_from_answer(answer),

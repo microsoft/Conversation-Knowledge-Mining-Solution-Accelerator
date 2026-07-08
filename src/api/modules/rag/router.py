@@ -12,6 +12,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class CitationContentRequest(BaseModel):
+    url: str
+
+
+@router.post("/fetch-azure-search-content")
+async def fetch_azure_search_content(body: CitationContentRequest):
+    """Fetch the content of a cited Azure AI Search document by its get_url.
+
+    Matches upstream CKM's /fetch-azure-search-content contract: accepts a JSON
+    payload with a 'url' field and returns {content, title} (or {error}).
+    """
+    if not body.url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    try:
+        return await asyncio.to_thread(rag_service.fetch_citation_content, body.url)
+    except Exception as e:
+        logger.error(f"fetch-azure-search-content failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch citation content.")
+
+
 class SaveChatRequest(BaseModel):
     session_id: str
     messages: list[dict]

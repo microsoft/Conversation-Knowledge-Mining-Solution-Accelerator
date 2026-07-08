@@ -165,7 +165,7 @@ def get_sql_response(sql_query: str) -> str:
             "count": len(results),
             "columns": columns,
             "results": results
-        })
+        }, default=str)
         
     except Exception as e:
         logger.error(f"SQL query tool error: {e}", exc_info=True)
