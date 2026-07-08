@@ -29,6 +29,7 @@ var roles = {
   storageQueueDataContributor: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
   cosmosDBDataContributor: '00000000-0000-0000-0000-000000000002'
   acrPull: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+  foundryUser: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')
 }
 
 // ========== Backend App (ServicePrincipal) Roles ========== //
@@ -38,6 +39,16 @@ resource openaiRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: openai
   properties: {
     roleDefinitionId: roles.cognitiveServicesOpenAIUser
+    principalId: backendPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource foundryUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(openai.id, backendPrincipalId, roles.foundryUser)
+  scope: openai
+  properties: {
+    roleDefinitionId: roles.foundryUser
     principalId: backendPrincipalId
     principalType: 'ServicePrincipal'
   }
@@ -110,6 +121,16 @@ resource deployerAiDeveloperRole 'Microsoft.Authorization/roleAssignments@2022-0
   scope: openai
   properties: {
     roleDefinitionId: roles.azureAIDeveloper
+    principalId: deployerPrincipalId
+    principalType: 'User'
+  }
+}
+
+resource deployerFoundryUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
+  name: guid(openai.id, deployerPrincipalId, roles.foundryUser)
+  scope: openai
+  properties: {
+    roleDefinitionId: roles.foundryUser
     principalId: deployerPrincipalId
     principalType: 'User'
   }

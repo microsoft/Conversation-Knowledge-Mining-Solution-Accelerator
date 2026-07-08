@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "3416400585314440962"
+      "templateHash": "6907507455166682243"
     }
   },
   "parameters": {
@@ -10978,7 +10978,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "8531735606423166663"
+              "templateHash": "1114801488881544535"
             }
           },
           "parameters": {
@@ -11004,7 +11004,7 @@
             },
             "skuName": {
               "type": "string",
-              "defaultValue": "S1",
+              "defaultValue": "B1",
               "allowedValues": [
                 "B1",
                 "B2",
@@ -13178,7 +13178,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.44.1.10279",
-              "templateHash": "5941571331397383032"
+              "templateHash": "6399871446680547865"
             }
           },
           "parameters": {
@@ -13240,7 +13240,8 @@
               "storageBlobDataContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
               "storageQueueDataContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
               "cosmosDBDataContributor": "00000000-0000-0000-0000-000000000002",
-              "acrPull": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
+              "acrPull": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+              "foundryUser": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '53ca6127-db72-4b80-b1b0-d745d6d5456d')]"
             }
           },
           "resources": [
@@ -13251,6 +13252,17 @@
               "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName')), parameters('backendPrincipalId'), variables('roles').cognitiveServicesOpenAIUser)]",
               "properties": {
                 "roleDefinitionId": "[variables('roles').cognitiveServicesOpenAIUser]",
+                "principalId": "[parameters('backendPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName')), parameters('backendPrincipalId'), variables('roles').foundryUser)]",
+              "properties": {
+                "roleDefinitionId": "[variables('roles').foundryUser]",
                 "principalId": "[parameters('backendPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
@@ -13329,6 +13341,18 @@
               "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName')), parameters('deployerPrincipalId'), variables('roles').azureAIDeveloper)]",
               "properties": {
                 "roleDefinitionId": "[variables('roles').azureAIDeveloper]",
+                "principalId": "[parameters('deployerPrincipalId')]",
+                "principalType": "User"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('deployerPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName'))]",
+              "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openaiName')), parameters('deployerPrincipalId'), variables('roles').foundryUser)]",
+              "properties": {
+                "roleDefinitionId": "[variables('roles').foundryUser]",
                 "principalId": "[parameters('deployerPrincipalId')]",
                 "principalType": "User"
               }
