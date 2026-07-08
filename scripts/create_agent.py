@@ -120,11 +120,17 @@ print(f"\nBuilt instructions ({len(instructions)} chars)")
 # json/csv/wav scenarios have structured analytics (SQL); pdf-only are search-only.
 # An explicit `sql_enabled` flag wins. Default to search-only if unknown.
 USE_SQL = False
-_scenario_key = args.scenario or ""
+_scenario_key = args.scenario or os.getenv("SCENARIO") or os.getenv("AZURE_SCENARIO") or ""
 _scenarios_path = os.path.join(config_dir, "scenarios.json")
 if os.path.exists(_scenarios_path):
     with open(_scenarios_path, encoding="utf-8") as _f:
-        _sc = json.load(_f).get("scenarios", {}).get(_scenario_key, {})
+        _all_scenarios = json.load(_f).get("scenarios", {})
+
+    # If no explicit scenario was provided, fall back to the first configured scenario.
+    if not _scenario_key and _all_scenarios:
+        _scenario_key = next(iter(_all_scenarios.keys()))
+
+    _sc = _all_scenarios.get(_scenario_key, {})
     if "sql_enabled" in _sc:
         USE_SQL = bool(_sc["sql_enabled"])
     else:
@@ -178,7 +184,9 @@ if USE_SQL:
                     }
                 },
                 "required": ["sql_query"],
+                "additionalProperties": False,
             },
+            strict=True,
         ))
         print("  Added SQL function tool: get_sql_response")
     except ImportError:

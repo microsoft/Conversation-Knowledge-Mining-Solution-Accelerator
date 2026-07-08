@@ -16,6 +16,6 @@ def generate(prompt: str = "", system_prompt: str = "", temperature: float = 0.3
         model=settings.azure_openai_chat_deployment,
         messages=messages,
         temperature=temperature,
-        max_tokens=max_tokens,
+        max_completion_tokens=max_tokens,
     )
     return {"result": response.choices[0].message.content, "meta": {"model": settings.azure_openai_chat_deployment}}

@@ -3,7 +3,7 @@
 Registers a data source connection directly in Azure SQL so the app can
 query it at runtime. No running backend required — works right after azd up.
 
-Supported sources: Azure AI Search, Microsoft Fabric, SQL Database, Azure Synapse.
+Supported sources: Azure AI Search, Microsoft Fabric.
 
 Prerequisites:
   - Run `azd up` first (creates .env with SQL connection details)
@@ -70,25 +70,6 @@ SOURCE_TYPES = {
         "prompts": {
             "endpoint": "SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ",
             "database": "Lakehouse/Warehouse name: ",
-            "table": "Table name: ",
-        },
-    },
-    "3": {
-        "type": "sql",
-        "label": "SQL Database",
-        "fields": ["connection_string", "table"],
-        "prompts": {
-            "connection_string": "ODBC connection string: ",
-            "table": "Table name: ",
-        },
-    },
-    "4": {
-        "type": "synapse",
-        "label": "Azure Synapse Analytics",
-        "fields": ["endpoint", "database", "table"],
-        "prompts": {
-            "endpoint": "Synapse endpoint (e.g. your-workspace.sql.azuresynapse.net): ",
-            "database": "Dedicated pool name: ",
             "table": "Table name: ",
         },
     },
@@ -198,8 +179,6 @@ def test_source_connection(config: dict) -> dict:
     adapter_map = {
         "azure_search": "api.modules.data_sources.azure_search",
         "fabric": "api.modules.data_sources.fabric",
-        "sql": "api.modules.data_sources.sql",
-        "synapse": "api.modules.data_sources.synapse",
     }
 
     source_type = config["source_type"]
@@ -245,7 +224,7 @@ def interactive_prompts() -> dict:
         print(f"  {key}. {info['label']}")
     print()
 
-    choice = input("Enter choice (1-4): ").strip()
+    choice = input("Enter choice (1-2): ").strip()
     if choice not in SOURCE_TYPES:
         print(f"Invalid choice: {choice}")
         sys.exit(1)
@@ -277,7 +256,7 @@ def interactive_prompts() -> dict:
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="Connect a data source to Knowledge Mining")
-    parser.add_argument("--type", choices=["azure_search", "fabric", "sql", "synapse"],
+    parser.add_argument("--type", choices=["azure_search", "fabric"],
                         help="Data source type")
     parser.add_argument("--name", help="Display name")
     parser.add_argument("--endpoint", help="Service endpoint URL")

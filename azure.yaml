@@ -39,13 +39,23 @@ hooks:
     windows:
       shell: pwsh
       run: |
+        # ── Step 0: Build & push the app images to ACR and point the App Services
+        #    at them (apps are provisioned with a placeholder hello-world image) ──
+        Write-Host ""
+        Write-Host "Building & pushing container images..." -ForegroundColor Yellow
+        & ./infra/scripts/build-images.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build-images.ps1" -ForegroundColor Red
+          exit 1
+        }
+
         # Write azd env values to .env so scripts can read them
         Write-Host "Writing .env file..." -ForegroundColor Yellow
         azd env get-values 2>$null | ForEach-Object {
           $_ -replace '^(\w+)="(.*)"$', '$1=$2'
         } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
 
-        # ── Step 0: Python environment ──
+        # ── Step 1: Python environment ──
         Write-Host ""
         Write-Host "Preparing Python environment..." -ForegroundColor Yellow
         if (-not (Test-Path ".venv")) {
@@ -55,14 +65,14 @@ hooks:
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
 
-        # ── Step 1: Grant API identity access to SQL ──
+        # ── Step 2: Grant API identity access to SQL ──
         Write-Host ""
         & ./infra/scripts/setup-sql-roles.ps1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/setup-sql-roles.ps1" -ForegroundColor Yellow
         }
 
-        # ── Step 2: Choose use case, load data, then create the scenario agent ──
+        # ── Step 3: Choose use case, load data, then create the scenario agent ──
         Write-Host ""
         & ./scripts/setup-data.ps1 -AllowDeployedFallback
 
@@ -82,10 +92,21 @@ hooks:
     posix:
       shell: sh
       run: |
+        # ── Step 0: Build & push the app images to ACR and point the App Services
+        #    at them (apps are provisioned with a placeholder hello-world image) ──
+        echo ""
+        echo "Building & pushing container images..."
+        pwsh -File ./infra/scripts/build-images.ps1
+        if [ $? -ne 0 ]; then
+          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build-images.ps1"
+          exit 1
+        fi
+
         # Write azd env values to .env so scripts can read them
         echo "Writing .env file..."
         azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
 
+        # ── Step 1: Python environment ──
         echo ""
         echo "Preparing Python environment..."
         if [ ! -d .venv ]; then
@@ -95,10 +116,12 @@ hooks:
         python -m pip install --quiet --upgrade pip
         pip install --quiet -r requirements.txt
 
+        # ── Step 2: Grant API identity access to SQL ──
         echo ""
         echo "Granting API identity SQL access..."
         pwsh -File ./infra/scripts/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/setup-sql-roles.ps1"
 
+        # ── Step 3: Choose use case, load data, then create the scenario agent ──
         echo ""
         pwsh -File ./scripts/setup-data.ps1 -AllowDeployedFallback
 

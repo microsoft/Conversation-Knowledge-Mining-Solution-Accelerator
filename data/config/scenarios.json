@@ -46,25 +46,6 @@
         "database": "Lakehouse/Warehouse name",
         "table": "Table name"
       }
-    },
-    "sql": {
-      "name": "SQL Database",
-      "description": "Connect a SQL database via ODBC connection string",
-      "fields": ["connection_string", "table"],
-      "prompts": {
-        "connection_string": "ODBC connection string",
-        "table": "Table name"
-      }
-    },
-    "synapse": {
-      "name": "Azure Synapse Analytics",
-      "description": "Connect a Synapse dedicated SQL pool",
-      "fields": ["endpoint", "database", "table"],
-      "prompts": {
-        "endpoint": "Synapse endpoint (e.g. your-workspace.sql.azuresynapse.net)",
-        "database": "Dedicated pool name",
-        "table": "Table name"
-      }
     }
   }
 }

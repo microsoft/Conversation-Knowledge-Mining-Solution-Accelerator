@@ -43,7 +43,7 @@ class ProcessingService:
                 {"role": "user", "content": text},
             ],
             temperature=0.3,
-            max_tokens=max_length * 2,
+            max_completion_tokens=max_length * 2,
         )
 
         return SummarizeResponse(
@@ -80,7 +80,7 @@ class ProcessingService:
                 {"role": "user", "content": text},
             ],
             temperature=0.1,
-            max_tokens=1500,
+            max_completion_tokens=1500,
         )
 
         raw = response.choices[0].message.content.strip()
@@ -273,7 +273,7 @@ Output strictly valid JSON."""
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=4000,
+            max_completion_tokens=4000,
             response_format={"type": "json_object"},
         )
 
@@ -330,7 +330,7 @@ CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=4000,
+            max_completion_tokens=4000,
             response_format={"type": "json_object"},
         )
 
@@ -386,7 +386,7 @@ CRITICAL: Be domain-agnostic. Output strictly valid JSON."""
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
-            max_tokens=4000,
+            max_completion_tokens=4000,
             response_format={"type": "json_object"},
         )
 

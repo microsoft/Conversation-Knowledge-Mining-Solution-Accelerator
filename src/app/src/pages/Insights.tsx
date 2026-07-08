@@ -7,6 +7,7 @@ import {
   Dropdown,
   Field,
   Option,
+  Spinner,
   Skeleton,
   SkeletonItem,
   Text,
@@ -130,6 +131,16 @@ const useStyles = makeStyles({
     gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
     gap: "10px",
   },
+  refreshHint: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    background: "#eef6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "10px",
+    padding: "8px 10px",
+    color: "#1d4ed8",
+  },
   filterGroup: {
     display: "flex",
     flexDirection: "column",
@@ -218,18 +229,6 @@ const useStyles = makeStyles({
     gap: "8px",
     flexWrap: "wrap",
   },
-  progressTrack: {
-    width: "100%",
-    maxWidth: "180px",
-    height: "6px",
-    borderRadius: "999px",
-    backgroundColor: tokens.colorNeutralStroke2,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: "999px",
-  },
   distributionGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
@@ -279,20 +278,6 @@ const useStyles = makeStyles({
     height: "100%",
     borderRadius: "999px",
   },
-  entityTopGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: "12px",
-  },
-  entityCard: {
-    borderRadius: "16px",
-    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.05)",
-  },
-  entityBarList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  },
   barCard: {
     borderRadius: "14px",
     padding: "14px 16px",
@@ -305,10 +290,6 @@ const useStyles = makeStyles({
     justifyContent: "space-between",
     gap: "12px",
     marginBottom: "8px",
-  },
-  emptyState: {
-    padding: "20px",
-    color: tokens.colorNeutralForeground3,
   },
   evidenceCard: {
     borderRadius: "14px",
@@ -934,12 +915,12 @@ const Insights: React.FC = () => {
   }, [relationships]);
 
   const moreMetrics = [
-    { label: "Key insights", value: metrics.insightsCount, summary: "How many key insights were returned for this dataset.", tooltip: "Count of `key_insights` in the current dashboard response.", color: PALETTE[4] },
-    { label: "Standout findings", value: metrics.findingsCount, summary: "How many standout findings were highlighted.", tooltip: "Count of `standout_findings` in the current response.", color: PALETTE[5] },
-    { label: "Analysis sections", value: metrics.sectionsCount, summary: "How many analysis blocks were generated.", tooltip: "Count of `sections` generated from your records.", color: PALETTE[6] },
-    { label: "Suggested questions", value: metrics.questionsCount, summary: "Suggested follow-up questions you can ask next.", tooltip: "Count of `suggested_questions` provided by the service.", color: PALETTE[7] },
-    { label: "KPI metrics", value: metrics.kpiCount, summary: "Number of KPI values currently shown.", tooltip: "Count of KPI entries in `runtime.kpis`.", color: PALETTE[0] },
-    { label: "Flagged patterns", value: metrics.anomaliesCount, summary: "Potential outliers or unusual patterns detected.", tooltip: "Count of `runtime.unexpectedPatterns` in this run.", color: PALETTE[3] },
+    { label: "Key insights", value: metrics.insightsCount, summary: "How many key insights were returned for this dataset.", color: PALETTE[4] },
+    { label: "Standout findings", value: metrics.findingsCount, summary: "How many standout findings were highlighted.", color: PALETTE[5] },
+    { label: "Analysis sections", value: metrics.sectionsCount, summary: "How many analysis blocks were generated.", color: PALETTE[6] },
+    { label: "Suggested questions", value: metrics.questionsCount, summary: "Suggested follow-up questions you can ask next.", color: PALETTE[7] },
+    { label: "KPI metrics", value: metrics.kpiCount, summary: "Number of KPI values currently shown.", color: PALETTE[0] },
+    { label: "Flagged patterns", value: metrics.anomaliesCount, summary: "Potential outliers or unusual patterns detected.", color: PALETTE[3] },
   ];
 
   const setFilterValue = useCallback((field: string, value?: string) => {
@@ -1012,14 +993,22 @@ const Insights: React.FC = () => {
                     <DocumentBulletList20Regular />
                     <Text weight="semibold" size={200}>Filter insights</Text>
                   </div>
-                  <Button appearance="subtle" size="small" onClick={clearAllFilters}>Clear all</Button>
+                  <Button appearance="subtle" size="small" onClick={clearAllFilters} disabled={refreshing}>Clear all</Button>
                 </div>
+
+                {refreshing && (
+                  <div className={styles.refreshHint}>
+                    <Spinner size="tiny" />
+                    <Text size={200} weight="semibold">Updating insights for selected filters...</Text>
+                  </div>
+                )}
 
                 <div className={styles.filterGroups}>
                   {availableFilters.map((filter) => (
                     <div key={filter.field} className={styles.filterGroup}>
                       <Field size="small" label={filter.label || filter.field}>
                         <Dropdown
+                          disabled={refreshing}
                           size="small"
                           value={filters[filter.field] || "All"}
                           selectedOptions={filters[filter.field] ? [filters[filter.field]] : [""]}
@@ -1054,7 +1043,6 @@ const Insights: React.FC = () => {
                   icon: <Board24Regular />,
                   label: "Records analyzed",
                   summary: "How many records are in the current view.",
-                  tooltip: "Uses `filtered_records` when filters are applied, otherwise `total_records`.",
                   value: metrics.processed,
                   color: PALETTE[0],
                 },
@@ -1062,7 +1050,6 @@ const Insights: React.FC = () => {
                   icon: <ChartMultiple24Regular />,
                   label: "Topics identified",
                   summary: "Distinct topics found in document content.",
-                  tooltip: "Count of topic entries extracted into `runtime.topics`.",
                   value: metrics.topicsCount,
                   color: PALETTE[1],
                 },
@@ -1070,7 +1057,6 @@ const Insights: React.FC = () => {
                   icon: <Person24Regular />,
                   label: "Entities extracted",
                   summary: "Named entities detected across records.",
-                  tooltip: "Count of entity entries in `runtime.entities`.",
                   value: metrics.entitiesCount,
                   color: PALETTE[2],
                 },
@@ -1078,7 +1064,6 @@ const Insights: React.FC = () => {
                   icon: <Link24Regular />,
                   label: "Relationship links",
                   summary: "Detected links between entities/topics.",
-                  tooltip: "Count of relationship entries in `runtime.relationships`.",
                   value: metrics.relationshipsCount,
                   color: PALETTE[3],
                 },

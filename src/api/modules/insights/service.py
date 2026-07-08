@@ -470,7 +470,7 @@ def _plan(schema: dict) -> dict:
         messages=[{"role": "user", "content": _PLAN_PROMPT.format(
             content_section=content_section,
             schema=json.dumps(schema_for_prompt, indent=2, default=str))}],
-        temperature=0.1, max_tokens=2500,
+        temperature=0.1, max_completion_tokens=2500,
         response_format={"type": "json_object"},
     )
     try:

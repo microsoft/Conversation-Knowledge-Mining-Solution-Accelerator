@@ -3,7 +3,7 @@
 .SYNOPSIS
     Connect an external data source to the Knowledge Mining app.
 .DESCRIPTION
-    Registers a data source (Azure AI Search, Fabric, SQL, Synapse) directly
+    Registers a data source (Azure AI Search, Fabric) directly
     in Azure SQL. No running backend required — works right after azd up.
     The app queries your source at runtime (no data movement).
 .EXAMPLE
@@ -12,7 +12,7 @@
 #>
 
 param(
-    [ValidateSet("azure_search", "fabric", "sql", "synapse")]
+    [ValidateSet("azure_search", "fabric")]
     [string]$Type,
     [string]$Name,
     [string]$Endpoint,

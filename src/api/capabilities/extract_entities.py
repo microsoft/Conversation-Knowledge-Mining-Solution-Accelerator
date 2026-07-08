@@ -26,7 +26,7 @@ def extract_entities(text: str | list[str] = "", schema: list[str] | None = None
             {"role": "user", "content": text},
         ],
         temperature=0.1,
-        max_tokens=1500,
+        max_completion_tokens=1500,
     )
     raw = response.choices[0].message.content.strip()
     raw = strip_code_fences(raw)

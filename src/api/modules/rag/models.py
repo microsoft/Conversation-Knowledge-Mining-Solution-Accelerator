@@ -18,6 +18,8 @@ class Source(BaseModel):
     score: float
     text: str
     source_file: str = ""
+    url: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class QAResponse(BaseModel):

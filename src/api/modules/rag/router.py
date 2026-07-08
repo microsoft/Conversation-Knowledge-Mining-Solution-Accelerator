@@ -25,6 +25,10 @@ async def save_chat(body: SaveChatRequest, request: Request):
     authenticated_user = get_authenticated_user_details(request_headers=request.headers)
     user_id = authenticated_user["user_principal_id"]
     try:
+        resolved_title = body.title
+        if not resolved_title and body.messages:
+            resolved_title = await asyncio.to_thread(rag_service.generate_title, body.messages)
+
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
         session_exists = any(s["id"] == body.session_id for s in sessions)
@@ -32,13 +36,13 @@ async def save_chat(body: SaveChatRequest, request: Request):
             db_service.create_session(
                 session_id=body.session_id,
                 user_id=user_id,
-                title=body.title or "Chat session",
+                title=resolved_title or "Chat session",
             )
         success = db_service.save_messages_bulk(body.session_id, body.messages)
         if success:
             db_service.update_session(
                 body.session_id, user_id,
-                title=body.title,
+                title=resolved_title,
                 message_count=len(body.messages),
             )
         return {"saved": success}

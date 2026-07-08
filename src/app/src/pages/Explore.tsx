@@ -12,7 +12,7 @@ import { useAppState } from "../context/AppStateContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
 import { renderMarkdown } from "../utils/markdown";
-import { SkeletonText, SkeletonChat } from "../components/Skeleton";
+import { SkeletonText } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
@@ -436,11 +436,25 @@ const Explore: React.FC = () => {
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
                                 <div key={j} className={s.evidenceItem}>
-                                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                    <span style={{ fontWeight: 600, color: "#0f172a" }} title={src.doc_id}>{src.doc_id}</span>
-                                    <span style={{ color: "#2563eb", fontWeight: 600, fontSize: 11 }}>{(src.score * 100).toFixed(0)}%</span>
+                                  <div style={{ display: "flex" }}>
+                                    <span
+                                      style={{ fontWeight: 600, color: "#0f172a" }}
+                                      title={src.source_file || src.doc_id}
+                                    >
+                                      {src.source_file || src.doc_id}
+                                    </span>
                                   </div>
                                   {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}</div>}
+                                  {src.url && src.url !== "N/A" && (
+                                    <a
+                                      href={src.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ color: "#2563eb", marginTop: 4, display: "inline-block", fontSize: 11 }}
+                                    >
+                                      Open source
+                                    </a>
+                                  )}
                                 </div>
                               ))}
                             </div>

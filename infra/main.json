@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.42.1.51946",
-      "templateHash": "15731918977209527555"
+      "version": "0.44.1.10279",
+      "templateHash": "3416400585314440962"
     }
   },
   "parameters": {
@@ -26,7 +26,7 @@
     },
     "chatDeploymentName": {
       "type": "string",
-      "defaultValue": "gpt-4o",
+      "defaultValue": "gpt-5.1",
       "metadata": {
         "description": "Name of the Azure OpenAI chat deployment"
       }
@@ -40,7 +40,7 @@
     },
     "gptModelVersion": {
       "type": "string",
-      "defaultValue": "2024-11-20",
+      "defaultValue": "2025-11-13",
       "metadata": {
         "description": "GPT model version"
       }
@@ -101,6 +101,13 @@
         "description": "Set to true to also deploy Cosmos DB (not required — SQL is the primary database)"
       }
     },
+    "adminApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable."
+      }
+    },
     "contentUnderstandingLocation": {
       "type": "string",
       "defaultValue": "swedencentral",
@@ -112,18 +119,11 @@
         "description": "Location for Content Understanding service (must support CU preview API)"
       }
     },
-    "backendContainerRegistryHostname": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Container registry hostname for backend image"
-      }
-    },
     "backendContainerImageName": {
       "type": "string",
       "defaultValue": "km-api",
       "metadata": {
-        "description": "Backend container image name"
+        "description": "Backend container image name (repository) to build and push to the provisioned ACR"
       }
     },
     "backendContainerImageTag": {
@@ -133,18 +133,11 @@
         "description": "Backend container image tag"
       }
     },
-    "frontendContainerRegistryHostname": {
-      "type": "string",
-      "defaultValue": "",
-      "metadata": {
-        "description": "Container registry hostname for frontend image"
-      }
-    },
     "frontendContainerImageName": {
       "type": "string",
       "defaultValue": "km-app",
       "metadata": {
-        "description": "Frontend container image name"
+        "description": "Frontend container image name (repository) to build and push to the provisioned ACR"
       }
     },
     "frontendContainerImageTag": {
@@ -190,6 +183,7 @@
     "cuEndpoint": "[format('https://{0}.services.ai.azure.com/', variables('cuResourceName'))]",
     "aiSearchName": "[format('{0}{1}', variables('abbrs').ai.aiSearch, variables('resourceToken'))]",
     "aiSearchConnectionName": "[format('search-connection-{0}', variables('resourceToken'))]",
+    "acrName": "[format('cr{0}', variables('resourceToken'))]",
     "webServerFarmResourceName": "[format('{0}{1}', variables('abbrs').compute.appServicePlan, variables('resourceToken'))]",
     "backendWebSiteResourceName": "[format('api-{0}', variables('resourceToken'))]",
     "frontendWebSiteResourceName": "[format('app-{0}', variables('resourceToken'))]"
@@ -244,6 +238,9 @@
           "disableLocalAuth": {
             "value": false
           },
+          "restore": {
+            "value": false
+          },
           "deployments": {
             "value": [
               {
@@ -280,8 +277,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "7500321177720513987"
+              "version": "0.44.1.10279",
+              "templateHash": "3004554606298273106"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -1431,8 +1428,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "6074504526709648258"
+                      "version": "0.44.1.10279",
+                      "templateHash": "15040137489848152723"
                     }
                   },
                   "definitions": {
@@ -3081,8 +3078,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.42.1.51946",
-                              "templateHash": "205763774767390119"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -3311,8 +3308,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "6074504526709648258"
+                      "version": "0.44.1.10279",
+                      "templateHash": "15040137489848152723"
                     }
                   },
                   "definitions": {
@@ -4961,8 +4958,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.42.1.51946",
-                              "templateHash": "205763774767390119"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -5246,6 +5243,9 @@
           "disableLocalAuth": {
             "value": false
           },
+          "restore": {
+            "value": false
+          },
           "deployments": {
             "value": []
           }
@@ -5257,8 +5257,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "7500321177720513987"
+              "version": "0.44.1.10279",
+              "templateHash": "3004554606298273106"
             },
             "name": "Cognitive Services",
             "description": "This module deploys a Cognitive Service."
@@ -6408,8 +6408,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "6074504526709648258"
+                      "version": "0.44.1.10279",
+                      "templateHash": "15040137489848152723"
                     }
                   },
                   "definitions": {
@@ -8058,8 +8058,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.42.1.51946",
-                              "templateHash": "205763774767390119"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -8288,8 +8288,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "6074504526709648258"
+                      "version": "0.44.1.10279",
+                      "templateHash": "15040137489848152723"
                     }
                   },
                   "definitions": {
@@ -9938,8 +9938,8 @@
                           "metadata": {
                             "_generator": {
                               "name": "bicep",
-                              "version": "0.42.1.51946",
-                              "templateHash": "205763774767390119"
+                              "version": "0.44.1.10279",
+                              "templateHash": "436403693822643644"
                             }
                           },
                           "definitions": {
@@ -10215,8 +10215,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "5784400047851501963"
+              "version": "0.44.1.10279",
+              "templateHash": "7912239522254716935"
             }
           },
           "parameters": {
@@ -10325,8 +10325,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "6406261689927467992"
+              "version": "0.44.1.10279",
+              "templateHash": "14315919518583109368"
             }
           },
           "parameters": {
@@ -10370,7 +10370,7 @@
           "resources": [
             {
               "type": "Microsoft.CognitiveServices/accounts/projects/connections",
-              "apiVersion": "2025-04-01-preview",
+              "apiVersion": "2025-10-01-preview",
               "name": "[format('{0}/{1}/{2}', parameters('existingAIFoundryName'), parameters('existingAIProjectName'), parameters('aiSearchConnectionName'))]",
               "properties": {
                 "category": "CognitiveSearch",
@@ -10420,8 +10420,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "1618412192818771391"
+              "version": "0.44.1.10279",
+              "templateHash": "10930058450619816495"
             }
           },
           "parameters": {
@@ -10537,8 +10537,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "9193388568348453005"
+              "version": "0.44.1.10279",
+              "templateHash": "15692687428048033274"
             }
           },
           "parameters": {
@@ -10609,8 +10609,20 @@
             },
             {
               "type": "Microsoft.Sql/servers/firewallRules",
-              "apiVersion": "2023-08-01-preview",
-              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAzureServices')]",
+              "apiVersion": "2025-01-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowSpecificRange')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "255.255.255.255"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Sql/servers/firewallRules",
+              "apiVersion": "2025-01-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAllWindowsAzureIps')]",
               "properties": {
                 "startIpAddress": "0.0.0.0",
                 "endIpAddress": "0.0.0.0"
@@ -10671,8 +10683,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "12003352451736293203"
+              "version": "0.44.1.10279",
+              "templateHash": "2316365966357801553"
             }
           },
           "parameters": {
@@ -10830,6 +10842,117 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
+      "name": "container-registry",
+      "resourceGroup": "[format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[variables('acrName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "5043171277548522585"
+            },
+            "description": "Creates a dedicated Azure Container Registry for the application container images."
+          },
+          "parameters": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "Required. Name of the container registry (alphanumeric, 5-50 chars, globally unique)."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Optional. Location for the registry."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Optional. Tags for the registry."
+              }
+            },
+            "sku": {
+              "type": "string",
+              "defaultValue": "Standard",
+              "allowedValues": [
+                "Basic",
+                "Standard",
+                "Premium"
+              ],
+              "metadata": {
+                "description": "Optional. SKU for the registry."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('sku')]"
+              },
+              "properties": {
+                "adminUserEnabled": false,
+                "publicNetworkAccess": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "metadata": {
+                "description": "The name of the container registry."
+              },
+              "value": "[parameters('name')]"
+            },
+            "loginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "The login server of the container registry."
+              },
+              "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', parameters('name')), '2023-07-01').loginServer]"
+            },
+            "resourceId": {
+              "type": "string",
+              "metadata": {
+                "description": "The resource ID of the container registry."
+              },
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', parameters('name'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
       "name": "deploy_app_service_plan_serverfarm",
       "resourceGroup": "[format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))]",
       "properties": {
@@ -10854,8 +10977,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "17040187635819104079"
+              "version": "0.44.1.10279",
+              "templateHash": "8531735606423166663"
             }
           },
           "parameters": {
@@ -10969,9 +11092,9 @@
           },
           "siteConfig": {
             "value": {
-              "linuxFxVersion": "[if(not(empty(parameters('backendContainerRegistryHostname'))), format('DOCKER|{0}/{1}:{2}', parameters('backendContainerRegistryHostname'), parameters('backendContainerImageName'), parameters('backendContainerImageTag')), 'PYTHON|3.13')]",
-              "appCommandLine": "[if(not(empty(parameters('backendContainerRegistryHostname'))), '', 'pip install -r requirements.txt && uvicorn src.api.main:app --host 0.0.0.0 --port 8000')]",
-              "acrUseManagedIdentityCreds": "[not(empty(parameters('backendContainerRegistryHostname')))]",
+              "linuxFxVersion": "DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+              "acrUseManagedIdentityCreds": true,
+              "appCommandLine": "",
               "minTlsVersion": "1.2"
             }
           },
@@ -10980,7 +11103,7 @@
               {
                 "name": "appsettings",
                 "properties": {
-                  "DOCKER_REGISTRY_SERVER_URL": "[if(not(empty(parameters('backendContainerRegistryHostname'))), format('https://{0}', parameters('backendContainerRegistryHostname')), '')]",
+                  "DOCKER_REGISTRY_SERVER_URL": "[format('https://{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.loginServer.value)]",
                   "WEBSITES_PORT": "8000",
                   "AZURE_OPENAI_ENDPOINT": "[if(parameters('useExistingAiProject'), parameters('existingAiFoundryEndpoint'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'ai-services'), '2025-04-01').outputs.endpoint.value)]",
                   "AZURE_OPENAI_CHAT_DEPLOYMENT": "[parameters('chatDeploymentName')]",
@@ -10998,8 +11121,9 @@
                   "AZURE_AI_AGENT_ENDPOINT": "[if(parameters('useExistingAiProject'), parameters('existingAiFoundryEndpoint'), reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'ai-services'), '2025-04-01').outputs.aiProjectInfo.value.apiEndpoint)]",
                   "AZURE_AI_SEARCH_CONNECTION_NAME": "[if(parameters('useExistingAiProject'), parameters('existingAiSearchConnectionName'), variables('aiSearchConnectionName'))]",
                   "API_APP_NAME": "[variables('backendWebSiteResourceName')]",
-                  "APP_FRONTEND_HOSTNAME": "[format('{0}.azurewebsites.net', variables('frontendWebSiteResourceName'))]",
-                  "APP_ENV": "Prod"
+                  "APP_FRONTEND_HOSTNAME": "[format('https://{0}.azurewebsites.net', variables('frontendWebSiteResourceName'))]",
+                  "APP_ENV": "Prod",
+                  "ADMIN_API_KEY": "[parameters('adminApiKey')]"
                 }
               }
             ]
@@ -11012,8 +11136,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14690452422843140580"
+              "version": "0.44.1.10279",
+              "templateHash": "6418154775494914049"
             }
           },
           "definitions": {
@@ -11809,8 +11933,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "4080859882806149808"
+                      "version": "0.44.1.10279",
+                      "templateHash": "10270735850099556125"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -11975,6 +12099,7 @@
       },
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'ai-services')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'cosmos')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName')))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'search')]",
@@ -12016,9 +12141,9 @@
           },
           "siteConfig": {
             "value": {
-              "linuxFxVersion": "[if(not(empty(parameters('frontendContainerRegistryHostname'))), format('DOCKER|{0}/{1}:{2}', parameters('frontendContainerRegistryHostname'), parameters('frontendContainerImageName'), parameters('frontendContainerImageTag')), 'NODE|22-lts')]",
-              "appCommandLine": "[if(not(empty(parameters('frontendContainerRegistryHostname'))), '', 'pm2 serve /home/site/wwwroot --no-daemon --spa --port 8080')]",
-              "acrUseManagedIdentityCreds": "[not(empty(parameters('frontendContainerRegistryHostname')))]",
+              "linuxFxVersion": "DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+              "acrUseManagedIdentityCreds": true,
+              "appCommandLine": "",
               "minTlsVersion": "1.2"
             }
           },
@@ -12027,9 +12152,9 @@
               {
                 "name": "appsettings",
                 "properties": {
-                  "DOCKER_REGISTRY_SERVER_URL": "[if(not(empty(parameters('frontendContainerRegistryHostname'))), format('https://{0}', parameters('frontendContainerRegistryHostname')), '')]",
+                  "DOCKER_REGISTRY_SERVER_URL": "[format('https://{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.loginServer.value)]",
                   "APP_API_BASE_URL": "[format('https://{0}', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', take(format('module.web-sites.{0}', variables('backendWebSiteResourceName')), 64)), '2025-04-01').outputs.defaultHostname.value)]",
-                  "WEBSITES_PORT": "[if(not(empty(parameters('frontendContainerRegistryHostname'))), '', '8080')]"
+                  "WEBSITES_PORT": "80"
                 }
               }
             ]
@@ -12042,8 +12167,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "14690452422843140580"
+              "version": "0.44.1.10279",
+              "templateHash": "6418154775494914049"
             }
           },
           "definitions": {
@@ -12839,8 +12964,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.42.1.51946",
-                      "templateHash": "4080859882806149808"
+                      "version": "0.44.1.10279",
+                      "templateHash": "10270735850099556125"
                     },
                     "name": "Site App Settings",
                     "description": "This module deploys a Site App Setting."
@@ -13004,6 +13129,7 @@
         }
       },
       "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName')))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'deploy_app_service_plan_serverfarm')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', take(format('module.web-sites.{0}', variables('backendWebSiteResourceName')), 64))]"
@@ -13037,10 +13163,13 @@
           "frontendPrincipalId": {
             "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', take(format('module.web-sites.{0}', variables('frontendWebSiteResourceName')), 64)), '2025-04-01').outputs.systemAssignedMIPrincipalId.value]"
           },
-          "acrName": "[if(not(empty(parameters('backendContainerRegistryHostname'))), createObject('value', split(parameters('backendContainerRegistryHostname'), '.')[0]), createObject('value', ''))]",
+          "acrName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.name.value]"
+          },
           "deployerPrincipalId": {
             "value": "[deployer().objectId]"
-          }
+          },
+          "aiProjectPrincipalId": "[if(parameters('useExistingAiProject'), createObject('value', ''), createObject('value', reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'ai-services'), '2025-04-01').outputs.aiProjectInfo.value.aiprojectSystemAssignedMIPrincipalId))]"
         },
         "template": {
           "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -13048,8 +13177,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.42.1.51946",
-              "templateHash": "11550994214600928537"
+              "version": "0.44.1.10279",
+              "templateHash": "5941571331397383032"
             }
           },
           "parameters": {
@@ -13091,6 +13220,13 @@
               "metadata": {
                 "description": "Principal ID of the deploying user (for local script access)"
               }
+            },
+            "aiProjectPrincipalId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Principal ID of the AI Foundry project managed identity (for agent search access)"
+              }
             }
           },
           "variables": {
@@ -13100,6 +13236,7 @@
               "azureAIDeveloper": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '64702f94-c441-49e6-a78b-ef80e0188fee')]",
               "searchIndexDataContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8ebe5a00-799e-43f5-93ac-243d3dce84a7')]",
               "searchServiceContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7ca78c08-252a-4471-8644-bb5ff32d4ba0')]",
+              "searchIndexDataReader": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '1407120a-92aa-4202-b7e9-c0e197c71c8f')]",
               "storageBlobDataContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
               "storageQueueDataContributor": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')]",
               "cosmosDBDataContributor": "00000000-0000-0000-0000-000000000002",
@@ -13125,6 +13262,17 @@
               "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('backendPrincipalId'), variables('roles').searchIndexDataContributor)]",
               "properties": {
                 "roleDefinitionId": "[variables('roles').searchIndexDataContributor]",
+                "principalId": "[parameters('backendPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('backendPrincipalId'), variables('roles').searchServiceContributor)]",
+              "properties": {
+                "roleDefinitionId": "[variables('roles').searchServiceContributor]",
                 "principalId": "[parameters('backendPrincipalId')]",
                 "principalType": "ServicePrincipal"
               }
@@ -13258,6 +13406,30 @@
               }
             },
             {
+              "condition": "[not(empty(parameters('aiProjectPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('aiProjectPrincipalId'), variables('roles').searchIndexDataReader)]",
+              "properties": {
+                "roleDefinitionId": "[variables('roles').searchIndexDataReader]",
+                "principalId": "[parameters('aiProjectPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "condition": "[not(empty(parameters('aiProjectPrincipalId')))]",
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('searchName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchName')), parameters('aiProjectPrincipalId'), variables('roles').searchServiceContributor)]",
+              "properties": {
+                "roleDefinitionId": "[variables('roles').searchServiceContributor]",
+                "principalId": "[parameters('aiProjectPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
               "condition": "[not(empty(parameters('acrName')))]",
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
@@ -13286,6 +13458,7 @@
       },
       "dependsOn": [
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'ai-services')]",
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry')]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'cosmos')]",
         "[subscriptionResourceId('Microsoft.Resources/resourceGroups', format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName')))]",
         "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'search')]",
@@ -13338,6 +13511,20 @@
       },
       "value": "[format('{0}{1}', variables('abbrs').databases.sqlDatabase, variables('resourceToken'))]"
     },
+    "API_APP_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Backend API application (and SQL contained user) name."
+      },
+      "value": "[variables('backendWebSiteResourceName')]"
+    },
+    "AZURE_API_PRINCIPAL_ID": {
+      "type": "string",
+      "metadata": {
+        "description": "Backend API system-assigned managed identity principal ID."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', take(format('module.web-sites.{0}', variables('backendWebSiteResourceName')), 64)), '2025-04-01').outputs.systemAssignedMIPrincipalId.value]"
+    },
     "AZURE_COSMOS_ENDPOINT": {
       "type": "string",
       "metadata": {
@@ -13386,6 +13573,62 @@
         "description": "AI Search connection name in AI Foundry."
       },
       "value": "[if(parameters('useExistingAiProject'), parameters('existingAiSearchConnectionName'), variables('aiSearchConnectionName'))]"
+    },
+    "ACR_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Container Registry name."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.name.value]"
+    },
+    "ACR_LOGIN_SERVER": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Container Registry login server URL."
+      },
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))), 'Microsoft.Resources/deployments', 'container-registry'), '2025-04-01').outputs.loginServer.value]"
+    },
+    "BACKEND_CONTAINER_IMAGE_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Backend container image repository name to build and push to ACR."
+      },
+      "value": "[parameters('backendContainerImageName')]"
+    },
+    "BACKEND_CONTAINER_IMAGE_TAG": {
+      "type": "string",
+      "metadata": {
+        "description": "Backend container image tag to build and push to ACR."
+      },
+      "value": "[parameters('backendContainerImageTag')]"
+    },
+    "FRONTEND_CONTAINER_IMAGE_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Frontend container image repository name to build and push to ACR."
+      },
+      "value": "[parameters('frontendContainerImageName')]"
+    },
+    "FRONTEND_CONTAINER_IMAGE_TAG": {
+      "type": "string",
+      "metadata": {
+        "description": "Frontend container image tag to build and push to ACR."
+      },
+      "value": "[parameters('frontendContainerImageTag')]"
+    },
+    "FRONTEND_APP_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Frontend web application (App Service) name."
+      },
+      "value": "[variables('frontendWebSiteResourceName')]"
+    },
+    "RESOURCE_GROUP_NAME": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource group name."
+      },
+      "value": "[format('{0}{1}', variables('abbrs').managementGovernance.resourceGroup, parameters('environmentName'))]"
     }
   }
 }
