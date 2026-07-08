@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "1085328541531017047"
+      "templateHash": "10819681913377495137"
     }
   },
   "parameters": {
@@ -79,7 +79,7 @@
       "defaultValue": "australiaeast",
       "minLength": 1,
       "metadata": {
-        "description": "Optional. Secondary location for databases creation (example: eastus2)."
+        "description": "Optional. Secondary location for databases creation (example: australiaeastiaeast)."
       }
     },
     "deploymentType": {
