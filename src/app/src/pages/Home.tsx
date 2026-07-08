@@ -169,10 +169,16 @@ const Home: React.FC = () => {
       uiConfig?.useCaseName
     );
     if (sourceName) {
+      if (firstSource?.source_type) {
+        return `${sourceName} Connection`;
+      }
       return `${sourceName} Sample Data`;
     }
     return "My Data";
   };
+
+  const isExternalConnectionCard = Boolean(dataSources[0]?.source_type);
+  const primaryExternalSourceName = isExternalConnectionCard ? dataSources[0]?.name : undefined;
 
   const buildSummary = () => {
     const useCaseTitle = getUseCaseDisplayTitle();
@@ -352,29 +358,31 @@ const Home: React.FC = () => {
                       ⏳ {processingCount} processing
                     </div>
                   )}
-                  <div style={{ 
-                    display: "inline-flex", 
-                    alignItems: "center", 
-                    gap: 6,
-                    backgroundColor: "#f1f5f9",
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: "#475569"
-                  }}>
-                    📎 {uploadedFiles.length} {uploadedFiles.length === 1 ? "file" : "files"}
-                  </div>
+                  {!isExternalConnectionCard && (
+                    <div style={{ 
+                      display: "inline-flex", 
+                      alignItems: "center", 
+                      gap: 6,
+                      backgroundColor: "#f1f5f9",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: "#475569"
+                    }}>
+                      📎 {uploadedFiles.length} {uploadedFiles.length === 1 ? "file" : "files"}
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <span title={insightsAvailable ? "" : "Insights are still being generated. Chat is available now."}>
                   <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
                     disabled={!insightsAvailable}
-                    onClick={() => navigate("/insights")}>View insights</Button>
+                    onClick={() => navigate(primaryExternalSourceName ? `/insights?source=${encodeURIComponent(primaryExternalSourceName)}` : "/insights")}>View insights</Button>
                 </span>
                 <Button appearance="outline" size="medium" icon={<Search24Regular />}
-                  onClick={() => navigate("/explore")}>Explore data</Button>
+                  onClick={() => navigate(primaryExternalSourceName ? `/explore?source=${encodeURIComponent(primaryExternalSourceName)}` : "/explore")}>Explore data</Button>
               </div>
             </>
           ) : (

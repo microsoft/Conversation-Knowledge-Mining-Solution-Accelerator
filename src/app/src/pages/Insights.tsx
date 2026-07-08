@@ -29,7 +29,7 @@ import {
   Person24Regular,
   Sparkle24Regular,
 } from "@fluentui/react-icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Bar,
   BarChart as RBarChart,
@@ -321,6 +321,10 @@ const NOISE_ENTITY_TERMS = new Set([
   "undefined",
 ]);
 const GENERIC_CONNECTION_FROM = new Set(["topic", "mined topic", "sentiment", "complaint", "category", "type", "status", "outcome"]);
+const LOW_SIGNAL_TOPICS = new Set([
+  "important", "includes", "cover", "covered", "contact", "other", "ensure", "understand",
+  "provide", "services", "information", "necessary",
+]);
 const FILTER_BLOCKLIST = new Set(["page_count", "pagecount", "pages", "page"]);
 
 const isTestLabel = (value: string) => {
@@ -698,13 +702,18 @@ const sanitizeDashboardNarrative = (payload: DashboardResponse): DashboardRespon
 const Insights: React.FC = () => {
   const styles = useStyles();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setDashboardHeadline, insights: cachedData, setInsights } = useAppState();
+  const initialSourceFilter = searchParams.get("source") || "";
 
   const [data, setData] = useState<DashboardResponse | null>(cachedData);
   const [loading, setLoading] = useState(!cachedData);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Record<string, string>>(cachedData?.data_context?.filters_applied || {});
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({
+    ...(cachedData?.data_context?.filters_applied || {}),
+    ...(initialSourceFilter ? { source: initialSourceFilter } : {}),
+  }));
   const [showMoreOverview, setShowMoreOverview] = useState(false);
 
   const load = useCallback(async (filterValues?: Record<string, string>, refresh = false) => {
@@ -737,9 +746,9 @@ const Insights: React.FC = () => {
     }
 
     if (!cachedData || !cachedData.runtime) {
-      load();
+      load(initialSourceFilter ? { source: initialSourceFilter } : undefined);
     }
-  }, [cachedData, load, setDashboardHeadline, setInsights]);
+  }, [cachedData, initialSourceFilter, load, setDashboardHeadline, setInsights]);
 
   const runtime = useMemo(() => data?.runtime ?? (data ? deriveRuntimeFromDashboard(data) : null), [data]);
   const dataset = data?.datasetInfo || { name: "Dataset", sourceType: "documents", lastUpdated: new Date().toISOString() };
@@ -824,8 +833,9 @@ const Insights: React.FC = () => {
 
   const topicBars = useMemo(() => (runtime?.topics || [])
     .filter((topic) => !isTestLabel(topic.name))
+    .filter((topic) => !LOW_SIGNAL_TOPICS.has(String(topic.name || "").toLowerCase().trim()))
     .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 20)
+      .slice(0, 8)
     .map((topic, index) => ({
       name: topic.name,
       score: Math.max(Number(topic.score || 0), 0),
@@ -843,7 +853,7 @@ const Insights: React.FC = () => {
 
     return Array.from(merged.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
+      .slice(0, 8)
       .map(([name, mentions], index) => ({
         name,
         mentions,

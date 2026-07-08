@@ -61,6 +61,40 @@ const getFileStatusColor = (status?: string): string | undefined => {
 
 const FILTER_BLOCKLIST = new Set(["page_count", "pagecount", "pages", "page"]);
 
+const normalizeSourcePart = (value?: string): string => String(value || "").trim().toLowerCase();
+
+const scoreSourceLabel = (source: any): number => {
+  const name = String(source?.name || "").trim();
+  const sourceType = String(source?.source_type || "").trim().toLowerCase();
+  const lower = name.toLowerCase();
+
+  let score = 0;
+  if (lower && lower !== sourceType) score += 2;
+  if (!lower.includes("test")) score += 2;
+  if (!lower.includes("endpoint")) score += 1;
+  if (/[\-_]/.test(lower)) score += 1;
+  return score;
+};
+
+const dedupeDataSources = (sources: any[]): any[] => {
+  const map = new Map<string, any>();
+  for (const source of sources) {
+    const key = [
+      normalizeSourcePart(source?.source_type),
+      normalizeSourcePart(source?.endpoint),
+      normalizeSourcePart(source?.database),
+      normalizeSourcePart(source?.table_or_query),
+      normalizeSourcePart(source?.auth_method),
+    ].join("|");
+
+    const current = map.get(key);
+    if (!current || scoreSourceLabel(source) > scoreSourceLabel(current)) {
+      map.set(key, source);
+    }
+  }
+  return Array.from(map.values());
+};
+
 /* ── Component ── */
 const Explore: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -127,12 +161,21 @@ const Explore: React.FC = () => {
       const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
       const newFiles = rawFiles;
       const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
-      const newDS = rawDS.filter((ds: any) => ds.status === "connected");
+      const connected = rawDS.filter((ds: any) => ds.status === "connected");
+      const newDS = dedupeDataSources(connected);
       const newSchema = sR.status === "fulfilled" ? sR.value.data : schema;
       setFiles(newFiles);
       setDataSources(newDS);
       if (newSchema) setSchema(newSchema);
       setExploreData({ files: newFiles, dataSources: newDS, schema: newSchema });
+
+      // If exactly one external source is connected, scope chat to it by default.
+      if (newDS.length === 1) {
+        const sourceName = String(newDS[0]?.name || "").trim();
+        if (sourceName) {
+          setActiveFilters((prev) => ({ ...prev, source: sourceName }));
+        }
+      }
     } catch (e) {
       // Prefer empty state over stale cross-scenario data when requests fail.
       setFiles([]);
@@ -169,12 +212,20 @@ const Explore: React.FC = () => {
   useEffect(() => {
     if (!ingestionSnapshot) return;
     const nextFiles = Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [];
-    const nextSources = Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected") : [];
+    const nextSources = Array.isArray(ingestionSnapshot.dataSources)
+      ? dedupeDataSources(ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected"))
+      : [];
     const nextSchema = ingestionSnapshot.schema ?? schema;
     setFiles(nextFiles);
     setDataSources(nextSources);
     setSchema(nextSchema);
     setExploreData({ files: nextFiles, dataSources: nextSources, schema: nextSchema });
+    if (nextSources.length === 1) {
+      const sourceName = String(nextSources[0]?.name || "").trim();
+      if (sourceName) {
+        setActiveFilters((prev) => ({ ...prev, source: sourceName }));
+      }
+    }
   }, [ingestionSnapshot]);
 
   const handleChat = async (text?: string, options?: { resetConversation?: boolean }) => {
@@ -262,6 +313,10 @@ const Explore: React.FC = () => {
       return !allValuesInSources;
     })
     : [];
+  const isExtractionDimension = (dimId?: string): boolean => {
+    const id = String(dimId || "").toLowerCase();
+    return id === "topics" || id === "entities" || id === "key_phrases";
+  };
   const totalRecords = readyFiles.reduce((sum: number, f: any) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum: number, d: any) => sum + (d.doc_count || 0), 0);
   const sessionCount = sessions.filter((sess: any) => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
@@ -385,14 +440,14 @@ const Explore: React.FC = () => {
                   <div key={dim.id} className={s.filterGroup}>
                     <button className={s.filterBtn} onClick={() => toggleDim(dim.id)}>
                       <ChevronRight20Regular style={{ fontSize: 14, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
-                      {dim.label} {dimValues.length > 0 ? `(${dimValues.length})` : ""}
+                      {dim.label} {dimValues.length > 0 && !isExtractionDimension(dim.id) ? `(${dimValues.length})` : ""}
                     </button>
                     {expanded && dimValues.length > 0 && dimValues.map((v: any) => (
                       <button key={`${dim.id}-${v.value}`}
                         className={activeFilters[dim.id] === v.value ? s.filterValueActive : s.filterValue}
                         onClick={() => toggleFilter(dim.id, v.value)}>
                         <span style={{ flex: 1 }}>{v.label || v.value}</span>
-                        <Caption1>{v.count || 0}</Caption1>
+                        {!isExtractionDimension(dim.id) && <Caption1>{v.count || 0}</Caption1>}
                       </button>
                     ))}
                   </div>
@@ -445,16 +500,6 @@ const Explore: React.FC = () => {
                                     </span>
                                   </div>
                                   {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}</div>}
-                                  {src.url && src.url !== "N/A" && (
-                                    <a
-                                      href={src.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={{ color: "#2563eb", marginTop: 4, display: "inline-block", fontSize: 11 }}
-                                    >
-                                      Open source
-                                    </a>
-                                  )}
                                 </div>
                               ))}
                             </div>

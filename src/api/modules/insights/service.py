@@ -889,6 +889,10 @@ def _to_runtime_payload(payload: dict) -> dict:
                 or any(t in field_name for t in ("topic", "theme", "phrase", "keyword"))
                 or any(t in title for t in ("topic", "theme", "phrase", "keyword"))
             )
+            is_entity_like = (
+                any(t in field_name for t in ("entity", "entities", "person", "people", "organization", "location"))
+                or any(t in title for t in ("entity", "entities", "person", "people", "organization", "location"))
+            )
 
             data = ch.get("data")
             if isinstance(data, list):
@@ -910,7 +914,7 @@ def _to_runtime_payload(payload: dict) -> dict:
 
                     if is_topic_like:
                         topics_map[label] = topics_map.get(label, 0.0) + value
-                    else:
+                    elif is_entity_like:
                         entities_map[label] = entities_map.get(label, 0.0) + value
 
             # Driver charts can be converted into lightweight relationship edges
@@ -1104,6 +1108,235 @@ def _runtime_entities_from_documents(cursor, where: str, params: list, limit: in
     return entities
 
 
+def _external_keyword_terms(docs: list[dict], limit: int = 40) -> list[dict]:
+    """Build lightweight term frequencies from external doc text for word-cloud style insights."""
+    stop_words = {
+        "the", "and", "for", "that", "with", "from", "this", "have", "your", "are", "was",
+        "were", "will", "can", "into", "about", "their", "they", "them", "been", "than",
+        "then", "when", "where", "what", "which", "while", "using", "used", "also", "more",
+        "such", "only", "over", "under", "very", "just", "into", "onto", "within", "across",
+    }
+    token_re = re.compile(r"[A-Za-z][A-Za-z0-9_-]{3,}")
+    counts: Counter = Counter()
+
+    for doc in docs:
+        text = str(doc.get("text") or "")
+        for token in token_re.findall(text.lower()):
+            if token in stop_words:
+                continue
+            counts[token] += 1
+
+    return [
+        {"text": term, "frequency": int(freq)}
+        for term, freq in counts.most_common(limit)
+    ]
+
+
+def _external_fallback_dashboard(filters: dict | None = None) -> dict | None:
+    """Build meaningful insights from connected live data sources when SQL docs are empty."""
+    try:
+        from src.api.modules.data_sources.registry import data_source_registry
+        live_sources = data_source_registry.list_live_sources()
+    except Exception as e:
+        logger.debug(f"External fallback unavailable: {e}")
+        return None
+
+    if not live_sources:
+        return None
+
+    rows: list[dict] = []
+    source_counter: Counter = Counter()
+    type_counter: Counter = Counter()
+    metadata_counters: dict[str, Counter] = {}
+
+    active_filters = filters or {}
+
+    for source in live_sources[:8]:
+        try:
+            sample_rows = data_source_registry.sample(source.id, count=250)
+        except Exception as e:
+            logger.warning(f"Failed sampling source '{source.name}': {e}")
+            continue
+
+        for raw in sample_rows:
+            doc = {
+                "id": raw.get("id"),
+                "text": str(raw.get("text") or ""),
+                "type": str(raw.get("type") or "external"),
+                "source": source.name,
+                "metadata": raw.get("metadata") or {},
+            }
+
+            # Apply filter parity with SQL path using metadata + source/type fields.
+            include = True
+            for f_key, f_val in active_filters.items():
+                probe = ""
+                if f_key == "source":
+                    probe = str(doc.get("source") or "")
+                elif f_key == "type":
+                    probe = str(doc.get("type") or "")
+                else:
+                    probe = str((doc.get("metadata") or {}).get(f_key, ""))
+                if probe.strip().lower() != str(f_val).strip().lower():
+                    include = False
+                    break
+            if not include:
+                continue
+
+            rows.append(doc)
+            source_counter[doc["source"]] += 1
+            type_counter[doc["type"]] += 1
+
+            meta = doc.get("metadata") if isinstance(doc.get("metadata"), dict) else {}
+            for key, value in meta.items():
+                if key in _FILTER_BLOCKLIST:
+                    continue
+                sval = str(value or "").strip()
+                if not sval:
+                    continue
+                bucket = metadata_counters.setdefault(key, Counter())
+                bucket[sval] += 1
+
+    if not rows:
+        return None
+
+    top_meta_field = None
+    top_meta_items: list[tuple[str, int]] = []
+    for f_name, ctr in metadata_counters.items():
+        if len(ctr) < 2:
+            continue
+        candidate = ctr.most_common(8)
+        if len(candidate) > len(top_meta_items):
+            top_meta_field = f_name
+            top_meta_items = candidate
+
+    word_cloud = _external_keyword_terms(rows, limit=40)
+    total = len(rows)
+    unique_sources = len(source_counter)
+    unique_types = len(type_counter)
+
+    sections = [
+        {
+            "id": "external-distribution",
+            "title": "Data Source Coverage",
+            "type": "distribution",
+            "charts": [
+                {
+                    "insight_type": "distribution",
+                    "title": "Records by source",
+                    "description": "Shows sampled coverage across connected external data sources.",
+                    "visualization": "donut",
+                    "field": "source",
+                    "data": [{"label": k, "value": int(v)} for k, v in source_counter.most_common(10)],
+                },
+                {
+                    "insight_type": "distribution",
+                    "title": "Records by type",
+                    "description": "Shows distribution of content types across sampled records.",
+                    "visualization": "bar",
+                    "field": "type",
+                    "data": [{"label": k, "value": int(v)} for k, v in type_counter.most_common(10)],
+                },
+            ],
+        }
+    ]
+
+    if top_meta_field and top_meta_items:
+        sections.append(
+            {
+                "id": "external-metadata",
+                "title": f"Top values for {top_meta_field}",
+                "type": "breakdown",
+                "charts": [
+                    {
+                        "insight_type": "distribution",
+                        "title": f"{top_meta_field} distribution",
+                        "description": "Highlights dominant categories from source metadata.",
+                        "visualization": "horizontal_bar",
+                        "field": top_meta_field,
+                        "data": [{"label": k, "value": int(v)} for k, v in top_meta_items],
+                    }
+                ],
+            }
+        )
+
+    if word_cloud:
+        sections.append(
+            {
+                "id": "external-key-terms",
+                "title": "Key Terms from Sampled Content",
+                "type": "text_analysis",
+                "charts": [
+                    {
+                        "insight_type": "top_phrases",
+                        "title": "Top recurring terms",
+                        "description": "Most frequent terms extracted from sampled external records.",
+                        "visualization": "word_cloud",
+                        "field": "text",
+                        "data": word_cloud,
+                    }
+                ],
+            }
+        )
+
+    filters_out = [
+        {
+            "field": "source",
+            "label": "Source",
+            "type": "categorical",
+            "multi_select": False,
+            "values": list(source_counter.keys())[:30],
+        },
+        {
+            "field": "type",
+            "label": "Type",
+            "type": "categorical",
+            "multi_select": False,
+            "values": list(type_counter.keys())[:30],
+        },
+    ]
+    if top_meta_field:
+        filters_out.append(
+            {
+                "field": top_meta_field,
+                "label": top_meta_field.replace("_", " ").title(),
+                "type": "categorical",
+                "multi_select": False,
+                "values": [k for k, _ in top_meta_items][:30],
+            }
+        )
+
+    response = {
+        "data_context": {
+            "total_records": total,
+            "filtered_records": total,
+            "filters_applied": active_filters,
+        },
+        "headline": "External Data Insights",
+        "summary": f"Analyzed {total} sampled records from {unique_sources} connected source(s) for distribution and content signals.",
+        "key_insights": [
+            f"{unique_sources} connected source(s) are contributing data to Insights.",
+            f"{unique_types} record type(s) were observed across sampled external data.",
+            "Top recurring terms and dominant metadata values are highlighted below.",
+        ],
+        "standout_findings": [],
+        "kpis": [
+            {"metric": "sampled_records", "label": "Sampled records", "value": total, "format": "number"},
+            {"metric": "connected_sources", "label": "Connected sources", "value": unique_sources, "format": "number"},
+            {"metric": "content_types", "label": "Content types", "value": unique_types, "format": "number"},
+        ],
+        "sections": sections,
+        "filters": filters_out,
+        "suggested_questions": [
+            "Which source contributes the most records?",
+            "What are the dominant themes in the external data?",
+            "How does distribution change by source and type?",
+        ],
+    }
+    response["runtime"] = _to_runtime_payload(response)
+    return response
+
+
 # --- Orchestrator ---
 
 class DashboardService:
@@ -1138,7 +1371,15 @@ class DashboardService:
         row = cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
+    @staticmethod
+    def _to_runtime_payload(response: dict) -> dict:
+        return _to_runtime_payload(response)
+
     def get_dashboard(self, filters=None, refresh=False) -> dict:
+        from src.api.modules.runtime.analytics_engine import analytics_engine
+        return analytics_engine.generate_dashboard(self, filters=filters, refresh=refresh)
+
+    def get_sql_dashboard(self, filters=None, refresh=False) -> dict:
         conn = self._get_connection()
         if not conn:
             return self._empty()
@@ -1149,7 +1390,6 @@ class DashboardService:
             if refresh or self._schema_cache is None:
                 schema = _extract_schema(cursor)
                 if schema["total_records"] == 0:
-                    conn.close()
                     return self._empty()
                 self._schema_cache = schema
                 self._schema_hash = hashlib.md5(
@@ -1161,7 +1401,6 @@ class DashboardService:
                 if live_total != cached_total:
                     schema = _extract_schema(cursor)
                     if schema["total_records"] == 0:
-                        conn.close()
                         return self._empty()
                     self._schema_cache = schema
                     self._schema_hash = hashlib.md5(
