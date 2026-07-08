@@ -53,7 +53,7 @@ param aiServiceLocation string
 param usecase string
 
 @minLength(1)
-@description('Optional. Secondary location for databases creation (example: australiaeastiaeast).')
+@description('Optional. Secondary location for databases creation (example: australiaeast).')
 param secondaryLocation string = 'australiaeast'
 
 @minLength(1)
