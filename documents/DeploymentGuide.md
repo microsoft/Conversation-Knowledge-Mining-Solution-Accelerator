@@ -289,7 +289,7 @@ azd up
 **During deployment, you'll be prompted for:**
 1. **Environment name** (e.g., "ckmapp") - Must be 3-16 characters long, alphanumeric only
 2. **Azure subscription** selection
-3. **Microsoft Foundry deployment region** - Select a region with available gpt-5.4-mini model quota for AI operations
+3. **Microsoft Foundry deployment region** - Select a region with available gpt-5.2 model quota for AI operations
 4. **Primary location** - Select the region where your infrastructure resources will be deployed
 5. **Resource group** selection (create new or use existing)
 6. **Use case** selection:
