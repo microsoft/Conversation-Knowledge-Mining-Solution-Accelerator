@@ -50,7 +50,7 @@ if os.path.exists(env_path):
             if line and not line.startswith("#") and "=" in line:
                 key, _, value = line.partition("=")
                 key = key.strip()
-                value = value.strip()
+                value = value.strip().strip('"').strip("'")
                 if key and value:
                     os.environ.setdefault(key, value)
 
@@ -341,28 +341,12 @@ def set_azd_env(key, value):
 
 set_azd_env("AGENT_NAME_CHAT", CHAT_AGENT_NAME)
 set_azd_env("AGENT_NAME_TITLE", TITLE_AGENT_NAME)
-print(f"[OK] azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}")
+set_azd_env("USE_SQL", str(USE_SQL))
+print(f"[OK] azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}")
 
-# Update the API App Service with the agent names so the running app picks them up.
-def update_app_service_agent_names():
-    subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
-    resource_group = os.getenv("RESOURCE_GROUP_NAME") or os.getenv("AZURE_RESOURCE_GROUP")
-    app_name = os.getenv("API_APP_NAME")
-    if not (subscription_id and resource_group and app_name):
-        print("  [SKIP] App Service update — set AZURE_SUBSCRIPTION_ID, RESOURCE_GROUP_NAME, API_APP_NAME")
-        return
-    try:
-        from azure.mgmt.web import WebSiteManagementClient
-        web_client = WebSiteManagementClient(credential, subscription_id)
-        current = web_client.web_apps.list_application_settings(resource_group, app_name)
-        props = dict(current.properties or {})
-        props.update({"AGENT_NAME_CHAT": CHAT_AGENT_NAME, "AGENT_NAME_TITLE": TITLE_AGENT_NAME})
-        web_client.web_apps.update_application_settings(resource_group, app_name, {"properties": props})
-        print(f"  [OK] App Service '{app_name}' agent settings updated")
-    except Exception as e:
-        print(f"  [WARN] Failed to update App Service: {e}")
-
-update_app_service_agent_names()
+# The API App Service settings (AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL) are
+# updated by the calling PowerShell script (setup-agent.ps1) using `az webapp
+# config appsettings set`, so the running app picks up the freshly created agents.
 
 
 

@@ -58,6 +58,32 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "Agent created successfully!" -ForegroundColor Green
     Write-Host ""
+
+    # Push the freshly created agent settings to the API App Service so the
+    # running backend picks up AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL.
+    $apiAppName    = azd env get-value API_APP_NAME 2>$null
+    $resourceGroup = azd env get-value RESOURCE_GROUP_NAME 2>$null
+    $agentNameChat  = azd env get-value AGENT_NAME_CHAT 2>$null
+    $agentNameTitle = azd env get-value AGENT_NAME_TITLE 2>$null
+    $useSql         = azd env get-value USE_SQL 2>$null
+
+    if ($apiAppName -and $resourceGroup) {
+        Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
+        az webapp config appsettings set `
+            --name $apiAppName `
+            --resource-group $resourceGroup `
+            --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" `
+            --output none
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  [OK] App Service settings updated" -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] Failed to update App Service settings" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  [SKIP] API_APP_NAME / RESOURCE_GROUP_NAME not found in azd env" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
     Write-Host "Test it:" -ForegroundColor Yellow
     Write-Host "  python infra/scripts/test_agent.py"
     Write-Host "  python infra/scripts/test_agent.py -v  (verbose mode)"
