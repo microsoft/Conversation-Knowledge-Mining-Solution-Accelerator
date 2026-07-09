@@ -230,6 +230,62 @@
   opacity: 1;
 }
 
+.sourceRowCard {
+  display: block;
+  padding: 18px 20px;
+}
+
+.sourceCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sourceCardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sourceInfoCard {
+  display: grid;
+  gap: 8px;
+}
+
+.sourceFieldRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sourceFieldLabel {
+  min-width: 84px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sourceFieldValue {
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.sourceFieldStatus {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sourceActionsCard {
+  margin-top: 16px;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
 .statProcessing {
   color: #d97706;
 }

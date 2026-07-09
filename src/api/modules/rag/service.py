@@ -92,6 +92,22 @@ def _strip_links_from_answer(text: str) -> str:
     return out.strip()
 
 
+def _is_unhelpful_answer(text: str) -> bool:
+    t = str(text or "").strip().lower()
+    if not t:
+        return True
+    patterns = [
+        "i cannot answer this question",
+        "cannot answer this question from the data available",
+        "please rephrase",
+        "add more details",
+        "i don't have enough information",
+        "i do not have enough information",
+        "unable to answer",
+    ]
+    return any(p in t for p in patterns)
+
+
 class RAGService:
     """Retrieval-Augmented Generation service for question answering."""
 
@@ -256,6 +272,46 @@ class RAGService:
             lines.append(f"{i}. {source_name}: {snippet}")
 
         lines.append("You can retry the same question or narrow filters for a more specific answer.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_grounded_answer(question: str, docs: list[dict]) -> str:
+        """Build a concise grounded answer from retrieved docs when agent output is unhelpful."""
+        if not docs:
+            return (
+                "I could not find enough relevant evidence in the current scope to answer that confidently. "
+                "Try narrowing filters or selecting specific sources."
+            )
+
+        q_terms = [w for w in re.findall(r"[a-zA-Z]{4,}", question.lower()) if w not in {
+            "what", "which", "where", "when", "how", "with", "from", "about", "this", "that", "does", "have",
+            "your", "their", "there", "benefit", "benefits",
+        }]
+
+        def best_snippet(doc: dict) -> str:
+            blob = str(doc.get("summary") or "").strip()
+            if not blob:
+                blob = str(doc.get("text") or "").strip()
+            if not blob:
+                return "Relevant content found, but no preview text is available."
+
+            sentences = re.split(r"(?<=[.!?])\s+", blob)
+            for sent in sentences:
+                s = sent.strip()
+                if len(s) < 40:
+                    continue
+                lower = s.lower()
+                if not q_terms or any(t in lower for t in q_terms):
+                    return s[:260] + ("..." if len(s) > 260 else "")
+            compact = re.sub(r"\s+", " ", blob)
+            return compact[:260] + ("..." if len(compact) > 260 else "")
+
+        top_docs = docs[:4]
+        lines = ["Here is what I found from the current data scope:"]
+        for i, doc in enumerate(top_docs, 1):
+            source_name = str(doc.get("source_file") or doc.get("doc_id") or f"Source {i}")
+            lines.append(f"{i}. {source_name}: {best_snippet(doc)}")
+        lines.append("If you want, I can summarize these into key points or focus on one specific source.")
         return "\n".join(lines)
 
     @staticmethod
@@ -445,7 +501,7 @@ class RAGService:
                 query_emb = emb_service.generate_embedding(query)
                 vector_queries.append(VectorizedQuery(
                     vector=query_emb.embedding,
-                    k_nearest_neighbors=top_k,
+                    k=top_k,
                     fields="text_vector",
                 ))
             except Exception as e:
@@ -744,12 +800,14 @@ class RAGService:
             if matching_ids is not None:
                 document_ids = matching_ids
 
-        # 2. Search: try Azure AI Search first, then external data sources, then in-memory
-        try:
-            search_docs = self._search_azure_ai_search(question, top_k, document_ids)
-        except RuntimeError:
-            logger.warning("Azure AI Search unavailable, falling back to in-memory search")
-            search_docs = []
+        from src.api.modules.runtime.retrieval_engine import retrieval_engine
+        search_docs = retrieval_engine.retrieve(
+            query=question,
+            top_k=top_k,
+            filters=filters,
+            document_ids=document_ids,
+            source="all",
+        )
 
         # For files in 'extracted' state (not yet indexed), inject blob text directly
         if document_ids:
@@ -772,13 +830,7 @@ class RAGService:
                 extracted_docs = self._build_extracted_context(extracted_ids, question)
                 search_docs.extend(extracted_docs)
 
-        # Only include external live-query sources when user is not explicitly scoped to selected documents.
-        if not document_ids:
-            external_docs = self._search_external_data_sources(question, top_k)
-            if external_docs:
-                search_docs.extend(external_docs)
-
-        # Normalize mixed result shapes (AI Search, extracted context, external data sources)
+        # Normalize mixed result shapes (runtime retrieval + extracted context)
         normalized_docs = []
         for doc in search_docs:
             doc_id = doc.get("doc_id") or doc.get("id")
@@ -823,9 +875,9 @@ class RAGService:
             answer = self._build_fallback_answer(question, search_docs)
             agent_sources = []
 
-        if not (answer or "").strip():
-            logger.warning("Agent returned empty answer in answer_question, using fallback answer")
-            answer = self._build_fallback_answer(question, search_docs)
+        if not (answer or "").strip() or _is_unhelpful_answer(answer):
+            logger.warning("Agent answer was empty/unhelpful in answer_question, using grounded fallback")
+            answer = self._build_grounded_answer(question, search_docs)
 
         # Surface the agent's own citations. Content is fetched lazily on click
         # via /api/rag/fetch-azure-search-content using each citation's get_url.
@@ -866,8 +918,14 @@ class RAGService:
             if matching_ids is not None:
                 document_ids = matching_ids
 
-        # Search: AI Search first, then external sources, fallback to in-memory
-        search_docs = self._search_azure_ai_search(last_user_message, top_k, document_ids)
+        from src.api.modules.runtime.retrieval_engine import retrieval_engine
+        search_docs = retrieval_engine.retrieve(
+            query=last_user_message,
+            top_k=top_k,
+            filters=filters,
+            document_ids=document_ids,
+            source="all",
+        )
 
         # Also inject blob text for 'extracted'-status files not yet in AI Search
         if document_ids:
@@ -886,21 +944,7 @@ class RAGService:
             if extracted_ids:
                 search_docs.extend(self._build_extracted_context(extracted_ids, last_user_message))
 
-        if not document_ids:
-            external_docs = self._search_external_data_sources(last_user_message, top_k)
-            if external_docs:
-                search_docs.extend(external_docs)
-                search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
-                search_docs = search_docs[:top_k]
-
         search_docs = self._filter_noise_docs(search_docs, "answer-conversation-post-merge")
-
-        if not search_docs:
-            logger.info("AI Search returned no results, falling back to SQL search")
-            search_docs = self._search_sql(last_user_message, top_k, document_ids)
-
-        if not search_docs:
-            search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
 
         sources = []
         for i, doc in enumerate(search_docs):
@@ -919,9 +963,9 @@ class RAGService:
             answer = self._build_fallback_answer(last_user_message, search_docs)
             agent_sources = []
 
-        if not (answer or "").strip():
-            logger.warning("Agent returned empty answer in answer_conversation, using fallback answer")
-            answer = self._build_fallback_answer(last_user_message, search_docs)
+        if not (answer or "").strip() or _is_unhelpful_answer(answer):
+            logger.warning("Agent answer was empty/unhelpful in answer_conversation, using grounded fallback")
+            answer = self._build_grounded_answer(last_user_message, search_docs)
 
         combined_sources = self._merge_sources(agent_sources, sources)
         combined_sources = self._filter_noise_sources(combined_sources, "answer-conversation-response")

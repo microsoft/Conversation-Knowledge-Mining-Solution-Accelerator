@@ -31,6 +31,15 @@ Write-Host ""
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+$pipExe = Join-Path $projectRoot ".venv\Scripts\pip.exe"
+if (-not (Test-Path $pythonExe)) {
+    $pythonExe = "python"
+}
+if (-not (Test-Path $pipExe)) {
+    $pipExe = "pip"
+}
+
 # Ensure .env exists
 $envFile = Join-Path $projectRoot ".env"
 if (-not (Test-Path $envFile)) {
@@ -45,10 +54,10 @@ if (-not (Test-Path $envFile)) {
 # Check Python dependencies
 $deps = @("azure-identity", "pyodbc")
 foreach ($dep in $deps) {
-    $installed = pip show $dep 2>$null
+    $installed = & $pipExe show $dep 2>$null
     if (-not $installed) {
         Write-Host "Installing $dep..." -ForegroundColor Yellow
-        pip install $dep --quiet
+        & $pipExe install $dep --quiet
     }
 }
 
@@ -61,7 +70,7 @@ if ($Database)          { $pyArgs += "--database", $Database }
 if ($Table)             { $pyArgs += "--table", $Table }
 if ($ConnectionString)  { $pyArgs += "--connection-string", $ConnectionString }
 
-python (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
+& $pythonExe (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Data source connection failed. See output above." -ForegroundColor Red

@@ -5,7 +5,7 @@
 .DESCRIPTION
     Unified script to load data into the app after deployment. Supports:
       - Load a built-in scenario pack (defined in data/config/scenarios.json)
-      - Connect an external data source (Azure AI Search, Fabric, SQL, Synapse)
+    - Connect an external data source (Azure AI Search, Microsoft Fabric)
       - Upload files from a local folder via -DataPath (used internally by scenarios)
 
     Scenario packs ship with sample data under data/<scenario_folder>/.
@@ -34,7 +34,7 @@ param(
     [switch]$ClearExisting,
 
     # External data source params
-    [ValidateSet("azure_search", "fabric", "sql", "synapse")]
+    [ValidateSet("azure_search", "fabric")]
     [string]$ExternalSource,
     [string]$Name,
     [string]$Endpoint,
@@ -248,13 +248,15 @@ if ($Scenario) {
         Write-Host "Updated UI config: useCaseName = '$($pack.name)'" -ForegroundColor Green
     }
 
-    # Auto-clear existing data before loading a new scenario
+    # Always clear existing demo data before loading any scenario/use case
     Write-Host "Clearing existing data before loading new scenario..." -ForegroundColor Yellow
     try {
         Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $headers | Out-Null
         Write-Host "Previous data cleared." -ForegroundColor Green
     } catch {
-        Write-Host "Warning: Could not clear via API (server may not be running) — $_" -ForegroundColor Yellow
+        Write-Host "ERROR: Could not clear existing demo data before scenario load: $_" -ForegroundColor Red
+        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
+        exit 1
     }
 
     # Contact Center has pre-processed data — use the direct seed path

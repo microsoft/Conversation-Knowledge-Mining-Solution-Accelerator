@@ -86,6 +86,7 @@ class AzureSqlService:
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'documents')
             CREATE TABLE documents (
                 id NVARCHAR(255) PRIMARY KEY,
+                source_type NVARCHAR(50) DEFAULT 'uploaded',
                 doc_type NVARCHAR(50),
                 text_content NVARCHAR(MAX),
                 summary NVARCHAR(MAX),
@@ -196,6 +197,11 @@ class AzureSqlService:
             ALTER TABLE uploaded_files ADD source NVARCHAR(50) DEFAULT 'uploaded'
         """)
         cursor.execute("""
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'documents')
+            AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('documents') AND name = 'source_type')
+            ALTER TABLE documents ADD source_type NVARCHAR(50) DEFAULT 'uploaded'
+        """)
+        cursor.execute("""
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'entity_nodes')
             CREATE TABLE entity_nodes (
                 id INT IDENTITY(1,1) PRIMARY KEY,
@@ -272,13 +278,14 @@ class AzureSqlService:
                 MERGE documents AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
-                    doc_type=?, text_content=?, summary=?, entities=?,
+                    source_type=?, doc_type=?, text_content=?, summary=?, entities=?,
                     key_phrases=?, topics=?, metadata=?, source_file=?
                 WHEN NOT MATCHED THEN INSERT
-                    (id, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    (id, source_type, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 doc_id,
+                doc_data.get("metadata", {}).get("source_type", "uploaded"),
                 doc_data.get("type", ""), text, doc_data.get("summary", ""),
                 json.dumps(doc_data.get("entities", [])),
                 json.dumps(doc_data.get("key_phrases", [])),
@@ -287,6 +294,7 @@ class AzureSqlService:
                 doc_data.get("metadata", {}).get("source_file", ""),
                 # INSERT values
                 doc_id,
+                doc_data.get("metadata", {}).get("source_type", "uploaded"),
                 doc_data.get("type", ""), text, doc_data.get("summary", ""),
                 json.dumps(doc_data.get("entities", [])),
                 json.dumps(doc_data.get("key_phrases", [])),
@@ -309,26 +317,28 @@ class AzureSqlService:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file "
+                "SELECT id, source_type, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file "
                 "FROM documents ORDER BY created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
                 [offset, limit])
             rows = cursor.fetchall()
             conn.close()
             results = []
             for row in rows:
-                metadata = json.loads(row[7]) if row[7] else {}
+                metadata = json.loads(row[8]) if row[8] else {}
                 if not isinstance(metadata, dict):
                     metadata = {}
-                if row[8] and not metadata.get("source_file"):
-                    metadata["source_file"] = row[8]
+                if row[1] and not metadata.get("source_type"):
+                    metadata["source_type"] = row[1]
+                if row[9] and not metadata.get("source_file"):
+                    metadata["source_file"] = row[9]
                 results.append({
                     "id": row[0],
-                    "type": row[1],
-                    "text": row[2],
-                    "summary": row[3],
-                    "entities": json.loads(row[4]) if row[4] else [],
-                    "key_phrases": json.loads(row[5]) if row[5] else [],
-                    "topics": json.loads(row[6]) if row[6] else [],
+                    "type": row[2],
+                    "text": row[3],
+                    "summary": row[4],
+                    "entities": json.loads(row[5]) if row[5] else [],
+                    "key_phrases": json.loads(row[6]) if row[6] else [],
+                    "topics": json.loads(row[7]) if row[7] else [],
                     "metadata": metadata,
                 })
             return results

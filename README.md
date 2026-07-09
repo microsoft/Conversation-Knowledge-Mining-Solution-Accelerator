@@ -1,10 +1,12 @@
-# Knowledge Mining Solution Accelerator
+# Conversation knowledge mining solution accelerator
 
-Deploy once, bring your data, start asking questions. This solution accelerator uses Azure OpenAI, Azure AI Search, Azure Content Understanding, and Azure AI Foundry to extract knowledge from structured and unstructured data and enable interactive exploration through natural language chat and auto-generated dashboards. It adapts to any dataset — no domain-specific code, no hardcoded schemas.
+Gain actionable insights from large volumes of conversational data by identifying key themes, patterns, and relationships. Using Microsoft Foundry, Azure Content Understanding, Azure OpenAI Service, and Foundry IQ, this solution analyzes unstructured dialogue and maps it to meaningful, structured insights.
+
+Capabilities such as topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat enable users to explore data naturally and make faster, more informed decisions.
 
 <div align="center">
 
-[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS USE CASE**](#business-use-case)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS SCENARIO**](#business-scenario)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
 
 </div>
 
@@ -14,7 +16,7 @@ Deploy once, bring your data, start asking questions. This solution accelerator 
 
 ## Solution Overview
 
-This solution processes structured and unstructured data — PDFs, DOCX, images, JSON, CSV, TXT, SQL databases, handwritten text, charts, tables, and form fields — and makes it explorable through conversational chat, auto-generated dashboards, and configurable processing pipelines. The platform is fully use-case agnostic: the same deployment that analyzes call center transcripts can analyze legal contracts, research papers, insurance claims, or any other content.
+This solution processes conversational and enterprise content data — PDFs, DOCX, images, JSON, CSV, TXT, SQL databases, handwritten text, charts, tables, and form fields — and makes it explorable through conversational chat, auto-generated dashboards, and configurable processing pipelines. The platform is fully use-case agnostic: the same deployment that analyzes call center transcripts can analyze legal contracts, research papers, insurance claims, or any other content.
 
 ### Solution Architecture
 
@@ -61,17 +63,26 @@ Upload (instant response)
 <details open>
 <summary>Click to learn more about the key features this solution enables</summary>
 
-- **Chat-based insights discovery**
-  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-5.1 for natural language exploration. Source citations appear inline under each answer with clean filenames and snippets.
+- **Mined entities and relationships**
+  Azure Content Understanding and Azure OpenAI extract entities, topics, and relationships from unstructured conversations to build a richer knowledge base.
 
-- **Multi-modal information processing**
-  Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
+- **Processed data at scale**
+  The pipeline processes high-volume conversation data, generates embeddings, and indexes results for fast hybrid retrieval using RAG patterns.
+
+- **Visualized insights**
+  An interactive dashboard surfaces trends, distributions, and outliers so teams can quickly move from raw conversation logs to actionable understanding.
+
+- **Natural language interaction**
+  Users can ask contextual questions, follow up on findings, and get grounded responses with citations through an intuitive chat experience.
+
+- **Actionable insights**
+  Key phrase extraction, summarization, topic modeling, and sentiment signals support faster decision-making across operations and support workflows.
 
 - **Async document processing**
-  Two-stage queue pipeline: upload returns instantly, extraction and enrichment run in the background via Azure Queue Storage with automatic retries.
+  A two-stage queue pipeline keeps uploads responsive while extraction and enrichment run in the background with retry support.
 
 - **LLM-planned insights dashboard**
-  The system analyzes your data schema, uses an LLM to plan which charts and KPIs are relevant, then computes exact numbers via SQL. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. Adapts to any dataset — no hardcoded charts.
+  The system analyzes your data schema, then plans and computes relevant KPIs and charts automatically for each dataset.
 
 - **Configurable processing pipelines**
   YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
@@ -145,7 +156,7 @@ There is zero domain-specific logic in the codebase. The platform adapts automat
 
 After deploying, the Home page is ready for your data — upload files or load a scenario pack to get started:
 
-![Home page after deployment](docs/images/data-free-homepage.png)
+![Home page after deployment](docs/images/homepage-ui.png)
 
 > ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
 
@@ -168,13 +179,31 @@ All options are defined in [`data/config/scenarios.json`](data/config/scenarios.
 ### Connect External Data Sources
 
 These options are also available in the post-deployment menu. No data movement — the app queries your source at runtime.
+Currently supported connectors are Azure AI Search and Microsoft Fabric.
 
 | # | Source | What you provide |
 |---|--------|-----------------|
 | 4 | **Azure AI Search** | Search endpoint + index name |
 | 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
-| 6 | **SQL Database** | ODBC connection string + table name |
-| 7 | **Azure Synapse Analytics** | Synapse endpoint + database + table name |
+
+> Note: SQL Database and Azure Synapse connector options were removed from the setup menu in this branch.
+
+#### Azure AI Search input tips
+
+When you choose `4. Azure AI Search (connect)` in `./scripts/setup-data.ps1`:
+
+1. Enter your search service endpoint when prompted, for example:
+  `https://my-search.search.windows.net`
+2. For index name:
+  - Press Enter to auto-discover indexes, or
+  - Type the index name directly.
+3. If auto-discovery reports no indexes, verify the endpoint is correct and then enter the index name manually.
+
+Equivalent non-interactive command:
+
+```bash
+./scripts/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
+```
 
 ### Bring Your Own Data
 
@@ -184,7 +213,8 @@ Upload files directly from the web UI after deployment. Supported formats: PDF, 
 
 ### Adding Custom Scenarios and Data Sources
 
-All scenario packs and external data source options are defined in [`data/config/scenarios.json`](data/config/scenarios.json). The setup menu is generated dynamically from this file — no code changes are required to add new options.
+Custom scenarios are configuration-driven via [`data/config/scenarios.json`](data/config/scenarios.json).
+Custom data source connectors require script and adapter updates in this branch (only Azure AI Search and Microsoft Fabric are implemented end-to-end).
 
 #### Add a new scenario pack
 
@@ -230,22 +260,41 @@ If you have pre-enriched data (embeddings, sentiments, topics already computed),
 
 #### Add a new external data source
 
-Add an entry to the `data_sources` object. The `fields` array defines what the user is prompted for, and `prompts` provides the help text:
+The setup menu reads data source labels from `data/config/scenarios.json`, but a working connector also needs implementation updates.
+
+To add a connector that actually works, update all of the following:
+
+1. Add the source in [`data/config/scenarios.json`](data/config/scenarios.json) under `data_sources`.
+2. Extend source handling in [`scripts/connect-data.py`](scripts/connect-data.py):
+  - `SOURCE_TYPES`
+  - `adapter_map`
+  - argparse `--type` choices
+3. Extend accepted source types in [`scripts/connect-data.ps1`](scripts/connect-data.ps1) and [`scripts/setup-data.ps1`](scripts/setup-data.ps1).
+4. Implement the backend connector in [`src/api/modules/data_sources`](src/api/modules/data_sources) and ensure `test_connection` works.
+
+Example `data_sources` entry (menu metadata):
 
 ```json
-"cosmosdb": {
-  "name": "Azure Cosmos DB",
-  "description": "Connect a Cosmos DB container",
-  "fields": ["endpoint", "database", "container"],
+"my_source": {
+  "name": "My Data Source",
+  "description": "Connect a custom source",
+  "fields": ["endpoint", "database", "table"],
   "prompts": {
-    "endpoint": "Cosmos endpoint (e.g. https://my-account.documents.azure.com)",
+    "endpoint": "Service endpoint",
     "database": "Database name",
-    "container": "Container name"
+    "table": "Table name"
   }
 }
 ```
 
-After editing `scenarios.json`, run the setup script to see your new options:
+If you only need the currently supported connectors, use:
+
+```bash
+./scripts/connect-data.ps1 -Type azure_search
+./scripts/connect-data.ps1 -Type fabric
+```
+
+After editing `scenarios.json`, run the setup script to validate the menu updates:
 
 ```bash
 ./scripts/setup-data.ps1
@@ -279,7 +328,7 @@ docker-compose up --build
 
 > **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
 
-> **Note:** To allow setup scripts to fall back to deployed Azure backend if local health check fails (useful for CI/CD), set `KM_ALLOW_DEPLOYED_BACKEND_FALLBACK=1`. See [DEPLOYMENT.md](DEPLOYMENT.md) for full environment variable reference.
+> **Note:** To allow setup scripts to fall back to deployed Azure backend if local health check fails (useful for CI/CD), set `KM_ALLOW_DEPLOYED_BACKEND_FALLBACK=1`.
 
 ### Azure Services and Costs
 
@@ -297,7 +346,7 @@ Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/g
 
 ---
 
-## Business Use Case
+## Business Scenario
 
 In large organizations, it's difficult and time-consuming to analyze large volumes of unstructured data. Traditional tools limit interaction with data, making it hard to surface patterns or ask follow-up questions without extensive manual exploration.
 
@@ -348,13 +397,15 @@ To maintain strong security practices:
 
 ## Provide Feedback
 
-Have questions, find a bug, or want to request a feature? [Submit a new issue](../../issues) on this repo.
+Have questions, find a bug, or want to request a feature? [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) on this repo.
 
 ---
 
 ## Responsible AI Transparency FAQ
 
-Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
+For responsible AI transparency details, see:
+- [Azure AI Foundry Agent Service transparency note](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/agents/transparency-note)
+- [Agent Framework transparency FAQ](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md)
 
 ---
 

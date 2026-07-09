@@ -54,21 +54,18 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
             query_emb = emb_service.generate_embedding(query)
             vector_queries.append(VectorizedQuery(
                 vector=query_emb.embedding,
-                k_nearest_neighbors=top_k,
+                k=top_k,
                 fields="text_vector",
             ))
         except Exception as e:
             logger.debug(f"Vector search unavailable, using keyword only: {e}")
         
-        # Use fields that exist in both legacy and chunked index schemas
-        select_fields = ["id", "doc_id", "text", "summary", "type", "source_file"]
-        
-        results = client.search(
+        # Schema-agnostic search avoids brittle $select failures across different index schemas.
+        results = list(client.search(
             search_text=query,
             vector_queries=vector_queries if vector_queries else None,
             top=top_k,
-            select=select_fields,
-        )
+        ))
         
         docs = []
         seen = {}  # doc_id -> index in docs (dedup chunks from same document)
@@ -89,10 +86,10 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
             seen[doc_id] = len(docs)
             docs.append({
                 "doc_id": doc_id,
-                "text": r.get("text", ""),
+                "text": r.get("text") or r.get("content") or r.get("summary") or r.get("title") or "",
                 "summary": r.get("summary", ""),
                 "type": r.get("type", "unknown"),
-                "source_file": r.get("source_file", ""),
+                "source_file": r.get("source_file") or r.get("title") or "",
                 "score": score,
             })
         

@@ -23,6 +23,7 @@ import os
 import struct
 import sys
 import uuid
+from urllib import request as urlrequest
 
 # ---------------------------------------------------------------------------
 # Load .env
@@ -74,6 +75,95 @@ SOURCE_TYPES = {
         },
     },
 }
+
+
+def normalize_endpoint(endpoint: str) -> str:
+    """Return an https endpoint without trailing slash."""
+    endpoint = (endpoint or "").strip()
+    if not endpoint:
+        return endpoint
+    if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+        endpoint = f"https://{endpoint}"
+    return endpoint.rstrip("/")
+
+
+def list_azure_search_indexes(endpoint: str) -> list[str]:
+    """List index names from an Azure AI Search service using Entra auth."""
+    endpoint = normalize_endpoint(endpoint)
+    if not endpoint:
+        return []
+
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://search.azure.com/.default")
+    req = urlrequest.Request(
+        f"{endpoint}/indexes?api-version=2024-07-01",
+        headers={
+            "Authorization": f"Bearer {token.token}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+
+    with urlrequest.urlopen(req, timeout=20) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+        values = payload.get("value", []) if isinstance(payload, dict) else []
+        return [item.get("name") for item in values if isinstance(item, dict) and item.get("name")]
+
+
+def resolve_azure_search_index(config: dict, interactive: bool) -> dict:
+    """Ensure Azure AI Search config has index name; discover indexes when missing."""
+    if config.get("source_type") != "azure_search":
+        return config
+
+    config["endpoint"] = normalize_endpoint(config.get("endpoint", ""))
+    current_index = (config.get("table_or_query") or "").strip()
+    if current_index:
+        config["table_or_query"] = current_index
+        return config
+
+    try:
+        indexes = list_azure_search_indexes(config.get("endpoint", ""))
+    except Exception as e:
+        if interactive:
+            print(f"\n  Could not auto-discover indexes: {e}")
+            manual = input("  Enter index name manually: ").strip()
+            config["table_or_query"] = manual
+            return config
+        raise RuntimeError(
+            "Index name is required for Azure AI Search. Auto-discovery failed; pass --table <index-name>."
+        ) from e
+
+    if not indexes:
+        if interactive:
+            manual = input("\n  No indexes found. Enter index name manually: ").strip()
+            config["table_or_query"] = manual
+            return config
+        raise RuntimeError(
+            "No indexes were found on this Azure AI Search endpoint. "
+            "Confirm the endpoint is correct, then pass --table <index-name> if it exists."
+        )
+
+    if len(indexes) == 1:
+        config["table_or_query"] = indexes[0]
+        print(f"\n  Auto-selected index: {indexes[0]}")
+        return config
+
+    if interactive:
+        print("\n  Available indexes:")
+        for i, idx in enumerate(indexes, start=1):
+            print(f"    {i}. {idx}")
+        while True:
+            choice = input(f"  Select index (1-{len(indexes)}): ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(indexes):
+                config["table_or_query"] = indexes[int(choice) - 1]
+                return config
+            print("  Invalid selection.")
+
+    raise RuntimeError(
+        "Multiple indexes found. Pass --table <index-name> or run without CLI args for interactive selection."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -171,14 +261,15 @@ def save_data_source(conn, data: dict):
 # ---------------------------------------------------------------------------
 def test_source_connection(config: dict) -> dict:
     """Test the data source connection using the app's adapter classes."""
-    # Add src to path so we can import adapters
-    sys.path.insert(0, os.path.join(project_root, "src"))
+    # Add repo root to path so imports using `src.*` resolve consistently.
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
-    from api.modules.data_sources.base import DataSourceConfig, DataSourceType
+    from src.api.modules.data_sources.base import DataSourceConfig, DataSourceType
 
     adapter_map = {
-        "azure_search": "api.modules.data_sources.azure_search",
-        "fabric": "api.modules.data_sources.fabric",
+        "azure_search": "src.api.modules.data_sources.azure_search",
+        "fabric": "src.api.modules.data_sources.fabric",
     }
 
     source_type = config["source_type"]
@@ -240,13 +331,42 @@ def interactive_prompts() -> dict:
     config = {"name": name, "source_type": source["type"]}
 
     for field in source["fields"]:
-        value = input(source["prompts"][field]).strip()
+        # For Azure AI Search, index can be auto-discovered from endpoint.
+        if source["type"] == "azure_search" and field == "table":
+            value = input("Index name (optional, press Enter to auto-discover): ").strip()
+        else:
+            value = input(source["prompts"][field]).strip()
         if field == "table":
             config["table_or_query"] = value
         elif field == "connection_string":
             config["connection_string"] = value
         else:
             config[field] = value
+
+    return config
+
+
+def prompt_missing_fields(config: dict) -> dict:
+    """When --type is provided but required values are missing, prompt for them."""
+    source_type = (config.get("source_type") or "").strip()
+
+    if source_type == "azure_search":
+        if not (config.get("endpoint") or "").strip():
+            config["endpoint"] = normalize_endpoint(
+                input("Search endpoint (e.g. https://my-search.search.windows.net): ").strip()
+            )
+        if not (config.get("table_or_query") or "").strip():
+            config["table_or_query"] = input("Index name (optional, press Enter to auto-discover): ").strip()
+
+    elif source_type == "fabric":
+        if not (config.get("endpoint") or "").strip():
+            config["endpoint"] = normalize_endpoint(
+                input("SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ").strip()
+            )
+        if not (config.get("database") or "").strip():
+            config["database"] = input("Lakehouse/Warehouse name: ").strip()
+        if not (config.get("table_or_query") or "").strip():
+            config["table_or_query"] = input("Table name: ").strip()
 
     return config
 
@@ -276,17 +396,34 @@ def main():
         print("Make sure you have run 'azd up' and a .env file exists.")
         sys.exit(1)
 
+    # Interactive when user did not pass --type, OR when --type was passed
+    # without all required values and the terminal can accept prompts.
+    is_interactive = not bool(args.type)
+    if args.type and sys.stdin.isatty():
+        if args.type == "azure_search":
+            is_interactive = is_interactive or not (args.endpoint and args.table)
+        elif args.type == "fabric":
+            is_interactive = is_interactive or not (args.endpoint and args.database and args.table)
+
     if args.type:
         config = {
             "name": args.name or args.type,
             "source_type": args.type,
-            "endpoint": args.endpoint or "",
+            "endpoint": normalize_endpoint(args.endpoint or ""),
             "database": args.database or "",
             "table_or_query": args.table or "",
             "connection_string": args.connection_string or "",
         }
+        if is_interactive:
+            config = prompt_missing_fields(config)
     else:
         config = interactive_prompts()
+
+    try:
+        config = resolve_azure_search_index(config, interactive=is_interactive)
+    except Exception as e:
+        print(f"\n  [FAIL] {e}")
+        sys.exit(1)
 
     print(f"\n  Type    : {config['source_type']}")
     print(f"  Name    : {config['name']}")

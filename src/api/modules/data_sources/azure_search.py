@@ -27,6 +27,34 @@ class AzureSearchDataSource(BaseExternalDataSource):
             credential=credential,
         )
 
+    def _normalize_row(self, row: dict, mapping) -> dict:
+        doc = self._apply_field_mapping(row, mapping)
+
+        if not doc.get("id"):
+            for id_key in ("id", "key", "doc_id", "metadata_storage_path", "chunk_id"):
+                if row.get(id_key):
+                    doc["id"] = str(row.get(id_key))
+                    break
+        if not doc.get("id"):
+            doc["id"] = str(uuid.uuid4())[:8]
+
+        if not doc.get("text"):
+            for text_key in (
+                "text", "content", "chunk", "body", "summary", "description", "title"
+            ):
+                val = row.get(text_key)
+                if isinstance(val, str) and val.strip():
+                    doc["text"] = val
+                    break
+
+        if not doc.get("text"):
+            for key, val in row.items():
+                if isinstance(val, str) and val.strip() and not key.startswith("@"):
+                    doc["text"] = val
+                    break
+
+        return doc
+
     def connect(self, config: DataSourceConfig) -> bool:
         try:
             client = self._get_client(config)
@@ -71,22 +99,14 @@ class AzureSearchDataSource(BaseExternalDataSource):
         try:
             client = self._get_client(config)
             mapping = config.field_mapping
-
-            select = [mapping.text_field]
-            if mapping.id_field and mapping.id_field != "id":
-                select.append(mapping.id_field)
-            if mapping.title_field:
-                select.append(mapping.title_field)
-            for src_col in mapping.metadata_fields.values():
-                select.append(src_col)
-
-            results = client.search(search_text=query, top=top_k, select=select)
+            # Use schema-agnostic search to avoid brittle failures across heterogeneous indexes.
+            results = list(client.search(search_text=query, top=top_k))
 
             docs = []
             for r in results:
-                doc = self._apply_field_mapping(dict(r), mapping)
-                if not doc["id"]:
-                    doc["id"] = r.get("id", str(uuid.uuid4())[:8])
+                row = dict(r)
+                doc = self._normalize_row(row, mapping)
+
                 doc["score"] = r.get("@search.score", 0)
                 docs.append(doc)
             return docs
@@ -101,9 +121,7 @@ class AzureSearchDataSource(BaseExternalDataSource):
 
             docs = []
             for r in results:
-                doc = self._apply_field_mapping(dict(r), config.field_mapping)
-                if not doc["id"]:
-                    doc["id"] = r.get("id", str(uuid.uuid4())[:8])
+                doc = self._normalize_row(dict(r), config.field_mapping)
                 docs.append(doc)
             return docs
         except Exception as e:

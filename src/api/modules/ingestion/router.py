@@ -449,6 +449,14 @@ async def get_filter_schema():
             if dim.id not in existing_ids:
                 schema.dimensions.append(dim)
 
+    # Fallback for live external sources: derive extraction facets from runtime text.
+    runtime_schema = _build_runtime_extraction_filters()
+    if runtime_schema.dimensions:
+        existing_ids = {d.id for d in schema.dimensions}
+        for dim in runtime_schema.dimensions:
+            if dim.id not in existing_ids:
+                schema.dimensions.append(dim)
+
     if not schema.dimensions:
         return FilterSchema()
     return schema
@@ -513,10 +521,90 @@ def _build_sql_filters() -> FilterSchema:
                     type="multi_select",
                     values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
                 ))
+
+        # Add extraction-driven filters from JSON columns when available.
+        extraction_specs = [
+            ("topics", "Topics"),
+            ("entities", "Entities"),
+            ("key_phrases", "Key Phrases"),
+        ]
+        existing_ids = {d.id for d in dims}
+        for column_name, label in extraction_specs:
+            if column_name in existing_ids:
+                continue
+
+            cursor.execute(
+                f"SELECT TOP 500 {column_name} FROM documents "
+                f"WHERE {column_name} IS NOT NULL AND LEN({column_name}) > 2"
+            )
+            value_counts: dict[str, int] = {}
+            for row in cursor.fetchall():
+                raw = row[0]
+                if not raw:
+                    continue
+                try:
+                    parsed = _json.loads(raw)
+                except Exception:
+                    parsed = []
+
+                if isinstance(parsed, list):
+                    values = parsed
+                elif isinstance(parsed, dict):
+                    values = list(parsed.values())
+                else:
+                    values = [parsed]
+
+                for value in values:
+                    token = str(value).strip()
+                    if not token or len(token) > 60:
+                        continue
+                    value_counts[token] = value_counts.get(token, 0) + 1
+
+            if not value_counts:
+                continue
+
+            sorted_vals = sorted(value_counts.items(), key=lambda x: -x[1])[:20]
+            dims.append(FilterDimension(
+                id=column_name,
+                label=label,
+                type="multi_select",
+                values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
+            ))
         conn.close()
         return FilterSchema(domain="", dimensions=dims)
     except Exception as e:
         logger.warning(f"SQL filter fallback failed: {e}")
+        return FilterSchema()
+
+
+def _build_runtime_extraction_filters() -> FilterSchema:
+    """Build extraction dimensions from sampled runtime text as a lightweight fallback."""
+    try:
+        from src.api.modules.runtime.registry import runtime_registry
+        facets = runtime_registry.extraction_facets(source="all", filters=None, count=120, top=20)
+        dims: list[FilterDimension] = []
+
+        for dim_id, label in (("entities", "Entities"), ("topics", "Topics"), ("key_phrases", "Key Phrases")):
+            values = facets.get(dim_id, []) if isinstance(facets, dict) else []
+            if not values:
+                continue
+            dims.append(FilterDimension(
+                id=dim_id,
+                label=label,
+                type="multi_select",
+                values=[
+                    FilterValue(
+                        value=str(v.get("label") or ""),
+                        label=str(v.get("label") or ""),
+                        count=int(v.get("value") or 0),
+                    )
+                    for v in values if str(v.get("label") or "").strip()
+                ],
+            ))
+
+        return FilterSchema(domain="", dimensions=dims)
+    except Exception as e:
+        logger.warning(f"Runtime extraction filter fallback failed: {e}")
         return FilterSchema()
 
 
@@ -532,7 +620,11 @@ async def clear_documents():
         dashboard_service._schema_hash = None
     except Exception as e:
         logger.warning(f"Failed to clear insights cache: {e}")
-    return {"message": "All documents, files, and filters cleared"}
+    return {
+        "message": (
+            "Scenario and uploaded documents cleared; external source registrations preserved"
+        )
+    }
 
 
 @router.delete("/files/{file_id}")

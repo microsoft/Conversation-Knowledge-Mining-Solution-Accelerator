@@ -17,6 +17,7 @@ from src.api.modules.data_sources.base import (
     DataSourceType,
     QueryMode,
     ColumnInfo,
+    FieldMapping,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,12 @@ class DataSourceRegistry:
 
         for key, value in updates.items():
             if value is not None and hasattr(config, key):
+                if key == "field_mapping" and isinstance(value, dict):
+                    try:
+                        value = FieldMapping(**value)
+                    except Exception as e:
+                        logger.warning(f"Invalid field_mapping update for source '{source_id}': {e}")
+                        continue
                 setattr(config, key, value)
 
         # Re-test connection if connection params changed
@@ -286,6 +293,7 @@ class DataSourceRegistry:
                 result = ingestion_service.load_json_data(
                     ingestion_data,
                     filename=f"datasource_{config.name}.json",
+                    source="external_ingest",
                 )
                 total += result.total_loaded
                 ingested_docs.extend(ingestion_data)
