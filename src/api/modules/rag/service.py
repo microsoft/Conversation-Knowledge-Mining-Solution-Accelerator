@@ -912,9 +912,21 @@ class RAGService:
             logger.warning("Agent answer was empty/unhelpful in answer_question, using grounded fallback")
             answer = self._build_grounded_answer(question, search_docs)
 
-        # Surface the agent's own citations. Content is fetched lazily on click
-        # via /api/rag/fetch-azure-search-content using each citation's get_url.
-        combined_sources = self._filter_noise_sources(agent_sources, "answer-question-response")
+        # Surface the agent's own citations first; when the agent used SQL only
+        # (no search tool call) agent_sources is empty, so fall back to the
+        # search_docs that were retrieved in the background so the UI always
+        # shows which data sources were consulted.
+        doc_sources: list[Source] = []
+        for i, doc in enumerate(search_docs[:5]):
+            doc_sources.append(Source(
+                doc_id=doc["doc_id"],
+                score=round(doc.get("score", 0), 4),
+                text=str(doc.get("text", ""))[:500],
+                source_file=doc.get("source_file", ""),
+            ))
+        agent_filtered = self._filter_noise_sources(agent_sources, "answer-question-response")
+        combined_sources = self._merge_sources(agent_filtered, doc_sources)
+        combined_sources = self._filter_noise_sources(combined_sources, "answer-question-final")
         return QAResponse(
             question=question,
             answer=_strip_links_from_answer(answer),
