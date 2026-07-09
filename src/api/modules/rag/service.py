@@ -81,14 +81,12 @@ def _collect_citations(response: Any, get_urls: list) -> list:
 
 
 def _strip_links_from_answer(text: str) -> str:
-    """Remove embedded source citations from answer text, keeping the actual content."""
+    """Strip stray inline citation artifacts the model may leak, without touching newlines."""
     out = text
-    # Remove (sources: ...) or (source: ...) - only this pattern
-    out = re.sub(r'\s*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
-    # Remove standalone bracketed doc IDs like [842c7caf] but not other brackets
-    out = re.sub(r'\s*\[[a-f0-9]{8}\]\s*', ' ', out, flags=re.IGNORECASE)
-    # Clean up multiple spaces
-    out = re.sub(r'\s+', ' ', out)
+    # 1. Remove (sources: ...) / (source: ...) prose dumps
+    out = re.sub(r'[ \t]*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
+    # 2. Remove standalone [8-hex] doc IDs like [842c7caf]
+    out = re.sub(r'[ \t]*\[[a-f0-9]{8}\][ \t]*', ' ', out, flags=re.IGNORECASE)
     return out.strip()
 
 
@@ -197,20 +195,18 @@ class RAGService:
         """Generate a short conversation title using the configured title agent."""
         settings = get_settings()
 
-        def _first_user_message() -> str:
-            for msg in messages:
-                if msg.get("role") == "user":
-                    return str(msg.get("content") or "")
-            return ""
+        # Filter user messages and combine their content.
+        user_messages = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in messages
+            if msg.get("role") == "user"
+        ]
+        combined_content = "\n".join([msg["content"] for msg in user_messages])
+        final_prompt = f"Generate a title for:\n{combined_content}"
 
-        async def _run() -> Optional[str]:
+        async def _run() -> str:
             agent_endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or settings.azure_ai_agent_endpoint).strip()
             title_agent_name = (os.getenv("AGENT_NAME_TITLE") or "SummaryAgent").strip()
-            if not agent_endpoint or not title_agent_name:
-                return None
-
-            prompt_input = _first_user_message() or "Generate a concise title for this chat."
-
             async with (
                 AsyncDefaultAzureCredential() as credential,
                 AIProjectClient(
@@ -219,22 +215,18 @@ class RAGService:
                 ) as project_client,
             ):
                 agent = FoundryAgent(project_client=project_client, agent_name=title_agent_name)
-                out = ""
-                async for chunk in agent.run(prompt_input, stream=True):
-                    text = str(chunk.text) if chunk.text else ""
-                    out += text
-
-            title = out.strip().strip('"').replace("\n", " ")
-            title = re.sub(r"\s+", " ", title).strip()
-            if not title:
-                return None
-            return title[:80]
+                result = await agent.run(final_prompt)
+                title = str(result.text).strip() if result is not None else "New Conversation"
+                return title
 
         try:
             return asyncio.run(_run())
         except Exception as e:
-            logger.warning(f"Title generation failed: {e}")
-            return None
+            logger.exception("Error generating title: %s", str(e))
+            # Fallback to last user message or default.
+            if user_messages:
+                return user_messages[-1]["content"][:50]
+            return "New Conversation"
 
     @staticmethod
     def _merge_sources(primary: list[Source], fallback: list[Source]) -> list[Source]:
@@ -748,7 +740,7 @@ class RAGService:
         """Fetch a cited document's content directly from Azure AI Search using the
         citation's get_url.
 
-        Mirrors upstream CKM's /fetch-azure-search-content endpoint, adapted to our
+        Fetches the cited document's content from Azure AI Search using our
         index field names (``text``/``source_file`` instead of ``content``/``sourceurl``).
         The get_url points at ``.../indexes/{index}/docs/{key}?api-version=...`` and is
         fetched with an Entra bearer token scoped to Azure Cognitive Search.

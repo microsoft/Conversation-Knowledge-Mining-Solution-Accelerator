@@ -20,8 +20,8 @@ class CitationContentRequest(BaseModel):
 async def fetch_azure_search_content(body: CitationContentRequest):
     """Fetch the content of a cited Azure AI Search document by its get_url.
 
-    Matches upstream CKM's /fetch-azure-search-content contract: accepts a JSON
-    payload with a 'url' field and returns {content, title} (or {error}).
+    Accepts a JSON payload with a 'url' field and returns {content, title}
+    (or {error}).
     """
     if not body.url:
         raise HTTPException(status_code=400, detail="URL is required")
@@ -45,13 +45,18 @@ async def save_chat(body: SaveChatRequest, request: Request):
     authenticated_user = get_authenticated_user_details(request_headers=request.headers)
     user_id = authenticated_user["user_principal_id"]
     try:
-        resolved_title = body.title
-        if not resolved_title and body.messages:
-            resolved_title = await asyncio.to_thread(rag_service.generate_title, body.messages)
-
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
         session_exists = any(s["id"] == body.session_id for s in sessions)
+
+        resolved_title = None
+        if not session_exists:
+            resolved_title = body.title
+            if body.messages:
+                agent_title = await asyncio.to_thread(rag_service.generate_title, body.messages)
+                if agent_title:
+                    resolved_title = agent_title
+
         if not session_exists:
             db_service.create_session(
                 session_id=body.session_id,
