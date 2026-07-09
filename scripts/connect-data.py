@@ -20,10 +20,13 @@ Usage:
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import struct
 import sys
 import uuid
 from urllib import request as urlrequest
+from urllib.parse import urlparse
 
 # ---------------------------------------------------------------------------
 # Load .env
@@ -75,6 +78,193 @@ SOURCE_TYPES = {
         },
     },
 }
+
+
+def _run_az_command(args: list[str]) -> tuple[int, str, str]:
+    """Run an Azure CLI/AZD command and return rc/stdout/stderr."""
+    if not args:
+        return 1, "", "No command provided"
+
+    exe = args[0]
+    resolved = shutil.which(exe)
+
+    # Windows can expose Azure CLIs via .cmd files and/or well-known install paths.
+    if not resolved and os.name == "nt":
+        for ext in (".cmd", ".exe", ".bat"):
+            resolved = shutil.which(f"{exe}{ext}")
+            if resolved:
+                break
+
+    if not resolved and os.name == "nt":
+        win_candidates = {
+            "az": [
+                r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+                r"C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            ],
+            "azd": [
+                os.path.expandvars(r"%USERPROFILE%\\.azd\\bin\\azd.exe"),
+                r"C:\Program Files\Azure Developer CLI\azd.exe",
+            ],
+        }
+        for candidate in win_candidates.get(exe, []):
+            if candidate and os.path.exists(candidate):
+                resolved = candidate
+                break
+
+    if not resolved:
+        return 127, "", f"Command not found: {exe}"
+
+    cmd = [resolved, *args[1:]]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = proc.communicate()
+        return proc.returncode, (stdout or "").strip(), (stderr or "").strip()
+    except OSError as e:
+        return 1, "", str(e)
+
+
+def get_azd_env_value(name: str) -> str:
+    """Read a value from the active azd environment, if available."""
+    rc, out, _ = _run_az_command(["azd", "env", "get-value", name])
+    if rc != 0:
+        return ""
+    return "" if out.startswith("ERROR:") else out
+
+
+def get_api_principal_context() -> tuple[str, str]:
+    """Resolve backend API principal ID and app name from env/azd/Azure."""
+    principal_id = (os.getenv("AZURE_API_PRINCIPAL_ID") or "").strip()
+    api_app_name = (os.getenv("API_APP_NAME") or "").strip()
+
+    if not principal_id:
+        principal_id = get_azd_env_value("AZURE_API_PRINCIPAL_ID")
+    if not api_app_name:
+        api_app_name = get_azd_env_value("API_APP_NAME")
+
+    if not api_app_name:
+        backend_uri = (os.getenv("SERVICE_BACKEND_URI") or get_azd_env_value("SERVICE_BACKEND_URI")).strip()
+        parsed = urlparse(backend_uri)
+        host = parsed.hostname or ""
+        if host.endswith(".azurewebsites.net"):
+            api_app_name = host.split(".")[0]
+
+    if not principal_id and api_app_name:
+        env_name = (os.getenv("AZURE_ENV_NAME") or get_azd_env_value("AZURE_ENV_NAME")).strip()
+        resource_group = (os.getenv("AZURE_RESOURCE_GROUP") or "").strip()
+        if not resource_group and env_name:
+            resource_group = f"rg-{env_name}"
+        if resource_group:
+            rc, out, _ = _run_az_command(
+                [
+                    "az",
+                    "webapp",
+                    "identity",
+                    "show",
+                    "--name",
+                    api_app_name,
+                    "--resource-group",
+                    resource_group,
+                    "--query",
+                    "principalId",
+                    "-o",
+                    "tsv",
+                ]
+            )
+            if rc == 0:
+                principal_id = out
+
+    return principal_id.strip(), api_app_name.strip()
+
+
+def get_search_service_resource_id(endpoint: str) -> str:
+    """Resolve the Azure resource ID for an Azure AI Search endpoint."""
+    endpoint = normalize_endpoint(endpoint)
+    host = urlparse(endpoint).hostname or ""
+    if not host.endswith(".search.windows.net"):
+        return ""
+
+    service_name = host.split(".")[0]
+    if not service_name:
+        return ""
+
+    rc, out, _ = _run_az_command(
+        [
+            "az",
+            "resource",
+            "list",
+            "--name",
+            service_name,
+            "--resource-type",
+            "Microsoft.Search/searchServices",
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ]
+    )
+    if rc != 0:
+        return ""
+    return out.strip()
+
+
+def ensure_search_index_reader_role(endpoint: str) -> None:
+    """Grant API managed identity Search Index Data Reader on external search service."""
+    principal_id, app_name = get_api_principal_context()
+    if not principal_id:
+        print("  [WARN] Could not resolve API managed identity principal ID; skipping Search RBAC assignment.")
+        return
+
+    scope = get_search_service_resource_id(endpoint)
+    if not scope:
+        print("  [WARN] Could not resolve Azure AI Search resource ID from endpoint; skipping Search RBAC assignment.")
+        return
+
+    role_name = "Search Index Data Reader"
+    rc, existing, _ = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "list",
+            "--assignee-object-id",
+            principal_id,
+            "--scope",
+            scope,
+            "--role",
+            role_name,
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ]
+    )
+    if rc == 0 and existing:
+        identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
+        print(f"  [OK] RBAC already exists: {role_name} on external search for {identity_label}")
+        return
+
+    rc, _, err = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "create",
+            "--assignee-object-id",
+            principal_id,
+            "--assignee-principal-type",
+            "ServicePrincipal",
+            "--scope",
+            scope,
+            "--role",
+            role_name,
+        ]
+    )
+    if rc == 0:
+        identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
+        print(f"  [OK] Granted {role_name} on external search to {identity_label}")
+        return
+
+    print(f"  [WARN] Failed to grant {role_name} role automatically: {err}")
 
 
 def normalize_endpoint(endpoint: str) -> str:
@@ -467,6 +657,10 @@ def main():
     except Exception as e:
         print(f"  [FAIL] SQL write failed: {e}")
         sys.exit(1)
+
+    if config.get("source_type") == "azure_search":
+        print("\n  Assigning API app access to external Azure AI Search...")
+        ensure_search_index_reader_role(config.get("endpoint", ""))
 
     print(f"\n{'='*40}")
     print("  Done!")
