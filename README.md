@@ -395,6 +395,29 @@ To maintain strong security practices:
 
 ---
 
+## Sample Questions
+
+Use these sample questions to explore each scenario after loading its data.
+
+### Contact Center
+
+1. Please provide the total number of calls by date for last 7 days
+2. Provide a summary of performance issues users reported this week
+3. Turn these key topics into a structured FAQ
+
+### Telecom Analysis
+
+1. Total number of calls by date for last 7 days
+2. What are top 7 challenges user reported?
+3. What are the top recommendations to reduce these customer challenges?
+
+### Mortgage Application
+
+1. What are the key findings in the Annual Housing Report?
+2. What does the report say about accessibility in housing?
+
+---
+
 ## Provide Feedback
 
 Have questions, find a bug, or want to request a feature? [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) on this repo.
