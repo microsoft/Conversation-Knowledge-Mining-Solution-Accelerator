@@ -110,28 +110,46 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
 
 @tool
 def get_sql_response(sql_query: str) -> str:
-    """Execute a SQL query against the knowledge mining database.
-    
-    This tool executes SQL queries to fetch structured data from the database.
-    Use this when the user asks for:
-    - Counts or statistics (e.g., "How many documents?")
-    - Specific records matching criteria
-    - Aggregations or calculations
-    - Structured data that requires SQL queries
-    
-    The available tables are:
-    - documents: id, text_content, summary, source_file, doc_type, metadata
-    - Any other configured tables in the knowledge mining database
-    
+    """Execute a T-SQL query against the knowledge mining documents table.
+
+    TABLE: documents
+    COLUMNS (always available):
+      id            - document identifier
+      text_content  - full conversation/document text
+      summary       - AI-generated summary
+      source_file   - filename the record came from
+      doc_type      - file extension / type
+      metadata      - JSON column; use JSON_VALUE(metadata, '$.field') to filter
+
+    METADATA FIELDS (call get_schema_and_sample_values first if unsure of exact values):
+      JSON_VALUE(metadata, '$.region')          - geographic region
+      JSON_VALUE(metadata, '$.priority')        - priority level
+      JSON_VALUE(metadata, '$.status')          - current status
+      JSON_VALUE(metadata, '$.claim_type')      - type of claim or topic
+      JSON_VALUE(metadata, '$.fraud_signal')    - fraud signal flag
+      JSON_VALUE(metadata, '$.channel')         - interaction channel
+      JSON_VALUE(metadata, '$.policy_type')     - policy or product type
+      JSON_VALUE(metadata, '$.adjuster_team')   - team responsible
+      JSON_VALUE(metadata, '$.estimated_amount_usd') - monetary estimate
+
+    CRITICAL RULES:
+    - All metadata values are stored as strings — always compare with single-quoted strings
+    - Match values EXACTLY as stored (case-sensitive). Call get_schema_and_sample_values
+      first to discover exact values before filtering on metadata fields.
+    - NEVER guess metadata values. If uncertain, run a discovery query first:
+        SELECT DISTINCT JSON_VALUE(metadata, '$.field') FROM documents
+    - Use TOP N to limit large result sets (e.g., SELECT TOP 10 ...)
+    - For text search use: text_content LIKE '%keyword%'
+
     Args:
-        sql_query: Valid T-SQL query to execute
-        
+        sql_query: Valid T-SQL query to execute against the documents table
+
     Returns:
-        JSON string containing query results or error message
+        JSON string with results, column names, and row count
     """
     try:
         from src.api.storage.sql_service import sql_service
-        
+
         sql_service._ensure_init()
         if not sql_service._initialized:
             return json.dumps({
@@ -139,35 +157,91 @@ def get_sql_response(sql_query: str) -> str:
                 "error": "SQL database not available",
                 "results": []
             })
-        
+
         conn = sql_service._get_connection()
         cursor = conn.cursor()
-        
-        # Execute the query
         cursor.execute(sql_query)
-        
-        # Fetch results
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description] if cursor.description else []
-        
-        # Convert to list of dicts
-        results = []
-        for row in rows:
-            results.append(dict(zip(columns, row)))
-        
+        results = [dict(zip(columns, row)) for row in rows]
         conn.close()
-        
+
         return json.dumps({
             "success": True,
             "count": len(results),
             "columns": columns,
-            "results": results
+            "results": results,
+            "hint": "If count is 0, call get_schema_and_sample_values to verify exact field values before retrying."
         }, default=str)
-        
+
     except Exception as e:
         logger.error(f"SQL query tool error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
-            "results": []
+            "results": [],
+            "hint": "Check your SQL syntax and field names. Use get_schema_and_sample_values to verify schema."
         })
+
+
+@tool
+def get_schema_and_sample_values(top_n: int = 5) -> str:
+    """Discover the exact metadata field names and sample values stored in the documents table.
+
+    Call this BEFORE writing SQL queries with metadata filters, especially when:
+    - A previous query returned zero rows
+    - You are unsure of exact field names or value casing
+    - The user references a concept that could map to multiple field names
+
+    Args:
+        top_n: Number of distinct sample values to return per field (default: 5)
+
+    Returns:
+        JSON with field names, sample values, and total document count
+    """
+    try:
+        from src.api.storage.sql_service import sql_service
+
+        sql_service._ensure_init()
+        if not sql_service._initialized:
+            return json.dumps({"success": False, "error": "SQL database not available"})
+
+        conn = sql_service._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        total = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT TOP 20 metadata FROM documents "
+            "WHERE metadata IS NOT NULL AND LEN(metadata) > 2"
+        )
+        field_samples: dict[str, set] = {}
+        for row in cursor.fetchall():
+            try:
+                meta = json.loads(row[0])
+                if not isinstance(meta, dict):
+                    continue
+                for key, val in meta.items():
+                    if val is None:
+                        continue
+                    sv = str(val).strip()
+                    if sv:
+                        field_samples.setdefault(key, set()).add(sv)
+            except Exception:
+                continue
+
+        schema = {
+            "total_documents": total,
+            "metadata_fields": {
+                field: sorted(list(values))[:top_n]
+                for field, values in sorted(field_samples.items())
+            }
+        }
+        conn.close()
+
+        return json.dumps({"success": True, "schema": schema}, default=str)
+
+    except Exception as e:
+        logger.error(f"Schema discovery tool error: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)})

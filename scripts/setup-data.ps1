@@ -26,7 +26,7 @@
 #>
 
 param(
-    [ValidateSet("contact-center", "mortgage-application", "telecom-analysis")]
+    [ValidateSet("contact-center", "mortgage-application", "telecom-analysis", "insurance-claims")]
     [string]$Scenario,
 
     [string]$DataPath,
@@ -259,6 +259,26 @@ if ($Scenario) {
         exit 1
     }
 
+    # Also clear connected external sources for scenario isolation on Home/Explore.
+    Write-Host "Removing existing external source connections for scenario isolation..." -ForegroundColor Yellow
+    try {
+        $existingSources = Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/" -Method GET -Headers $headers
+        if ($existingSources -and $existingSources.Count -gt 0) {
+            foreach ($src in $existingSources) {
+                try {
+                    Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/$($src.id)" -Method DELETE -Headers $headers | Out-Null
+                } catch {
+                    Write-Host "  Warning: Could not remove data source '$($src.name)': $_" -ForegroundColor Yellow
+                }
+            }
+            Write-Host "Removed $($existingSources.Count) external data source connection(s)." -ForegroundColor Green
+        } else {
+            Write-Host "No external data sources found." -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host "Warning: Could not list/remove external data sources: $_" -ForegroundColor Yellow
+    }
+
     # Contact Center has pre-processed data — use the direct seed path
     if ($pack.has_preprocessed -eq $true) {
         Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow
@@ -312,7 +332,7 @@ if ($DataPath) {
     $allFiles = Get-ChildItem $DataPath -File
     $jsonFiles = $allFiles | Where-Object { $_.Extension -eq ".json" }
     $audioFiles = $allFiles | Where-Object { $_.Extension -in ".wav", ".mp3", ".mp4" }
-    $docFiles = $allFiles | Where-Object { $_.Extension -in ".pdf", ".docx", ".xlsx", ".txt", ".png", ".jpg", ".jpeg", ".tiff", ".bmp" }
+    $docFiles = $allFiles | Where-Object { $_.Extension -in ".pdf", ".docx", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg" }
 
     Write-Host ""
     Write-Host "Found in $DataPath :" -ForegroundColor White
@@ -325,33 +345,29 @@ if ($DataPath) {
     if ($jsonFiles.Count -gt 0) {
         Write-Host "Processing JSON files..." -ForegroundColor Yellow
 
-        # Check if JSON files are individual records or arrays
-        $firstJson = Get-Content $jsonFiles[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        # Normalize any JSON shape (single object or array) into ingestion schema.
+        $transformed = [System.Collections.ArrayList]::new()
+        foreach ($f in $jsonFiles) {
+            $raw = Get-Content $f.FullName -Raw -Encoding UTF8
+            $parsed = $raw | ConvertFrom-Json
+            $records = if ($parsed -is [System.Collections.IEnumerable] -and $parsed -isnot [string]) { $parsed } else { @($parsed) }
 
-        if ($firstJson -is [System.Collections.IEnumerable] -and $firstJson -isnot [string]) {
-            # Already an array — upload directly
-            Write-Host "  Uploading array JSON: $($jsonFiles[0].Name)" -ForegroundColor White
-            $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/json" `
-                -Method POST -Form @{ file = Get-Item $jsonFiles[0].FullName } -Headers $headers
-            Write-Host "  Loaded $($result.total_loaded) records" -ForegroundColor Green
-        } else {
-            # Individual conversation records — transform and merge
-            $transformed = [System.Collections.ArrayList]::new()
-            foreach ($f in $jsonFiles) {
-                $raw = Get-Content $f.FullName -Raw -Encoding UTF8
-                $convo = $raw | ConvertFrom-Json
+            $index = 0
+            foreach ($convo in $records) {
+                $index += 1
 
-                # Auto-detect field mapping
+                # Auto-detect id/text fields; fall back safely.
                 $id = if ($convo.ConversationId) { $convo.ConversationId }
                       elseif ($convo.id) { $convo.id }
-                      else { [System.IO.Path]::GetFileNameWithoutExtension($f.Name) }
+                      elseif ($convo.doc_id) { $convo.doc_id }
+                      else { "{0}-{1}" -f [System.IO.Path]::GetFileNameWithoutExtension($f.Name), $index }
 
                 $text = if ($convo.Content) { $convo.Content }
                         elseif ($convo.text) { $convo.text }
                         elseif ($convo.transcript) { $convo.transcript }
                         else { $convo | ConvertTo-Json -Depth 5 }
 
-                # Build metadata from all non-text fields
+                # Build metadata from all non-text fields.
                 $meta = @{ source_file = $f.Name }
                 $convo.PSObject.Properties | ForEach-Object {
                     $key = $_.Name
@@ -361,25 +377,32 @@ if ($DataPath) {
                 }
 
                 $null = $transformed.Add(@{
-                    id   = $id
+                    id = [string]$id
                     type = "call_transcript"
-                    text = $text
+                    text = [string]$text
                     metadata = $meta
                 })
             }
+        }
 
-            Write-Host "  Transformed $($transformed.Count) conversations" -ForegroundColor White
-            $tempFile = Join-Path $env:TEMP "km_upload_$(Get-Date -Format 'yyyyMMddHHmmss').json"
-            $transformed | ConvertTo-Json -Depth 10 -Compress |
-                Out-File -FilePath $tempFile -Encoding UTF8
+        Write-Host "  Transformed $($transformed.Count) records" -ForegroundColor White
+        $uploadFilename = if ($jsonFiles.Count -eq 1) {
+            $jsonFiles[0].Name
+        } elseif ($Scenario) {
+            "$Scenario-merged.json"
+        } else {
+            "km_upload_$(Get-Date -Format 'yyyyMMddHHmmss').json"
+        }
+        $tempFile = Join-Path $env:TEMP $uploadFilename
+        $transformed | ConvertTo-Json -Depth 10 -Compress |
+            Out-File -FilePath $tempFile -Encoding UTF8
 
-            try {
-                $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/json" `
-                    -Method POST -Form @{ file = Get-Item $tempFile } -Headers $headers
-                Write-Host "  Loaded $($result.total_loaded) conversations" -ForegroundColor Green
-            } finally {
-                Remove-Item $tempFile -ErrorAction SilentlyContinue
-            }
+        try {
+            $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/json" `
+                -Method POST -Form @{ file = Get-Item $tempFile } -Headers $headers
+            Write-Host "  Loaded $($result.total_loaded) records" -ForegroundColor Green
+        } finally {
+            Remove-Item $tempFile -ErrorAction SilentlyContinue
         }
     }
 

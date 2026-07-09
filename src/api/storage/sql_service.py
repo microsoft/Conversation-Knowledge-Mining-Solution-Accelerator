@@ -310,6 +310,73 @@ class AzureSqlService:
             self._refresh_token()
             return False
 
+    def save_documents_bulk(self, docs: list[dict]) -> bool:
+        """Persist multiple documents in one connection/transaction for faster ingestion."""
+        if not self.available:
+            return False
+        if not docs:
+            return True
+
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.fast_executemany = True
+
+            sql = """
+                MERGE documents AS target
+                USING (SELECT ? AS id) AS source ON target.id = source.id
+                WHEN MATCHED THEN UPDATE SET
+                    source_type=?, doc_type=?, text_content=?, summary=?, entities=?,
+                    key_phrases=?, topics=?, metadata=?, source_file=?
+                WHEN NOT MATCHED THEN INSERT
+                    (id, source_type, doc_type, text_content, summary, entities, key_phrases, topics, metadata, source_file)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """
+
+            params = []
+            for doc_data in docs:
+                doc_id = doc_data.get("id", "")
+                text = doc_data.get("text", "")
+                if isinstance(text, list):
+                    text = "\n".join(f"{s.get('speaker', '')}: {s.get('text', '')}" for s in text)
+
+                metadata = doc_data.get("metadata", {}) or {}
+                source_type = metadata.get("source_type", "uploaded")
+                source_file = metadata.get("source_file", "")
+
+                row = (
+                    doc_id,
+                    source_type,
+                    doc_data.get("type", ""),
+                    text,
+                    doc_data.get("summary", ""),
+                    json.dumps(doc_data.get("entities", [])),
+                    json.dumps(doc_data.get("key_phrases", [])),
+                    json.dumps(doc_data.get("topics", [])),
+                    json.dumps(metadata),
+                    source_file,
+                    doc_id,
+                    source_type,
+                    doc_data.get("type", ""),
+                    text,
+                    doc_data.get("summary", ""),
+                    json.dumps(doc_data.get("entities", [])),
+                    json.dumps(doc_data.get("key_phrases", [])),
+                    json.dumps(doc_data.get("topics", [])),
+                    json.dumps(metadata),
+                    source_file,
+                )
+                params.append(row)
+
+            cursor.executemany(sql, params)
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to bulk save documents: {e}")
+            self._refresh_token()
+            return False
+
     def load_all_documents(self, limit: int = 1000, offset: int = 0) -> list[dict]:
         if not self.available:
             return []

@@ -15,6 +15,14 @@ param(
     [string]$Scenario
 )
 
+function Get-AzdEnvValue {
+    param([string]$Name)
+    $value = azd env get-value $Name 2>$null
+    if (-not $value) { return "" }
+    if ($value -is [string] -and $value.StartsWith("ERROR:")) { return "" }
+    return "$value".Trim()
+}
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Knowledge Mining - Agent Setup" -ForegroundColor Cyan
@@ -61,11 +69,14 @@ if ($LASTEXITCODE -eq 0) {
 
     # Push the freshly created agent settings to the API App Service so the
     # running backend picks up AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL.
-    $apiAppName    = azd env get-value API_APP_NAME 2>$null
-    $resourceGroup = azd env get-value RESOURCE_GROUP_NAME 2>$null
-    $agentNameChat  = azd env get-value AGENT_NAME_CHAT 2>$null
-    $agentNameTitle = azd env get-value AGENT_NAME_TITLE 2>$null
-    $useSql         = azd env get-value USE_SQL 2>$null
+    $apiAppName    = Get-AzdEnvValue -Name "API_APP_NAME"
+    $resourceGroup = Get-AzdEnvValue -Name "RESOURCE_GROUP_NAME"
+    if (-not $resourceGroup) {
+        $resourceGroup = Get-AzdEnvValue -Name "AZURE_RESOURCE_GROUP"
+    }
+    $agentNameChat  = Get-AzdEnvValue -Name "AGENT_NAME_CHAT"
+    $agentNameTitle = Get-AzdEnvValue -Name "AGENT_NAME_TITLE"
+    $useSql         = Get-AzdEnvValue -Name "USE_SQL"
 
     if ($apiAppName -and $resourceGroup) {
         Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
@@ -78,6 +89,7 @@ if ($LASTEXITCODE -eq 0) {
             Write-Host "  [OK] App Service settings updated" -ForegroundColor Green
         } else {
             Write-Host "  [WARN] Failed to update App Service settings" -ForegroundColor Yellow
+            $global:LASTEXITCODE = 0
         }
     } else {
         Write-Host "  [SKIP] API_APP_NAME / RESOURCE_GROUP_NAME not found in azd env" -ForegroundColor Yellow

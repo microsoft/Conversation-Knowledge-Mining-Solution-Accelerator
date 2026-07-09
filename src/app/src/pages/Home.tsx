@@ -172,7 +172,7 @@ const Home: React.FC = () => {
       if (firstSource?.source_type) {
         return `${sourceName} Connection`;
       }
-      return `${sourceName} Sample Data`;
+      return `${sourceName} Dataset`;
     }
     return "My Data";
   };
@@ -496,7 +496,7 @@ const Home: React.FC = () => {
                   <TextBulletListSquare20Regular style={{ color: "#059669" }} />
                 </div>
                 <div className={s.valueTitle}>Load a scenario pack</div>
-                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario with sample data.</div>
+                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario pack.</div>
               </div>
             </div>
           </div>

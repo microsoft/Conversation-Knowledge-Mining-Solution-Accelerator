@@ -5,6 +5,7 @@ import logging
 import re
 import struct
 import hashlib
+import time
 from datetime import datetime, timezone
 from collections import Counter
 
@@ -1033,6 +1034,144 @@ def _to_runtime_payload(payload: dict) -> dict:
     }
 
 
+def _labelize(name: str) -> str:
+    return str(name or "").replace("_", " ").strip().title()
+
+
+_DEFAULT_ACTION_QUESTIONS: tuple[str, ...] = (
+    "What should we prioritize in the next 7 days based on these findings?",
+    "Which segment shows the highest risk and what action should we take first?",
+    "What additional data would increase confidence in these insights?",
+)
+
+
+def _infer_action_questions(response: dict) -> list[str]:
+    existing = [
+        q.strip()
+        for q in (response.get("suggested_questions") or [])
+        if isinstance(q, str) and q.strip()
+    ]
+    seen = {q.lower() for q in existing}
+    questions: list[str] = list(existing)
+
+    # Data-dependent prompts from filters
+    for f in (response.get("filters") or [])[:4]:
+        if not isinstance(f, dict):
+            continue
+        label = str(f.get("label") or f.get("field") or "").strip()
+        if not label or len(label) < 2:
+            continue
+        q = f"How do the findings change by {label.lower()}?"
+        if q.lower() not in seen:
+            questions.append(q)
+            seen.add(q.lower())
+
+    # Data-dependent prompts from chart fields/titles
+    for sec in (response.get("sections") or []):
+        if not isinstance(sec, dict):
+            continue
+        for ch in (sec.get("charts") or []):
+            if not isinstance(ch, dict):
+                continue
+            field = str(ch.get("field") or ch.get("dimension_field") or "").strip()
+            title = str(ch.get("title") or "").strip()
+            if field:
+                q = f"What is driving the pattern in {_labelize(field).lower()}?"
+            elif title:
+                q = f"Can you explain the main drivers behind '{title}'?"
+            else:
+                continue
+            if q.lower() not in seen and len(questions) < 5:
+                questions.append(q)
+                seen.add(q.lower())
+
+    # Always ensure at least one prioritization question
+    for q in _DEFAULT_ACTION_QUESTIONS:
+        if q.lower() not in seen:
+            questions.append(q)
+            seen.add(q.lower())
+
+    return questions[:6]
+
+
+def _build_ai_layout_blocks(response: dict) -> list[dict]:
+    """Build data-gated AI layout blocks based on available runtime signal."""
+    runtime = response.get("runtime")
+    if not isinstance(runtime, dict):
+        runtime = {}
+    counts = runtime.get("counts")
+    counts = counts if isinstance(counts, dict) else {}
+    topics_count = int(counts.get("topics") or len(runtime.get("topics") or []))
+    entities_count = int(counts.get("entities") or len(runtime.get("entities") or []))
+    relationships_count = int(counts.get("relationships") or len(runtime.get("relationships") or []))
+
+    headline = str(response.get("headline") or "Insights Summary").strip()
+    summary = str(response.get("summary") or "Overview of key findings for the current dataset.").strip()
+
+    blocks: list[dict] = [{"type": "summary", "title": headline, "text": summary}]
+
+    # Risk card: only when a high-severity insight is present
+    for item in (runtime.get("insights") or []):
+        if not isinstance(item, dict):
+            continue
+        category = str(item.get("category") or "").lower()
+        if category in ("risk", "anomaly"):
+            blocks.append({
+                "type": "risk_card",
+                "title": str(item.get("title") or "High-priority risk").strip(),
+                "description": str(item.get("explanation") or summary).strip(),
+            })
+            break
+
+    # Metric: only when KPIs are present
+    kpis = response.get("kpis") or []
+    if kpis and isinstance(kpis[0], dict):
+        top_kpi = kpis[0]
+        blocks.append({
+            "type": "metric",
+            "label": str(top_kpi.get("label") or "Key metric").strip(),
+            "value": top_kpi.get("value"),
+        })
+
+    # Heatmap: only when broad topic signal exists
+    if topics_count >= 4:
+        blocks.append({"type": "heatmap", "title": "Topic intensity"})
+
+    # Relationship graph: only when enough links exist
+    if relationships_count >= 2:
+        blocks.append({"type": "relationship_graph", "title": "Entity relationships"})
+
+    # Timeline: only when events or unexpected patterns are present
+    unexpected = runtime.get("unexpectedPatterns") or []
+    events = runtime.get("events") or []
+    if len(events) >= 2 or len(unexpected) >= 2:
+        blocks.append({"type": "timeline", "title": "Pattern timeline"})
+
+    # Comparison: only when both topic and entity signals are present
+    if topics_count > 0 and entities_count > 0:
+        blocks.append({
+            "type": "comparison",
+            "title": "Topic vs entity signal",
+            "left_label": "Topics",
+            "left_value": topics_count,
+            "right_label": "Entities",
+            "right_value": entities_count,
+        })
+
+    # Bullet list: key insights as structured bullets
+    key_insights = [k for k in (response.get("key_insights") or []) if isinstance(k, str) and k.strip()]
+    if key_insights:
+        blocks.append({"type": "bullet_list", "items": key_insights[:4]})
+
+    return blocks[:8]
+
+
+def _enrich_dashboard_response(response: dict) -> dict:
+    response["suggested_questions"] = _infer_action_questions(response)
+    response["ai_layout"] = _build_ai_layout_blocks(response)
+    return response
+
+
 def _parse_entity_values(raw) -> list[str]:
     names: list[str] = []
     if raw is None:
@@ -1066,12 +1205,75 @@ def _parse_entity_values(raw) -> list[str]:
     return names
 
 
+_TOPIC_FIELD_HINTS = (
+    "type", "category", "topic", "issue", "status", "priority", "channel",
+    "signal", "policy", "claim", "sentiment", "region",
+)
+
+_ENTITY_FIELD_HINTS = (
+    "agent", "adjuster", "team", "provider", "organization", "org",
+    "location", "region", "branch", "customer", "user", "claim_type", "policy_type",
+)
+
+
+def _runtime_topics_from_documents(cursor, where: str, params: list, limit: int = 30) -> list[dict]:
+    """Fallback topic extraction from topics/key_phrases and categorical metadata fields."""
+    counter: Counter = Counter()
+    try:
+        cursor.execute(
+            f"SELECT TOP 600 topics, key_phrases, metadata FROM documents WHERE {where}",
+            list(params),
+        )
+        for row in cursor.fetchall():
+            topics_col = row[0] if len(row) > 0 else None
+            phrases_col = row[1] if len(row) > 1 else None
+            metadata_col = row[2] if len(row) > 2 else None
+
+            for name in _parse_entity_values(topics_col):
+                if len(name) <= 80:
+                    counter[name] += 1
+            for name in _parse_entity_values(phrases_col):
+                if len(name) <= 80:
+                    counter[name] += 1
+
+            if metadata_col:
+                try:
+                    meta = json.loads(metadata_col) if isinstance(metadata_col, str) else metadata_col
+                    if isinstance(meta, dict):
+                        for key, value in meta.items():
+                            k = str(key or "").strip().lower()
+                            if not k or not any(h in k for h in _TOPIC_FIELD_HINTS):
+                                continue
+                            v = str(value or "").strip()
+                            if v and len(v) <= 80:
+                                counter[v] += 1
+                except Exception:
+                    continue
+    except Exception as e:
+        logger.debug(f"Topic fallback query failed: {e}")
+        return []
+
+    if not counter:
+        return []
+
+    topics = []
+    for i, (name, score) in enumerate(counter.most_common(limit)):
+        topics.append({
+            "id": f"topic_fallback_{i + 1}",
+            "name": name,
+            "score": float(score),
+            "trendValue": None,
+            "trendDirection": "stable",
+        })
+    return topics
+
+
 def _runtime_entities_from_documents(cursor, where: str, params: list, limit: int = 30) -> list[dict]:
     """Fallback entity extraction from document rows when chart-derived entities are empty."""
     counter: Counter = Counter()
     try:
         cursor.execute(
-            f"SELECT TOP 500 entities, metadata FROM documents WHERE {where}",
+            f"SELECT TOP 600 entities, metadata FROM documents WHERE {where}",
             list(params),
         )
         for row in cursor.fetchall():
@@ -1087,6 +1289,13 @@ def _runtime_entities_from_documents(cursor, where: str, params: list, limit: in
                     if isinstance(meta, dict):
                         for name in _parse_entity_values(meta.get("entities")):
                             counter[name] += 1
+                        for key, value in meta.items():
+                            k = str(key or "").strip().lower()
+                            if not k or not any(h in k for h in _ENTITY_FIELD_HINTS):
+                                continue
+                            v = str(value or "").strip()
+                            if v and len(v) <= 80:
+                                counter[v] += 1
                 except Exception:
                     continue
     except Exception as e:
@@ -1334,7 +1543,7 @@ def _external_fallback_dashboard(filters: dict | None = None) -> dict | None:
         ],
     }
     response["runtime"] = _to_runtime_payload(response)
-    return response
+    return _enrich_dashboard_response(response)
 
 
 # --- Orchestrator ---
@@ -1342,9 +1551,12 @@ def _external_fallback_dashboard(filters: dict | None = None) -> dict | None:
 class DashboardService:
     _plan_cache: dict[str, dict] = {}
     _plan_cache_ts: dict[str, float] = {}
+    _response_cache: dict[str, dict] = {}
+    _response_cache_ts: dict[str, float] = {}
     _schema_cache: dict | None = None
     _schema_hash: str | None = None
     _CACHE_TTL_SEC = 3600  # 1 hour
+    _RESPONSE_CACHE_TTL_SEC = 180  # 3 minutes
 
     def _get_connection(self):
         settings = get_settings()
@@ -1411,7 +1623,6 @@ class DashboardService:
 
             # Plan (cached, validated, with TTL)
             key = self._schema_hash
-            import time
             cache_expired = (key in self._plan_cache_ts
                              and time.time() - self._plan_cache_ts.get(key, 0) > self._CACHE_TTL_SEC)
             if refresh or key not in self._plan_cache or cache_expired:
@@ -1422,6 +1633,16 @@ class DashboardService:
             if not plan:
                 conn.close()
                 return self._empty()
+
+            # Fast path for repeated loads on same schema + filters.
+            filters_for_key = filters or {}
+            response_key = f"{key}:{json.dumps(filters_for_key, sort_keys=True, default=str)}"
+            response_cache_expired = (
+                response_key in self._response_cache_ts
+                and time.time() - self._response_cache_ts.get(response_key, 0) > self._RESPONSE_CACHE_TTL_SEC
+            )
+            if not refresh and response_key in self._response_cache and not response_cache_expired:
+                return self._response_cache[response_key]
 
             # Build WHERE
             params: list = []
@@ -1474,15 +1695,30 @@ class DashboardService:
 
             runtime = response.get("runtime") or {}
             counts = runtime.get("counts") if isinstance(runtime, dict) else None
+            current_topic_count = 0
             current_entity_count = 0
             if isinstance(counts, dict):
+                current_topic_count = int(counts.get("topics") or 0)
                 current_entity_count = int(counts.get("entities") or 0)
+            if current_topic_count == 0:
+                fallback_topics = _runtime_topics_from_documents(cursor, where, params)
+                if fallback_topics:
+                    runtime["topics"] = fallback_topics
+                    runtime.setdefault("counts", {})
+                    runtime["counts"]["topics"] = len(fallback_topics)
             if current_entity_count == 0:
                 fallback_entities = _runtime_entities_from_documents(cursor, where, params)
                 if fallback_entities:
                     runtime["entities"] = fallback_entities
                     runtime.setdefault("counts", {})
                     runtime["counts"]["entities"] = len(fallback_entities)
+
+            # Enrich after all runtime fields are fully populated
+            response["runtime"] = runtime
+            response = _enrich_dashboard_response(response)
+
+            self._response_cache[response_key] = response
+            self._response_cache_ts[response_key] = time.time()
             return response
         except Exception as e:
             logger.warning(f"Dashboard failed: {e}")
@@ -1504,8 +1740,17 @@ class DashboardService:
             "headline": "No Data Available",
             "summary": "Upload documents or connect a data source to see insights.",
             "kpis": [], "sections": [], "filters": [], "suggested_questions": [],
+            "key_insights": [], "standout_findings": [],
         }
         response["runtime"] = _to_runtime_payload(response)
+        # Provide default actionable questions even with no data
+        response["suggested_questions"] = [
+            "What data should I upload to get started?",
+            "How do I connect a data source?",
+            "What kinds of insights can this dashboard generate?",
+        ]
+        response["ai_layout"] = [{"type": "summary", "title": "No Data Available",
+                                   "text": "Upload documents or connect a data source to begin."}]
         return response
 
 

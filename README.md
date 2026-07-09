@@ -4,44 +4,228 @@ Gain actionable insights from large volumes of conversational data by identifyin
 
 Capabilities such as topic modeling, key phrase extraction, speech-to-text transcription, and interactive chat enable users to explore data naturally and make faster, more informed decisions.
 
+Analysts working with large volumes of conversational data can use this solution to extract insights through natural language interaction. It supports tasks like identifying customer support trends, improving contact center quality, and uncovering operational intelligence — enabling teams to spot patterns, act on feedback, and make informed decisions faster.
+
+<br/>
+
 <div align="center">
 
 [**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS SCENARIO**](#business-scenario)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
 
 </div>
 
-> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards.
+<br/>
+
+> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md).
+
+<br/>
 
 ---
 
 ## Solution Overview
 
-This solution processes conversational and enterprise content data — PDFs, DOCX, images, JSON, CSV, TXT, SQL databases, handwritten text, charts, tables, and form fields — and makes it explorable through conversational chat, auto-generated dashboards, and configurable processing pipelines. The platform is fully use-case agnostic: the same deployment that analyzes call center transcripts can analyze legal contracts, research papers, insurance claims, or any other content.
+This solution turns any conversational or enterprise dataset into an interactive, insight-driven experience. Files are uploaded or connected, processed through an AI extraction pipeline, and made explorable through three integrated surfaces: **Home** (upload and manage data), **Explore** (chat with your data using a Foundry-hosted agent), and **Insights** (auto-generated KPI dashboards driven by LLM schema analysis).
+
+The platform is fully scenario-agnostic. The same deployment handles call center transcripts, mortgage documents, telecom recordings, or any structured or unstructured content — no domain-specific code changes required.
 
 ### Solution Architecture
 
 ```
-┌──────────┐         ┌──────────────────┐         ┌───────────────────┐
-│  Browser │  HTTP   │  Frontend        │  REST   │  Backend          │
-│          │────────▶│  React / Fluent  │────────▶│  FastAPI / Python │
-└──────────┘         └──────────────────┘         └─────────┬─────────┘
-                                                            │
-                     ┌──────────────────────────────────────┼──────────────────┐
-                     │                                      │                  │
-                     ▼                                      ▼                  ▼
-            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
-            │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
-            │  GPT-5.1 + ada-2 │                    │  Search     │   │  Understanding   │
-            └─────────────────┘                    │  (HNSW)     │   └────────┬────────┘
-                     │                             └──────┬──────┘            │
-                     ▼                                    ▼                   ▼
-            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
-            │  AI Foundry     │                    │  Azure SQL  │   │  Blob + Queue   │
-            │  Agent Service  │                    │  Database   │   │  Storage        │
-            └─────────────────┘                    └─────────────┘   └─────────────────┘
-                                                   ┌─────────────┐
-                                                   │  Cosmos DB  │
-                                                   └─────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  DATA INPUT  (any scenario or use case)                                              │
+│                                                                                      │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐ │
+│  │  Audio / Video  │  │  Transcripts /   │  │  Structured  │  │  Documents       │ │
+│  │  (.wav, .mp4)   │  │  Text (.txt/.json│  │  (JSON / CSV)│  │  (PDF / DOCX /   │ │
+│  └────────┬────────┘  └────────┬─────────┘  └──────┬───────┘  │   images)        │ │
+│           └──────────────────┴─────────────────────┘          └──────────────────┘ │
+│                                        │                                             │
+│              Upload via web UI  ─OR─  ./scripts/setup-data.ps1 (scenario packs)    │
+│                                        ▼                                             │
+│                            ┌───────────────────────┐                               │
+│                            │   Azure Blob Storage   │                               │
+│                            │   (raw file store)     │                               │
+│                            └───────────┬───────────┘                               │
+└────────────────────────────────────────┼─────────────────────────────────────────────┘
+                                         │
+                                         ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  PROCESSING PIPELINE  (event-driven, background)                                     │
+│                                                                                      │
+│  Azure Blob Storage                                                                  │
+│       ↓                                                                              │
+│  Azure Content Understanding  ── extracts text, summary, topics, key phrases        │
+│       ↓                                                                              │
+│  Azure SQL Database           ── stores documents, metadata, enrichment output      │
+│       ↓                                                                              │
+│  Azure OpenAI ada-002         ── generates embeddings (1536 dims)                   │
+│       ↓                                                                              │
+│  Azure AI Search              ── indexes chunks + vectors (HNSW hybrid search)      │
+│       ↓                                                                              │
+│  Status → "ready"                                                                    │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                    ┌────────────────────┼────────────────────┐
+                    │                    │                    │
+                    ▼                    ▼                    ▼
+┌───────────────────────┐  ┌──────────────────────┐  ┌───────────────────────────────┐
+│  EXPLORE (Chat)       │  │  INSIGHTS (Dashboard) │  │  HOME (Data management)       │
+│                       │  │                       │  │                               │
+│  User asks a question │  │  Schema analysed by   │  │  Upload files or load a       │
+│         ↓             │  │  GPT → LLM plans KPIs │  │  scenario pack.               │
+│  Microsoft Foundry    │  │  and charts → SQL runs │  │  Manage connected external   │
+│  ChatAgent            │  │  → dashboard rendered  │  │  data sources.               │
+│  (Agent Framework)    │  │                       │  │                               │
+│         ↓             │  │  Filters generated    │  │                               │
+│  Tools: Azure AI      │  │  from actual metadata │  │                               │
+│  Search + SQL         │  │  fields in the data   │  │                               │
+│         ↓             │  │                       │  │                               │
+│  Grounded answer +    │  │                       │  │                               │
+│  citations returned   │  │                       │  │                               │
+└───────────────────────┘  └──────────────────────┘  └───────────────────────────────┘
+                    │                    │
+                    └────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  MICROSOFT FOUNDRY                                                                   │
+│                                                                                      │
+│  ┌────────────────────────────────────────────────────────┐                        │
+│  │  Agent Framework (agent_framework + agent_framework_openai)                      │
+│  │                                                         │                        │
+│  │  ┌───────────────────────────────────────────────────┐ │                        │
+│  │  │  ChatAgent                                        │ │                        │
+│  │  │  ┌──────────────────┐  ┌────────────────────────┐│ │                        │
+│  │  │  │  SQL Tool        │  │  Azure AI Search Tool  ││ │                        │
+│  │  │  │  (get_sql_       │  │  (search_azure_ai_     ││ │                        │
+│  │  │  │   response +     │  │   search)              ││ │                        │
+│  │  │  │  get_schema_and_ │  └────────────────────────┘│ │                        │
+│  │  │  │  sample_values)  │                             │ │                        │
+│  │  │  └──────────────────┘                             │ │                        │
+│  │  └───────────────────────────────────────────────────┘ │                        │
+│  │                                                         │                        │
+│  │  ┌───────────────────────┐                             │                        │
+│  │  │  SummaryAgent         │ (conversation title gen)    │                        │
+│  │  └───────────────────────┘                             │                        │
+│  └────────────────────────────────────────────────────────┘                        │
+│                                                                                      │
+│  ┌───────────────┐  ┌───────────────┐  ┌────────────────┐  ┌─────────────────────┐ │
+│  │  Foundry IQ   │  │ Azure OpenAI  │  │    Content     │  │  Agent Service      │ │
+│  │  (azure-ai-   │  │ GPT-5.1 +     │  │ Understanding  │  │  (agent hosting +   │ │
+│  │   projects)   │  │ ada-002       │  │                │  │   thread mgmt)      │ │
+│  └───────────────┘  └───────────────┘  └────────────────┘  └─────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                    ┌────────────────────┼────────────────────┐
+                    ▼                    ▼                    ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  DATA LAYER                                                                          │
+│                                                                                      │
+│  ┌──────────────────────┐  ┌──────────────────┐  ┌───────────────────────────────┐ │
+│  │  Azure SQL Database  │  │  Azure AI Search │  │  Azure Cosmos DB              │ │
+│  │  documents, metadata │  │  hybrid vector + │  │  chat history + sessions      │ │
+│  │  enrichment output,  │  │  keyword (HNSW)  │  └───────────────────────────────┘ │
+│  │  insights cache,     │  │  retrieval       │                                     │
+│  │  data source config  │  └──────────────────┘                                     │
+│  └──────────────────────┘                                                            │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+                                         │
+                    ┌────────────────────┴────────────────────┐
+                    ▼                                         ▼
+┌───────────────────────────────────┐  ┌──────────────────────────────────────────────┐
+│  API LAYER  (FastAPI / Python)    │  │  FRONTEND  (React + Fluent UI 2)             │
+│                                   │  │                                              │
+│  /api/ingestion    (upload/files) │  │  Home     — upload data, manage scenarios    │
+│  /api/rag          (chat/Q&A)     │◀─│  Explore  — chat with data, apply filters    │
+│  /api/insights     (dashboard)    │  │  Insights — AI-generated KPI dashboard       │
+│  /api/embeddings   (index/search) │  │                                              │
+│  /api/pipelines    (run/register) │  └──────────────────────────────────────────────┘
+│  /api/data-sources (connect)      │
+│  /api/processing   (batch ops)    │
+└───────────────────────────────────┘
+```
+
+### How It Works
+
+**Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or run `./scripts/setup-data.ps1` to load a built-in scenario. The upload is acknowledged instantly; processing runs in the background.
+
+**Processing pipeline** — Azure Content Understanding extracts text, summary, topics, and key phrases. Results are stored in Azure SQL. Embeddings are generated using ada-002 and indexed in Azure AI Search (hybrid HNSW + BM25).
+
+**Explore** — Converse with your data. Questions are routed to a Microsoft Foundry ChatAgent with two tools: Azure AI Search (semantic retrieval) and SQL (structured analytics). The agent reasons across both, then returns a grounded, structured answer. Chat history is multi-turn and persisted per session.
+
+**Insights** — The LLM reads your dataset's schema (field names, cardinality, semantic types) and generates a plan for KPIs and charts. SQL queries run against your actual data. The result is an adaptive dashboard — layouts, filters, and metrics are all data-driven, not hard-coded.
+
+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  INPUT  (any scenario or use case)                                                     │
+│                                                                                        │
+│  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐   ┌────────────────┐   │
+│  │  Audio / Video │   │  Transcripts   │   │  Structured    │   │  Documents     │   │
+│  │  (.wav, .mp4)  │   │  (.txt/.json)  │   │  (JSON / CSV)  │   │  (PDF / DOCX)  │   │
+│  └───────┬────────┘   └───────┬────────┘   └───────┬────────┘   └───────┬────────┘   │
+│          └───────────────────┴────────────────────┴───────────────────┘             │
+│                                          │                                             │
+│                          (Contact center, mortgage, telecom, legal,                   │
+│                           operations, or any custom scenario)                         │
+│                                          │                                             │
+│                                          ▼                                             │
+│                              ┌───────────────────────┐                               │
+│                              │   Azure Blob Storage   │                               │
+│                              │   (raw file upload)    │                               │
+│                              └───────────┬───────────┘                               │
+└──────────────────────────────────────────┼────────────────────────────────────────────┘
+                                           │
+                                           ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  MICROSOFT FOUNDRY                                                                   │
+│                                                                                      │
+│  ┌─────────────────────────────────────────────────────────┐                       │
+│  │  Agent Orchestration (Agent Framework)                   │                       │
+│  │  ┌──────────────────────────────┐                       │                       │
+│  │  │  Chat Agent                  │                       │                       │
+│  │  │  ┌─────────┐  ┌──────────┐  │                       │                       │
+│  │  │  │SQL Tool │  │ Search   │  │                       │                       │
+│  │  │  └─────────┘  └──────────┘  │                       │                       │
+│  │  └──────────────────────────────┘                       │                       │
+│  └─────────────────────────────────────────────────────────┘                       │
+│                                                                                      │
+│  ┌───────────────┐  ┌───────────────┐  ┌────────────────┐  ┌───────────────────┐  │
+│  │  Foundry IQ   │  │ Azure OpenAI  │  │    Content     │  │  Agent Service    │  │
+│  │               │  │ GPT / ada-002 │  │ Understanding  │  │ (ChatAgent +      │  │
+│  └───────────────┘  └───────────────┘  └────────────────┘  │  SummaryAgent)    │  │
+│                                                              └───────────────────┘  │
+└──────────────────────────────────┬──────────────────────────────────────────────────┘
+                                   │
+                     ┌─────────────┼─────────────┐
+                     ▼             ▼             ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  PLATFORM SERVICES                                                                   │
+│                                                                                      │
+│  ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────────────────────┐ │
+│  │  Azure AI Search │   │   Azure SQL DB   │   │  Azure Cosmos DB                 │ │
+│  │  (hybrid HNSW    │   │  (documents,     │   │  (chat history, sessions)        │ │
+│  │   vector+keyword │   │   metadata,      │   └──────────────────────────────────┘ │
+│  │   retrieval)     │   │   analytics)     │                                         │
+│  └──────────────────┘   └──────────────────┘                                         │
+└──────────────────────────────────┬──────────────────────────────────────────────────┘
+                                   │
+                     ┌─────────────┼─────────────┐
+                     ▼             ▼             ▼
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  DEPLOYMENT                                                                          │
+│                                                                                      │
+│  ┌────────────────────┐     ┌────────────────────┐     ┌────────────────────┐      │
+│  │  Frontend App      │◀───▶│  API App Service    │◀────│  Container         │      │
+│  │  Service           │     │  (FastAPI / Python) │     │  Registry          │      │
+│  │  (React / Fluent)  │     └────────────────────┘     └────────────────────┘      │
+│  └─────────┬──────────┘                                                              │
+│            ▼                                                                          │
+│  ┌────────────────────┐                                                              │
+│  │  Web Frontend      │                                                              │
+│  │  Home · Explore    │                                                              │
+│  │  Insights          │                                                              │
+│  └────────────────────┘                                                              │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Document Processing Pipeline
@@ -63,42 +247,336 @@ Upload (instant response)
 <details open>
 <summary>Click to learn more about the key features this solution enables</summary>
 
-- **Mined entities and relationships**
+- **Mined entities and relationships** <br/>
   Azure Content Understanding and Azure OpenAI extract entities, topics, and relationships from unstructured conversations to build a richer knowledge base.
 
-- **Processed data at scale**
+- **Processed data at scale** <br/>
   The pipeline processes high-volume conversation data, generates embeddings, and indexes results for fast hybrid retrieval using RAG patterns.
 
-- **Visualized insights**
+- **Visualized insights** <br/>
   An interactive dashboard surfaces trends, distributions, and outliers so teams can quickly move from raw conversation logs to actionable understanding.
 
-- **Natural language interaction**
+- **Natural language interaction** <br/>
   Users can ask contextual questions, follow up on findings, and get grounded responses with citations through an intuitive chat experience.
 
-- **Actionable insights**
+- **Actionable insights** <br/>
   Key phrase extraction, summarization, topic modeling, and sentiment signals support faster decision-making across operations and support workflows.
 
-- **Async document processing**
-  A two-stage queue pipeline keeps uploads responsive while extraction and enrichment run in the background with retry support.
-
-- **LLM-planned insights dashboard**
+- **LLM-planned insights dashboard** <br/>
   The system analyzes your data schema, then plans and computes relevant KPIs and charts automatically for each dataset.
 
-- **Configurable processing pipelines**
-  YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
+- **Configurable processing pipelines** <br/>
+  YAML-defined pipelines with pluggable capabilities (classify, summarize, extract entities, filter, generate, search, embed, transform, and more). Auto-trigger on upload or run manually.
 
-- **Dynamic filter generation**
-  Filters are generated automatically from your data's actual metadata fields and values — not predefined. Different datasets produce different filter panels. The system analyzes document metadata to discover categorical dimensions (e.g., sentiment, topic, category) and creates interactive filters for each.
+- **Dynamic filter generation** <br/>
+  Filters are generated from your data's actual metadata fields and values — not predefined. Different datasets produce different filter panels.
 
-- **Document explorer**
-  Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
+- **Bring Your Own Index / Data** <br/>
+  Connect an existing Azure AI Search index or external database (Microsoft Fabric, SQL) without uploading data again.
 
-- **Bring Your Own Index**
-  Connect an existing Azure AI Search index during post-deployment setup and immediately chat with it — no upload needed.
+</details>
 
-- **Bring Your Own Data**
-  Connect external databases (Microsoft Fabric, SQL, Azure Synapse) during post-deployment setup with auto-detected field mapping and one-click ingestion.
+<br/>
 
+---
+
+## Quick Deploy
+
+### Prerequisites
+
+- Azure subscription with permissions to create resource groups, resources, and assign roles
+- [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) >= 1.18.0
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+
+> ⚠️ **Important: Check Azure OpenAI Quota Availability** <br/>
+> To ensure sufficient quota is available in your subscription, please verify quota before you deploy. Here are some example regions where the services are available: East US, East US2, Australia East, UK South, France Central.
+
+### How to Deploy
+
+1. Clone the repository and navigate to the project root.
+
+2. Login to Azure:
+   ```bash
+   azd auth login
+   ```
+
+3. Deploy all resources:
+   ```bash
+   azd up
+   ```
+   The post-deployment script will set up the AI agent and present a menu to choose a scenario or connect a data source.
+
+4. Optionally run data setup separately:
+   ```bash
+   ./scripts/setup-data.ps1                              # interactive menu
+   ./scripts/setup-data.ps1 -Scenario contact-center
+   ./scripts/setup-data.ps1 -Scenario mortgage-application
+   ./scripts/setup-data.ps1 -Scenario telecom-analysis
+   ```
+
+5. Optionally configure authentication in Azure Portal → App Service → **Authentication** → **Add identity provider** → **Microsoft**.
+
+After deploying, the Home page is ready for your data:
+
+![Home page after deployment](docs/images/homepage-ui.png)
+
+> ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
+
+### Local Development
+
+**Backend:**
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r src/api/requirements.txt
+uvicorn src.api.main:app --reload --port 8000
+```
+
+**Frontend:**
+```bash
+cd src/app
+npm install
+REACT_APP_API_BASE_URL=http://localhost:8000/api npm start
+```
+
+**Docker:**
+```bash
+docker-compose up --build
+```
+
+### Azure Services and Costs
+
+Pricing varies by region and usage. Use the [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator) to estimate costs for your subscription.
+
+| Service | Purpose | Pricing |
+|---------|---------|---------|
+| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-5.1), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
+| [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration, centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
+| [Foundry IQ / Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Hybrid search (BM25 + HNSW vector) for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
+| [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
+| [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
+| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Structured data — metadata, chat history, enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
+| [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Optional: chat history and sessions | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
+| [Azure Monitor / Log Analytics](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-overview) | Telemetry and logs | [Pricing](https://azure.microsoft.com/pricing/details/monitor/) |
+
+<br/>
+
+---
+
+## Scenario Packs
+
+After deploying, the post-deployment script presents an interactive menu to seed data. You can choose a built-in scenario pack, connect an external data source, or skip and upload documents from the web UI.
+
+All options are defined in [`data/config/scenarios.json`](data/config/scenarios.json) and can be extended.
+
+### Built-in Scenarios
+
+| # | Scenario | Data | What users see |
+|---|----------|------|----------------|
+| 1 | **Contact Center** | JSON call transcripts + pre-processed search index | Sentiment trends, topic clusters, agent performance, Q&A |
+| 2 | **Mortgage Application** | PDF documents (housing reports, contracts) | Document summarization, clause extraction, risk analysis |
+| 3 | **Telecom Analysis** | JSON transcripts + WAV audio | Call analysis, transcription, sentiment, topic clustering |
+
+### Connect External Data Sources
+
+| # | Source | What you provide |
+|---|--------|-----------------|
+| 4 | **Azure AI Search** | Search endpoint + index name |
+| 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
+
+### Adding Custom Scenarios
+
+#### Load a custom dataset immediately
+
+```bash
+./scripts/setup-data.ps1 -DataPath data/MyCustom_usecase
+```
+
+Or upload files directly from the web UI.
+
+#### Add a reusable scenario to the setup menu
+
+Add an entry to `data/config/scenarios.json` under `scenarios`:
+
+```json
+"my-custom-scenario": {
+  "name": "My Custom Scenario",
+  "description": "Custom dataset for domain-specific insights",
+  "data_folder": "MyCustom_usecase",
+  "data_types": ["json", "pdf"],
+  "has_preprocessed": false
+}
+```
+
+Then run:
+```bash
+./scripts/setup-data.ps1 -Scenario my-custom-scenario
+```
+
+> ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+
+<br/>
+
+---
+
+## Business Scenario
+
+Analysts often work with large volumes of unstructured conversational data, making it difficult to extract actionable insights quickly and accurately. Traditional tools limit interaction with data, making it hard to surface patterns or ask the right follow-up questions without extensive manual exploration.
+
+This solution addresses those challenges by enabling:
+
+- **Natural language interaction** — Ask questions about your documents using conversational chat
+- **Automated extraction** — AI extracts entities, relationships, and key information from unstructured content
+- **Adaptive dashboards** — The insights engine reads your data and auto-generates relevant charts, KPIs, and key findings
+- **Interactive exploration** — Dynamic filters and structured insights help users navigate large datasets
+- **Faster decision-making** — Summarized, contextualized data reduces manual analysis effort
+
+<details>
+<summary>Click to learn more about business value</summary>
+
+- **Better decision-making** — Summarized, contextualized data helps organizations make informed strategic decisions that drive operational improvements at scale.
+- **Time saved** — Automated insight extraction and scalable data exploration reduce manual analysis efforts.
+- **Interactive data insights** — Employees can engage directly with conversational data using natural language.
+- **Actionable insights** — Clear, contextual insights empower employees to take meaningful action based on data-driven evidence.
+
+</details>
+
+<details>
+<summary>Click to learn more about use cases</summary>
+
+| **Use case** | **Persona** | **Summary** |
+|---|---|---|
+| Contact Center Customer Support | Analyst | Contextualized insights from mined data that enables employees to solve problems and take action. Interactive data that allows employees to ask questions and receive timely responses. |
+| IT Helpdesk | IT Helpdesk Analyst | AI-generated insights from call data, common issue identification, FAQ content generation — transforming a labor-intensive review into a fast, accurate workflow. |
+| Mortgage & Lending | Loan Analyst | Document summarization, clause extraction, and risk analysis across housing reports and purchase contracts. |
+| Telecom Operations | Operations Analyst | Call analysis, audio transcription, sentiment breakdowns, and topic clustering across call transcripts and recordings. |
+
+</details>
+
+<br/>
+
+---
+
+## Supporting Documentation
+
+### Tech Stack
+
+| Component | Product |
+|-----------|---------|
+| Backend API | **FastAPI** (Python) |
+| Frontend | **React + Fluent UI 2** (TypeScript) |
+| LLM (chat + insights) | **Azure OpenAI GPT-5.1** |
+| Embeddings | **text-embedding-ada-002** |
+| Vector + keyword search | **Azure AI Search** (BM25 + HNSW) |
+| Document extraction | **Azure Content Understanding** |
+| Agent orchestration | **Azure AI Foundry** |
+| Agent framework | **agent_framework** + **agent_framework_openai** |
+| LLM client layer | **Foundry IQ** (`azure-ai-projects`) |
+| Primary database | **Azure SQL Database** |
+| Optional database | **Azure Cosmos DB** |
+| File + queue storage | **Azure Blob + Queue** |
+| Auth | **App Service EasyAuth** (Azure AD) |
+
+### Security Guidelines
+
+This solution uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources, eliminating the need for hard-coded credentials. All Azure service communication uses RBAC.
+
+Additional recommendations:
+- Enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning)
+- Enable [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/)
+- Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) for production deployments
+
+### Sample Questions
+
+**Contact Center**
+1. Please provide the total number of calls by date for last 7 days
+2. Provide a summary of performance issues users reported this week
+3. Turn these key topics into a structured FAQ
+
+**Telecom Analysis**
+1. Total number of calls by date for last 7 days
+2. What are top 7 challenges users reported?
+3. What are the top recommendations to reduce these customer challenges?
+
+**Mortgage Application**
+1. What are the key findings in the Annual Housing Report?
+2. What does the report say about accessibility in housing?
+
+### Cross References
+
+| Solution Accelerator | Description |
+|---|---|
+| [Document Knowledge Mining](https://github.com/microsoft/Document-Knowledge-Mining-Solution-Accelerator) | Identify relevant documents, summarize unstructured information, and generate document templates. |
+| [Content Processing](https://github.com/microsoft/document-generation-solution-accelerator) | Extracts data from multi-modal content, maps it to schemas with confidence scoring and user validation. |
+
+<br/>
+
+---
+
+## Provide Feedback
+
+Have questions, find a bug, or want to request a feature? [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) on this repo and we'll connect.
+
+<br/>
+
+---
+
+## Responsible AI Transparency FAQ
+
+Please refer to the following transparency documents for responsible AI details:
+- [Azure AI Foundry Agent Service transparency note](https://learn.microsoft.com/azure/ai-foundry/responsible-ai/agents/transparency-note)
+- [Agent Framework transparency FAQ](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md)
+
+<br/>
+
+---
+
+## Disclaimers
+
+To the extent that the Software includes components or code used in or derived from Microsoft products or services, including without limitation Microsoft Azure Services (collectively, "Microsoft Products and Services"), you must also comply with the Product Terms applicable to such Microsoft Products and Services. You acknowledge and agree that the license governing the Software does not grant you a license or other right to use Microsoft Products and Services. Nothing in the license or this ReadMe file will serve to supersede, amend, terminate or modify any terms in the Product Terms for any Microsoft Products and Services.
+
+You must also comply with all domestic and international export laws and regulations that apply to the Software, which include restrictions on destinations, end users, and end use. For further information on export restrictions, visit https://aka.ms/exporting.
+
+You acknowledge that the Software and Microsoft Products and Services (1) are not designed, intended or made available as a medical device(s), and (2) are not designed or intended to be a substitute for professional medical advice, diagnosis, treatment, or judgment and should not be used to replace or as a substitute for professional medical advice, diagnosis, treatment, or judgment. Customer is solely responsible for displaying and/or obtaining appropriate consents, warnings, disclaimers, and acknowledgements to end users of Customer's implementation of the Online Services.
+
+BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY. BY ACCESSING THE SOFTWARE, YOU FURTHER ACKNOWLEDGE THAT YOUR HIGH-RISK USE OF THE SOFTWARE IS AT YOUR OWN RISK.
+
+
+This solution processes conversational and enterprise content data — PDFs, DOCX, images, JSON, CSV, TXT, and audio files — and makes it explorable through conversational chat, auto-generated dashboards, and configurable processing pipelines. The platform is fully use-case agnostic: the same deployment handles call center transcripts, mortgage documents, telecom recordings, or any structured or unstructured content.
+
+### Key Features
+
+<details open>
+<summary>Click to learn more about the key features this solution enables</summary>
+
+- **Mined entities and relationships** <br/>
+  Azure Content Understanding and Azure OpenAI extract entities, topics, and relationships from unstructured conversations to build a richer knowledge base.
+
+- **Processed data at scale** <br/>
+  The pipeline processes high-volume conversation data, generates embeddings, and indexes results for fast hybrid retrieval using RAG patterns.
+
+- **Visualized insights** <br/>
+  An interactive, data-driven dashboard surfaces trends, KPIs, and outliers automatically — layouts and filters are generated from your actual data schema, not hard-coded.
+
+- **Natural language interaction** <br/>
+  Users can ask contextual questions, follow up on findings, and get grounded responses through an intuitive chat experience powered by a Foundry-hosted agent.
+
+- **Actionable insights** <br/>
+  Key phrase extraction, summarization, topic modeling, and sentiment signals support faster decision-making across operations and support workflows.
+
+- **LLM-planned insights dashboard** <br/>
+  The system reads your dataset's schema, uses GPT-5.1 to plan relevant KPIs and charts, executes SQL queries, and renders an adaptive dashboard per dataset.
+
+- **Configurable processing pipelines** <br/>
+  YAML-defined pipelines with pluggable capabilities (classify, summarize, extract entities, embed, transform, and more). Auto-triggered on upload or run manually.
+
+- **Dynamic filter generation** <br/>
+  Filters are generated from your data's actual metadata fields and cardinality — not predefined. Different datasets produce different filter panels.
+
+- **Bring Your Own Index / Data** <br/>
+  Connect an existing Azure AI Search index or an external database (Microsoft Fabric) without re-uploading data.
+
+</details>
 
 </details>
 
@@ -213,35 +691,80 @@ Upload files directly from the web UI after deployment. Supported formats: PDF, 
 
 ### Adding Custom Scenarios and Data Sources
 
-Custom scenarios are configuration-driven via [`data/config/scenarios.json`](data/config/scenarios.json).
-Custom data source connectors require script and adapter updates in this branch (only Azure AI Search and Microsoft Fabric are implemented end-to-end).
+Use the workflow that matches the feature you want.
 
-#### Add a new scenario pack
+#### Feature 1: Load a Custom Dataset Immediately
 
-1. Create a folder under `data/` for your data (e.g. `data/Insurance_usecase/`)
-2. Add your files — JSON transcripts, PDFs, DOCX, images, etc.
-3. Add an entry to the `scenarios` object in `data/config/scenarios.json`:
+Use this when you want to test a new dataset without registering a menu item.
+
+1. Put files in a folder, for example `data/MyCustom_usecase/`.
+2. Load directly with:
+
+```bash
+./scripts/setup-data.ps1 -DataPath data/MyCustom_usecase
+```
+
+You can also upload files directly from the web UI.
+
+#### Feature 2: Add a Reusable Scenario Pack to the Setup Menu
+
+Use this when you want the scenario to appear as a named option in `./scripts/setup-data.ps1`.
+
+Step 1: Prepare the data folder
+
+1. Create a folder under `data/`, for example `data/MyCustom_usecase/`.
+2. Add files (JSON, PDF, DOCX, images, WAV, etc.).
+
+Step 2: Register the scenario in `data/config/scenarios.json`
+
+Add an entry under `scenarios`:
 
 ```json
-"insurance-claims": {
-  "name": "Insurance Claims",
-  "description": "Claims documents — fraud detection, severity classification, processing time analysis",
-  "data_folder": "Insurance_usecase",
-  "data_types": ["pdf", "docx"],
+"my-custom-scenario": {
+  "name": "My Custom Scenario",
+  "description": "Custom dataset for domain-specific insights",
+  "data_folder": "MyCustom_usecase",
+  "data_types": ["json", "pdf"],
   "has_preprocessed": false
 }
 ```
+
+Field reference:
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Display name shown in the setup menu |
 | `description` | Yes | One-line description shown below the menu option |
-| `data_folder` | Yes | Subfolder name under `data/` containing your files |
-| `data_types` | Yes | Array of file extensions (e.g. `["json"]`, `["pdf", "docx"]`) |
-| `has_preprocessed` | Yes | Set to `true` if your data includes pre-computed embeddings and enrichments |
-| `preprocessed_files` | Only if `has_preprocessed` is `true` | Object with paths to `search_index`, `processed_data`, and `key_phrases` files |
+| `data_folder` | Yes | Subfolder under `data/` containing files |
+| `data_types` | Yes | File extensions included in the pack |
+| `has_preprocessed` | Yes | `true` only when enriched files already exist |
+| `preprocessed_files` | Conditional | Required only when `has_preprocessed` is `true` |
 
-If you have pre-enriched data (embeddings, sentiments, topics already computed), set `has_preprocessed: true` and specify the file paths:
+Step 3: Optional direct CLI key support
+
+If you want this scenario key to work as a direct command:
+
+```bash
+./scripts/setup-data.ps1 -Scenario my-custom-scenario
+```
+
+Update the `ValidateSet` for `-Scenario` in `scripts/setup-data.ps1` to include `my-custom-scenario`.
+
+Step 4: Validate the experience
+
+1. Run the setup menu:
+
+```bash
+./scripts/setup-data.ps1
+```
+
+2. Confirm the new scenario appears.
+3. Select it and verify data loads.
+4. Open the app and confirm Explore/Insights reflect the new domain.
+
+#### Feature 3: Use a Pre-Enriched Scenario Pack
+
+If your scenario already includes enriched outputs, set `has_preprocessed: true` and provide `preprocessed_files`.
 
 ```json
 "my-scenario": {
@@ -258,46 +781,20 @@ If you have pre-enriched data (embeddings, sentiments, topics already computed),
 }
 ```
 
-#### Add a new external data source
+#### Feature 4: Add a New External Connector
 
-The setup menu reads data source labels from `data/config/scenarios.json`, but a working connector also needs implementation updates.
+This requires script and backend connector updates.
 
-To add a connector that actually works, update all of the following:
+1. Add source metadata in `data/config/scenarios.json` under `data_sources`.
+2. Extend `scripts/connect-data.py` (`SOURCE_TYPES`, argparse, and mapping).
+3. Extend accepted source types in `scripts/connect-data.ps1` and `scripts/setup-data.ps1`.
+4. Implement connector adapter in `src/api/modules/data_sources` and make sure `test_connection` succeeds.
 
-1. Add the source in [`data/config/scenarios.json`](data/config/scenarios.json) under `data_sources`.
-2. Extend source handling in [`scripts/connect-data.py`](scripts/connect-data.py):
-  - `SOURCE_TYPES`
-  - `adapter_map`
-  - argparse `--type` choices
-3. Extend accepted source types in [`scripts/connect-data.ps1`](scripts/connect-data.ps1) and [`scripts/setup-data.ps1`](scripts/setup-data.ps1).
-4. Implement the backend connector in [`src/api/modules/data_sources`](src/api/modules/data_sources) and ensure `test_connection` works.
-
-Example `data_sources` entry (menu metadata):
-
-```json
-"my_source": {
-  "name": "My Data Source",
-  "description": "Connect a custom source",
-  "fields": ["endpoint", "database", "table"],
-  "prompts": {
-    "endpoint": "Service endpoint",
-    "database": "Database name",
-    "table": "Table name"
-  }
-}
-```
-
-If you only need the currently supported connectors, use:
+If you only need supported connectors today:
 
 ```bash
 ./scripts/connect-data.ps1 -Type azure_search
 ./scripts/connect-data.ps1 -Type fabric
-```
-
-After editing `scenarios.json`, run the setup script to validate the menu updates:
-
-```bash
-./scripts/setup-data.ps1
 ```
 
 ---

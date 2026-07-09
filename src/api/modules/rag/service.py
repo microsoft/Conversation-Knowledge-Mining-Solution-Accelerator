@@ -15,7 +15,7 @@ from cachetools import TTLCache
 
 from src.api.config import get_settings
 from src.api.modules.rag.models import QAResponse, Source
-from src.api.modules.rag.agent_tools import get_sql_response
+from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,10 @@ def _strip_links_from_answer(text: str) -> str:
     out = re.sub(r'[ \t]*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
     # 2. Remove standalone [8-hex] doc IDs like [842c7caf]
     out = re.sub(r'[ \t]*\[[a-f0-9]{8}\][ \t]*', ' ', out, flags=re.IGNORECASE)
+    # 3. Remove numeric citation markers: [1], [1-5], [1][4], [1, 2], [1,2,3] etc.
+    out = re.sub(r'[ \t]*\[\d[\d,\s\-]*\](?:\[\d[\d,\s\-]*\])*[ \t]*', ' ', out)
+    # 4. Collapse any double spaces introduced by the above
+    out = re.sub(r'  +', ' ', out)
     return out.strip()
 
 
@@ -149,7 +153,7 @@ class RAGService:
                 agent = FoundryAgent(
                     project_client=project_client,
                     agent_name=agent_name,
-                    tools=[get_sql_response] if use_sql else [],
+                    tools=[get_schema_and_sample_values, get_sql_response] if use_sql else [],
                 )
 
                 # Reuse or create a server-side conversation thread for continuity
@@ -268,43 +272,80 @@ class RAGService:
 
     @staticmethod
     def _build_grounded_answer(question: str, docs: list[dict]) -> str:
-        """Build a concise grounded answer from retrieved docs when agent output is unhelpful."""
+        """Build an AI-synthesised, actionable answer from retrieved docs.
+
+        Uses the LLM to produce a structured, insightful response with numbered
+        citations when possible. Falls back to a structured snippet list if the
+        LLM call fails.
+        """
         if not docs:
             return (
                 "I could not find enough relevant evidence in the current scope to answer that confidently. "
                 "Try narrowing filters or selecting specific sources."
             )
 
-        q_terms = [w for w in re.findall(r"[a-zA-Z]{4,}", question.lower()) if w not in {
-            "what", "which", "where", "when", "how", "with", "from", "about", "this", "that", "does", "have",
-            "your", "their", "there", "benefit", "benefits",
-        }]
+        top_docs = docs[:5]
 
-        def best_snippet(doc: dict) -> str:
-            blob = str(doc.get("summary") or "").strip()
-            if not blob:
-                blob = str(doc.get("text") or "").strip()
-            if not blob:
-                return "Relevant content found, but no preview text is available."
-
-            sentences = re.split(r"(?<=[.!?])\s+", blob)
-            for sent in sentences:
-                s = sent.strip()
-                if len(s) < 40:
-                    continue
-                lower = s.lower()
-                if not q_terms or any(t in lower for t in q_terms):
-                    return s[:260] + ("..." if len(s) > 260 else "")
-            compact = re.sub(r"\s+", " ", blob)
-            return compact[:260] + ("..." if len(compact) > 260 else "")
-
-        top_docs = docs[:4]
-        lines = ["Here is what I found from the current data scope:"]
+        # Build a compact context block with numbered sources for citation anchoring.
+        context_parts: list[str] = []
         for i, doc in enumerate(top_docs, 1):
             source_name = str(doc.get("source_file") or doc.get("doc_id") or f"Source {i}")
-            lines.append(f"{i}. {source_name}: {best_snippet(doc)}")
-        lines.append("If you want, I can summarize these into key points or focus on one specific source.")
-        return "\n".join(lines)
+            blob = str(doc.get("summary") or doc.get("text") or "").strip()
+            blob = re.sub(r"\s+", " ", blob)[:600]
+            if blob:
+                context_parts.append(f"[{i}] {source_name}\n{blob}")
+
+        if not context_parts:
+            return (
+                "I could not extract readable content from the matching records. "
+                "Try selecting a specific source or broadening your filters."
+            )
+
+        context_block = "\n\n".join(context_parts)
+        system_prompt = (
+            "You are an intelligent data analyst assistant. "
+            "Answer the user's question concisely and analytically based only on the provided records. "
+            "Structure your response with: a direct answer, key observations, and actionable implications. "
+            "Do NOT include inline citation markers like [1], [2], or [1-5] anywhere in your response. "
+            "Do not hallucinate or reference sources not provided. "
+            "Keep the total response under 300 words."
+        )
+        user_prompt = (
+            f"Question: {question}\n\n"
+            f"Records:\n{context_block}\n\n"
+            "Provide a structured, insightful answer without any citation markers."
+        )
+
+        try:
+            from src.api.capabilities._llm import get_llm_client
+            from src.api.config import get_settings
+            settings = get_settings()
+            client = get_llm_client()
+            resp = client.chat.completions.create(
+                model=settings.azure_openai_chat_deployment,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_completion_tokens=600,
+            )
+            answer = (resp.choices[0].message.content or "").strip()
+            if answer:
+                return _strip_links_from_answer(answer)
+        except Exception as e:
+            logger.warning(f"LLM synthesis in grounded answer failed: {e}")
+
+        # Structured fallback without LLM
+        lines = ["**Based on the available records:**\n"]
+        for i, doc in enumerate(top_docs[:4], 1):
+            source_name = str(doc.get("source_file") or doc.get("doc_id") or f"Source {i}")
+            blob = str(doc.get("summary") or doc.get("text") or "").strip()
+            blob = re.sub(r"\s+", " ", blob)[:220]
+            if blob:
+                lines.append(f"**[{i}] {source_name}**\n{blob}")
+        lines.append("\n*Try asking a follow-up question to drill into a specific finding.*")
+        return "\n\n".join(lines)
 
     @staticmethod
     def _is_noise_doc(doc: dict) -> bool:

@@ -172,9 +172,35 @@ if USE_SQL:
     try:
         from azure.ai.projects.models import FunctionTool
         agent_tools.append(FunctionTool(
+            name="get_schema_and_sample_values",
+            description=(
+                "Discover the exact metadata field names and sample values stored in the "
+                "documents table. Call this BEFORE writing SQL queries with metadata filters, "
+                "especially when a previous query returned zero rows or you are unsure of "
+                "exact field names or value casing."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "top_n": {
+                        "type": "integer",
+                        "description": "Number of distinct sample values to return per field (default: 5).",
+                    }
+                },
+                "required": [],
+                "additionalProperties": False,
+            },
+            strict=False,
+        ))
+        print("  Added schema discovery tool: get_schema_and_sample_values")
+        agent_tools.append(FunctionTool(
             name="get_sql_response",
-            description="Execute T-SQL on the documents table to retrieve counts, "
-                        "aggregations, sentiment/topic breakdowns, and metrics.",
+            description=(
+                "Execute T-SQL on the documents table. "
+                "All metadata is stored as JSON — use JSON_VALUE(metadata, '$.field') for filtering. "
+                "All values are strings; match exactly. "
+                "Call get_schema_and_sample_values first to verify exact field values if a query returns zero rows."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -343,6 +369,40 @@ set_azd_env("AGENT_NAME_CHAT", CHAT_AGENT_NAME)
 set_azd_env("AGENT_NAME_TITLE", TITLE_AGENT_NAME)
 set_azd_env("USE_SQL", str(USE_SQL))
 print(f"[OK] azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}")
+
+# Write the agent values back into .env so the local backend picks them up
+# without needing azd. Existing keys are updated in-place; missing keys are appended.
+_ENV_KEYS_TO_WRITE = {
+    "AGENT_NAME_CHAT": CHAT_AGENT_NAME,
+    "AGENT_NAME_TITLE": TITLE_AGENT_NAME,
+    "USE_SQL": str(USE_SQL).lower(),
+}
+if os.path.exists(env_path):
+    try:
+        with open(env_path, encoding="utf-8") as _ef:
+            _env_lines = _ef.readlines()
+        _written_keys = set()
+        _new_lines = []
+        for _line in _env_lines:
+            _stripped = _line.strip()
+            if _stripped and not _stripped.startswith("#") and "=" in _stripped:
+                _k = _stripped.split("=", 1)[0].strip()
+                if _k in _ENV_KEYS_TO_WRITE:
+                    _new_lines.append(f'{_k}={_ENV_KEYS_TO_WRITE[_k]}\n')
+                    _written_keys.add(_k)
+                    continue
+            _new_lines.append(_line)
+        # Append any keys not already present
+        for _k, _v in _ENV_KEYS_TO_WRITE.items():
+            if _k not in _written_keys:
+                _new_lines.append(f'{_k}={_v}\n')
+        with open(env_path, "w", encoding="utf-8") as _ef:
+            _ef.writelines(_new_lines)
+        print(f"[OK] .env updated: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}")
+    except Exception as _env_err:
+        print(f"[WARN] Could not update .env automatically: {_env_err}")
+else:
+    print("[SKIP] .env file not found — skipping local .env update")
 
 # The API App Service settings (AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL) are
 # updated by the calling PowerShell script (setup-agent.ps1) using `az webapp

@@ -465,7 +465,7 @@ const Explore: React.FC = () => {
                   <div key={dim.id} className={s.filterGroup}>
                     <button className={s.filterBtn} onClick={() => toggleDim(dim.id)}>
                       <ChevronRight20Regular style={{ fontSize: 14, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
-                      {dim.label} {dimValues.length > 0 && !isExtractionDimension(dim.id) ? `(${dimValues.length})` : ""}
+                      {dim.label} {dimValues.length > 0 ? `(${dimValues.length})` : ""}
                     </button>
                     {expanded && dimValues.length > 0 && dimValues.map((v: any) => (
                       <button key={`${dim.id}-${v.value}`}
@@ -510,7 +510,7 @@ const Explore: React.FC = () => {
                         <>
                           <button className={s.evidenceToggle} onClick={() => toggleSource(i)}>
                             {expandedSources.has(i) ? <ChevronDown20Regular /> : <ChevronRight20Regular />}
-                            {(msg.sources || []).length} source{(msg.sources || []).length !== 1 ? "s" : ""} used
+                            {(msg.sources || []).length} source{(msg.sources || []).length !== 1 ? "s" : ""} cited
                           </button>
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
