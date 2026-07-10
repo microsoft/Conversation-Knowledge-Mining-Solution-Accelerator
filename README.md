@@ -10,7 +10,7 @@ Analysts working with large volumes of conversational data can use this solution
 
 <div align="center">
 
-[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS SCENARIO**](#business-scenario)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+[**SOLUTION OVERVIEW**](#solution-overview)  |  [**ARCHITECTURE**](#solution-architecture)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS SCENARIO**](#business-scenario)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
 
 </div>
 
@@ -30,120 +30,7 @@ The platform is fully scenario-agnostic. The same deployment handles call center
 
 ### Solution Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  DATA INPUT  (any scenario or use case)                                              │
-│                                                                                      │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │  Audio / Video  │  │  Transcripts /   │  │  Structured  │  │  Documents       │ │
-│  │  (.wav, .mp4)   │  │  Text (.txt/.json│  │  (JSON / CSV)│  │  (PDF / DOCX /   │ │
-│  └────────┬────────┘  └────────┬─────────┘  └──────┬───────┘  │   images)        │ │
-│           └──────────────────┴─────────────────────┘          └──────────────────┘ │
-│                                        │                                             │
-│              Upload via web UI  ─OR─  ./scripts/setup-data.ps1 (scenario packs)    │
-│                                        ▼                                             │
-│                            ┌───────────────────────┐                               │
-│                            │   Azure Blob Storage   │                               │
-│                            │   (raw file store)     │                               │
-│                            └───────────┬───────────┘                               │
-└────────────────────────────────────────┼─────────────────────────────────────────────┘
-                                         │
-                                         ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  PROCESSING PIPELINE  (event-driven, background)                                     │
-│                                                                                      │
-│  Azure Blob Storage                                                                  │
-│       ↓                                                                              │
-│  Azure Content Understanding  ── extracts text, summary, topics, key phrases        │
-│       ↓                                                                              │
-│  Azure SQL Database           ── stores documents, metadata, enrichment output      │
-│       ↓                                                                              │
-│  Azure OpenAI ada-002         ── generates embeddings (1536 dims)                   │
-│       ↓                                                                              │
-│  Azure AI Search              ── indexes chunks + vectors (HNSW hybrid search)      │
-│       ↓                                                                              │
-│  Status → "ready"                                                                    │
-└──────────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                    ┌────────────────────┼────────────────────┐
-                    │                    │                    │
-                    ▼                    ▼                    ▼
-┌───────────────────────┐  ┌──────────────────────┐  ┌───────────────────────────────┐
-│  EXPLORE (Chat)       │  │  INSIGHTS (Dashboard) │  │  HOME (Data management)       │
-│                       │  │                       │  │                               │
-│  User asks a question │  │  Schema analysed by   │  │  Upload files or load a       │
-│         ↓             │  │  GPT → LLM plans KPIs │  │  scenario pack.               │
-│  Microsoft Foundry    │  │  and charts → SQL runs │  │  Manage connected external   │
-│  ChatAgent            │  │  → dashboard rendered  │  │  data sources.               │
-│  (Agent Framework)    │  │                       │  │                               │
-│         ↓             │  │  Filters generated    │  │                               │
-│  Tools: Azure AI      │  │  from actual metadata │  │                               │
-│  Search + SQL         │  │  fields in the data   │  │                               │
-│         ↓             │  │                       │  │                               │
-│  Grounded answer +    │  │                       │  │                               │
-│  citations returned   │  │                       │  │                               │
-└───────────────────────┘  └──────────────────────┘  └───────────────────────────────┘
-                    │                    │
-                    └────────────────────┘
-                                │
-                                ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  MICROSOFT FOUNDRY                                                                   │
-│                                                                                      │
-│  ┌────────────────────────────────────────────────────────┐                        │
-│  │  Agent Framework (agent_framework + agent_framework_openai)                      │
-│  │                                                         │                        │
-│  │  ┌───────────────────────────────────────────────────┐ │                        │
-│  │  │  ChatAgent                                        │ │                        │
-│  │  │  ┌──────────────────┐  ┌────────────────────────┐│ │                        │
-│  │  │  │  SQL Tool        │  │  Azure AI Search Tool  ││ │                        │
-│  │  │  │  (get_sql_       │  │  (search_azure_ai_     ││ │                        │
-│  │  │  │   response +     │  │   search)              ││ │                        │
-│  │  │  │  get_schema_and_ │  └────────────────────────┘│ │                        │
-│  │  │  │  sample_values)  │                             │ │                        │
-│  │  │  └──────────────────┘                             │ │                        │
-│  │  └───────────────────────────────────────────────────┘ │                        │
-│  │                                                         │                        │
-│  │  ┌───────────────────────┐                             │                        │
-│  │  │  SummaryAgent         │ (conversation title gen)    │                        │
-│  │  └───────────────────────┘                             │                        │
-│  └────────────────────────────────────────────────────────┘                        │
-│                                                                                      │
-│  ┌───────────────┐  ┌───────────────┐  ┌────────────────┐  ┌─────────────────────┐ │
-│  │  Foundry IQ   │  │ Azure OpenAI  │  │    Content     │  │  Agent Service      │ │
-│  │  (azure-ai-   │  │ GPT-5.1 +     │  │ Understanding  │  │  (agent hosting +   │ │
-│  │   projects)   │  │ ada-002       │  │                │  │   thread mgmt)      │ │
-│  └───────────────┘  └───────────────┘  └────────────────┘  └─────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                    ┌────────────────────┼────────────────────┐
-                    ▼                    ▼                    ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  DATA LAYER                                                                          │
-│                                                                                      │
-│  ┌──────────────────────┐  ┌──────────────────┐  ┌───────────────────────────────┐ │
-│  │  Azure SQL Database  │  │  Azure AI Search │  │  Azure Cosmos DB              │ │
-│  │  documents, metadata │  │  hybrid vector + │  │  chat history + sessions      │ │
-│  │  enrichment output,  │  │  keyword (HNSW)  │  └───────────────────────────────┘ │
-│  │  insights cache,     │  │  retrieval       │                                     │
-│  │  data source config  │  └──────────────────┘                                     │
-│  └──────────────────────┘                                                            │
-└──────────────────────────────────────────────────────────────────────────────────────┘
-                                         │
-                    ┌────────────────────┴────────────────────┐
-                    ▼                                         ▼
-┌───────────────────────────────────┐  ┌──────────────────────────────────────────────┐
-│  API LAYER  (FastAPI / Python)    │  │  FRONTEND  (React + Fluent UI 2)             │
-│                                   │  │                                              │
-│  /api/ingestion    (upload/files) │  │  Home     — upload data, manage scenarios    │
-│  /api/rag          (chat/Q&A)     │◀─│  Explore  — chat with data, apply filters    │
-│  /api/insights     (dashboard)    │  │  Insights — AI-generated KPI dashboard       │
-│  /api/embeddings   (index/search) │  │                                              │
-│  /api/pipelines    (run/register) │  └──────────────────────────────────────────────┘
-│  /api/data-sources (connect)      │
-│  /api/processing   (batch ops)    │
-└───────────────────────────────────┘
-```
+![Solution Architecture](docs/images/architecture.svg)
 
 ### How It Works
 
@@ -154,79 +41,6 @@ The platform is fully scenario-agnostic. The same deployment handles call center
 **Explore** — Converse with your data. Questions are routed to a Microsoft Foundry ChatAgent with two tools: Azure AI Search (semantic retrieval) and SQL (structured analytics). The agent reasons across both, then returns a grounded, structured answer. Chat history is multi-turn and persisted per session.
 
 **Insights** — The LLM reads your dataset's schema (field names, cardinality, semantic types) and generates a plan for KPIs and charts. SQL queries run against your actual data. The result is an adaptive dashboard — layouts, filters, and metrics are all data-driven, not hard-coded.
-
-
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  INPUT  (any scenario or use case)                                                     │
-│                                                                                        │
-│  ┌────────────────┐   ┌────────────────┐   ┌────────────────┐   ┌────────────────┐   │
-│  │  Audio / Video │   │  Transcripts   │   │  Structured    │   │  Documents     │   │
-│  │  (.wav, .mp4)  │   │  (.txt/.json)  │   │  (JSON / CSV)  │   │  (PDF / DOCX)  │   │
-│  └───────┬────────┘   └───────┬────────┘   └───────┬────────┘   └───────┬────────┘   │
-│          └───────────────────┴────────────────────┴───────────────────┘             │
-│                                          │                                             │
-│                          (Contact center, mortgage, telecom, legal,                   │
-│                           operations, or any custom scenario)                         │
-│                                          │                                             │
-│                                          ▼                                             │
-│                              ┌───────────────────────┐                               │
-│                              │   Azure Blob Storage   │                               │
-│                              │   (raw file upload)    │                               │
-│                              └───────────┬───────────┘                               │
-└──────────────────────────────────────────┼────────────────────────────────────────────┘
-                                           │
-                                           ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  MICROSOFT FOUNDRY                                                                   │
-│                                                                                      │
-│  ┌─────────────────────────────────────────────────────────┐                       │
-│  │  Agent Orchestration (Agent Framework)                   │                       │
-│  │  ┌──────────────────────────────┐                       │                       │
-│  │  │  Chat Agent                  │                       │                       │
-│  │  │  ┌─────────┐  ┌──────────┐  │                       │                       │
-│  │  │  │SQL Tool │  │ Search   │  │                       │                       │
-│  │  │  └─────────┘  └──────────┘  │                       │                       │
-│  │  └──────────────────────────────┘                       │                       │
-│  └─────────────────────────────────────────────────────────┘                       │
-│                                                                                      │
-│  ┌───────────────┐  ┌───────────────┐  ┌────────────────┐  ┌───────────────────┐  │
-│  │  Foundry IQ   │  │ Azure OpenAI  │  │    Content     │  │  Agent Service    │  │
-│  │               │  │ GPT / ada-002 │  │ Understanding  │  │ (ChatAgent +      │  │
-│  └───────────────┘  └───────────────┘  └────────────────┘  │  SummaryAgent)    │  │
-│                                                              └───────────────────┘  │
-└──────────────────────────────────┬──────────────────────────────────────────────────┘
-                                   │
-                     ┌─────────────┼─────────────┐
-                     ▼             ▼             ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  PLATFORM SERVICES                                                                   │
-│                                                                                      │
-│  ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────────────────────┐ │
-│  │  Azure AI Search │   │   Azure SQL DB   │   │  Azure Cosmos DB                 │ │
-│  │  (hybrid HNSW    │   │  (documents,     │   │  (chat history, sessions)        │ │
-│  │   vector+keyword │   │   metadata,      │   └──────────────────────────────────┘ │
-│  │   retrieval)     │   │   analytics)     │                                         │
-│  └──────────────────┘   └──────────────────┘                                         │
-└──────────────────────────────────┬──────────────────────────────────────────────────┘
-                                   │
-                     ┌─────────────┼─────────────┐
-                     ▼             ▼             ▼
-┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  DEPLOYMENT                                                                          │
-│                                                                                      │
-│  ┌────────────────────┐     ┌────────────────────┐     ┌────────────────────┐      │
-│  │  Frontend App      │◀───▶│  API App Service    │◀────│  Container         │      │
-│  │  Service           │     │  (FastAPI / Python) │     │  Registry          │      │
-│  │  (React / Fluent)  │     └────────────────────┘     └────────────────────┘      │
-│  └─────────┬──────────┘                                                              │
-│            ▼                                                                          │
-│  ┌────────────────────┐                                                              │
-│  │  Web Frontend      │                                                              │
-│  │  Home · Explore    │                                                              │
-│  │  Insights          │                                                              │
-│  └────────────────────┘                                                              │
-└──────────────────────────────────────────────────────────────────────────────────────┘
-```
 
 ### Document Processing Pipeline
 

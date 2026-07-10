@@ -719,12 +719,13 @@ const SkeletonDashboard: React.FC = () => {
 };
 
 const getSeverityStyle = (severity: string) => {
-  if (severity === "Critical") return { badge: "danger" as const, accent: "#ef4444", text: "#7f1d1d", border: "#fecaca", bg: "#fff1f2" };
-  if (severity === "High") return { badge: "warning" as const, accent: "#f97316", text: "#7c2d12", border: "#fdba74", bg: "#fff7ed" };
-  if (severity === "Risk") return { badge: "danger" as const, accent: "#dc2626", text: "#991b1b", border: "#fecaca", bg: "#fef2f2" };
-  if (severity === "Opportunity") return { badge: "success" as const, accent: "#16a34a", text: "#166534", border: "#86efac", bg: "#f0fdf4" };
-  if (severity === "Trend") return { badge: "brand" as const, accent: "#2563eb", text: "#1d4ed8", border: "#93c5fd", bg: "#eff6ff" };
-  return { badge: "brand" as const, accent: "#2563eb", text: "#1d4ed8", border: "#bfdbfe", bg: "#eff6ff" };
+
+  if (severity === "Critical") return { badge: "danger" as const, accent: "#dc2626", text: "#7f1d1d", border: "#fecaca", bg: "#fff" };
+  if (severity === "High") return { badge: "warning" as const, accent: "#ea580c", text: "#7c2d12", border: "#fed7aa", bg: "#fff" };
+  if (severity === "Risk") return { badge: "danger" as const, accent: "#dc2626", text: "#991b1b", border: "#fecaca", bg: "#fff" };
+  if (severity === "Opportunity") return { badge: "success" as const, accent: "#16a34a", text: "#166534", border: "#86efac", bg: "#fff" };
+  if (severity === "Trend") return { badge: "brand" as const, accent: "#2563eb", text: "#1d4ed8", border: "#93c5fd", bg: "#fff" };
+  return { badge: "brand" as const, accent: "#2563eb", text: "#1d4ed8", border: "#bfdbfe", bg: "#fff" };
 };
 
 const TAG_STOPWORDS = new Set(["the", "and", "with", "from", "this", "that", "were", "have", "into", "across", "about", "records", "record", "analysis"]);
@@ -1579,10 +1580,10 @@ const Insights: React.FC = () => {
                     <Card
                       key={findingId}
                       className={styles.insightCard}
-                      style={{ borderLeft: `4px solid ${severityStyle.accent}`, border: `1px solid ${severityStyle.border}`, background: severityStyle.bg }}
+                      style={{ borderLeft: `3px solid ${severityStyle.accent}`, border: `1px solid #e5e7eb`, background: "#fff" }}
                     >
                       <CardHeader
-                        image={<Alert24Regular />}
+                        image={<Alert24Regular style={{ color: severityStyle.accent }} />}
                         header={
                           <div className={styles.findingsHeaderRow}>
                             <div className={styles.severityRow}>
@@ -1602,11 +1603,11 @@ const Insights: React.FC = () => {
                             </Button>
                           </div>
                         }
-                        description={<Text weight="semibold" style={{ color: severityStyle.text }}>{insight.title}</Text>}
+                        description={<Text weight="semibold" style={{ color: "#0f172a" }}>{insight.title}</Text>}
                       />
                       <div className={styles.insightBody}>
                         {insight.context && insight.context !== insight.title && (
-                          <Text size={200} style={{ color: severityStyle.text }}>{insight.context}</Text>
+                          <Text size={200} style={{ color: "#475569" }}>{insight.context}</Text>
                         )}
                         {Array.isArray(insight.aiTags) && insight.aiTags.length > 0 && (
                           <div className={styles.tagRow}>
@@ -1619,12 +1620,12 @@ const Insights: React.FC = () => {
                           <>
                             <div className={styles.explainBox}>
                               <Text size={200} weight="semibold">Why this matters</Text>
-                              <Text size={200} style={{ display: "block", color: tokens.colorNeutralForeground3 }}>{explainability}</Text>
+                              <Text size={200} style={{ display: "block", color: "#64748b" }}>{explainability}</Text>
                             </div>
                             <div className={styles.explainBox}>
                               <Text size={200} weight="semibold">Visual evidence</Text>
                               {(chartEvidence.length > 0 ? chartEvidence : ["No structured chart evidence available yet."]).slice(0, 2).map((evidence, evIndex) => (
-                                <Text key={`${findingId}_ev_${evIndex}`} size={200} style={{ display: "block", color: tokens.colorNeutralForeground3 }}>- {evidence}</Text>
+                                <Text key={`${findingId}_ev_${evIndex}`} size={200} style={{ display: "block", color: "#64748b" }}>- {evidence}</Text>
                               ))}
                             </div>
                           </>

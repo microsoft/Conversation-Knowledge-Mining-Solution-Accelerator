@@ -56,12 +56,25 @@ class FabricDataSource(BaseExternalDataSource):
             conn = self._get_connection(config)
             cursor = conn.cursor()
             table = validate_table_name(config.table_or_query)
+            
+            # Test 1: Check table exists and count rows
             cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
             count = cursor.fetchone()[0]
+            
+            # Test 2: Check if text field is accessible
+            text_field = config.field_mapping.text_field
+            cursor.execute(f"SELECT COUNT(*) FROM [{table}] WHERE [{text_field}] IS NOT NULL")
+            non_null_count = cursor.fetchone()[0]
+            
             conn.close()
-            return {"success": True, "row_count": count, "message": f"Connected to Fabric. {count} rows found."}
+            
+            msg = f"Connected to Fabric. Table has {count} rows, {non_null_count} with non-NULL text field."
+            logger.info(f"Fabric connection test passed: {msg}")
+            return {"success": True, "row_count": count, "message": msg}
         except Exception as e:
-            return {"success": False, "row_count": 0, "message": str(e)}
+            error_msg = f"Connection failed: {str(e)}"
+            logger.warning(f"Fabric connection test failed: {error_msg}")
+            return {"success": False, "row_count": 0, "message": error_msg}
 
     def get_schema(self, config: DataSourceConfig) -> list[ColumnInfo]:
         try:
@@ -100,9 +113,16 @@ class FabricDataSource(BaseExternalDataSource):
                 select_cols.append(src_col)
             select_str = ", ".join(f"[{c}]" for c in select_cols)
 
-            sql = f"SELECT TOP {top_k} {select_str} FROM [{table}] WHERE [{mapping.text_field}] LIKE ?"
+            # Use LOWER() for case-insensitive search and filter NULL values
+            text_field = f"[{mapping.text_field}]"
+            sql = f"""
+            SELECT TOP {top_k} {select_str} 
+            FROM [{table}] 
+            WHERE {text_field} IS NOT NULL 
+              AND LOWER(CAST({text_field} AS NVARCHAR(MAX))) LIKE ?
+            """
 
-            cursor.execute(sql, (f"%{query}%",))
+            cursor.execute(sql, (f"%{query.lower()}%",))
             rows = cursor.fetchall()
             col_names = [desc[0] for desc in cursor.description]
             conn.close()
@@ -115,6 +135,8 @@ class FabricDataSource(BaseExternalDataSource):
                     doc["id"] = str(uuid.uuid4())[:8]
                 doc["score"] = 1.0
                 docs.append(doc)
+            
+            logger.debug(f"Fabric search for '{query}' returned {len(docs)} results")
             return docs
         except Exception as e:
             logger.warning(f"Fabric search failed: {e}")
@@ -125,7 +147,15 @@ class FabricDataSource(BaseExternalDataSource):
             conn = self._get_connection(config)
             cursor = conn.cursor()
             table = validate_table_name(config.table_or_query)
-            cursor.execute(f"SELECT TOP {count} * FROM [{table}]")
+            
+            # Sample from non-NULL text field rows to avoid empty documents
+            text_field = f"[{config.field_mapping.text_field}]"
+            sql = f"""
+            SELECT TOP {count} * FROM [{table}] 
+            WHERE {text_field} IS NOT NULL 
+            ORDER BY NEWID()
+            """
+            cursor.execute(sql)
             rows = cursor.fetchall()
             col_names = [desc[0] for desc in cursor.description]
             conn.close()
@@ -137,6 +167,8 @@ class FabricDataSource(BaseExternalDataSource):
                 if not doc["id"]:
                     doc["id"] = str(uuid.uuid4())[:8]
                 docs.append(doc)
+            
+            logger.debug(f"Fabric sample returned {len(docs)} documents")
             return docs
         except Exception as e:
             logger.warning(f"Fabric sample failed: {e}")
@@ -147,7 +179,11 @@ class FabricDataSource(BaseExternalDataSource):
             conn = self._get_connection(config)
             cursor = conn.cursor()
             table = validate_table_name(config.table_or_query)
-            cursor.execute(f"SELECT * FROM [{table}]")
+            
+            # Only fetch rows with non-NULL text field
+            text_field = f"[{config.field_mapping.text_field}]"
+            sql = f"SELECT * FROM [{table}] WHERE {text_field} IS NOT NULL"
+            cursor.execute(sql)
             col_names = [desc[0] for desc in cursor.description]
 
             while True:
@@ -164,5 +200,6 @@ class FabricDataSource(BaseExternalDataSource):
                 yield batch
 
             conn.close()
+            logger.debug(f"Fabric fetch_all completed successfully")
         except Exception as e:
             logger.warning(f"Fabric fetch_all failed: {e}")
