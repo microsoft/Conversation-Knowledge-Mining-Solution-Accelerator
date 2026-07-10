@@ -1,6 +1,6 @@
 {
   "appTitle": "Knowledge Mining",
-  "useCaseName": "Insurance Claims",
+  "useCaseName": "Telecom Analysis",
   "modules": {
     "chat": {
       "enabled": true,

@@ -510,20 +510,17 @@ const Explore: React.FC = () => {
                         <>
                           <button className={s.evidenceToggle} onClick={() => toggleSource(i)}>
                             {expandedSources.has(i) ? <ChevronDown20Regular /> : <ChevronRight20Regular />}
-                            {(msg.sources || []).length} source{(msg.sources || []).length !== 1 ? "s" : ""} cited
+                            {(msg.sources || []).length} source{(msg.sources || []).length !== 1 ? "s" : ""} used
                           </button>
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
-                                <div key={j} className={s.evidenceItem}>
-                                  <button
-                                    type="button"
-                                    onClick={() => openCitation(src)}
-                                    title={src.source_file || src.doc_id}
-                                    style={{ border: "none", background: "none", padding: 0, cursor: "pointer", fontWeight: 600, color: "#2563eb", textAlign: "left", textDecoration: "underline", fontSize: 12 }}
-                                  >
-                                    {src.source_file || src.doc_id}
-                                  </button>
+                                <div key={j} className={s.evidenceItem} role="button" tabIndex={0}
+                                  onClick={() => openCitation(src)}
+                                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openCitation(src)}
+                                >
+                                  <div className={s.evidenceTitle}>{src.source_file || src.doc_id}</div>
+                                  {src.text && <div className={s.evidencePreview}>{src.text}</div>}
                                 </div>
                               ))}
                             </div>
