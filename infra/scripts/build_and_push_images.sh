@@ -89,27 +89,61 @@ get_values_from_az_deployment() {
 	deploymentName=$(az group show --name "$resourceGroupName" --query "tags.DeploymentName" -o tsv)
 	echo "Deployment Name (from tag): $deploymentName"
 
+	echo "Fetching deployment outputs..."
 	deploymentOutputs=$(az deployment group show \
-		--name "$deploymentName" \
-		--resource-group "$resourceGroupName" \
-		--query "properties.outputs" -o json)
+	--name "$deploymentName" \
+	--resource-group "$resourceGroupName" \
+	--query "properties.outputs" -o json)
 
+	# Helper function to extract value from deployment outputs
+	# Usage: extract_value "primaryKey" "fallbackKey"
 	extract_value() {
-		echo "$deploymentOutputs" | grep -i -A 3 "\"$1\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/'
+	local primary_key="$1"
+	local fallback_key="$2"
+	local value
+
+	value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$primary_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+
+	if [ -z "$value" ] && [ -n "$fallback_key" ]; then
+		value=$(echo "$deploymentOutputs" | grep -i -A 3 "\"$fallback_key\"" | grep '"value"' | sed 's/.*"value": *"\([^"]*\)".*/\1/')
+	fi
+
+	echo "$value"
 	}
 
-	acrName=$(extract_value "ACR_NAME")
-	acrLoginServer=$(extract_value "ACR_LOGIN_SERVER")
-	backendImageName=$(extract_value "BACKEND_CONTAINER_IMAGE_NAME")
-	backendImageTag=$(extract_value "BACKEND_CONTAINER_IMAGE_TAG")
-	frontendImageName=$(extract_value "FRONTEND_CONTAINER_IMAGE_NAME")
-	frontendImageTag=$(extract_value "FRONTEND_CONTAINER_IMAGE_TAG")
-	backendAppName=$(extract_value "API_APP_NAME")
-	frontendAppName=$(extract_value "FRONTEND_APP_NAME")
+	# Extract deployment outputs
+	acrName=$(extract_value "acR_NAME" "ACR_NAME")
+	acrLoginServer=$(extract_value "acR_LOGIN_SERVER" "ACR_LOGIN_SERVER")
+	backendImageName=$(extract_value "backenD_CONTAINER_IMAGE_NAME" "BACKEND_CONTAINER_IMAGE_NAME")
+	backendImageTag=$(extract_value "backenD_CONTAINER_IMAGE_TAG" "BACKEND_CONTAINER_IMAGE_TAG")
+	frontendImageName=$(extract_value "frontenD_CONTAINER_IMAGE_NAME" "FRONTEND_CONTAINER_IMAGE_NAME")
+	frontendImageTag=$(extract_value "frontenD_CONTAINER_IMAGE_TAG" "FRONTEND_CONTAINER_IMAGE_TAG")
+	backendAppName=$(extract_value "apI_APP_NAME" "API_APP_NAME")
+	frontendAppName=$(extract_value "frontenD_APP_NAME" "FRONTEND_APP_NAME")
 
-	if [ -z "$acrName" ] || [ -z "$backendAppName" ] || [ -z "$frontendAppName" ]; then
-		echo "Error: One or more required values could not be retrieved from deployment outputs."
-		return 1
+	# Define required values with their display names
+	declare -A required_values=(
+	["acrName"]="ACR_NAME"
+	["acrLoginServer"]="ACR_LOGIN_SERVER"
+	["backendImageName"]="BACKEND_CONTAINER_IMAGE_NAME"
+	["backendImageTag"]="BACKEND_CONTAINER_IMAGE_TAG"
+	["frontendImageName"]="FRONTEND_CONTAINER_IMAGE_NAME"
+	["frontendImageTag"]="FRONTEND_CONTAINER_IMAGE_TAG"
+	["backendAppName"]="API_APP_NAME"
+	["frontendAppName"]="FRONTEND_APP_NAME"
+	)
+
+	# Validate required values
+	missing_values=()
+	for var_name in "${!required_values[@]}"; do
+		if [ -z "${!var_name}" ]; then
+			missing_values+=("${required_values[$var_name]}")
+		fi
+		done
+	if [ ${#missing_values[@]} -gt 0 ]; then
+		echo "Error: The following required values could not be retrieved from Azure deployment outputs:"
+		printf '  - %s\n' "${missing_values[@]}" | sort
+	return 1
 	fi
 	return 0
 }
@@ -131,7 +165,7 @@ enable_acr_public_access() {
 		az acr update \
 			--name "$acrName" \
 			--resource-group "$resourceGroupName" \
-			--public-network-access Enabled \
+			--public-network-enabled true \
 			--default-action Allow \
 			--output none
 		# Wait a bit for the change to take effect
@@ -144,10 +178,15 @@ enable_acr_public_access() {
 restore_acr_public_access() {
 	if [ -n "$original_acr_public_access" ] && [ "$original_acr_public_access" != "Enabled" ]; then
 		echo "✓ Restoring ACR public network access to '$original_acr_public_access'"
+		case "$original_acr_public_access" in
+            "enabled"|"Enabled") restore_value=true ;;
+            "disabled"|"Disabled") restore_value=false ;;
+            *) restore_value="$original_acr_public_access" ;;
+        esac
 		az acr update \
 			--name "$acrName" \
 			--resource-group "$resourceGroupName" \
-			--public-network-access "$original_acr_public_access" \
+			--public-network-enabled $restore_value \
 			--default-action Deny \
 			--output none 2>/dev/null || echo "⚠ Failed to restore ACR public network access - please check the Azure portal"
 	fi
