@@ -550,9 +550,7 @@ def prompt_missing_fields(config: dict) -> dict:
 
     elif source_type == "fabric":
         if not (config.get("endpoint") or "").strip():
-            config["endpoint"] = normalize_endpoint(
-                input("SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ").strip()
-            )
+            config["endpoint"] = input("SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ").strip()
         if not (config.get("database") or "").strip():
             config["database"] = input("Lakehouse/Warehouse name: ").strip()
         if not (config.get("table_or_query") or "").strip():
