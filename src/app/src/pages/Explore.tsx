@@ -515,10 +515,7 @@ const Explore: React.FC = () => {
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
-                                <div key={j} className={s.evidenceItem} role="button" tabIndex={0}
-                                  onClick={() => openCitation(src)}
-                                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openCitation(src)}
-                                >
+                                <div key={j} className={s.evidenceItem}>
                                   <div className={s.evidenceTitle}>{src.source_file || src.doc_id}</div>
                                   {src.text && <div className={s.evidencePreview}>{src.text}</div>}
                                 </div>

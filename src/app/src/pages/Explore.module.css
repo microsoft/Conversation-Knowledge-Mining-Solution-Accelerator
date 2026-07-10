@@ -124,10 +124,10 @@
 }
 .evidenceItem {
   padding: 10px 14px; border-radius: 8px; background: #ffffff;
-  border: 1px solid #e5e7eb; font-size: 12px; cursor: pointer;
+  border: 1px solid #e5e7eb; font-size: 12px;
   display: flex; flex-direction: column; gap: 4px;
 }
-.evidenceItem:hover { background: #f8fafc; border-color: #cbd5e1; }
+.evidenceItem:hover { background: #ffffff; border-color: #e5e7eb; }
 .evidenceTitle {
   font-weight: 600; color: #0f172a; font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
