@@ -32,7 +32,7 @@ The platform is fully scenario-agnostic. The same deployment handles call center
 
 ### How It Works
 
-**Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or run `./scripts/setup-data.ps1` to load a built-in scenario. The upload is acknowledged instantly; processing runs in the background.
+**Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or run `./scripts/setup-data.ps1` to load a built-in sample scenario pack. The upload is acknowledged instantly; processing runs in the background.
 
 **Processing pipeline** — Azure Content Understanding extracts text, summary, topics, and key phrases. Results are stored in Azure SQL. Embeddings are generated using ada-002 and indexed in Azure AI Search (hybrid HNSW + BM25).
 
@@ -183,9 +183,9 @@ Pricing varies by region and usage. Use the [Azure pricing calculator](https://a
 
 ## Industry scenarios
 
-The solution is fully data-driven and can be adapted to any industry. After deployment, use the data setup script to populate your platform with one of three built-in scenarios, connect an external data source, or upload your own files.
+The solution is fully data-driven and can be adapted to any industry. After deployment, use the data setup script to populate your platform with one of three built-in sample scenario packs, connect an external data source, or upload your own files.
 
-### Built-in Scenarios
+### Built-in Sample Scenario Packs
 
 | Scenario | Demonstrates | Files |
 |----------|--------------|-------|
