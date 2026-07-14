@@ -10,7 +10,7 @@ function stripLinks(input: string): string {
 }
 
 /** Simple markdown to JSX — handles bold, italic, lists, headers, line breaks */
-export function renderMarkdown(text: string): React.ReactNode {
+export function renderMarkdown(text: string, onCitation?: (n: number) => void): React.ReactNode {
   const cleanText = stripLinks(text);
   // Normalize line endings
   const lines = cleanText.replace(/\r\n/g, "\n").split("\n");
@@ -51,9 +51,25 @@ export function renderMarkdown(text: string): React.ReactNode {
         return <code key={i} style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3, fontSize: "0.9em" }}>{part.slice(1, -1)}</code>;
       }
       if (part.startsWith("[") && part.endsWith("]")) {
+        const inner = part.slice(1, -1);
+        if (onCitation && /^\d+$/.test(inner)) {
+          const n = parseInt(inner, 10);
+          return (
+            <sup
+              key={i}
+              role="button"
+              tabIndex={0}
+              onClick={() => onCitation(n)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onCitation(n); }}
+              style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super", cursor: "pointer" }}
+            >
+              [{inner}]
+            </sup>
+          );
+        }
         return (
           <sup key={i} style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super" }}>
-            [{part.slice(1, -1)}]
+            [{inner}]
           </sup>
         );
       }

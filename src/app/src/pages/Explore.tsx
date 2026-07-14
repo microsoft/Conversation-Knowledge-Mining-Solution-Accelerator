@@ -17,7 +17,7 @@ import { SkeletonText } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
-const ChatContent: React.FC<{ content: string }> = ({ content }: { content: string }) => {
+const ChatContent: React.FC<{ content: string; onCitation?: (n: number) => void }> = ({ content, onCitation }: { content: string; onCitation?: (n: number) => void }) => {
   const parts = content.split(/(```chart[\s\S]*?```)/g);
   return (
     <>
@@ -30,7 +30,7 @@ const ChatContent: React.FC<{ content: string }> = ({ content }: { content: stri
             if (spec.type === "bar") return <BarChart key={i} data={spec.data} height={200} />;
           } catch {}
         }
-        return <React.Fragment key={i}>{renderMarkdown(part)}</React.Fragment>;
+        return <React.Fragment key={i}>{renderMarkdown(part, onCitation)}</React.Fragment>;
       })}
     </>
   );
@@ -505,7 +505,12 @@ const Explore: React.FC = () => {
                     <div key={i} className={s.userMsg}><ChatContent content={msg.content} /></div>
                   ) : (
                     <div key={i} className={s.assistantWrap}>
-                      <div className={s.assistantMsg}><ChatContent content={msg.content} /></div>
+                      <div className={s.assistantMsg}>
+                        <ChatContent
+                          content={msg.content}
+                          onCitation={(n: number) => { const src = (msg.sources || [])[n - 1]; if (src) openCitation(src); }}
+                        />
+                      </div>
                       {(msg.sources?.length ?? 0) > 0 && (
                         <>
                           <button className={s.evidenceToggle} onClick={() => toggleSource(i)}>
@@ -515,10 +520,14 @@ const Explore: React.FC = () => {
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
-                                <div key={j} className={s.evidenceItem}>
-                                  <div className={s.evidenceTitle}>{src.source_file || src.doc_id}</div>
-                                  {src.text && <div className={s.evidencePreview}>{src.text}</div>}
-                                </div>
+                                <button
+                                  key={j}
+                                  type="button"
+                                  className={s.evidenceItem}
+                                  onClick={() => openCitation(src)}
+                                >
+                                  <span className={s.evidenceTitle}>{src.source_file || src.doc_id}</span>
+                                </button>
                               ))}
                             </div>
                           )}

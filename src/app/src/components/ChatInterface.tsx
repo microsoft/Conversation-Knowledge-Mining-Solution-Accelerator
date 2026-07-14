@@ -247,7 +247,7 @@ const ChatInterface: React.FC = () => {
           ) : (
             <div key={i} className={styles.assistantMsgWrap}>
               <div className={styles.assistantMsg}>
-                {renderMarkdown(msg.content)}
+                {renderMarkdown(msg.content, (n: number) => { const src = (msg.sources || [])[n - 1]; if (src) openCitation(src); })}
                 {msg.sources && msg.sources.length > 0 && (
                   <div className={styles.sources}>
                     <Caption1 style={{ color: "#94a3b8" }}>Sources:</Caption1>
