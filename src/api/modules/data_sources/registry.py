@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 # Adapter map — type → class
 _ADAPTER_CLASSES: dict[DataSourceType, type[BaseExternalDataSource]] = {}
 
+_DEFAULT_ID_FIELDS = {"", "id"}
+_DEFAULT_TEXT_FIELDS = {"", "text"}
+
 
 def _load_adapters():
     """Register all data source adapters. To add a new type, import it and add to the dict."""
@@ -51,14 +54,124 @@ class DataSourceRegistry:
 
     def __init__(self):
         self._cache: dict[str, DataSourceConfig] = {}
+        self._adapter_instances: dict[DataSourceType, BaseExternalDataSource] = {}
         self._loaded = False
 
     def _get_adapter(self, source_type: DataSourceType) -> BaseExternalDataSource:
         _load_adapters()
+        cached = self._adapter_instances.get(source_type)
+        if cached:
+            return cached
         cls = _ADAPTER_CLASSES.get(source_type)
         if not cls:
             raise ValueError(f"Unsupported data source type: {source_type}")
-        return cls()
+        adapter = cls()
+        self._adapter_instances[source_type] = adapter
+        return adapter
+
+    def _normalize_mapping_for_schema(
+        self,
+        columns: list[ColumnInfo],
+        mapping: Optional[FieldMapping],
+        source_type: Optional[DataSourceType] = None,
+    ) -> FieldMapping:
+        """Resolve field mapping against actual schema to avoid hardcoded assumptions."""
+        if not columns:
+            return mapping or FieldMapping()
+
+        normalized = FieldMapping(**((mapping or FieldMapping()).model_dump()))
+        if source_type == DataSourceType.FABRIC:
+            suggested = self._auto_detect_mapping_schema_only(columns)
+        else:
+            suggested = self._auto_detect_mapping(columns)
+        column_names = {c.name for c in columns}
+
+        def _pick(current: str, suggested_value: str, default_values: set[str]) -> str:
+            c = (current or "").strip()
+            s = (suggested_value or "").strip()
+            if c and c in column_names and c.lower() not in default_values:
+                return c
+            if c and c in column_names and c.lower() in default_values and not s:
+                return c
+            if s and s in column_names:
+                return s
+            if c and c in column_names:
+                return c
+            return ""
+
+        normalized.id_field = _pick(
+            normalized.id_field,
+            suggested.get("id_field", ""),
+            _DEFAULT_ID_FIELDS,
+        ) or (columns[0].name if columns else "id")
+
+        normalized.text_field = _pick(
+            normalized.text_field,
+            suggested.get("text_field", ""),
+            _DEFAULT_TEXT_FIELDS,
+        )
+        if not normalized.text_field:
+            for col in columns:
+                dtype = (col.data_type or "").lower()
+                if col.name != normalized.id_field and any(t in dtype for t in ["str", "char", "text", "nvarchar", "varchar"]):
+                    normalized.text_field = col.name
+                    break
+        if not normalized.text_field and len(columns) > 1:
+            normalized.text_field = columns[1].name
+        if not normalized.text_field:
+            normalized.text_field = normalized.id_field
+
+        normalized.title_field = _pick(
+            normalized.title_field,
+            suggested.get("title_field", ""),
+            {""},
+        )
+        normalized.type_field = _pick(
+            normalized.type_field,
+            suggested.get("type_field", ""),
+            {""},
+        )
+        normalized.timestamp_field = _pick(
+            normalized.timestamp_field,
+            suggested.get("timestamp_field", ""),
+            {""},
+        )
+
+        cleaned_meta: dict[str, str] = {}
+        for accel_key, src_col in (normalized.metadata_fields or {}).items():
+            if src_col in column_names and src_col not in {
+                normalized.id_field,
+                normalized.text_field,
+                normalized.title_field,
+                normalized.type_field,
+                normalized.timestamp_field,
+            }:
+                cleaned_meta[accel_key] = src_col
+        normalized.metadata_fields = cleaned_meta
+        return normalized
+
+    def _resolve_mapping(self, config: DataSourceConfig) -> DataSourceConfig:
+        """Fetch schema and normalize mapping before querying/ingesting."""
+        try:
+            adapter = self._get_adapter(config.source_type)
+            columns = adapter.get_schema(config)
+        except Exception as e:
+            logger.warning(f"Could not resolve field mapping for source '{config.name}': {e}")
+            return config
+
+        if not columns:
+            return config
+
+        normalized = self._normalize_mapping_for_schema(columns, config.field_mapping, config.source_type)
+        if normalized.model_dump() != config.field_mapping.model_dump():
+            config.field_mapping = normalized
+        return config
+
+    def _resolve_mapping_for_runtime(self, config: DataSourceConfig) -> DataSourceConfig:
+        """Resolve mapping only for runtime-sensitive adapters to avoid hot-path overhead."""
+        if config.source_type == DataSourceType.FABRIC:
+            return self._resolve_mapping(config)
+        return config
 
     def _ensure_loaded(self):
         if self._loaded:
@@ -78,6 +191,9 @@ class DataSourceRegistry:
         self._ensure_loaded()
         config.id = str(uuid.uuid4())[:12]
         config.status = "disconnected"
+
+        # Normalize mapping from live schema before validation/persist.
+        config = self._resolve_mapping(config)
 
         # Test connection
         adapter = self._get_adapter(config.source_type)
@@ -118,6 +234,10 @@ class DataSourceRegistry:
                         logger.warning(f"Invalid field_mapping update for source '{source_id}': {e}")
                         continue
                 setattr(config, key, value)
+
+        # Re-resolve mapping after config or mapping updates.
+        if {"field_mapping", "table_or_query", "endpoint", "database", "connection_string"} & set(updates.keys()):
+            config = self._resolve_mapping(config)
 
         # Re-test connection if connection params changed
         conn_keys = {"connection_string", "endpoint", "database", "table_or_query", "auth_method"}
@@ -162,6 +282,8 @@ class DataSourceRegistry:
 
     def test_connection(self, config: DataSourceConfig) -> dict:
         adapter = self._get_adapter(config.source_type)
+        # Use normalized mapping during connectivity checks.
+        config = self._resolve_mapping(config)
         result = adapter.test_connection(config)
         # Also get schema for the response
         columns = []
@@ -173,8 +295,63 @@ class DataSourceRegistry:
         result["columns"] = [c.model_dump() for c in columns]
         # Auto-detect field mapping from column names
         if columns:
-            result["suggested_mapping"] = self._auto_detect_mapping(columns)
+            if config.source_type == DataSourceType.FABRIC:
+                result["suggested_mapping"] = self._auto_detect_mapping_schema_only(columns)
+            else:
+                result["suggested_mapping"] = self._auto_detect_mapping(columns)
         return result
+
+    @staticmethod
+    def _auto_detect_mapping_schema_only(columns: list[ColumnInfo]) -> dict:
+        """Schema-first mapping detection without column-name keyword assumptions."""
+        if not columns:
+            return {
+                "id_field": "id",
+                "text_field": "text",
+                "title_field": "",
+                "type_field": "",
+                "timestamp_field": "",
+                "metadata_fields": {},
+            }
+
+        def _is_textual(c: ColumnInfo) -> bool:
+            dt = (c.data_type or "").lower()
+            return any(t in dt for t in ["str", "char", "text", "nvarchar", "varchar"])
+
+        def _is_temporal(c: ColumnInfo) -> bool:
+            dt = (c.data_type or "").lower()
+            return "date" in dt or "time" in dt
+
+        id_field = ""
+        for c in columns:
+            if not _is_textual(c):
+                id_field = c.name
+                break
+        if not id_field:
+            id_field = columns[0].name
+
+        text_field = ""
+        for c in columns:
+            if c.name != id_field and _is_textual(c):
+                text_field = c.name
+                break
+        if not text_field:
+            text_field = columns[1].name if len(columns) > 1 else id_field
+
+        ts_field = ""
+        for c in columns:
+            if _is_temporal(c):
+                ts_field = c.name
+                break
+
+        return {
+            "id_field": id_field or "id",
+            "text_field": text_field or "text",
+            "title_field": "",
+            "type_field": "",
+            "timestamp_field": ts_field,
+            "metadata_fields": {},
+        }
 
     @staticmethod
     def _auto_detect_mapping(columns: list[ColumnInfo]) -> dict:
@@ -245,6 +422,7 @@ class DataSourceRegistry:
         config = self._cache.get(source_id)
         if not config or config.status != "connected":
             return []
+        config = self._resolve_mapping_for_runtime(config)
         adapter = self._get_adapter(config.source_type)
         return adapter.search(config, query, top_k)
 
@@ -253,6 +431,7 @@ class DataSourceRegistry:
         config = self._cache.get(source_id)
         if not config:
             return []
+        config = self._resolve_mapping_for_runtime(config)
         adapter = self._get_adapter(config.source_type)
         return adapter.sample(config, count)
 
@@ -262,6 +441,8 @@ class DataSourceRegistry:
         config = self._cache.get(source_id)
         if not config:
             return {"success": False, "total_ingested": 0, "message": "Data source not found"}
+
+        config = self._resolve_mapping_for_runtime(config)
 
         adapter = self._get_adapter(config.source_type)
         total = 0

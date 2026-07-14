@@ -1,9 +1,11 @@
 {
-  "chat_agent_name": "ChatAgent",
+  "chat_agent_name": "TestAgent",
   "title_agent_name": "SummaryAgent",
-  "search_index": "knowledge-mining-index",
-  "search_connection": "",
+  "search_index": "test-index",
+  "search_connection": "search-connection-6344o7dola7ko",
   "model": "gpt-5.1",
-  "scenario": "",
-  "use_sql": false
+  "scenario": "azure_search_byod",
+  "use_sql": false,
+  "data_source_type": "azure_search",
+  "data_source_name": "Knowledge Base"
 }

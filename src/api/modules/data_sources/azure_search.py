@@ -53,6 +53,15 @@ class AzureSearchDataSource(BaseExternalDataSource):
                     doc["text"] = val
                     break
 
+        # Carry over enrichment fields produced by the processing pipeline so
+        # that extraction_facets can use persisted data instead of re-mining text.
+        metadata = doc.setdefault("metadata", {})
+        for enrich_key in ("topics", "key_phrases", "entities", "summary", "sentiment"):
+            val = row.get(enrich_key)
+            if val is not None:
+                doc[enrich_key] = val
+                metadata[enrich_key] = val
+
         return doc
 
     def connect(self, config: DataSourceConfig) -> bool:

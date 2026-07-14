@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter
+from difflib import SequenceMatcher
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,112 @@ class UnifiedDataSourceRegistry:
     @staticmethod
     def _normalize_signature_part(value: Any) -> str:
         return str(value or "").strip().lower()
+
+    @staticmethod
+    def _cluster_topics(items: list[dict], similarity_threshold: float = 0.75) -> list[dict]:
+        """Cluster similar topics/phrases to deduplicate and reduce noise.
+        
+        Merges topics that are >75% similar (e.g., "network provider", "network providers").
+        Returns deduplicated list with merged counts, sorted by frequency.
+        """
+        if not items:
+            return []
+        
+        # Build initial map of label -> total_value
+        label_map: dict[str, int] = {}
+        for item in items:
+            label = str(item.get("label") or "").strip()
+            if label:
+                label_map[label] = label_map.get(label, 0) + int(item.get("value") or 0)
+        
+        if len(label_map) <= 1:
+            return [{"label": k, "value": v} for k, v in sorted(label_map.items(), key=lambda x: -x[1])]
+        
+        # Cluster similar labels using string similarity
+        clusters: dict[str, list[str]] = {}  # Primary label -> list of equivalent labels
+        processed: set[str] = set()
+        
+        sorted_labels = sorted(label_map.keys(), key=lambda x: -label_map[x])
+        
+        for primary in sorted_labels:
+            if primary in processed:
+                continue
+            
+            cluster = [primary]
+            processed.add(primary)
+            
+            # Find all labels similar to this one
+            for candidate in sorted_labels:
+                if candidate in processed or candidate == primary:
+                    continue
+                
+                # Compute string similarity using SequenceMatcher
+                similarity = SequenceMatcher(None, primary.lower(), candidate.lower()).ratio()
+                
+                if similarity >= similarity_threshold:
+                    cluster.append(candidate)
+                    processed.add(candidate)
+            
+            clusters[primary] = cluster
+        
+        # Merge counts for each cluster
+        result = []
+        for primary, members in clusters.items():
+            total_value = sum(label_map[member] for member in members)
+            result.append({"label": primary, "value": total_value})
+        
+        # Sort by value descending
+        return sorted(result, key=lambda x: -x.get("value", 0))
+
+    @staticmethod
+    def _compute_trend_data(items: list[dict], docs_by_section: dict[str, list[dict]]) -> list[dict]:
+        """Compute trend indicators (stable, increasing, decreasing) for facet items.
+        
+        Compares occurrence in early documents vs. late documents to determine trend.
+        Adds 'trend' field: 'increasing' (>20% higher in later docs), 'decreasing', or 'stable'.
+        """
+        if not items or not docs_by_section:
+            return items
+        
+        early_docs = docs_by_section.get("early", [])
+        late_docs = docs_by_section.get("late", [])
+        
+        if not early_docs or not late_docs:
+            return items
+        
+        result = []
+        for item in items:
+            label = str(item.get("label") or "").strip().lower()
+            if not label:
+                result.append(item)
+                continue
+            
+            # Count occurrences in early vs late sections
+            early_count = sum(
+                1 for doc in early_docs 
+                if label in str(doc.get("text") or "").lower() or label in str(doc.get("topics") or "").lower()
+            )
+            late_count = sum(
+                1 for doc in late_docs 
+                if label in str(doc.get("text") or "").lower() or label in str(doc.get("topics") or "").lower()
+            )
+            
+            early_ratio = early_count / max(len(early_docs), 1)
+            late_ratio = late_count / max(len(late_docs), 1)
+            
+            # Determine trend direction
+            if late_ratio > early_ratio * 1.2:
+                trend = "increasing"
+            elif late_ratio < early_ratio * 0.8:
+                trend = "decreasing"
+            else:
+                trend = "stable"
+            
+            result.append({**item, "trend": trend})
+        
+        return result
+
+
 
     def _source_quality_score(self, cfg: Any) -> float:
         """Prefer stable, human-friendly names when duplicate connections exist."""
@@ -81,7 +188,7 @@ class UnifiedDataSourceRegistry:
 
     def _normalize_doc(self, doc: dict, source_id: str, source_name: str, source_kind: str) -> dict:
         metadata = self._safe_dict(doc.get("metadata"))
-        return {
+        normalized = {
             "id": str(doc.get("id") or doc.get("doc_id") or ""),
             "doc_id": str(doc.get("doc_id") or doc.get("id") or ""),
             "text": str(doc.get("text") or ""),
@@ -96,6 +203,37 @@ class UnifiedDataSourceRegistry:
             "metadata": metadata,
             "score": float(doc.get("score") or 0.0),
         }
+        # Preserve enrichment fields so extraction_facets can use them directly.
+        for enrich_key in ("topics", "key_phrases", "entities", "sentiment"):
+            val = doc.get(enrich_key) or metadata.get(enrich_key)
+            if val is not None:
+                normalized[enrich_key] = val
+        return normalized
+
+    @staticmethod
+    def _facets_from_enriched(docs: list[dict], field: str) -> list[dict]:
+        """Build facet counts from persisted enrichment fields (topics/key_phrases/entities)."""
+        import json as _json
+        counter: Counter = Counter()
+        for doc in docs:
+            val = doc.get(field) or (doc.get("metadata") or {}).get(field)
+            if val is None:
+                continue
+            # Value can be a list, a JSON string, or a plain string.
+            if isinstance(val, str):
+                try:
+                    val = _json.loads(val)
+                except Exception:
+                    val = [v.strip() for v in val.split(",") if v.strip()]
+            if isinstance(val, list):
+                for item in val:
+                    if isinstance(item, dict):
+                        label = str(item.get("label") or item.get("name") or item.get("text") or "").strip()
+                    else:
+                        label = str(item).strip()
+                    if label and len(label) > 2:
+                        counter[label] += 1
+        return [{"label": label, "value": count} for label, count in counter.most_common()]
 
     def _match_filters(self, doc: dict, filters: Optional[dict]) -> bool:
         if not filters:
@@ -148,13 +286,41 @@ class UnifiedDataSourceRegistry:
         count: int = 120,
         top: int = 20,
     ) -> dict:
-        """Compute lightweight extraction facets from runtime text.
-
-        Used when persisted enrichment fields are unavailable for external sources.
+        """Compute extraction facets. Prefers persisted enrichment fields when available;
+        falls back to runtime text mining when they are not.
+        
+        Includes trend indicators (increasing, decreasing, stable) by comparing early vs. late documents.
         """
         docs = self.sample(source=source, count=max(20, count), filters=filters)
         if not docs:
             return {"entities": [], "topics": [], "key_phrases": []}
+        
+        # Split docs into early and late sections for trend detection
+        split_idx = max(1, len(docs) // 2)
+        docs_by_section = {
+            "early": docs[:split_idx],
+            "late": docs[split_idx:],
+        }
+
+        # Use persisted enrichment fields if the source already has them
+        # (e.g. an Azure AI Search index built by this solution's pipeline).
+        pre_topics = self._facets_from_enriched(docs, "topics")
+        pre_phrases = self._facets_from_enriched(docs, "key_phrases")
+        pre_entities = self._facets_from_enriched(docs, "entities")
+        if pre_topics or pre_phrases or pre_entities:
+            # Cluster similar topics/phrases to reduce duplication and noise
+            pre_topics = self._cluster_topics(pre_topics, similarity_threshold=0.75)[:top]
+            pre_phrases = self._cluster_topics(pre_phrases, similarity_threshold=0.70)[:top]
+            # Add trend indicators based on document progression
+            pre_topics = self._compute_trend_data(pre_topics, docs_by_section)
+            pre_phrases = self._compute_trend_data(pre_phrases, docs_by_section)
+            return {
+                "topics": pre_topics,
+                "key_phrases": pre_phrases,
+                "entities": pre_entities[:top],
+            }
+
+        # Fall back to lightweight text mining when no persisted fields exist.
 
         stopwords = {
             "this", "that", "with", "from", "have", "has", "been", "were", "what", "when", "where", "which",
@@ -232,6 +398,15 @@ class UnifiedDataSourceRegistry:
         entities = [{"label": k, "value": int(v)} for k, v in entity_counter.most_common(top) if v >= 4]
         topics = [{"label": k, "value": int(v)} for k, v in topic_counter.most_common(top) if v >= 4]
         key_phrases = [{"label": k, "value": int(v)} for k, v in phrase_counter.most_common(top) if v >= 3]
+
+        # Cluster similar topics and phrases to reduce noise and duplication
+        # (e.g., "network provider", "network providers" -> single "network provider" entry)
+        topics = self._cluster_topics(topics, similarity_threshold=0.75)[:top]
+        key_phrases = self._cluster_topics(key_phrases, similarity_threshold=0.70)[:top]
+
+        # Add trend indicators based on document progression
+        topics = self._compute_trend_data(topics, docs_by_section)
+        key_phrases = self._compute_trend_data(key_phrases, docs_by_section)
 
         return {
             "entities": entities,

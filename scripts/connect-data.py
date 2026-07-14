@@ -660,12 +660,57 @@ def main():
         print("\n  Assigning API app access to external Azure AI Search...")
         ensure_search_index_reader_role(config.get("endpoint", ""))
 
+    # Step 3: Notify the running backend so it reloads the data source into memory.
+    # This makes the source visible in the UI immediately without restarting the API.
+    backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+    try:
+        import urllib.request as _urlreq
+        payload = json.dumps({
+            "name": config["name"],
+            "source_type": config["source_type"],
+            "endpoint": config.get("endpoint", ""),
+            "database": config.get("database", ""),
+            "table_or_query": config.get("table_or_query", ""),
+            "auth_method": "managed_identity",
+            "query_mode": "live",
+        }).encode()
+        req = _urlreq.Request(
+            f"{backend_url}/api/data-sources/",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        admin_key = os.getenv("ADMIN_API_KEY", "")
+        if admin_key:
+            req.add_header("X-Admin-Api-Key", admin_key)
+        with _urlreq.urlopen(req, timeout=5) as resp:
+            if resp.status in (200, 201):
+                print(f"  [OK] Backend notified — source is live in the app")
+    except Exception as e:
+        print(f"  [INFO] Could not notify backend ({e}) — source will appear after backend restart")
+
     print(f"\n{'='*40}")
     print("  Done!")
     print(f"{'='*40}")
     print(f"\n  The app will query this source at runtime.")
     print(f"  No data was moved — queries go directly to your source.")
     print()
+
+    # Write connection details to a temp file so the calling PowerShell script
+    # can read the actual index/table name after interactive prompts.
+    last_conn_path = os.path.join(project_root, ".last_byod_connection.json")
+    try:
+        last_conn = {
+            "source_type": config.get("source_type", ""),
+            "source_id": config.get("id", ""),
+            "name": config.get("name", ""),
+            "table_or_query": config.get("table_or_query", ""),
+            "endpoint": config.get("endpoint", ""),
+        }
+        with open(last_conn_path, "w") as _f:
+            json.dump(last_conn, _f)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

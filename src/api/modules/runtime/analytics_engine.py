@@ -4,6 +4,20 @@ from typing import Optional
 
 from src.api.modules.runtime.registry import runtime_registry
 
+# Maps raw source type identifiers to user-friendly display names.
+_SOURCE_DISPLAY_NAMES = {
+    "azure_search": "Azure AI Search",
+    "fabric": "Microsoft Fabric",
+    "sql": "SQL Database",
+    "synapse": "Azure Synapse",
+    "odbc": "ODBC Source",
+}
+
+
+def _display_name(name: str) -> str:
+    """Return a human-readable display name for a source, falling back to title-cased value."""
+    return _SOURCE_DISPLAY_NAMES.get(name.lower(), name.replace("_", " ").title())
+
 
 class AnalyticsEngine:
     """Capability-driven dashboard generation over all available runtime sources."""
@@ -19,6 +33,8 @@ class AnalyticsEngine:
 
     def _build_runtime_only_dashboard(self, sql_dashboard_service, source_id: str, source_name: str, filters: Optional[dict]) -> dict:
         from src.api.modules.data_sources.registry import data_source_registry
+
+        display = _display_name(source_name)
 
         effective_filters = dict(filters or {})
         effective_filters.pop("source", None)
@@ -102,8 +118,8 @@ class AnalyticsEngine:
                 "filtered_records": total_records,
                 "filters_applied": {**(filters or {}), "source": source_name},
             },
-            "headline": f"{source_name} Insights",
-            "summary": f"Analyzed {total_records} records from the {source_name} connection.",
+            "headline": f"{display} Insights",
+            "summary": f"Analyzed {total_records} records from the {display} connection.",
             "key_insights": (
                 [
                     f"Top themes detected: {', '.join(top_theme_labels)}." if top_theme_labels else "Theme extraction found limited high-signal terms.",
@@ -119,29 +135,46 @@ class AnalyticsEngine:
                 {"metric": "entities_count", "label": "Entities extracted", "value": len(entity_items), "format": "number"},
             ],
             "sections": sections,
-            "filters": [
-                {
-                    "field": "source",
-                    "label": "Source",
-                    "type": "categorical",
-                    "multi_select": False,
-                    "values": [source_name],
-                },
-            ],
+            "filters": [],
             "suggested_questions": [
-                f"What are the top 3 employee-impact themes in {source_name}?",
-                f"Which benefits, exclusions, or requirements appear most often in {source_name}?",
-                f"What operational risks should support teams prioritize from {source_name}?",
+                f"What are the most common topics in {display}?",
+                f"Which entities appear most frequently across records in {display}?",
+                f"What patterns or trends stand out in {display}?",
             ],
         }
+        # Only add a type filter when the source exposes a type field with multiple distinct values.
         if has_type_field:
+            type_values = [str(item.get("label") or "unknown") for item in type_agg.get("items", [])[:30]]
+            if len(type_values) > 1:
+                response["filters"].append(
+                    {
+                        "field": "type",
+                        "label": "Type",
+                        "type": "categorical",
+                        "multi_select": False,
+                        "values": type_values,
+                    }
+                )
+        # Topic filter derived from extraction signals.
+        if theme_items:
             response["filters"].append(
                 {
-                    "field": "type",
-                    "label": "Type",
+                    "field": "topics",
+                    "label": "Topic",
                     "type": "categorical",
                     "multi_select": False,
-                    "values": [str(item.get("label") or "unknown") for item in type_agg.get("items", [])[:30]],
+                    "values": [str(i.get("label") or "") for i in theme_items[:20] if str(i.get("label") or "").strip()],
+                }
+            )
+        # Entity type filter for segmenting by extracted entities.
+        if entity_items:
+            response["filters"].append(
+                {
+                    "field": "entities",
+                    "label": "Entity",
+                    "type": "categorical",
+                    "multi_select": False,
+                    "values": [str(i.get("label") or "") for i in entity_items[:15] if str(i.get("label") or "").strip()],
                 }
             )
         response["runtime"] = sql_dashboard_service._to_runtime_payload(response)
@@ -214,7 +247,10 @@ class AnalyticsEngine:
                 filters=filters,
             )
 
-        sql_view = sql_dashboard_service.get_sql_dashboard(filters=filters, refresh=refresh)
+        sql_view = sql_dashboard_service.get_sql_dashboard(
+            filters={k: v for k, v in (filters or {}).items() if k != "source"} or None,
+            refresh=refresh,
+        )
 
         source_sections, source_filters, sampled_records, source_count = self._build_source_sections(filters)
 

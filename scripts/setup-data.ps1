@@ -202,7 +202,16 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
     $selected = $menuItems[[int]$choice - 1]
 
     switch ($selected.type) {
-        "scenario" { $Scenario = $selected.key }
+        "scenario" {
+            # BYOD scenarios: connect data source then create agents
+            if ($selected.key -in @("azure_search_byod", "fabric_byod")) {
+                $sourceType = if ($selected.key -eq "azure_search_byod") { "azure_search" } else { "fabric" }
+                Write-Host ""
+                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
+                exit $LASTEXITCODE
+            }
+            $Scenario = $selected.key
+        }
         "data_source" {
             Write-Host ""
             & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key

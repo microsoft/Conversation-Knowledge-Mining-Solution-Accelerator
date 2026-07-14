@@ -25,6 +25,22 @@
       "data_folder": "telecom_analysis_usecase",
       "data_types": ["json", "wav"],
       "has_preprocessed": false
+    },
+    "azure_search_byod": {
+      "name": "BYOD – Azure AI Search",
+      "description": "Bring your own data: Connect an existing Azure AI Search index for conversational AI access",
+      "data_folder": null,
+      "data_types": ["external"],
+      "has_preprocessed": false,
+      "byod": true
+    },
+    "fabric_byod": {
+      "name": "BYOD – Microsoft Fabric",
+      "description": "Bring your own data: Connect a Fabric Lakehouse or Warehouse for conversational AI access",
+      "data_folder": null,
+      "data_types": ["external"],
+      "has_preprocessed": false,
+      "byod": true
     }
   },
   "data_sources": {

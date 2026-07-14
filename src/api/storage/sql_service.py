@@ -391,7 +391,7 @@ class AzureSqlService:
             conn.close()
             results = []
             for row in rows:
-                metadata = json.loads(row[8]) if row[8] else {}
+                metadata = json.loads(row[8]) if row[8] and row[8].strip() else {}
                 if not isinstance(metadata, dict):
                     metadata = {}
                 if row[1] and not metadata.get("source_type"):
@@ -403,9 +403,9 @@ class AzureSqlService:
                     "type": row[2],
                     "text": row[3],
                     "summary": row[4],
-                    "entities": json.loads(row[5]) if row[5] else [],
-                    "key_phrases": json.loads(row[6]) if row[6] else [],
-                    "topics": json.loads(row[7]) if row[7] else [],
+                    "entities": json.loads(row[5]) if row[5] and row[5].strip() else [],
+                    "key_phrases": json.loads(row[6]) if row[6] and row[6].strip() else [],
+                    "topics": json.loads(row[7]) if row[7] and row[7].strip() else [],
                     "metadata": metadata,
                 })
             return results
@@ -471,9 +471,9 @@ class AzureSqlService:
                 {
                     "id": r[0], "filename": r[1], "doc_count": r[2],
                     "summary": r[3],
-                    "keywords": json.loads(r[4]) if r[4] else [],
-                    "filter_values": json.loads(r[5]) if r[5] else {},
-                    "doc_ids": json.loads(r[6]) if r[6] else [],
+                    "keywords": json.loads(r[4]) if r[4] and r[4].strip() else [],
+                    "filter_values": json.loads(r[5]) if r[5] and r[5].strip() else {},
+                    "doc_ids": json.loads(r[6]) if r[6] and r[6].strip() else [],
                     "uploaded_at": r[7] or "",
                     "source": r[8] or "uploaded",
                 }
@@ -740,7 +740,7 @@ class AzureSqlService:
             conn.close()
             results = []
             for r in rows:
-                fm = json.loads(r[9]) if r[9] else {}
+                fm = json.loads(r[9]) if r[9] and r[9].strip() else {}
                 results.append({
                     "id": r[0], "name": r[1], "source_type": r[2],
                     "use_case": r[3] or "",
