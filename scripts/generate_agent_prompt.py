@@ -102,8 +102,11 @@ def build_prompt(name, description, use_sql, table, columns):
     Tool Priority:
 {sql_section}        - Always use the **Azure AI Search tool** for summaries, explanations, or insights from {name} documents.
             - **Always** use the search tool when asked about call content, customer issues, or transcripts.
-            - Provide clear, structured answers based on search results without including raw citation markers in the response text.
-            - Sources will be shown separately to the user — do not add inline markers like 【4:0†source】 or [1] in your answer.
+            - **CRITICAL**: When using Azure AI Search results, you **MUST ALWAYS** include citation references in your response.
+            - **NEVER** provide information from search results without including the citation markers.
+            - Include citations inline using the exact format provided by the search tool (e.g., 【4:0†source】, 【4:1†source】).
+            - **DO NOT** remove, modify, or omit any citation markers from your response - they must appear exactly as the search tool provides them.
+            - Every fact, quote, or piece of information derived from search results must be immediately followed by its citation marker.
 
 {combined}
     Greeting Handling:
@@ -128,9 +131,6 @@ with open(prompt_path, "w", encoding="utf-8") as f:
     f.write(prompt_text)
 
 print(f"\nGenerated prompt ({len(prompt_text)} chars)")
-print("-" * 40)
-print(prompt_text)
-print("-" * 40)
 print(f"""
 Files saved:
   - {prompt_path}
