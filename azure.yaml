@@ -63,7 +63,7 @@ hooks:
         }
         & ./.venv/Scripts/Activate.ps1
         python -m pip install --quiet --upgrade pip
-        pip install --quiet -r requirements.txt
+        pip install --quiet -r scripts/requirements.txt
 
         # ── Step 2: Grant API identity access to SQL ──
         Write-Host ""
@@ -114,7 +114,7 @@ hooks:
         fi
         . ./.venv/bin/activate
         python -m pip install --quiet --upgrade pip
-        pip install --quiet -r requirements.txt
+        pip install --quiet -r scripts/requirements.txt
 
         # ── Step 2: Grant API identity access to SQL ──
         echo ""

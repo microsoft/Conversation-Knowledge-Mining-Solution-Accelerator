@@ -10,10 +10,11 @@ from src.api.modules.document_intelligence.models import ExtractedDocument
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
+SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "json", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
 
 # Default CU analyzer template for generic document analysis
 DEFAULT_ANALYZER_TEMPLATE = {
+    "baseAnalyzerId": "prebuilt-document",
     "scenario": "document",
     "description": "Generic document content extraction",
     "config": {"returnDetails": True},
@@ -24,7 +25,7 @@ DEFAULT_ANALYZER_TEMPLATE = {
             "content": {
                 "type": "string",
                 "method": "generate",
-                "description": "Full text content of the document in markdown format"
+                "description": "Full text content of the document in markdown format. If the source is structured data (e.g. a JSON transcript), extract only the meaningful readable text such as the conversation or body content — do NOT reproduce raw JSON, field names, or code fences."
             },
             "summary": {
                 "type": "string",
@@ -46,8 +47,9 @@ DEFAULT_ANALYZER_TEMPLATE = {
 }
 
 # Audio/video analyzer for call transcripts
-AUDIO_ANALYZER_ID = "km-audio"
+AUDIO_ANALYZER_ID = "km_audio"
 AUDIO_ANALYZER_TEMPLATE = {
+    "baseAnalyzerId": "prebuilt-audio",
     "scenario": "audioTranscription",
     "description": "Transcribe and analyze audio call recordings",
     "config": {"returnDetails": True},
@@ -89,6 +91,7 @@ class ContentUnderstandingService:
 
     def __init__(self):
         self._analyzers_ensured: set[str] = set()
+        self._defaults_ensured = False
 
     @staticmethod
     def _is_unsupported_audio_scenario_error(exc: Exception) -> bool:
@@ -156,6 +159,59 @@ class ContentUnderstandingService:
         size_mb = max(1, int((file_size_bytes + (1024 * 1024 - 1)) / (1024 * 1024)))
         computed = settings.cu_poll_base_wait_sec + (size_mb * settings.cu_poll_per_mb_wait_sec)
         return max(settings.cu_poll_base_wait_sec, min(computed, cap))
+    
+    def _ensure_defaults(self):
+        """Ensure Content Understanding default model deployments are configured."""
+
+        if self._defaults_ensured:
+            return
+
+        settings = get_settings()
+
+        endpoint = self._endpoint()
+        url = f"{endpoint}/contentunderstanding/defaults?api-version={self._api_version()}"
+
+        headers = {
+            **self._auth_headers(),
+            "Content-Type": "application/merge-patch+json",
+        }
+
+        desired_defaults = {
+            "modelDeployments": {
+                settings.azure_openai_chat_deployment: settings.azure_openai_chat_deployment,
+                settings.azure_openai_embedding_deployment: settings.azure_openai_embedding_deployment,
+            }
+        }
+
+        with httpx.Client(timeout=60) as client:
+
+            # Get current defaults
+            resp = client.get(url, headers=self._auth_headers())
+
+            if resp.status_code == 200:
+                current = resp.json().get("modelDeployments", {})
+
+                if (
+                    current.get(settings.azure_openai_chat_deployment) == settings.azure_openai_chat_deployment
+                    and current.get(settings.azure_openai_embedding_deployment)
+                    == settings.azure_openai_embedding_deployment
+                ):
+                    logger.info("Content Understanding defaults already configured.")
+                    self._defaults_ensured = True
+                    return
+
+            resp = client.patch(url, headers=headers, json=desired_defaults)
+
+            if resp.status_code >= 400:
+                logger.error(
+                    "Failed to configure CU defaults (%s): %s",
+                    resp.status_code,
+                    resp.text,
+                )
+                resp.raise_for_status()
+
+            logger.info("Content Understanding defaults configured.")
+            self._defaults_ensured = True
 
     def _ensure_analyzer(self, analyzer_id: str | None = None):
         """Create the CU analyzer if it doesn't exist yet."""
@@ -164,7 +220,14 @@ class ContentUnderstandingService:
         if analyzer_id in self._analyzers_ensured:
             return
 
+        settings = get_settings()
+
         template = AUDIO_ANALYZER_TEMPLATE if analyzer_id == AUDIO_ANALYZER_ID else DEFAULT_ANALYZER_TEMPLATE
+
+        template["models"] = {
+            "completion": settings.azure_openai_chat_deployment,
+            "embedding": settings.azure_openai_embedding_deployment,
+        }
         endpoint = self._endpoint()
         url = f"{endpoint}/contentunderstanding/analyzers/{analyzer_id}?api-version={self._api_version()}"
         headers = {**self._auth_headers(), "Content-Type": "application/json"}
@@ -175,6 +238,9 @@ class ContentUnderstandingService:
             if resp.status_code == 200:
                 self._analyzers_ensured.add(analyzer_id)
                 return
+            
+            # Configure defaults if required
+            self._ensure_defaults()
 
             # Create the analyzer
             resp = client.put(url, headers=headers, json=template)
@@ -196,6 +262,13 @@ class ContentUnderstandingService:
         analyzer: str | None = None,
         max_wait_sec: int | None = None,
     ) -> ExtractedDocument:
+        """Extract content from a file's bytes using Azure Content Understanding.
+
+        Every supported file type — documents, images, plain text, JSON and audio —
+        is processed through CU. Audio/video is routed to the audio analyzer; all
+        other types (including txt/csv/json) are uploaded as raw bytes to the default
+        document analyzer.
+        """
         if analyzer is None:
             analyzer = self._default_analyzer_id()
         ext = filename.rsplit(".", 1)[-1].lower()
@@ -207,17 +280,6 @@ class ContentUnderstandingService:
             analyzer = AUDIO_ANALYZER_ID
 
         content = file.read()
-
-        # Plain text files: skip CU, use content directly
-        if ext in ("txt", "csv"):
-            text = content.decode("utf-8", errors="replace")
-            return ExtractedDocument(
-                filename=filename,
-                content_type=self._mime_type(ext),
-                markdown=text,
-                page_count=1,
-                analyzer="direct-text",
-            )
 
         try:
             # Ensure the analyzer exists. If audio analyzer schema isn't supported,
@@ -237,7 +299,7 @@ class ContentUnderstandingService:
                     raise
 
             endpoint = self._endpoint()
-            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
+            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyzeBinary?api-version={self._api_version()}"
 
             # Send raw bytes directly to CU
             headers = {
@@ -298,7 +360,13 @@ class ContentUnderstandingService:
             url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
 
             headers = {**self._auth_headers(), "Content-Type": "application/json"}
-            body = {"url": file_url}
+            body = {
+                "inputs":[
+                    {
+                        "url": file_url
+                    }          
+                ]
+            }
 
             with httpx.Client(timeout=300) as client:
                 resp = client.post(url, headers=headers, json=body)
@@ -397,6 +465,7 @@ class ContentUnderstandingService:
             "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "csv": "text/csv",
             "txt": "text/plain",
+            "json": "application/json",
             "png": "image/png",
             "jpg": "image/jpeg",
             "jpeg": "image/jpeg",
@@ -410,7 +479,7 @@ class ContentUnderstandingService:
 
     def enrich(self, doc: ExtractedDocument) -> ExtractedDocument:
         """Enrich a CU-extracted document with AI-generated summary, entities, key phrases, topics.
-        Results are cached in Cosmos DB by content hash to avoid repeated GPT-5.1 calls."""
+        Results are cached in Cosmos DB by content hash to avoid repeated GPT-5.2 calls."""
         import hashlib
         import json
         from src.api.capabilities._llm import get_llm_client
@@ -454,7 +523,7 @@ class ContentUnderstandingService:
                 logging.getLogger(__name__).info(f"Enrichment cache hit for {doc.filename}")
                 return doc
         except Exception:
-            pass  # Cache miss or Cosmos not available — proceed with GPT-5.1
+            pass  # Cache miss or Cosmos not available — proceed with GPT-5.2
 
         try:
             client = get_llm_client()

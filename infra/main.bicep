@@ -1,4 +1,4 @@
-targetScope = 'subscription'
+targetScope = 'resourceGroup'
 
 @minLength(1)
 @maxLength(64)
@@ -10,19 +10,22 @@ param environmentName string
 param location string
 
 @description('Name of the Azure OpenAI chat deployment')
-param chatDeploymentName string = 'gpt-5.1'
+param chatDeploymentName string = 'gpt-5.2'
 
 @description('Name of the Azure OpenAI embedding deployment')
-param embeddingDeploymentName string = 'text-embedding-ada-002'
+param embeddingDeploymentName string = 'text-embedding-3-small'
 
 @description('GPT model version')
-param gptModelVersion string = '2025-11-13'
+param gptModelVersion string = '2025-12-11'
 
 @description('Azure AD tenant ID for authentication')
 param azureAdTenantId string = ''
 
 @description('Azure AD client ID for authentication')
 param azureAdClientId string = ''
+
+@description('Optional. The tags to apply to all deployed Azure resources.')
+param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
 
 // ── Existing AI Foundry Project (optional) ──
 @description('Set to true to reuse an existing Azure AI Foundry project instead of creating new AI resources')
@@ -47,13 +50,6 @@ param deployCosmos bool = false
 @secure()
 param adminApiKey string = ''
 
-@description('Location for Content Understanding service (must support CU preview API)')
-@allowed([
-  'swedencentral'
-  'australiaeast'
-])
-param contentUnderstandingLocation string = 'swedencentral'
-
 // ── Container Image Configuration ──
 // Images are built and pushed to the dedicated ACR provisioned below by the
 // post-deployment script (infra/scripts/build-images.ps1). App Services boot on
@@ -72,19 +68,27 @@ param frontendContainerImageTag string = 'latest'
 
 var abbrs = loadJsonContent('abbreviations.json')
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
-var tags = { 'azd-env-name': environmentName }
 
-// ========== Resource Group ========== //
-resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: '${abbrs.managementGovernance.resourceGroup}${environmentName}'
-  location: location
-  tags: tags
+var existingTags = resourceGroup().tags ?? {}
+
+// ========== Resource Group Tag ========== //
+resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
+  name: 'default'
+  properties: {
+    tags: union(
+      existingTags,
+      tags,
+      {
+        TemplateName: 'KM-Generic'
+        DeploymentName: deployment().name
+      }
+    )
+  }
 }
 
 // ========== AI Foundry: AI Services ========== //
 module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
   name: 'ai-services'
-  scope: rg
   params: {
     name: '${abbrs.ai.aiFoundry}${resourceToken}'
     location: location
@@ -107,7 +111,7 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
         }
         sku: {
           name: 'GlobalStandard'
-          capacity: 10
+          capacity: 150
         }
       }
       {
@@ -115,11 +119,11 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
         model: {
           format: 'OpenAI'
           name: embeddingDeploymentName
-          version: '2'
+          version: '1'
         }
         sku: {
-          name: 'Standard'
-          capacity: 30
+          name: 'GlobalStandard'
+          capacity: 80
         }
       }
     ]
@@ -130,34 +134,12 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
 var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
 var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
 
-// ========== Content Understanding (separate region) ========== //
-var cuResourceName = '${abbrs.ai.aiFoundry}${resourceToken}-cu'
-module cuServices 'modules/ai-services.bicep' = {
-  name: 'cu-services'
-  scope: rg
-  params: {
-    name: cuResourceName
-    location: contentUnderstandingLocation
-    kind: 'AIServices'
-    sku: 'S0'
-    customSubDomainName: cuResourceName
-    publicNetworkAccess: 'Enabled'
-    restrictOutboundNetworkAccess: false
-    disableLocalAuth: false
-    restore: false
-    deployments: []
-  }
-}
-
-var cuEndpoint = 'https://${cuResourceName}.services.ai.azure.com/'
-
 // ========== AI Search ========== //
 var aiSearchName = '${abbrs.ai.aiSearch}${resourceToken}'
 var aiSearchConnectionName = 'search-connection-${resourceToken}'
 
 module search 'modules/search.bicep' = {
   name: 'search'
-  scope: rg
   params: {
     name: aiSearchName
     location: location
@@ -168,7 +150,6 @@ module search 'modules/search.bicep' = {
 // ========== AI Search → AI Foundry Connection ========== //
 module searchConnection 'modules/deploy_aifp_aisearch_connection.bicep' = if (!useExistingAiProject) {
   name: 'ai-search-connection'
-  scope: rg
   params: {
     existingAIProjectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
     existingAIFoundryName: '${abbrs.ai.aiFoundry}${resourceToken}'
@@ -185,7 +166,6 @@ module searchConnection 'modules/deploy_aifp_aisearch_connection.bicep' = if (!u
 // ========== Storage Account ========== //
 module storage 'modules/storage.bicep' = {
   name: 'storage'
-  scope: rg
   params: {
     name: '${abbrs.storage.storageAccount}${resourceToken}'
     location: location
@@ -196,7 +176,6 @@ module storage 'modules/storage.bicep' = {
 // ========== SQL Database ========== //
 module sql 'modules/sql.bicep' = {
   name: 'sql'
-  scope: rg
   params: {
     serverName: '${abbrs.databases.sqlDatabaseServer}${resourceToken}'
     databaseName: '${abbrs.databases.sqlDatabase}${resourceToken}'
@@ -209,7 +188,6 @@ module sql 'modules/sql.bicep' = {
 // ========== Cosmos DB (optional) ========== //
 module cosmos 'modules/cosmos.bicep' = if (deployCosmos) {
   name: 'cosmos'
-  scope: rg
   params: {
     name: '${abbrs.databases.cosmosDBDatabase}${resourceToken}'
     location: location
@@ -222,7 +200,6 @@ module cosmos 'modules/cosmos.bicep' = if (deployCosmos) {
 var acrName = 'cr${resourceToken}'
 module containerRegistry 'modules/container-registry.bicep' = {
   name: 'container-registry'
-  scope: rg
   params: {
     name: acrName
     location: location
@@ -235,7 +212,6 @@ var acrLoginServer = containerRegistry.outputs.loginServer
 var webServerFarmResourceName = '${abbrs.compute.appServicePlan}${resourceToken}'
 module webServerFarm 'modules/app-service-plan.bicep' = {
   name: 'deploy_app_service_plan_serverfarm'
-  scope: rg
   params: {
     name: webServerFarmResourceName
     location: location
@@ -247,7 +223,6 @@ module webServerFarm 'modules/app-service-plan.bicep' = {
 var backendWebSiteResourceName = 'api-${resourceToken}'
 module webSiteBackend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${backendWebSiteResourceName}', 64)
-  scope: rg
   params: {
     name: backendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'backend' })
@@ -274,7 +249,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           AZURE_OPENAI_EMBEDDING_DEPLOYMENT: embeddingDeploymentName
           AZURE_SEARCH_ENDPOINT: search.outputs.endpoint
           AZURE_SEARCH_INDEX_NAME: 'knowledge-mining-index'
-          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: cuEndpoint
+          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: aiServices!.outputs.endpoints['Content Understanding']
           AZURE_STORAGE_ACCOUNT: storage.outputs.accountName
           AZURE_SQL_SERVER: sql.outputs.serverFqdn
           AZURE_SQL_DATABASE: '${abbrs.databases.sqlDatabase}${resourceToken}'
@@ -298,7 +273,6 @@ module webSiteBackend 'modules/web-sites.bicep' = {
 var frontendWebSiteResourceName = 'app-${resourceToken}'
 module webSiteFrontend 'modules/web-sites.bicep' = {
   name: take('module.web-sites.${frontendWebSiteResourceName}', 64)
-  scope: rg
   params: {
     name: frontendWebSiteResourceName
     tags: union(tags, { 'azd-service-name': 'frontend' })
@@ -330,13 +304,11 @@ module webSiteFrontend 'modules/web-sites.bicep' = {
 // ========== Role Assignments ========== //
 module roles 'modules/roles.bicep' = {
   name: 'roles'
-  scope: rg
   params: {
     openaiName: aiServicesName
     searchName: search.outputs.name
     storageName: storage.outputs.accountName
     cosmosName: deployCosmos ? cosmos!.outputs.name : ''
-    cuName: cuResourceName
     backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
     frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
     acrName: containerRegistry.outputs.name
@@ -353,7 +325,7 @@ output AZURE_OPENAI_ENDPOINT string = aiServicesEndpoint
 output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
 
 @description('Azure Content Understanding endpoint URL.')
-output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = cuEndpoint
+output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = aiServices!.outputs.endpoints['Content Understanding']
 
 @description('Azure Storage account name.')
 output AZURE_STORAGE_ACCOUNT string = storage.outputs.accountName
@@ -413,4 +385,4 @@ output FRONTEND_CONTAINER_IMAGE_TAG string = frontendContainerImageTag
 output FRONTEND_APP_NAME string = frontendWebSiteResourceName
 
 @description('Resource group name.')
-output RESOURCE_GROUP_NAME string = rg.name
+output RESOURCE_GROUP_NAME string = resourceGroup().name

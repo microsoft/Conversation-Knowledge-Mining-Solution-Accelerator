@@ -339,81 +339,14 @@ if ($DataPath) {
     }
 
     $allFiles = Get-ChildItem $DataPath -File
-    $jsonFiles = $allFiles | Where-Object { $_.Extension -eq ".json" }
     $audioFiles = $allFiles | Where-Object { $_.Extension -in ".wav", ".mp3", ".mp4" }
-    $docFiles = $allFiles | Where-Object { $_.Extension -in ".pdf", ".docx", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg" }
+    $docFiles = $allFiles | Where-Object { $_.Extension -in ".pdf", ".docx", ".xlsx", ".csv", ".txt", ".json", ".png", ".jpg", ".jpeg" }
 
     Write-Host ""
     Write-Host "Found in $DataPath :" -ForegroundColor White
-    if ($jsonFiles.Count -gt 0) { Write-Host "  $($jsonFiles.Count) JSON files" -ForegroundColor Cyan }
     if ($audioFiles.Count -gt 0) { Write-Host "  $($audioFiles.Count) audio files (WAV/MP3)" -ForegroundColor Cyan }
-    if ($docFiles.Count -gt 0) { Write-Host "  $($docFiles.Count) document files (PDF/DOCX/etc.)" -ForegroundColor Cyan }
+    if ($docFiles.Count -gt 0) { Write-Host "  $($docFiles.Count) document files (PDF/JSON/DOCX/etc.)" -ForegroundColor Cyan }
     Write-Host ""
-
-    # ── JSON conversations ──
-    if ($jsonFiles.Count -gt 0) {
-        Write-Host "Processing JSON files..." -ForegroundColor Yellow
-
-        # Normalize any JSON shape (single object or array) into ingestion schema.
-        $transformed = [System.Collections.ArrayList]::new()
-        foreach ($f in $jsonFiles) {
-            $raw = Get-Content $f.FullName -Raw -Encoding UTF8
-            $parsed = $raw | ConvertFrom-Json
-            $records = if ($parsed -is [System.Collections.IEnumerable] -and $parsed -isnot [string]) { $parsed } else { @($parsed) }
-
-            $index = 0
-            foreach ($convo in $records) {
-                $index += 1
-
-                # Auto-detect id/text fields; fall back safely.
-                $id = if ($convo.ConversationId) { $convo.ConversationId }
-                      elseif ($convo.id) { $convo.id }
-                      elseif ($convo.doc_id) { $convo.doc_id }
-                      else { "{0}-{1}" -f [System.IO.Path]::GetFileNameWithoutExtension($f.Name), $index }
-
-                $text = if ($convo.Content) { $convo.Content }
-                        elseif ($convo.text) { $convo.text }
-                        elseif ($convo.transcript) { $convo.transcript }
-                        else { $convo | ConvertTo-Json -Depth 5 }
-
-                # Build metadata from all non-text fields.
-                $meta = @{ source_file = $f.Name }
-                $convo.PSObject.Properties | ForEach-Object {
-                    $key = $_.Name
-                    if ($key -notin @("Content", "text", "transcript") -and $null -ne $_.Value) {
-                        $meta[$key] = [string]$_.Value
-                    }
-                }
-
-                $null = $transformed.Add(@{
-                    id = [string]$id
-                    type = "call_transcript"
-                    text = [string]$text
-                    metadata = $meta
-                })
-            }
-        }
-
-        Write-Host "  Transformed $($transformed.Count) records" -ForegroundColor White
-        $uploadFilename = if ($jsonFiles.Count -eq 1) {
-            $jsonFiles[0].Name
-        } elseif ($Scenario) {
-            "$Scenario-merged.json"
-        } else {
-            "km_upload_$(Get-Date -Format 'yyyyMMddHHmmss').json"
-        }
-        $tempFile = Join-Path $env:TEMP $uploadFilename
-        $transformed | ConvertTo-Json -Depth 10 -Compress |
-            Out-File -FilePath $tempFile -Encoding UTF8
-
-        try {
-            $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/json" `
-                -Method POST -Form @{ file = Get-Item $tempFile } -Headers $headers
-            Write-Host "  Loaded $($result.total_loaded) records" -ForegroundColor Green
-        } finally {
-            Remove-Item $tempFile -ErrorAction SilentlyContinue
-        }
-    }
 
     # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {

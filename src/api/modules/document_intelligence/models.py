@@ -8,7 +8,7 @@ class ExtractedDocument(BaseModel):
     markdown: str
     fields: Optional[dict[str, Any]] = None
     page_count: int = 1
-    analyzer: str = "km-document"
+    analyzer: str = "km_document"
 
     summary: str = ""
     entities: list[dict[str, str]] = []  # [{name, type, context}]
