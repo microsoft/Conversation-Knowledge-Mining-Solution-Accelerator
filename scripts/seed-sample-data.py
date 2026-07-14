@@ -63,7 +63,7 @@ from azure.cosmos import CosmosClient, PartitionKey
 SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "knowledge-mining-index")
 OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-EMBEDDING_MODEL = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
+EMBEDDING_MODEL = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small")
 COSMOS_ENDPOINT = os.getenv("AZURE_COSMOS_ENDPOINT", "")
 COSMOS_DATABASE = os.getenv("AZURE_COSMOS_DATABASE", "km-db")
 SQL_SERVER = os.getenv("AZURE_SQL_SERVER", "")

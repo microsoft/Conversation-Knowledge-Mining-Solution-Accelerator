@@ -111,7 +111,7 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
         }
         sku: {
           name: 'GlobalStandard'
-          capacity: 10
+          capacity: 150
         }
       }
       {
@@ -122,8 +122,8 @@ module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
           version: '1'
         }
         sku: {
-          name: 'Standard'
-          capacity: 30
+          name: 'GlobalStandard'
+          capacity: 80
         }
       }
     ]

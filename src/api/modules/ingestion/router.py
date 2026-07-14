@@ -187,73 +187,55 @@ async def upload_document(
 
 
 def _process_single_document(file_id: str, filename: str, ext: str, content: bytes):
-    """Process a single document — used as fallback when queue is unavailable.
-    Runs the full pipeline: extract → chunk → embed → index → enrich."""
+    """Fallback single-file pipeline, used when the queue/blob storage is unavailable.
+
+    Runs the full flow: Content Understanding extract → chunk → embed → index → enrich.
+    Every file type is processed through Content Understanding (no local fast-path).
+    """
     import io
     from src.api.modules.document_intelligence.service import content_understanding_service
     from src.api.modules.ingestion.chunking import chunk_text
     from src.api.modules.processing.service import ProcessingService
-    from src.api.modules.ingestion.local_extractor import extract_text as local_extract
 
     try:
         settings = get_settings()
 
-        # Try local extraction first — will reject unsupported formats like WAV early
-        try:
-            local_text, needs_cu = local_extract(content, filename)
-            if local_text.strip() and not needs_cu:
-                logger.debug(f"[{file_id}] Local extraction succeeded for {filename}, skipping CU")
-                # Create a mock extracted object for consistency
-                extracted = type('obj', (object,), {
-                    'markdown': local_text,
-                    'page_count': 1,
-                    'fields': {}
-                })()
-            else:
-                extracted = None  # Will use CU below
-        except ValueError as ve:
-            # Format validation error (e.g., WAV not supported)
-            ingestion_service._update_file_status(file_id, "failed", error=str(ve))
-            return
-        except Exception as le:
-            logger.debug(f"[{file_id}] Local extraction failed: {le}, will try CU")
-            extracted = None
+        # ── Stage 1: Extract with Content Understanding ─────────────────
+        cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
+        extracted = None
 
-        # Stage 1: Extract using CU if needed
-        if extracted is None:
-            cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
-
-            # Prefer SAS URL to avoid re-uploading bytes
-            if settings.cu_use_sas_url:
-                try:
-                    from src.api.modules.ingestion.azure_storage import azure_storage_service
-                    sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
-                    if sas_url:
-                        extracted = content_understanding_service.analyze_url(
-                            file_url=sas_url,
-                            filename=filename,
-                            max_wait_sec=cu_wait_sec,
-                        )
-                except Exception as e:
-                    logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
-
-            if extracted is None:
-                try:
-                    extracted = content_understanding_service.analyze(
-                        file=io.BytesIO(content),
+        # Prefer SAS URL analysis to avoid re-uploading bytes to CU.
+        if settings.cu_use_sas_url:
+            try:
+                from src.api.modules.ingestion.azure_storage import azure_storage_service
+                sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
+                if sas_url:
+                    extracted = content_understanding_service.analyze_url(
+                        file_url=sas_url,
                         filename=filename,
                         max_wait_sec=cu_wait_sec,
                     )
-                except TimeoutError:
-                    retry_wait_sec = settings.cu_poll_max_wait_sec
-                    logger.warning(
-                        f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s for {filename}"
-                    )
-                    extracted = content_understanding_service.analyze(
-                        file=io.BytesIO(content),
-                        filename=filename,
-                        max_wait_sec=retry_wait_sec,
-                    )
+            except Exception as e:
+                logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
+
+        # Byte-upload fallback (also the deterministic retry path on timeout).
+        if extracted is None:
+            try:
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=cu_wait_sec,
+                )
+            except TimeoutError:
+                retry_wait_sec = settings.cu_poll_max_wait_sec
+                logger.warning(
+                    f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s for {filename}"
+                )
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=retry_wait_sec,
+                )
 
         if not extracted.markdown.strip():
             ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")

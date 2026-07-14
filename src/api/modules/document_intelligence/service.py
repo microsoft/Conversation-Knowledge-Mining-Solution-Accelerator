@@ -10,7 +10,7 @@ from src.api.modules.document_intelligence.models import ExtractedDocument
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
+SUPPORTED_EXTENSIONS = {"pdf", "docx", "xlsx", "csv", "txt", "json", "png", "jpg", "jpeg", "tiff", "bmp", "mp3", "wav", "mp4"}
 
 # Default CU analyzer template for generic document analysis
 DEFAULT_ANALYZER_TEMPLATE = {
@@ -25,7 +25,7 @@ DEFAULT_ANALYZER_TEMPLATE = {
             "content": {
                 "type": "string",
                 "method": "generate",
-                "description": "Full text content of the document in markdown format"
+                "description": "Full text content of the document in markdown format. If the source is structured data (e.g. a JSON transcript), extract only the meaningful readable text such as the conversation or body content — do NOT reproduce raw JSON, field names, or code fences."
             },
             "summary": {
                 "type": "string",
@@ -262,6 +262,13 @@ class ContentUnderstandingService:
         analyzer: str | None = None,
         max_wait_sec: int | None = None,
     ) -> ExtractedDocument:
+        """Extract content from a file's bytes using Azure Content Understanding.
+
+        Every supported file type — documents, images, plain text, JSON and audio —
+        is processed through CU. Audio/video is routed to the audio analyzer; all
+        other types (including txt/csv/json) are uploaded as raw bytes to the default
+        document analyzer.
+        """
         if analyzer is None:
             analyzer = self._default_analyzer_id()
         ext = filename.rsplit(".", 1)[-1].lower()
@@ -273,17 +280,6 @@ class ContentUnderstandingService:
             analyzer = AUDIO_ANALYZER_ID
 
         content = file.read()
-
-        # Plain text files: skip CU, use content directly
-        if ext in ("txt", "csv"):
-            text = content.decode("utf-8", errors="replace")
-            return ExtractedDocument(
-                filename=filename,
-                content_type=self._mime_type(ext),
-                markdown=text,
-                page_count=1,
-                analyzer="direct-text",
-            )
 
         try:
             # Ensure the analyzer exists. If audio analyzer schema isn't supported,
@@ -303,7 +299,7 @@ class ContentUnderstandingService:
                     raise
 
             endpoint = self._endpoint()
-            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyze?api-version={self._api_version()}"
+            url = f"{endpoint}/contentunderstanding/analyzers/{analyzer}:analyzeBinary?api-version={self._api_version()}"
 
             # Send raw bytes directly to CU
             headers = {
@@ -469,6 +465,7 @@ class ContentUnderstandingService:
             "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "csv": "text/csv",
             "txt": "text/plain",
+            "json": "application/json",
             "png": "image/png",
             "jpg": "image/jpeg",
             "jpeg": "image/jpeg",
@@ -482,7 +479,7 @@ class ContentUnderstandingService:
 
     def enrich(self, doc: ExtractedDocument) -> ExtractedDocument:
         """Enrich a CU-extracted document with AI-generated summary, entities, key phrases, topics.
-        Results are cached in Cosmos DB by content hash to avoid repeated GPT-5.1 calls."""
+        Results are cached in Cosmos DB by content hash to avoid repeated GPT-5.2 calls."""
         import hashlib
         import json
         from src.api.capabilities._llm import get_llm_client
@@ -526,7 +523,7 @@ class ContentUnderstandingService:
                 logging.getLogger(__name__).info(f"Enrichment cache hit for {doc.filename}")
                 return doc
         except Exception:
-            pass  # Cache miss or Cosmos not available — proceed with GPT-5.1
+            pass  # Cache miss or Cosmos not available — proceed with GPT-5.2
 
         try:
             client = get_llm_client()
