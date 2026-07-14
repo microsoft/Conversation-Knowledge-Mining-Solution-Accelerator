@@ -48,6 +48,12 @@ from azure.search.documents.indexes.models import (
     VectorSearch,
     HnswAlgorithmConfiguration,
     VectorSearchProfile,
+    AzureOpenAIVectorizer,
+    AzureOpenAIVectorizerParameters,
+    SemanticConfiguration,
+    SemanticField,
+    SemanticPrioritizedFields,
+    SemanticSearch,
 )
 from azure.cosmos import CosmosClient, PartitionKey
 
@@ -56,6 +62,8 @@ from azure.cosmos import CosmosClient, PartitionKey
 # ---------------------------------------------------------------------------
 SEARCH_ENDPOINT = os.getenv("AZURE_SEARCH_ENDPOINT", "")
 INDEX_NAME = os.getenv("AZURE_SEARCH_INDEX_NAME", "knowledge-mining-index")
+OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+EMBEDDING_MODEL = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-ada-002")
 COSMOS_ENDPOINT = os.getenv("AZURE_COSMOS_ENDPOINT", "")
 COSMOS_DATABASE = os.getenv("AZURE_COSMOS_DATABASE", "km-db")
 SQL_SERVER = os.getenv("AZURE_SQL_SERVER", "")
@@ -96,7 +104,37 @@ def ensure_search_index():
 
     vector_search = VectorSearch(
         algorithms=[HnswAlgorithmConfiguration(name="hnsw-config")],
-        profiles=[VectorSearchProfile(name="vector-profile", algorithm_configuration_name="hnsw-config")],
+        profiles=[
+            VectorSearchProfile(
+                name="vector-profile",
+                algorithm_configuration_name="hnsw-config",
+                vectorizer_name="openai-vectorizer",
+            )
+        ],
+        vectorizers=[
+            AzureOpenAIVectorizer(
+                vectorizer_name="openai-vectorizer",
+                kind="azureOpenAI",
+                parameters=AzureOpenAIVectorizerParameters(
+                    resource_url=OPENAI_ENDPOINT,
+                    deployment_name=EMBEDDING_MODEL,
+                    model_name=EMBEDDING_MODEL,
+                ),
+            )
+        ],
+    )
+
+    semantic_search = SemanticSearch(
+        configurations=[
+            SemanticConfiguration(
+                name="semantic-config",
+                prioritized_fields=SemanticPrioritizedFields(
+                    title_field=SemanticField(field_name="summary"),
+                    keywords_fields=[SemanticField(field_name="key_phrases")],
+                    content_fields=[SemanticField(field_name="text")],
+                ),
+            )
+        ]
     )
 
     fields = [
@@ -122,7 +160,12 @@ def ensure_search_index():
         ),
     ]
 
-    index = SearchIndex(name=INDEX_NAME, fields=fields, vector_search=vector_search)
+    index = SearchIndex(
+        name=INDEX_NAME,
+        fields=fields,
+        vector_search=vector_search,
+        semantic_search=semantic_search,
+    )
     result = index_client.create_or_update_index(index)
     print(f"  [OK] Index '{result.name}' ready ({len(result.fields)} fields)")
 
