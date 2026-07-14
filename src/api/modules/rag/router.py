@@ -118,7 +118,7 @@ async def delete_chat_session(session_id: str, request: Request):
 
 @router.post("/ask", response_model=QAResponse)
 async def ask_question(request: QARequest):
-    """Ask a question against the knowledge base or an external index."""
+    """Ask a question against the knowledge base."""
     try:
         doc_ids = request.document_ids if request.chat_scope == "documents" else None
         return await asyncio.to_thread(
@@ -128,7 +128,6 @@ async def ask_question(request: QARequest):
             filters=request.filters,
             include_sources=request.include_sources,
             document_ids=doc_ids,
-            external_index_id=request.external_index_id if request.chat_scope == "external" else None,
             conversation_id=request.conversation_id,
         )
     except Exception as e:
