@@ -35,8 +35,8 @@ class Settings(BaseSettings):
 
     # Azure Content Understanding
     azure_content_understanding_endpoint: str = ""
-    azure_content_understanding_api_version: str = "2024-12-01-preview"
-    azure_content_understanding_analyzer_id: str = "km-document"
+    azure_content_understanding_api_version: str = "2025-11-01"
+    azure_content_understanding_analyzer_id: str = "km_document"
 
     # Admin API Key (local dev / script auth — never set in production)
     admin_api_key: str = ""
