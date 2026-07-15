@@ -369,7 +369,7 @@ class QueueWorker:
             "cu_fields": cu_fields,
         })
         queue_service.delete(EXTRACTION_QUEUE, message)
-        logger.debug(f"[extraction] {filename} extracted via CU and enqueued for enrichment")
+        logger.info(f"[extraction] DONE {filename} ({len(extracted.markdown)} chars) — enqueued for enrichment")
 
     # ── Stage 2: Enrichment (Chunk → Embed → Index) ─────────────
 
@@ -482,6 +482,7 @@ class QueueWorker:
 
             # Mark as ready
             ingestion_service._update_file_status(file_id, "ready")
+            logger.info(f"[enrichment] DONE {filename} — {indexed}/{len(chunks)} chunks indexed (ready)")
 
             # Delete enrichment message
             queue_service.delete(ENRICHMENT_QUEUE, message)
