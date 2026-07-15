@@ -112,7 +112,7 @@ const useStyles = makeStyles({
     borderRadius: "4px",
     cursor: "pointer",
     fontWeight: 500,
-    color: tokens.colorNeutralForeground2,
+    color: "#2563eb",
     textAlign: "left" as const,
     textDecoration: "none",
     fontSize: "12px",
