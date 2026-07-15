@@ -73,6 +73,16 @@ resource searchContribRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
+resource searchOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(openai.id, search.id, roles.cognitiveServicesOpenAIUser)
+  scope: openai
+  properties: {
+    roleDefinitionId: roles.cognitiveServicesOpenAIUser
+    principalId: search.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storage.id, backendPrincipalId, roles.storageBlobDataContributor)
   scope: storage

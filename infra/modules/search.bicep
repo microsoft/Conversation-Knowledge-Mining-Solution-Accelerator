@@ -10,6 +10,9 @@ resource search 'Microsoft.Search/searchServices@2024-06-01-preview' = {
   name: name
   location: location
   tags: tags
+  identity: {
+    type: 'SystemAssigned'
+  }
   sku: { name: skuName }
   properties: {
     replicaCount: 1
@@ -28,3 +31,4 @@ resource search 'Microsoft.Search/searchServices@2024-06-01-preview' = {
 output endpoint string = 'https://${name}.search.windows.net'
 output name string = search.name
 output id string = search.id
+output principalId string = search.identity.principalId
