@@ -244,6 +244,12 @@ class ContentUnderstandingService:
 
             # Create the analyzer
             resp = client.put(url, headers=headers, json=template)
+            if resp.status_code == 409:
+                logger.info(
+                    f"CU analyzer '{analyzer_id}' already exists (409 Conflict); reusing it."
+                )
+                self._analyzers_ensured.add(analyzer_id)
+                return
             if resp.status_code >= 400:
                 logger.error(f"CU Analyzer create error {resp.status_code}: {resp.text}")
             resp.raise_for_status()
