@@ -584,10 +584,8 @@ Be specific and domain-agnostic. Output strictly valid JSON."""},
             }
         """
         import json
-        from src.api.capabilities._llm import get_llm_client
-
-        settings = get_settings()
-        client = get_llm_client()
+        from src.api.modules.document_intelligence.enrichment_agent import enrichment_agent_manager
+        from src.api.utils.constants import strip_code_fences
 
         # Build snippets — use more text for better enrichment quality
         max_snippet = 500 if len(documents) > 20 else 1500
@@ -658,17 +656,8 @@ Documents:
 {json.dumps(chunk)}"""
 
             try:
-                response = client.chat.completions.create(
-                    model=settings.azure_openai_chat_deployment,
-                    messages=[
-                        {"role": "system", "content": "You are a data preparation system. Extract document metadata and generate filter schemas. Be domain-agnostic. Keep responses compact."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.2,
-                    max_completion_tokens=4000,
-                    response_format={"type": "json_object"},
-                )
-                chunk_result = json.loads(response.choices[0].message.content)
+                content = enrichment_agent_manager.run(prompt)
+                chunk_result = json.loads(strip_code_fences(content))
 
                 if is_first:
                     domain = chunk_result.get("domain", "")

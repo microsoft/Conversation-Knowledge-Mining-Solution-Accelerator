@@ -29,6 +29,7 @@ class QueueWorker:
         self._max_concurrent = max_concurrent
         self._running = False
         self._threads: list[threading.Thread] = []
+        self._last_activity = 0.0
 
     def start(self):
         """Start worker threads for both pipeline stages."""
@@ -74,6 +75,7 @@ class QueueWorker:
     # Scale visibility timeout based on expected processing time
     _BASE_VISIBILITY_SEC = 600
     _MAX_VISIBILITY_SEC = 3600  # 1 hour max for very large files
+    _AGENT_IDLE_DELETE_SEC = 300  # delete the enrichment agent after this idle period
 
     def _poll_loop(self, queue_name: str, handler):
         """Main polling loop for a single queue."""
@@ -89,8 +91,17 @@ class QueueWorker:
                     ))
 
                     if not messages:
+                        # Once both queues drain, delete the enrichment agent.
+                        if queue_name == ENRICHMENT_QUEUE:
+                            self._maybe_delete_enrichment_agent()
                         self._wait()
                         continue
+
+                    # Files are being processed — ensure the enrichment agent exists.
+                    import time
+                    self._last_activity = time.time()
+                    from src.api.modules.document_intelligence.enrichment_agent import enrichment_agent_manager
+                    enrichment_agent_manager.create()
 
                     futures = []
                     for msg in messages:
@@ -164,6 +175,16 @@ class QueueWorker:
             if not self._running:
                 return
             time.sleep(0.1)
+
+    def _maybe_delete_enrichment_agent(self):
+        """Delete the enrichment agent once processing has been idle for a while."""
+        import time
+        if not self._last_activity:
+            return
+        if time.time() - self._last_activity > self._AGENT_IDLE_DELETE_SEC:
+            from src.api.modules.document_intelligence.enrichment_agent import enrichment_agent_manager
+            enrichment_agent_manager.delete()
+            self._last_activity = 0.0
 
     # ── Stage 1: Extraction ──────────────────────────────────────
 
