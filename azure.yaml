@@ -13,6 +13,17 @@ metadata:
   template: conversation-knowledge-mining@1.0
 
 hooks:
+  preprovision:
+    windows:
+      run: |
+        Write-Host ""
+        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
+        Write-Host "  Note: If deployment fails or you encounter an issue, please open an issue with the deployment logs." -ForegroundColor Yellow
+        Write-Host "  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues" -ForegroundColor Cyan
+        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
+        Write-Host ""
+      shell: pwsh
+      interactive: true
   postprovision:
     windows:
       run: |
