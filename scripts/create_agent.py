@@ -158,9 +158,8 @@ instructions = build_agent_instructions()
 logger.info(f"Built instructions ({len(instructions)} chars)")
 
 # Determine scenario tool capabilities directly from scenarios.json.
-# json/csv/wav scenarios have structured analytics (SQL); pdf-only are search-only.
-# An explicit `sql_enabled` flag wins. Default to search-only if unknown.
-# BYOD scenarios don't use SQL tools.
+# All non-BYOD scenarios get both Search and SQL tools.
+# An explicit `sql_enabled` flag wins. BYOD scenarios don't use SQL tools.
 USE_SQL = False
 _scenario_key = args.scenario or os.getenv("SCENARIO") or os.getenv("AZURE_SCENARIO") or ""
 _scenarios_path = os.path.join(config_dir, "scenarios.json")
@@ -181,10 +180,9 @@ if os.path.exists(_scenarios_path):
     
     if "sql_enabled" in _sc:
         USE_SQL = bool(_sc["sql_enabled"])
-    elif not _is_byod:
-        USE_SQL = any(t in ("json", "csv", "wav") for t in _sc.get("data_types", []))
     else:
-        USE_SQL = False  # BYOD scenarios don't use SQL tools
+        # All non-BYOD scenarios get both Search and SQL tools.
+        USE_SQL = not _is_byod
 
 # Title Agent Instructions
 title_agent_instructions = """You are a specialized agent for generating concise conversation titles.
