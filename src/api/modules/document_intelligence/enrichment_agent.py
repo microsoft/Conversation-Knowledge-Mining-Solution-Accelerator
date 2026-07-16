@@ -13,7 +13,8 @@ from src.api.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-ENRICHMENT_AGENT_NAME = "EnrichmentAgent"
+_suffix = get_settings().solution_suffix
+ENRICHMENT_AGENT_NAME = f"EnrichmentAgent-{_suffix}" if _suffix else "EnrichmentAgent"
 
 _INSTRUCTIONS = (
     "You are a data preparation system. For each document, extract entities, "

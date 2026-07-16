@@ -974,7 +974,7 @@ class IngestionService:
                     logger.warning(f"Failed to clear internal uploaded_files: {e}")
                     failed_tables.append("uploaded_files(internal)")
 
-                for table in ["filter_schemas", "enrichment_cache"]:
+                for table in ["filter_schemas", "enrichment_cache", "insights_cache"]:
                     try:
                         cursor.execute(f"DELETE FROM {table}")
                         cleared_tables.append(table)

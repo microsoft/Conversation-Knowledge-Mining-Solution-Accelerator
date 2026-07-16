@@ -158,6 +158,45 @@ if ($token) {
     }
 }
 
+# ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
+function Invoke-DataCleanup {
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers
+    )
+
+    # Always clear existing demo data (SQL documents + insights cache) before loading.
+    Write-Host "Clearing existing data before loading new scenario..." -ForegroundColor Yellow
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $Headers | Out-Null
+        Write-Host "Previous data cleared." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Could not clear existing demo data before scenario load: $_" -ForegroundColor Red
+        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
+        exit 1
+    }
+
+    # Also clear connected external sources for scenario isolation on Home/Explore.
+    Write-Host "Removing existing external source connections for scenario isolation..." -ForegroundColor Yellow
+    try {
+        $existingSources = Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/" -Method GET -Headers $Headers
+        if ($existingSources -and $existingSources.Count -gt 0) {
+            foreach ($src in $existingSources) {
+                try {
+                    Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/$($src.id)" -Method DELETE -Headers $Headers | Out-Null
+                } catch {
+                    Write-Host "  Warning: Could not remove data source '$($src.name)': $_" -ForegroundColor Yellow
+                }
+            }
+            Write-Host "Removed $($existingSources.Count) external data source connection(s)." -ForegroundColor Green
+        } else {
+            Write-Host "No external data sources found." -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host "Warning: Could not list/remove external data sources: $_" -ForegroundColor Yellow
+    }
+}
+
 # ── Interactive mode if no params ──
 if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
     # Build menu dynamically from scenarios.json
@@ -207,12 +246,18 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             if ($selected.key -in @("azure_search_byod", "fabric_byod")) {
                 $sourceType = if ($selected.key -eq "azure_search_byod") { "azure_search" } else { "fabric" }
                 Write-Host ""
+                # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+                Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+                Write-Host ""
                 & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
                 exit $LASTEXITCODE
             }
             $Scenario = $selected.key
         }
         "data_source" {
+            Write-Host ""
+            # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host ""
             & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
             exit $LASTEXITCODE
@@ -257,36 +302,8 @@ if ($Scenario) {
         Write-Host "Updated UI config: useCaseName = '$($pack.name)'" -ForegroundColor Green
     }
 
-    # Always clear existing demo data before loading any scenario/use case
-    Write-Host "Clearing existing data before loading new scenario..." -ForegroundColor Yellow
-    try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $headers | Out-Null
-        Write-Host "Previous data cleared." -ForegroundColor Green
-    } catch {
-        Write-Host "ERROR: Could not clear existing demo data before scenario load: $_" -ForegroundColor Red
-        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
-        exit 1
-    }
-
-    # Also clear connected external sources for scenario isolation on Home/Explore.
-    Write-Host "Removing existing external source connections for scenario isolation..." -ForegroundColor Yellow
-    try {
-        $existingSources = Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/" -Method GET -Headers $headers
-        if ($existingSources -and $existingSources.Count -gt 0) {
-            foreach ($src in $existingSources) {
-                try {
-                    Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/$($src.id)" -Method DELETE -Headers $headers | Out-Null
-                } catch {
-                    Write-Host "  Warning: Could not remove data source '$($src.name)': $_" -ForegroundColor Yellow
-                }
-            }
-            Write-Host "Removed $($existingSources.Count) external data source connection(s)." -ForegroundColor Green
-        } else {
-            Write-Host "No external data sources found." -ForegroundColor DarkGray
-        }
-    } catch {
-        Write-Host "Warning: Could not list/remove external data sources: $_" -ForegroundColor Yellow
-    }
+    # Always clear existing demo data + external sources before loading any scenario/use case
+    Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
 
     # Contact Center has pre-processed data — use the direct seed path
     if ($pack.has_preprocessed -eq $true) {
@@ -416,6 +433,10 @@ if ($DataPath) {
 # Option 2: Connect external data source
 # ══════════════════════════════════════════
 if ($ExternalSource) {
+    # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+    Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+    Write-Host ""
+
     $pyArgs = @("--type", $ExternalSource)
     if ($Name)             { $pyArgs += "--name", $Name }
     if ($Endpoint)         { $pyArgs += "--endpoint", $Endpoint }

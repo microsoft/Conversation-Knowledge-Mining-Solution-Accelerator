@@ -67,11 +67,15 @@ Write-Host "🔄 Starting BYOD Enrichment Pipeline" -ForegroundColor Cyan
 Write-Host "   Source Type: $SourceType" -ForegroundColor Gray
 Write-Host "   Source ID:   $SourceId" -ForegroundColor Gray
 Write-Host "   Batch Size:  $BatchSize" -ForegroundColor Gray
+Write-Host "   Python:      $pythonExe" -ForegroundColor Gray
+Write-Host "   Started:     $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor Gray
 Write-Host ""
 
 # Run enrichment
-Write-Host "Enriching documents... (this may take a few minutes)" -ForegroundColor Yellow
+Write-Host "Enriching documents... (live progress below; this may take a few minutes)" -ForegroundColor Yellow
 Write-Host ""
+
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
     # Build enrichment command arguments
@@ -87,8 +91,22 @@ try {
         $args += "--enriched-only"
     }
     
-    # Execute Python script and capture output
-    $result = & $pythonExe @args 2>&1 | Out-String
+    Write-Host "   Running: $pythonExe $($args -join ' ')" -ForegroundColor DarkGray
+    Write-Host ""
+    
+    # Execute Python script, streaming output live while capturing it for JSON parsing.
+    $outputLines = [System.Collections.Generic.List[string]]::new()
+    & $pythonExe @args 2>&1 | ForEach-Object {
+        $line = $_.ToString()
+        # Show a timestamp on each line so stalls are obvious.
+        Write-Host "   [$(Get-Date -Format 'HH:mm:ss')] $line" -ForegroundColor DarkGray
+        $outputLines.Add($line)
+    }
+    $result = $outputLines -join "`n"
+    
+    Write-Host ""
+    Write-Host "   Python exited with code $LASTEXITCODE after $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s" -ForegroundColor Gray
+    Write-Host ""
     
     # Try to parse result as JSON
     $enrichmentResult = $null
@@ -123,9 +141,15 @@ try {
         
         if ($enrichmentResult.errors -gt 0) {
             Write-Host "  Errors: $($enrichmentResult.errors)" -ForegroundColor Yellow
+            if ($enrichmentResult.error_details) {
+                foreach ($err in $enrichmentResult.error_details) {
+                    Write-Host "    - $($err.id): $($err.error)" -ForegroundColor Yellow
+                }
+            }
         }
         
         Write-Host "  Timestamp: $($enrichmentResult.timestamp)" -ForegroundColor Gray
+        Write-Host "  Elapsed:   $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s" -ForegroundColor Gray
         Write-Host ""
         
         if ($enrichmentResult.success) {
@@ -144,6 +168,7 @@ try {
 }
 catch {
     Write-Host "❌ Enrichment failed: $_" -ForegroundColor Red
+    Write-Host "   Elapsed before failure: $([math]::Round($stopwatch.Elapsed.TotalSeconds, 1))s" -ForegroundColor Red
     Write-Host "Last exit code: $LASTEXITCODE" -ForegroundColor Red
     exit 1
 }

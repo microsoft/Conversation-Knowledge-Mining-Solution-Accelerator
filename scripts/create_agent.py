@@ -94,9 +94,10 @@ if DATA_SOURCE_TYPE != "azure_search":
     SEARCH_CONNECTION_NAME = ""
     INDEX_NAME = ""
 
-# Agent names
-CHAT_AGENT_NAME = args.agent_name
-TITLE_AGENT_NAME = "SummaryAgent"
+# Agent names — from env, else default to <Name>-<solution suffix>.
+SOLUTION_SUFFIX = os.getenv("SOLUTION_SUFFIX", "")
+CHAT_AGENT_NAME = os.getenv("AGENT_NAME_CHAT") or (f"ChatAgent-{SOLUTION_SUFFIX}" if SOLUTION_SUFFIX else "ChatAgent")
+TITLE_AGENT_NAME = os.getenv("AGENT_NAME_TITLE") or (f"SummaryAgent-{SOLUTION_SUFFIX}" if SOLUTION_SUFFIX else "SummaryAgent")
 
 # Validation
 if not ENDPOINT:
@@ -157,9 +158,8 @@ def build_agent_instructions():
 instructions = build_agent_instructions()
 logger.info(f"Built instructions ({len(instructions)} chars)")
 
-# Determine scenario tool capabilities directly from scenarios.json.
-# All non-BYOD scenarios get both Search and SQL tools.
-# An explicit `sql_enabled` flag wins. BYOD scenarios don't use SQL tools.
+# Determine scenario tool capabilities. Seeded/BYOD azure_search -> AI Search + SQL;
+# BYOD fabric -> SQL only. An explicit `sql_enabled` flag wins.
 USE_SQL = False
 _scenario_key = args.scenario or os.getenv("SCENARIO") or os.getenv("AZURE_SCENARIO") or ""
 _scenarios_path = os.path.join(config_dir, "scenarios.json")
@@ -181,8 +181,7 @@ if os.path.exists(_scenarios_path):
     if "sql_enabled" in _sc:
         USE_SQL = bool(_sc["sql_enabled"])
     else:
-        # All non-BYOD scenarios get both Search and SQL tools.
-        USE_SQL = not _is_byod
+        USE_SQL = True
 
 # Title Agent Instructions
 title_agent_instructions = """You are a specialized agent for generating concise conversation titles.
@@ -217,35 +216,9 @@ def build_tools():
             raise RuntimeError("Azure Search index name not configured. Set AZURE_SEARCH_INDEX_NAME or use --index-name.")
         logger.info(f"Building tools for Azure Search scenario: {INDEX_NAME}")
     
-    # Build data source tool (Search or Fabric) for all scenarios
+    # Fabric uses SQL tools only; Azure Search (seeded or BYOD) uses AI Search + SQL.
     if DATA_SOURCE_TYPE == "fabric":
-        try:
-            from azure.ai.projects.models import FunctionTool
-            fabric_tool = FunctionTool(
-                name="query_fabric_data",
-                description=(
-                    f"Query {DATA_SOURCE_NAME} Fabric data using natural language. "
-                    "This tool searches and retrieves relevant data from your Fabric workspace."
-                ),
-                parameters={
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "Natural language query to search the Fabric data.",
-                        }
-                    },
-                    "required": ["query"],
-                    "additionalProperties": False,
-                },
-                strict=False,
-            )
-            tools.append(fabric_tool)
-            logger.info(f"Added Fabric tool: {DATA_SOURCE_NAME}")
-        except ImportError as e:
-            raise RuntimeError(f"Failed to import Fabric tool dependencies: {e}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to build Fabric tool: {type(e).__name__}: {e}")
+        logger.info(f"Fabric scenario: using SQL tools over enriched data for {DATA_SOURCE_NAME}")
     elif DATA_SOURCE_TYPE == "azure_search":
         # For Azure Search (seeded or BYOD)
         try:
