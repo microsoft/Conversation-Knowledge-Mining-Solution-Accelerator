@@ -81,9 +81,6 @@ resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
       {
         TemplateName: 'KM-Generic'
         DeploymentName: deployment().name
-        SecurityControl:'Ignore'
-        CostControl:'Ignore'
-        Purpose:'Knowledge Mining Modularity'
       }
     )
   }
