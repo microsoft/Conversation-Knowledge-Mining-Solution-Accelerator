@@ -259,8 +259,9 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
         }
         if cu_fields.get("topic"):
             metadata["topic"] = cu_fields["topic"]
+            metadata["topics"] = [cu_fields["topic"]]
         if cu_fields.get("key_phrases"):
-            metadata["key_phrases"] = ", ".join(cu_fields["key_phrases"])
+            metadata["key_phrases"] = cu_fields["key_phrases"]
 
         doc_data = {
             "id": file_id,
