@@ -162,7 +162,8 @@ const Explore: React.FC = () => {
       }
       const [fR, dR, sR] = await Promise.allSettled(requests);
       const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
-      const newFiles = rawFiles;
+      // Explore only lists processed sources (files that produced documents).
+      const newFiles = rawFiles.filter((f: any) => (f.doc_count || 0) > 0);
       const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
       const connected = rawDS.filter((ds: any) => ds.status === "connected");
       const newDS = dedupeDataSources(connected);
@@ -214,7 +215,8 @@ const Explore: React.FC = () => {
 
   useEffect(() => {
     if (!ingestionSnapshot) return;
-    const nextFiles = Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [];
+    const nextFiles = (Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [])
+      .filter((f: any) => (f.doc_count || 0) > 0);
     const nextSources = Array.isArray(ingestionSnapshot.dataSources)
       ? dedupeDataSources(ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected"))
       : [];
