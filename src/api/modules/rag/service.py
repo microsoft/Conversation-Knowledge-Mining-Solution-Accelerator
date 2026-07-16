@@ -162,10 +162,16 @@ class RAGService:
                 thread_id = _thread_cache.get(conversation_id) if conversation_id else None
                 if not thread_id:
                     openai_client = project_client.get_openai_client()
-                    conversation = await openai_client.conversations.create()
-                    thread_id = conversation.id
-                    if conversation_id:
-                        _thread_cache[conversation_id] = thread_id
+                    try:
+                        conversation = await openai_client.conversations.create()
+                        thread_id = conversation.id
+                        if conversation_id:
+                            _thread_cache[conversation_id] = thread_id
+                    finally:
+                        try:
+                            await openai_client.close()
+                        except Exception:
+                            pass
 
                 session = AgentSession(service_session_id=thread_id)
                 out = ""
