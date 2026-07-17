@@ -139,20 +139,16 @@ def build_agent_instructions():
             if args.scenario in _all_scenarios:
                 _is_byod = _all_scenarios[args.scenario].get("byod", False)
 
-    if _is_byod:
-        # For BYOD scenarios, use a generic prompt adapted to data source type
-        logger.info("Using generic prompt for BYOD scenario")
-        if DATA_SOURCE_TYPE == "fabric":
-            return (f"You are a knowledge mining assistant. You have access to Fabric data ({DATA_SOURCE_NAME}) "
+    if _is_byod and DATA_SOURCE_TYPE == "fabric":
+        # Fabric BYOD is SQL-only, so it uses a custom prompt (the generated prompt
+        # always references an Azure AI Search tool, which Fabric doesn't have).
+        logger.info("Using generic prompt for BYOD Fabric scenario (SQL only)")
+        return (f"You are a knowledge mining assistant. You have access to Fabric data ({DATA_SOURCE_NAME}) "
                     f"through AI-powered search and analytics. Ground every answer in the available data. "
                     f"Always cite the source documents or data. If no matching data is found, say so clearly.")
-        else:  # azure_search (default)
-            return (f"You are a knowledge mining assistant. Use Azure AI Search to ground every "
-                    f"answer in the '{INDEX_NAME}' knowledge base. Always cite the source documents. "
-                    f"If no documents match the query, say so clearly.")
 
+    # Seeded scenarios and BYOD Azure AI Search use the generated scenario prompt.
     prompt_path = os.path.join(config_dir, "agent_prompt.txt")
-    # For built-in scenarios, regenerate the prompt so it matches the current scenario.
     logger.info("Generating scenario prompt")
     import subprocess
     cmd = [sys.executable, os.path.join(script_dir, "generate_agent_prompt.py")]
