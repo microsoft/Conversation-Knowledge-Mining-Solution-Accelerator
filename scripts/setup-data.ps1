@@ -264,6 +264,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
                 # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
                 Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
                 Write-Host ""
+                $env:BACKEND_URL = $BackendUrl
                 & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
                 exit $LASTEXITCODE
             }
@@ -274,6 +275,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
             Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host ""
+            $env:BACKEND_URL = $BackendUrl
             & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
             exit $LASTEXITCODE
         }
@@ -468,6 +470,7 @@ if ($ExternalSource) {
     Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
     Write-Host ""
 
+    $env:BACKEND_URL = $BackendUrl
     $pyArgs = @("--type", $ExternalSource)
     if ($Name)             { $pyArgs += "--name", $Name }
     if ($Endpoint)         { $pyArgs += "--endpoint", $Endpoint }

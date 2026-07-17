@@ -51,6 +51,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Quiet the noisy Azure SDK / HTTP request logs
+for _noisy in (
+    "azure",
+    "azure.core.pipeline.policies.http_logging_policy",
+    "azure.identity",
+    "httpx",
+    "httpcore",
+    "urllib3",
+):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 config_dir = os.path.join(project_root, "data", "config")
