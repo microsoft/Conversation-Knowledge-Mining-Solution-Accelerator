@@ -38,23 +38,6 @@ else:
 
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
-from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import (
-    SearchIndex,
-    SearchField,
-    SearchFieldDataType,
-    SimpleField,
-    SearchableField,
-    VectorSearch,
-    HnswAlgorithmConfiguration,
-    VectorSearchProfile,
-    AzureOpenAIVectorizer,
-    AzureOpenAIVectorizerParameters,
-    SemanticConfiguration,
-    SemanticField,
-    SemanticPrioritizedFields,
-    SemanticSearch,
-)
 from azure.cosmos import CosmosClient, PartitionKey
 
 # ---------------------------------------------------------------------------
@@ -90,86 +73,8 @@ def load_json(path: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Step 1 — Azure AI Search
+# Step 1 — Upload documents to Azure AI Search
 # ---------------------------------------------------------------------------
-def ensure_search_index():
-    """Create or update the search index with vector search support."""
-    print(f"\n{'='*60}")
-    print("Step 1: Ensure Azure AI Search index exists")
-    print(f"{'='*60}")
-    print(f"  Endpoint : {SEARCH_ENDPOINT}")
-    print(f"  Index    : {INDEX_NAME}")
-
-    index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
-
-    vector_search = VectorSearch(
-        algorithms=[HnswAlgorithmConfiguration(name="hnsw-config")],
-        profiles=[
-            VectorSearchProfile(
-                name="vector-profile",
-                algorithm_configuration_name="hnsw-config",
-                vectorizer_name="openai-vectorizer",
-            )
-        ],
-        vectorizers=[
-            AzureOpenAIVectorizer(
-                vectorizer_name="openai-vectorizer",
-                kind="azureOpenAI",
-                parameters=AzureOpenAIVectorizerParameters(
-                    resource_url=OPENAI_ENDPOINT,
-                    deployment_name=EMBEDDING_MODEL,
-                    model_name=EMBEDDING_MODEL,
-                ),
-            )
-        ],
-    )
-
-    semantic_search = SemanticSearch(
-        configurations=[
-            SemanticConfiguration(
-                name="semantic-config",
-                prioritized_fields=SemanticPrioritizedFields(
-                    title_field=SemanticField(field_name="summary"),
-                    keywords_fields=[SemanticField(field_name="key_phrases")],
-                    content_fields=[SemanticField(field_name="text")],
-                ),
-            )
-        ]
-    )
-
-    fields = [
-        SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-        SimpleField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
-        SimpleField(name="chunk_index", type=SearchFieldDataType.Int32, filterable=True, sortable=True),
-        SearchableField(name="text", type=SearchFieldDataType.String),
-        SearchableField(name="summary", type=SearchFieldDataType.String),
-        SimpleField(name="type", type=SearchFieldDataType.String, filterable=True, facetable=True),
-        SimpleField(name="product", type=SearchFieldDataType.String, filterable=True, facetable=True),
-        SimpleField(name="category", type=SearchFieldDataType.String, filterable=True, facetable=True),
-        SimpleField(name="timestamp", type=SearchFieldDataType.String, filterable=True, sortable=True),
-        SimpleField(name="source_file", type=SearchFieldDataType.String, filterable=True),
-        SearchableField(name="key_phrases", type=SearchFieldDataType.String, collection=True, filterable=True),
-        SearchableField(name="entities", type=SearchFieldDataType.String, collection=True, filterable=True),
-        SearchableField(name="topics", type=SearchFieldDataType.String, collection=True, filterable=True),
-        SearchField(
-            name="text_vector",
-            type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-            searchable=True,
-            vector_search_dimensions=1536,
-            vector_search_profile_name="vector-profile",
-        ),
-    ]
-
-    index = SearchIndex(
-        name=INDEX_NAME,
-        fields=fields,
-        vector_search=vector_search,
-        semantic_search=semantic_search,
-    )
-    result = index_client.create_or_update_index(index)
-    print(f"  [OK] Index '{result.name}' ready ({len(result.fields)} fields)")
-
-
 def upload_search_data():
     """Upload sample_search_index_data.json to Azure AI Search with field mapping."""
     print(f"\n{'='*60}")
@@ -478,18 +383,6 @@ def main():
     print("Step 0: Clear existing data")
     print(f"{'='*60}")
 
-    # Clear AI Search index (delete + recreate)
-    try:
-        index_client = SearchIndexClient(endpoint=SEARCH_ENDPOINT, credential=credential)
-        try:
-            index_def = index_client.get_index(INDEX_NAME)
-            index_client.delete_index(INDEX_NAME)
-            print(f"  [OK] Deleted old search index '{INDEX_NAME}'")
-        except Exception:
-            print(f"  [OK] No existing index '{INDEX_NAME}' to clear")
-    except Exception as e:
-        print(f"  [WARN] Could not clear search index: {e}")
-
     # Clear SQL tables
     if SQL_SERVER:
         try:
@@ -518,7 +411,6 @@ def main():
             print(f"  [WARN] Could not clear SQL: {e}")
 
     try:
-        ensure_search_index()
         upload_search_data()
     except Exception as e:
         print(f"\n  [FAIL] Search upload failed: {e}")

@@ -64,14 +64,8 @@ SQL_COLUMNS = (
     "metadata, source_file, created_at"
 )
 
-# Determine whether the scenario produces structured analytics (topic/keyphrases/
-# sentiment) suitable for SQL queries. Transcript-style scenarios (json) do;
-# document-only scenarios (pdf) are searched, not aggregated.
-# An explicit `sql_enabled` flag in scenarios.json always wins.
-if "sql_enabled" in scenario:
-    USE_SQL = bool(scenario["sql_enabled"])
-else:
-    USE_SQL = any(t in ("json", "csv", "wav") for t in data_types)
+# SQL tools are always available; an explicit `sql_enabled: false` can opt out.
+USE_SQL = bool(scenario.get("sql_enabled", True))
 
 print(f"\n{'='*60}")
 print("Generating Scenario-Based Agent Prompt")
