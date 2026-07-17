@@ -56,6 +56,21 @@ Write-Host ""
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
+# Read a deploy value from azd env, falling back to the project .env
+function Get-DeployValue {
+    param([string]$Name)
+    $val = azd env get-value $Name 2>$null
+    if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
+        return "$val".Trim()
+    }
+    $envFile = Join-Path $projectRoot ".env"
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile | Where-Object { $_ -match "^$Name=" } | Select-Object -First 1
+        if ($line) { return ($line -replace "^$Name=", '').Trim() }
+    }
+    return ""
+}
+
 # ── Load scenarios config (used by interactive menu and scenario resolution) ──
 $configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
 $scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
@@ -304,6 +319,22 @@ if ($Scenario) {
 
     # Always clear existing demo data + external sources before loading any scenario/use case
     Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+
+    # Create the solution search index (seeded scenarios only)
+    Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
+    $searchEndpoint = Get-DeployValue "AZURE_SEARCH_ENDPOINT"
+    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
+    $openaiEndpoint = Get-DeployValue "AZURE_OPENAI_ENDPOINT"
+    $embeddingDeployment = Get-DeployValue "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
+    $idxArgs = @((Join-Path $PSScriptRoot "create_search_index.py"))
+    if ($searchEndpoint)      { $idxArgs += "--search-endpoint", $searchEndpoint }
+    if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
+    if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
+    if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
+    python @idxArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
+    }
 
     # Contact Center has pre-processed data — use the direct seed path
     if ($pack.has_preprocessed -eq $true) {
