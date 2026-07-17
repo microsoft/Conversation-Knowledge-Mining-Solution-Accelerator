@@ -511,6 +511,14 @@ def main():
         }
         print(json.dumps(error_result))
         return 1
+    finally:
+        # Delete the enrichment agent once BYOD processing is done (same as the
+        # queue worker does for seeded/uploaded scenarios).
+        try:
+            from src.api.modules.document_intelligence.enrichment_agent import enrichment_agent_manager
+            enrichment_agent_manager.delete()
+        except Exception as _del_err:
+            logger.warning(f"Could not delete enrichment agent: {_del_err}")
 
 
 if __name__ == "__main__":
