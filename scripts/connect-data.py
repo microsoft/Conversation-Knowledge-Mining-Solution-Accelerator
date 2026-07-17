@@ -398,32 +398,36 @@ def ensure_foundry_search_connection(endpoint: str) -> str:
         print("  [WARN] Could not resolve Foundry project identity; connection may lack search access.")
         return conn_name
 
-    rc, existing, _ = _run_az_command(
-        [
-            "az", "role", "assignment", "list",
-            "--assignee-object-id", project_principal_id,
-            "--scope", search_resource_id,
-            "--role", "Search Index Data Reader",
-            "--query", "[0].id", "-o", "tsv",
-        ]
-    )
-    if rc == 0 and existing:
-        print(f"  [OK] RBAC already exists: Search Index Data Reader for Foundry project ({project_principal_id})")
-        return conn_name
+    # The agent's search tool needs both roles (matches the solution's own search RBAC):
+    #   - Search Index Data Reader  → query documents
+    #   - Search Service Contributor → resolve/describe the index
+    for role_name in ("Search Index Data Reader", "Search Service Contributor"):
+        rc, existing, _ = _run_az_command(
+            [
+                "az", "role", "assignment", "list",
+                "--assignee-object-id", project_principal_id,
+                "--scope", search_resource_id,
+                "--role", role_name,
+                "--query", "[0].id", "-o", "tsv",
+            ]
+        )
+        if rc == 0 and existing:
+            print(f"  [OK] RBAC already exists: {role_name} for Foundry project ({project_principal_id})")
+            continue
 
-    rc, _, err = _run_az_command(
-        [
-            "az", "role", "assignment", "create",
-            "--assignee-object-id", project_principal_id,
-            "--assignee-principal-type", "ServicePrincipal",
-            "--scope", search_resource_id,
-            "--role", "Search Index Data Reader",
-        ]
-    )
-    if rc == 0:
-        print(f"  [OK] Granted Search Index Data Reader on external search to Foundry project ({project_principal_id})")
-    else:
-        print(f"  [WARN] Failed to grant reader to Foundry project: {err}")
+        rc, _, err = _run_az_command(
+            [
+                "az", "role", "assignment", "create",
+                "--assignee-object-id", project_principal_id,
+                "--assignee-principal-type", "ServicePrincipal",
+                "--scope", search_resource_id,
+                "--role", role_name,
+            ]
+        )
+        if rc == 0:
+            print(f"  [OK] Granted {role_name} on external search to Foundry project ({project_principal_id})")
+        else:
+            print(f"  [WARN] Failed to grant {role_name} to Foundry project: {err}")
     return conn_name
 
 
