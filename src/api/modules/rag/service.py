@@ -823,6 +823,49 @@ class RAGService:
             logger.exception("Exception while fetching citation content")
             return {"error": "Unable to fetch content"}
 
+    def _build_scope_preamble(
+        self,
+        document_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
+    ) -> str:
+        """Build a soft-scoping instruction block that is prepended to the user
+        question before it is sent to the agent.
+
+        This is a prompt-level hint only: the agent still performs its own retrieval
+        through its configured tools. We simply tell it which selected documents and
+        active filters to restrict the answer to.
+        """
+        lines: list[str] = []
+
+        if document_ids:
+            # document_ids from the payload are the canonical index doc_id values
+            # (e.g. "Bernadette-digital-construction-purchase-contract"), so pass
+            # them straight through — no filename/chunk-id resolution needed.
+            doc_lines = "\n".join(f"- {did}" for did in document_ids)
+            lines.append(
+                "Restrict your answer to ONLY the following selected document(s), "
+                "identified by their doc_id. Do not use any other documents from "
+                "the knowledge base:\n" + doc_lines
+            )
+
+        if filters:
+            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            if filt_lines:
+                lines.append(
+                    "Only consider content matching these filters:\n" + filt_lines
+                )
+
+        if not lines:
+            return ""
+
+        return (
+            "[SCOPE CONSTRAINTS]\n"
+            + "\n\n".join(lines)
+            + "\n\nIf the selected documents do not contain the answer, say so "
+            "explicitly rather than drawing on other sources.\n"
+            "[END SCOPE CONSTRAINTS]\n\n"
+        )
+
     def answer_question(
         self,
         question: str,
@@ -838,7 +881,13 @@ class RAGService:
         # configured tools (Azure AI Search / SQL) and returns the answer together
         # with its citations. No backend retrieval, merge, or grounded fallback is
         # used — the response and sources come solely from the agent.
-        answer, agent_sources = self._run_agent(question, conversation_id)
+        #
+        # Document/filter scoping is applied as a soft prompt hint only: selected
+        # documents and active filters are prepended to the question so the agent
+        # restricts its own retrieval accordingly.
+        scope_preamble = self._build_scope_preamble(document_ids, filters)
+        agent_input = f"{scope_preamble}Question: {question}" if scope_preamble else question
+        answer, agent_sources = self._run_agent(agent_input, conversation_id)
 
         sources = self._filter_noise_sources(agent_sources, "answer-question-response")
         return QAResponse(
