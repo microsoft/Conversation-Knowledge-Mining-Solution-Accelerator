@@ -267,6 +267,166 @@ def ensure_search_index_reader_role(endpoint: str) -> None:
     print(f"  [WARN] Failed to grant {role_name} role automatically: {err}")
 
 
+def _parse_foundry_account_project() -> tuple[str, str]:
+    """Parse the Foundry account and project names from AZURE_AI_AGENT_ENDPOINT."""
+    endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or "").strip()
+    if not endpoint:
+        return "", ""
+    parsed = urlparse(endpoint)
+    account = (parsed.hostname or "").split(".")[0]  # e.g. aif-<token>
+    project = ""
+    parts = [p for p in parsed.path.split("/") if p]
+    if "projects" in parts:
+        idx = parts.index("projects")
+        if idx + 1 < len(parts):
+            project = parts[idx + 1]
+    return account, project
+
+
+def _get_subscription_id() -> str:
+    rc, out, _ = _run_az_command(["az", "account", "show", "--query", "id", "-o", "tsv"])
+    return out.strip() if rc == 0 else ""
+
+
+def _get_resource_group() -> str:
+    rg = (os.getenv("RESOURCE_GROUP_NAME") or os.getenv("AZURE_RESOURCE_GROUP") or "").strip()
+    if not rg:
+        rg = (get_azd_env_value("RESOURCE_GROUP_NAME") or get_azd_env_value("AZURE_RESOURCE_GROUP")).strip()
+    return rg
+
+
+def ensure_foundry_search_connection(endpoint: str) -> str:
+    """Create/update a Foundry project connection that targets the BYOD search
+    endpoint, grant the Foundry project identity read access on it, and return
+    the connection name (empty string on failure)."""
+    endpoint = normalize_endpoint(endpoint)
+    if not endpoint:
+        return ""
+
+    account, project = _parse_foundry_account_project()
+    if not account or not project:
+        print("  [WARN] Could not parse Foundry account/project from AZURE_AI_AGENT_ENDPOINT; skipping search connection.")
+        return ""
+
+    subscription = _get_subscription_id()
+    resource_group = _get_resource_group()
+    if not subscription or not resource_group:
+        print("  [WARN] Could not resolve subscription/resource group; skipping search connection.")
+        return ""
+
+    search_resource_id = get_search_service_resource_id(endpoint)
+    if not search_resource_id:
+        print("  [WARN] Could not resolve BYOD search resource ID; skipping search connection.")
+        return ""
+
+    rc, location, _ = _run_az_command(
+        ["az", "resource", "show", "--ids", search_resource_id, "--query", "location", "-o", "tsv"]
+    )
+    location = location.strip() if rc == 0 else ""
+
+    service_name = (urlparse(endpoint).hostname or "").split(".")[0]
+    conn_name = f"byod-{service_name}"[:60]
+    api_version = "2025-10-01-preview"
+
+    conn_url = (
+        f"https://management.azure.com/subscriptions/{subscription}"
+        f"/resourceGroups/{resource_group}/providers/Microsoft.CognitiveServices"
+        f"/accounts/{account}/projects/{project}/connections/{conn_name}"
+        f"?api-version={api_version}"
+    )
+    body = {
+        "properties": {
+            "category": "CognitiveSearch",
+            "target": endpoint,
+            "authType": "AAD",
+            "isSharedToAll": True,
+            "metadata": {"ApiType": "Azure", "ResourceId": search_resource_id, "location": location},
+        }
+    }
+
+    import tempfile
+    body_path = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as bf:
+            json.dump(body, bf)
+            body_path = bf.name
+        rc, _, err = _run_az_command(
+            ["az", "rest", "--method", "put", "--url", conn_url, "--body", f"@{body_path}"]
+        )
+        if rc != 0:
+            print(f"  [WARN] Failed to create Foundry search connection: {err}")
+            return ""
+        print(f"  [OK] Foundry search connection '{conn_name}' -> {endpoint}")
+    finally:
+        if body_path:
+            try:
+                os.unlink(body_path)
+            except OSError:
+                pass
+
+    # The connection uses AAD, so the agent's search tool authenticates as the
+    # Foundry project identity — grant it read access on the external search.
+    project_resource_id = (
+        f"/subscriptions/{subscription}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.CognitiveServices/accounts/{account}/projects/{project}"
+    )
+    project_api_version = "2025-06-01"
+    project_principal_id = ""
+    rc, out, _ = _run_az_command(
+        [
+            "az", "resource", "show", "--ids", project_resource_id,
+            "--api-version", project_api_version,
+            "--query", "identity.principalId", "-o", "tsv",
+        ]
+    )
+    if rc == 0 and out.strip():
+        project_principal_id = out.strip()
+    else:
+        rc, proj_out, _ = _run_az_command(
+            [
+                "az", "rest", "--method", "get",
+                "--url", f"https://management.azure.com{project_resource_id}?api-version={project_api_version}",
+            ]
+        )
+        if rc == 0 and proj_out:
+            try:
+                project_principal_id = (json.loads(proj_out).get("identity") or {}).get("principalId", "")
+            except (json.JSONDecodeError, AttributeError):
+                project_principal_id = ""
+
+    if not project_principal_id:
+        print("  [WARN] Could not resolve Foundry project identity; connection may lack search access.")
+        return conn_name
+
+    rc, existing, _ = _run_az_command(
+        [
+            "az", "role", "assignment", "list",
+            "--assignee-object-id", project_principal_id,
+            "--scope", search_resource_id,
+            "--role", "Search Index Data Reader",
+            "--query", "[0].id", "-o", "tsv",
+        ]
+    )
+    if rc == 0 and existing:
+        print(f"  [OK] RBAC already exists: Search Index Data Reader for Foundry project ({project_principal_id})")
+        return conn_name
+
+    rc, _, err = _run_az_command(
+        [
+            "az", "role", "assignment", "create",
+            "--assignee-object-id", project_principal_id,
+            "--assignee-principal-type", "ServicePrincipal",
+            "--scope", search_resource_id,
+            "--role", "Search Index Data Reader",
+        ]
+    )
+    if rc == 0:
+        print(f"  [OK] Granted Search Index Data Reader on external search to Foundry project ({project_principal_id})")
+    else:
+        print(f"  [WARN] Failed to grant reader to Foundry project: {err}")
+    return conn_name
+
+
 def normalize_endpoint(endpoint: str) -> str:
     """Return an https endpoint without trailing slash."""
     endpoint = (endpoint or "").strip()
@@ -659,6 +819,8 @@ def main():
     if config.get("source_type") == "azure_search":
         print("\n  Assigning API app access to external Azure AI Search...")
         ensure_search_index_reader_role(config.get("endpoint", ""))
+        print("\n  Creating AI Foundry connection to external Azure AI Search...")
+        config["search_connection"] = ensure_foundry_search_connection(config.get("endpoint", ""))
 
     # Step 3: Notify the running backend so it reloads the data source into memory.
     # This makes the source visible in the UI immediately without restarting the API.
@@ -706,6 +868,7 @@ def main():
             "name": config.get("name", ""),
             "table_or_query": config.get("table_or_query", ""),
             "endpoint": config.get("endpoint", ""),
+            "search_connection": config.get("search_connection", ""),
         }
         with open(last_conn_path, "w") as _f:
             json.dump(last_conn, _f)

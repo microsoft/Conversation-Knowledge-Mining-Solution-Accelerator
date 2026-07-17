@@ -154,10 +154,12 @@ if ($resolvedSourceType -eq "azure_search") {
     $lastConnPath = Join-Path $projectRoot ".last_byod_connection.json"
     $resolvedTable = $Table
     $resolvedName  = $Name
+    $resolvedSearchConnection = ""
     if (Test-Path $lastConnPath) {
         $lastConn = Get-Content $lastConnPath -Raw | ConvertFrom-Json
         if (-not $resolvedTable) { $resolvedTable = $lastConn.table_or_query }
         if (-not $resolvedName)  { $resolvedName  = $lastConn.name }
+        $resolvedSearchConnection = $lastConn.search_connection
         Remove-Item $lastConnPath -ErrorAction SilentlyContinue
     }
     if (-not $resolvedTable) { $resolvedTable = "knowledge-mining-index" }
@@ -187,6 +189,7 @@ if ($resolvedSourceType -eq "azure_search") {
             "--index-name", $resolvedTable,
             "--agent-name", $agentName
         )
+        if ($resolvedSearchConnection) { $agentArgs += "--connection-name", $resolvedSearchConnection }
 
         & $pythonExe @agentArgs
 
