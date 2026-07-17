@@ -13,7 +13,8 @@ from src.api.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-ENRICHMENT_AGENT_NAME = "EnrichmentAgent"
+_suffix = get_settings().solution_suffix
+ENRICHMENT_AGENT_NAME = f"EnrichmentAgent-{_suffix}" if _suffix else "EnrichmentAgent"
 
 _INSTRUCTIONS = (
     "You are a data preparation system. For each document, extract entities, "
@@ -88,14 +89,20 @@ class EnrichmentAgentManager:
                 agent = FoundryAgent(project_client=pc, agent_name=name)
                 # Create a fresh conversation, use it, then delete it.
                 openai_client = pc.get_openai_client()
-                conversation = await openai_client.conversations.create()
-                conversation_id = conversation.id
                 try:
-                    result = await agent.run(prompt, options={"conversation_id": conversation_id})
-                    return str(result.text) if result and result.text else ""
+                    conversation = await openai_client.conversations.create()
+                    conversation_id = conversation.id
+                    try:
+                        result = await agent.run(prompt, options={"conversation_id": conversation_id})
+                        return str(result.text) if result and result.text else ""
+                    finally:
+                        try:
+                            await openai_client.conversations.delete(conversation_id=conversation_id)
+                        except Exception:
+                            pass
                 finally:
                     try:
-                        await openai_client.conversations.delete(conversation_id=conversation_id)
+                        await openai_client.close()
                     except Exception:
                         pass
 

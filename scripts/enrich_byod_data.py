@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import List, Dict, Any
 from datetime import datetime
 
@@ -37,6 +38,19 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
+# Silence the very noisy Azure SDK / HTTP / OpenAI request logs so the console
+# shows clean enrichment progress instead of per-request dumps.
+for _noisy in (
+    "azure",
+    "azure.core.pipeline.policies.http_logging_policy",
+    "azure.identity",
+    "httpx",
+    "httpcore",
+    "openai",
+    "urllib3",
+):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
 
 class ByodEnrichmentService:
     """Enriches BYOD data sources with topics, summaries, entities, and key phrases."""
@@ -46,6 +60,84 @@ class ByodEnrichmentService:
         self.settings = get_settings()
         self.enriched_count = 0
         self.error_count = 0
+        self.errors: List[Dict[str, str]] = []
+
+    def _enrich_all_batch(self, documents: List[Dict[str, Any]], chunk_size: int = 25) -> List[Dict[str, Any]]:
+        """Enrich documents via the Foundry enrichment agent in batches.
+        """
+        from src.api.modules.document_intelligence.service import content_understanding_service
+
+        total = len(documents)
+        enriched_docs: List[Dict[str, Any]] = []
+        processed = 0
+        num_chunks = (total + chunk_size - 1) // chunk_size if total else 0
+        print(
+            f"Enriching {total} document(s) via enrichment agent "
+            f"({num_chunks} batch(es) of up to {chunk_size})...",
+            file=sys.stderr, flush=True,
+        )
+
+        for start in range(0, total, chunk_size):
+            chunk = documents[start:start + chunk_size]
+            chunk_no = start // chunk_size + 1
+            t0 = time.perf_counter()
+
+            # enrich_batch indexes results by doc["id"] — ensure each doc has one.
+            for doc in chunk:
+                if not doc.get("id"):
+                    doc["id"] = str(doc.get("doc_id", f"doc_{start + chunk.index(doc)}"))
+
+            try:
+                result = content_understanding_service.enrich_batch(chunk)
+                extractions = {e.get("id"): e for e in result.get("doc_extractions", [])}
+            except Exception as e:
+                # Whole-chunk failure — record an error per document and continue.
+                for doc in chunk:
+                    did = doc.get("id", "unknown")
+                    self.error_count += 1
+                    self.errors.append({"id": str(did), "error": str(e)})
+                processed += len(chunk)
+                print(
+                    f"[{processed:>4}/{total}] {int(processed / total * 100):3d}%  "
+                    f"ERR  batch {chunk_no}/{num_chunks}  ({time.perf_counter() - t0:.1f}s)  -- {e}",
+                    file=sys.stderr, flush=True,
+                )
+                continue
+
+            for doc in chunk:
+                did = doc.get("id", "unknown")
+                ext = extractions.get(did)
+                if not ext:
+                    self.error_count += 1
+                    self.errors.append({"id": str(did), "error": "No extraction returned by agent"})
+                    continue
+
+                topics = ext.get("topics", [])
+                enriched = {
+                    "id": did,
+                    "text": doc.get("text", ""),
+                    "title": doc.get("title", ""),
+                    "summary": ext.get("summary", ""),
+                    "entities": ext.get("entities", []),
+                    "key_phrases": ext.get("keywords", []),
+                    # Store topics as a JSON array so insights/facets can parse them.
+                    "topic": json.dumps(topics) if isinstance(topics, list) else str(topics or ""),
+                }
+                # Preserve any original fields not already set.
+                for key, value in doc.items():
+                    if key not in enriched:
+                        enriched[key] = value
+                enriched_docs.append(enriched)
+                self.enriched_count += 1
+
+            processed += len(chunk)
+            print(
+                f"[{processed:>4}/{total}] {int(processed / total * 100):3d}%  "
+                f"OK   batch {chunk_no}/{num_chunks}  ({time.perf_counter() - t0:.1f}s)",
+                file=sys.stderr, flush=True,
+            )
+
+        return enriched_docs
 
     def enrich_azure_search_source(self, index_id: str, batch_size: int = 10) -> Dict[str, Any]:
         """Enrich documents in an Azure AI Search external index."""
@@ -69,27 +161,15 @@ class ByodEnrichmentService:
                         
                         # Get the adapter and retrieve documents
                         adapter = data_source_registry._get_adapter(config.source_type)
+                        print(f"Retrieving documents from index '{config.table_or_query}'...", file=sys.stderr, flush=True)
                         documents = adapter.search(config, query="", top_k=10000) or []
-                        logger.info(f"Retrieved {len(documents)} documents from index {config.table_or_query}")
-                        
-                        # Enrich in batches
-                        enriched_docs = []
-                        for i, doc in enumerate(documents):
-                            try:
-                                enriched = self._enrich_document(doc)
-                                enriched_docs.append(enriched)
-                                self.enriched_count += 1
-                                
-                                if (i + 1) % batch_size == 0:
-                                    logger.info(f"Enriched {i + 1}/{len(documents)} documents")
-                                        
-                            except Exception as e:
-                                logger.error(f"Error enriching document {doc.get('doc_id', 'unknown')}: {e}")
-                                self.error_count += 1
-                        
+                        print(f"Retrieved {len(documents)} document(s).", file=sys.stderr, flush=True)
+
+                        enriched_docs = self._enrich_all_batch(documents)
+
+                        print(f"Storing {len(enriched_docs)} enriched document(s) to SQL...", file=sys.stderr, flush=True)
                         self._store_enriched_metadata(enriched_docs, "azure_search")
-                        
-                        logger.info(f"Enrichment complete: {self.enriched_count} success, {self.error_count} errors")
+
                         return {
                             "success": True,
                             "source_id": config.id,
@@ -97,6 +177,7 @@ class ByodEnrichmentService:
                             "documents_processed": len(documents),
                             "enriched": self.enriched_count,
                             "errors": self.error_count,
+                            "error_details": self.errors,
                             "timestamp": datetime.utcnow().isoformat()
                         }
                 
@@ -110,27 +191,14 @@ class ByodEnrichmentService:
         
         # Use index from external_index_service if found
         documents = self._get_azure_search_documents(index)
-        logger.info(f"Retrieved {len(documents)} documents from index {index.index_name}")
-        
-        # Enrich in batches
-        enriched_docs = []
-        for i, doc in enumerate(documents):
-            try:
-                enriched = self._enrich_document(doc)
-                enriched_docs.append(enriched)
-                self.enriched_count += 1
-                
-                if (i + 1) % batch_size == 0:
-                    logger.info(f"Enriched {i + 1}/{len(documents)} documents")
-                    
-            except Exception as e:
-                logger.error(f"Error enriching document {doc.get('id', 'unknown')}: {e}")
-                self.error_count += 1
-        
+        print(f"Retrieved {len(documents)} document(s) from index {index.index_name}.", file=sys.stderr, flush=True)
+
+        enriched_docs = self._enrich_all_batch(documents)
+
         # Store enriched metadata back to index (via SQL for now, can be extended to direct index updates)
+        print(f"Storing {len(enriched_docs)} enriched document(s) to SQL...", file=sys.stderr, flush=True)
         self._store_enriched_metadata(enriched_docs, "azure_search")
-        
-        logger.info(f"Enrichment complete: {self.enriched_count} success, {self.error_count} errors")
+
         return {
             "success": True,
             "source_id": index_id,
@@ -138,6 +206,7 @@ class ByodEnrichmentService:
             "documents_processed": len(documents),
             "enriched": self.enriched_count,
             "errors": self.error_count,
+            "error_details": self.errors,
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -161,27 +230,14 @@ class ByodEnrichmentService:
         
         # Get all documents from Fabric table
         documents = self._get_fabric_documents(adapter, config)
-        logger.info(f"Retrieved {len(documents)} documents from Fabric table {config.table_or_query}")
-        
-        # Enrich in batches
-        enriched_docs = []
-        for i, doc in enumerate(documents):
-            try:
-                enriched = self._enrich_document(doc)
-                enriched_docs.append(enriched)
-                self.enriched_count += 1
-                
-                if (i + 1) % batch_size == 0:
-                    logger.info(f"Enriched {i + 1}/{len(documents)} documents")
-                    
-            except Exception as e:
-                logger.error(f"Error enriching document {doc.get('id', 'unknown')}: {e}")
-                self.error_count += 1
-        
+        print(f"Retrieved {len(documents)} document(s) from Fabric table {config.table_or_query}.", file=sys.stderr, flush=True)
+
+        enriched_docs = self._enrich_all_batch(documents)
+
         # Store enriched metadata (via SQL for now)
+        print(f"Storing {len(enriched_docs)} enriched document(s) to SQL...", file=sys.stderr, flush=True)
         self._store_enriched_metadata(enriched_docs, "fabric")
-        
-        logger.info(f"Enrichment complete: {self.enriched_count} success, {self.error_count} errors")
+
         return {
             "success": True,
             "source_id": source_id,
@@ -189,6 +245,7 @@ class ByodEnrichmentService:
             "documents_processed": len(documents),
             "enriched": self.enriched_count,
             "errors": self.error_count,
+            "error_details": self.errors,
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -198,6 +255,7 @@ class ByodEnrichmentService:
             from azure.search.documents import SearchClient
             from azure.identity import DefaultAzureCredential
             
+            logger.info(f"[STEP] Connecting to Azure Search endpoint={index.endpoint} index={index.index_name}")
             client = SearchClient(
                 endpoint=index.endpoint,
                 index_name=index.index_name,
@@ -205,6 +263,8 @@ class ByodEnrichmentService:
             )
             
             # Search for all documents
+            logger.info("[STEP] Running search '*' (top=10000)...")
+            _t0 = time.perf_counter()
             results = client.search(search_text="*", top=10000)
             
             documents = []
@@ -220,6 +280,7 @@ class ByodEnrichmentService:
                         doc[field] = result[field]
                 documents.append(doc)
             
+            logger.info(f"[STEP] Search returned {len(documents)} documents in {time.perf_counter() - _t0:.1f}s")
             return documents
         except Exception as e:
             logger.error(f"Failed to get documents from Azure Search: {e}")
@@ -250,28 +311,31 @@ class ByodEnrichmentService:
         
         try:
             # Extract summary
+            _t = time.perf_counter()
             summary_response = self.processing_service.summarize(text, max_length=150)
             enrichment["summary"] = summary_response.summary
-            logger.debug(f"Summary for {doc.get('id')}: {summary_response.summary[:50]}...")
+            logger.debug(f"summarize done in {time.perf_counter() - _t:.1f}s for {doc.get('id')}")
         except Exception as e:
             logger.warning(f"Failed to generate summary: {e}")
             enrichment["summary"] = ""
         
         try:
             # Extract entities
+            _t = time.perf_counter()
             entities_response = self.processing_service.extract_entities(text)
             enrichment["entities"] = [ent.model_dump() for ent in entities_response.entities]
-            logger.debug(f"Extracted {len(enrichment['entities'])} entities for {doc.get('id')}")
+            logger.debug(f"extract_entities done in {time.perf_counter() - _t:.1f}s ({len(enrichment['entities'])} entities)")
         except Exception as e:
             logger.warning(f"Failed to extract entities: {e}")
             enrichment["entities"] = []
         
         try:
             # Extract topics and key phrases using simple LLM approach
+            _t = time.perf_counter()
             topic_response = self._extract_topic_and_phrases(text)
             enrichment["topic"] = topic_response.get("topic", "")
             enrichment["key_phrases"] = topic_response.get("key_phrases", [])
-            logger.debug(f"Topic for {doc.get('id')}: {enrichment['topic']}")
+            logger.debug(f"topic/phrases done in {time.perf_counter() - _t:.1f}s (topic={enrichment['topic']!r})")
         except Exception as e:
             logger.warning(f"Failed to extract topics/phrases: {e}")
             enrichment["topic"] = ""
@@ -323,13 +387,16 @@ class ByodEnrichmentService:
     def _store_enriched_metadata(self, enriched_docs: List[Dict[str, Any]], source_type: str):
         """Store enriched metadata in SQL database."""
         try:
+            logger.info("[STEP] Initializing SQL service...")
             sql_service._ensure_init()
             if not sql_service.available:
                 logger.warning("SQL service not available, skipping metadata storage")
                 return
             
+            logger.info("[STEP] Opening SQL connection...")
             conn = sql_service._get_connection()
             cursor = conn.cursor()
+            logger.info(f"[STEP] Writing {len(enriched_docs)} rows via MERGE...")
             
             for doc in enriched_docs:
                 try:
@@ -412,12 +479,26 @@ def main():
         else:
             logger.error(f"Unknown source type: {args.source_type}")
             return 1
-        
-        logger.info(f"Enrichment result: {json.dumps(result, indent=2)}")
-        
-        # Print result for PowerShell to parse
+
+        # Clean summary to stderr (progress lines already streamed above).
+        print("", file=sys.stderr, flush=True)
+        print(
+            f"Summary: {result.get('enriched', 0)} enriched, "
+            f"{result.get('errors', 0)} error(s) "
+            f"of {result.get('documents_processed', 0)} document(s).",
+            file=sys.stderr, flush=True,
+        )
+        error_details = result.get("error_details") or []
+        if error_details:
+            print("Errors:", file=sys.stderr, flush=True)
+            for err in error_details:
+                print(f"  - {err.get('id', 'unknown')}: {err.get('error', '')}", file=sys.stderr, flush=True)
+        if not result.get("success") and result.get("error"):
+            print(f"Failed: {result.get('error')}", file=sys.stderr, flush=True)
+
+        # Print result JSON on stdout for PowerShell to parse.
         print(json.dumps(result))
-        
+
         return 0 if result.get("success") else 1
         
     except Exception as e:
@@ -430,6 +511,14 @@ def main():
         }
         print(json.dumps(error_result))
         return 1
+    finally:
+        # Delete the enrichment agent once BYOD processing is done (same as the
+        # queue worker does for seeded/uploaded scenarios).
+        try:
+            from src.api.modules.document_intelligence.enrichment_agent import enrichment_agent_manager
+            enrichment_agent_manager.delete()
+        except Exception as _del_err:
+            logger.warning(f"Could not delete enrichment agent: {_del_err}")
 
 
 if __name__ == "__main__":

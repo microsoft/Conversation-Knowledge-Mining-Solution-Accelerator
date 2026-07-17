@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     azure_ai_agent_endpoint: str = ""  # AZURE_AI_AGENT_ENDPOINT
     agent_name_chat: str = ""          # AGENT_NAME_CHAT
     agent_name_title: str = ""         # AGENT_NAME_TITLE
+    solution_suffix: str = ""          # SOLUTION_SUFFIX
     # Whether the chat agent was created with the SQL tool (scenario-dependent).
     # The backend only attaches get_sql_response when this is true.
     use_sql: bool = False              # USE_SQL

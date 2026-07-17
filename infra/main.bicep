@@ -263,6 +263,7 @@ module webSiteBackend 'modules/web-sites.bicep' = {
           APP_FRONTEND_HOSTNAME: 'https://${frontendWebSiteResourceName}.azurewebsites.net'
           APP_ENV: 'Prod'
           ADMIN_API_KEY: adminApiKey
+          SOLUTION_SUFFIX: resourceToken
         }
       }
     ]
@@ -386,3 +387,6 @@ output FRONTEND_APP_NAME string = frontendWebSiteResourceName
 
 @description('Resource group name.')
 output RESOURCE_GROUP_NAME string = resourceGroup().name
+
+@description('Solution resource token suffix used in resource names.')
+output SOLUTION_SUFFIX string = resourceToken
