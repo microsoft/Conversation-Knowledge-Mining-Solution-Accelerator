@@ -166,7 +166,7 @@ const Home: React.FC = () => {
       firstSource?.use_case ||
       firstSource?.display_name ||
       firstSource?.name ||
-      uiConfig?.useCaseName
+      (dataSources.length > 0 ? uiConfig?.useCaseName : undefined)
     );
     if (sourceName) {
       if (firstSource?.source_type) {
@@ -190,18 +190,9 @@ const Home: React.FC = () => {
       return getUseCaseDisplayTitle();
     }
 
-    // Prioritize uploaded files with source field (scenario data)
-    if (uploadedFileCount > 0 && uploadedFiles.length > 0) {
-      const firstFile = uploadedFiles[0];
-      // Prefer use-case title when available; fallback to file-derived title.
-      let scenarioName = "My data";
-      if (firstFile.summary && firstFile.summary.trim().length > 0) {
-        const summaryLooksLikeFile = /\.(json|wav|mp3|pdf|docx|txt|csv)$/i.test(firstFile.summary) || /convo[_ -]/i.test(firstFile.summary);
-        scenarioName = summaryLooksLikeFile ? formatFriendlyFileTitle(firstFile.summary) : firstFile.summary;
-      } else if (firstFile.filename) {
-        scenarioName = formatFriendlyFileTitle(firstFile.filename);
-      }
-      return scenarioName;
+    // User uploaded their own files (no seeded scenario active) — show a generic label.
+    if (uploadedFileCount > 0) {
+      return "My Dataset";
     }
     // Fallback to data sources if no uploaded files
     const parts: string[] = [];
@@ -375,7 +366,7 @@ const Home: React.FC = () => {
                   )}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <span title={insightsAvailable ? "" : "Insights are still being generated. Chat is available now."}>
                   <Button appearance="primary" size="medium" icon={<ChartMultiple24Regular />}
                     disabled={!insightsAvailable}
@@ -383,7 +374,21 @@ const Home: React.FC = () => {
                 </span>
                 <Button appearance="outline" size="medium" icon={<Search24Regular />}
                   onClick={() => navigate(primaryExternalSourceName ? `/explore?source=${encodeURIComponent(primaryExternalSourceName)}` : "/explore")}>Explore data</Button>
+                {!isExternalConnectionCard && (
+                  <Button appearance="outline" size="medium" icon={<ArrowUpload24Regular />}
+                    disabled={uploading}
+                    onClick={() => { resetUpload(); fileInputRef.current?.click(); }}>
+                    {uploading ? "Uploading…" : "Upload more"}
+                  </Button>
+                )}
               </div>
+              {/* Upload feedback shown inline when data is already present */}
+              {!isExternalConnectionCard && (uploadMsg || uploadError) && !uploading && (
+                <div style={{ marginTop: 8, fontSize: 13 }}>
+                  {uploadDone && <span style={{ color: "#059669" }}>✓ {uploadMsg}</span>}
+                  {uploadError && <span style={{ color: "#dc2626" }}>⚠ {uploadError}</span>}
+                </div>
+              )}
             </>
           ) : (
             <>

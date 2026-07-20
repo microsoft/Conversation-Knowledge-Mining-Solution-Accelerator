@@ -261,6 +261,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             exit $LASTEXITCODE
         }
         "skip" {
+            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host "Skipped. You can upload documents from the web UI." -ForegroundColor Yellow
             exit 0
         }

@@ -777,6 +777,23 @@ class IngestionService:
         by_type: dict[str, int] = {}
         normalized_items: list[dict] = []
         for item in data:
+            # Normalize id — fall back to known alternatives or generate one.
+            if "id" not in item or not item["id"]:
+                item["id"] = (
+                    item.get("ConversationId")
+                    or item.get("conversation_id")
+                    or item.get("doc_id")
+                    or str(__import__("uuid").uuid4())
+                )
+            # Normalize text — map common alternative field names.
+            if "text" not in item or not item["text"]:
+                item["text"] = (
+                    item.get("Content")
+                    or item.get("content")
+                    or item.get("body")
+                    or item.get("Body")
+                    or ""
+                )
             meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
             if "source_type" not in meta:
                 meta["source_type"] = source

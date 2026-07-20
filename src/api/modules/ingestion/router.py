@@ -73,8 +73,10 @@ async def upload_json(
     if len(content) > max_bytes:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
     data = json.loads(content)
+    if isinstance(data, dict):
+        data = [data]
     if not isinstance(data, list):
-        raise HTTPException(status_code=400, detail="JSON must be an array of documents")
+        raise HTTPException(status_code=400, detail="JSON must be an object or an array of documents")
     if len(data) > settings.max_json_documents_per_upload:
         raise HTTPException(status_code=413, detail=f"Too many documents. Maximum is {settings.max_json_documents_per_upload}.")
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
