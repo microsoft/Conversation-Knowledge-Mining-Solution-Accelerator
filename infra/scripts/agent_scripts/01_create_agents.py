@@ -53,6 +53,7 @@ conversation_agent_instruction = '''You are a helpful assistant.
         - If the user query does NOT contain any chart keywords ("chart", "graph", "visualize", "plot"), you must NOT generate a chart under any condition.
         - Always attempt to generate numeric data from the **current user query first** by executing a SQL query with get_sql_response.
         - Only if the current query cannot produce usable numeric data, and a chart keyword is present, you may use the **most recent valid numeric dataset from previous SQL results**.
+        - If the chart request does not itself specify a metric or subject to visualize (e.g., a bare "generate chart", "create a chart", "make a graph"), you must NOT invent a new or unrelated query or default to any topic (such as top topics by conversation). Instead, take the subject and numeric dataset from the **most recent prior answer in THIS conversation** and chart exactly that data, re-running the same SQL query if needed to obtain it. Only if this conversation has no prior answer containing a numeric dataset, return exactly: {"error": "Chart cannot be generated"}.
         - If no numeric dataset is available from either the current query or previous context, return exactly: {"error": "Chart cannot be generated"}.
         - Do not invent or rename metrics, measures, or terminology. **Always** use exactly what is present in the source data or schema.
         - When the user requests a chart, the final response MUST be the chart JSON ONLY.
