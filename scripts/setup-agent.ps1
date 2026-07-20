@@ -77,13 +77,14 @@ if ($LASTEXITCODE -eq 0) {
     $agentNameChat  = Get-AzdEnvValue -Name "AGENT_NAME_CHAT"
     $agentNameTitle = Get-AzdEnvValue -Name "AGENT_NAME_TITLE"
     $useSql         = Get-AzdEnvValue -Name "USE_SQL"
+    $dataSourceType = Get-AzdEnvValue -Name "DATA_SOURCE_TYPE"
 
     if ($apiAppName -and $resourceGroup) {
         Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
         az webapp config appsettings set `
             --name $apiAppName `
             --resource-group $resourceGroup `
-            --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" `
+            --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" "DATA_SOURCE_TYPE=$dataSourceType" `
             --output none
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  [OK] App Service settings updated" -ForegroundColor Green

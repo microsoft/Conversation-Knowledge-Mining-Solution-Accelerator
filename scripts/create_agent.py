@@ -42,6 +42,8 @@ parser.add_argument("--data-source-type", type=str, choices=["azure_search", "fa
                     help="Data source type for BYOD scenarios (azure_search or fabric)")
 parser.add_argument("--data-source-name", type=str,
                     help="Display name for the data source (used in agent instructions)")
+parser.add_argument("--data-source-table", type=str,
+                    help="Table name in the Fabric source (included in agent prompt)")
 args = parser.parse_args()
 
 # Configure logging
@@ -95,8 +97,9 @@ ENDPOINT = os.getenv("AZURE_AI_AGENT_ENDPOINT")
 MODEL = os.getenv("AZURE_AI_AGENT_MODEL") or os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-5.2")
 
 # Determine data source type
-DATA_SOURCE_TYPE = args.data_source_type or "azure_search"  # Default to Azure Search for backward compatibility
+DATA_SOURCE_TYPE = args.data_source_type or "azure_search"  # Default to Azure Search when unspecified
 DATA_SOURCE_NAME = args.data_source_name or "Knowledge Base"
+DATA_SOURCE_TABLE = getattr(args, "data_source_table", None) or ""
 
 # Search configuration (for Azure Search BYOD)
 SEARCH_CONNECTION_NAME = args.connection_name or os.getenv("AZURE_AI_SEARCH_CONNECTION_NAME")
@@ -127,8 +130,9 @@ if DATA_SOURCE_TYPE == "azure_search" and not SEARCH_CONNECTION_NAME:
 def build_agent_instructions():
     """Load scenario-tailored instructions from agent_prompt.txt.
 
-    For built-in scenarios, generates them via generate_agent_prompt.py.
-    For BYOD scenarios, uses a generic knowledge mining prompt.
+    All scenarios (seeded, BYOD Azure AI Search, and BYOD Fabric) generate their
+    instructions via generate_agent_prompt.py. BYOD scenarios pass the data source
+    type/name so Fabric gets a Fabric-specific prompt.
     """
     # Check if this is a BYOD scenario
     _is_byod = False
@@ -139,21 +143,20 @@ def build_agent_instructions():
             if args.scenario in _all_scenarios:
                 _is_byod = _all_scenarios[args.scenario].get("byod", False)
 
-    if _is_byod and DATA_SOURCE_TYPE == "fabric":
-        # Fabric BYOD is SQL-only, so it uses a custom prompt (the generated prompt
-        # always references an Azure AI Search tool, which Fabric doesn't have).
-        logger.info("Using generic prompt for BYOD Fabric scenario (SQL only)")
-        return (f"You are a knowledge mining assistant. You have access to Fabric data ({DATA_SOURCE_NAME}) "
-                    f"through AI-powered search and analytics. Ground every answer in the available data. "
-                    f"Always cite the source documents or data. If no matching data is found, say so clearly.")
-
-    # Seeded scenarios and BYOD Azure AI Search use the generated scenario prompt.
+    # Seeded scenarios, BYOD Azure AI Search, and BYOD Fabric all use the generated
+    # scenario prompt. Fabric BYOD gets a Fabric-specific prompt (Fabric + SQL) driven
+    # by the data source args passed through to generate_agent_prompt.py.
     prompt_path = os.path.join(config_dir, "agent_prompt.txt")
     logger.info("Generating scenario prompt")
     import subprocess
     cmd = [sys.executable, os.path.join(script_dir, "generate_agent_prompt.py")]
     if args.scenario:
         cmd += ["--scenario", args.scenario]
+    if _is_byod:
+        cmd += ["--data-source-type", DATA_SOURCE_TYPE,
+                "--data-source-name", DATA_SOURCE_NAME]
+        if DATA_SOURCE_TABLE:
+            cmd += ["--data-source-table", DATA_SOURCE_TABLE]
     subprocess.run(cmd, check=False)
     if os.path.exists(prompt_path):
         with open(prompt_path, encoding="utf-8") as f:
@@ -223,9 +226,32 @@ def build_tools():
             raise RuntimeError("Azure Search index name not configured. Set AZURE_SEARCH_INDEX_NAME or use --index-name.")
         logger.info(f"Building tools for Azure Search scenario: {INDEX_NAME}")
     
-    # Fabric uses SQL tools only; Azure Search (seeded or BYOD) uses AI Search + SQL.
+    # Fabric uses a Fabric query tool + SQL tools; Azure Search uses AI Search + SQL.
     if DATA_SOURCE_TYPE == "fabric":
-        logger.info(f"Fabric scenario: using SQL tools over enriched data for {DATA_SOURCE_NAME}")
+        try:
+            from azure.ai.projects.models import FunctionTool
+            tools.append(FunctionTool(
+                name="query_fabric_data",
+                description=(
+                    f"Query the {DATA_SOURCE_NAME} Fabric warehouse/lakehouse for live source records "
+                    "using natural language."
+                ),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Natural language query to run against the Fabric data.",
+                        }
+                    },
+                    "required": ["query"],
+                    "additionalProperties": False,
+                },
+                strict=False,
+            ))
+            logger.info(f"Added Fabric tool: query_fabric_data ({DATA_SOURCE_NAME})")
+        except ImportError as e:
+            raise RuntimeError(f"Failed to import Fabric tool dependencies: {e}")
     elif DATA_SOURCE_TYPE == "azure_search":
         # For Azure Search (seeded or BYOD)
         try:
@@ -473,7 +499,8 @@ def set_azd_env(key, value):
 set_azd_env("AGENT_NAME_CHAT", CHAT_AGENT_NAME)
 set_azd_env("AGENT_NAME_TITLE", TITLE_AGENT_NAME)
 set_azd_env("USE_SQL", str(USE_SQL))
-logger.info(f"azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}")
+set_azd_env("DATA_SOURCE_TYPE", DATA_SOURCE_TYPE)
+logger.info(f"azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}, DATA_SOURCE_TYPE={DATA_SOURCE_TYPE}")
 
 # Write the agent values back into .env so the local backend picks them up
 # without needing azd. Existing keys are updated in-place; missing keys are appended.
@@ -481,6 +508,7 @@ _ENV_KEYS_TO_WRITE = {
     "AGENT_NAME_CHAT": CHAT_AGENT_NAME,
     "AGENT_NAME_TITLE": TITLE_AGENT_NAME,
     "USE_SQL": str(USE_SQL).lower(),
+    "DATA_SOURCE_TYPE": DATA_SOURCE_TYPE,
 }
 if os.path.exists(env_path):
     try:

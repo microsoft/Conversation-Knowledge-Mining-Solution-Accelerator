@@ -15,7 +15,7 @@ from cachetools import TTLCache
 
 from src.api.config import get_settings
 from src.api.modules.rag.models import QAResponse, Source
-from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values
+from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values, query_fabric_data
 
 logger = logging.getLogger(__name__)
 
@@ -152,10 +152,17 @@ class RAGService:
                 # Attach the SQL tool only when the agent was created with it
                 # (USE_SQL is scenario-dependent and set at agent-creation time).
                 use_sql = (os.getenv("USE_SQL") or str(settings.use_sql)).strip().lower() in ("1", "true", "yes", "on")
+                data_source_type = (os.getenv("DATA_SOURCE_TYPE") or "azure_search").strip().lower()
+                if data_source_type == "fabric":
+                    agent_tools = [query_fabric_data, get_schema_and_sample_values, get_sql_response]
+                elif use_sql:
+                    agent_tools = [get_schema_and_sample_values, get_sql_response]
+                else:
+                    agent_tools = []
                 agent = FoundryAgent(
                     project_client=project_client,
                     agent_name=agent_name,
-                    tools=[get_schema_and_sample_values, get_sql_response] if use_sql else [],
+                    tools=agent_tools,
                 )
 
                 # Reuse or create a server-side conversation thread for continuity

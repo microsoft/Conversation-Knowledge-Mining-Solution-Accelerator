@@ -83,6 +83,7 @@ if not CHAT_AGENT_NAME:
 # declaration, so SQL-enabled scenarios must supply the callable at runtime
 # (same pattern as src/api/services/chat_service.py).
 USE_SQL = bool(agent_ids.get("use_sql", False))
+DATA_SOURCE_TYPE = agent_ids.get("data_source_type", "azure_search")
 
 print(f"\n{'='*60}")
 print("Knowledge Mining Agent Chat (Agent Framework)")
@@ -90,7 +91,10 @@ print(f"{'='*60}")
 print(f"Agent: {CHAT_AGENT_NAME}")
 print(f"Search Index: {agent_ids.get('search_index', 'N/A')}")
 print(f"Model: {agent_ids.get('model', 'N/A')}")
-print(f"Tools: Search{' + SQL' if USE_SQL else ' only'}")
+if DATA_SOURCE_TYPE == "fabric":
+    print(f"Tools: Fabric + SQL")
+else:
+    print(f"Tools: Search{' + SQL' if USE_SQL else ' only'}")
 print("Type 'quit' to exit, 'help' for sample questions\n")
 
 sample_questions = [
@@ -162,34 +166,11 @@ def print_citations(citations: list) -> None:
         print(f"    [{i}] {c['title']} — {c['url']}")
 
 
-def _sql_connection_string() -> str:
-    server = os.getenv("AZURE_SQL_SERVER")
-    database = os.getenv("AZURE_SQL_DATABASE")
-    return (
-        f"Driver={{ODBC Driver 18 for SQL Server}};"
-        f"Server={server};Database={database};"
-        f"Encrypt=yes;TrustServerCertificate=no;"
-    )
-
-
-def get_sql_response(sql_query: str) -> str:
-    """Execute T-SQL against the documents table and return rows as JSON."""
-    import struct
-    import pyodbc
-    from azure.identity import DefaultAzureCredential
-
-    token = DefaultAzureCredential().get_token("https://database.windows.net/.default")
-    token_bytes = token.token.encode("utf-16-le")
-    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
-    conn = pyodbc.connect(_sql_connection_string(), attrs_before={1256: token_struct})
-    try:
-        cursor = conn.cursor()
-        cursor.execute(sql_query)
-        cols = [c[0] for c in cursor.description] if cursor.description else []
-        rows = [dict(zip(cols, r)) for r in cursor.fetchall()] if cols else []
-        return json.dumps(rows, default=str)
-    finally:
-        conn.close()
+from src.api.modules.rag.agent_tools import (
+    get_sql_response,
+    get_schema_and_sample_values,
+    query_fabric_data,
+)
 
 
 async def main():
@@ -197,7 +178,12 @@ async def main():
     project_client = AIProjectClient(endpoint=ENDPOINT, credential=credential)
 
     async with credential, project_client:
-        tools = [get_sql_response] if USE_SQL else None
+        if DATA_SOURCE_TYPE == "fabric":
+            tools = [query_fabric_data, get_schema_and_sample_values, get_sql_response]
+        elif USE_SQL:
+            tools = [get_schema_and_sample_values, get_sql_response]
+        else:
+            tools = None
         async with FoundryAgent(
             project_client=project_client,
             agent_name=CHAT_AGENT_NAME,

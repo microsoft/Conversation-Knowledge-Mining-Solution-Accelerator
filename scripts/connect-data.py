@@ -70,8 +70,9 @@ SOURCE_TYPES = {
     "2": {
         "type": "fabric",
         "label": "Microsoft Fabric",
-        "fields": ["endpoint", "database", "table"],
+        "fields": ["workspace_id", "endpoint", "database", "table"],
         "prompts": {
+            "workspace_id": "Fabric workspace ID (GUID, for role assignment — press Enter to skip): ",
             "endpoint": "SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ",
             "database": "Lakehouse/Warehouse name: ",
             "table": "Table name: ",
@@ -431,6 +432,50 @@ def ensure_foundry_search_connection(endpoint: str) -> str:
     return conn_name
 
 
+def ensure_fabric_workspace_contributor_role(workspace_id: str) -> None:
+    """Assign Fabric workspace Contributor role to the API's managed identity.
+
+    The API authenticates to Fabric SQL via DefaultAzureCredential (managed identity).
+    For that to succeed, the identity must be a workspace member with at least
+    Contributor access.
+
+    Args:
+        workspace_id: Fabric workspace GUID.
+    """
+    principal_id, api_app_name = get_api_principal_context()
+    if not principal_id:
+        print("  [WARN] Could not resolve API managed identity principal ID; skipping Fabric role assignment.")
+        return
+
+    import urllib.request as _urlreq
+    import urllib.error as _urlerr
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://api.fabric.microsoft.com/.default").token
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    url = f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/roleAssignments"
+    body = json.dumps({
+        "principal": {"id": principal_id, "type": "ServicePrincipal"},
+        "role": "Contributor",
+    }).encode()
+
+    req = _urlreq.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with _urlreq.urlopen(req, timeout=30) as resp:
+            if resp.status == 201:
+                identity_label = f"{api_app_name} ({principal_id})" if api_app_name else principal_id
+                print(f"  [OK] Contributor role assigned on Fabric workspace to {identity_label}")
+    except _urlerr.HTTPError as e:
+        if e.code == 409:
+            print("  [OK] Fabric workspace role assignment already exists")
+        else:
+            print(f"  [WARN] Failed to assign Fabric workspace role. HTTP {e.code}: {e.read().decode()[:200]}")
+    except Exception as e:
+        print(f"  [WARN] Failed to assign Fabric workspace role: {e}")
+
+
 def normalize_endpoint(endpoint: str) -> str:
     """Return an https endpoint without trailing slash."""
     endpoint = (endpoint or "").strip()
@@ -713,6 +758,10 @@ def prompt_missing_fields(config: dict) -> dict:
             config["table_or_query"] = input("Index name (optional, press Enter to auto-discover): ").strip()
 
     elif source_type == "fabric":
+        if not (config.get("workspace_id") or "").strip():
+            workspace_id = input("Fabric workspace ID (GUID, for role assignment — press Enter to skip): ").strip()
+            if workspace_id:
+                config["workspace_id"] = workspace_id
         if not (config.get("endpoint") or "").strip():
             config["endpoint"] = input("SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ").strip()
         if not (config.get("database") or "").strip():
@@ -735,6 +784,7 @@ def main():
     parser.add_argument("--database", help="Database/lakehouse name")
     parser.add_argument("--table", help="Table or index name")
     parser.add_argument("--connection-string", help="ODBC connection string")
+    parser.add_argument("--workspace-id", help="Fabric workspace ID (GUID) for role assignment")
     args = parser.parse_args()
 
     print()
@@ -765,6 +815,7 @@ def main():
             "database": args.database or "",
             "table_or_query": args.table or "",
             "connection_string": args.connection_string or "",
+            "workspace_id": getattr(args, "workspace_id", None) or os.getenv("FABRIC_WORKSPACE_ID", ""),
         }
         if is_interactive:
             config = prompt_missing_fields(config)
@@ -825,6 +876,15 @@ def main():
         ensure_search_index_reader_role(config.get("endpoint", ""))
         print("\n  Creating AI Foundry connection to external Azure AI Search...")
         config["search_connection"] = ensure_foundry_search_connection(config.get("endpoint", ""))
+
+    elif config.get("source_type") == "fabric":
+        workspace_id = (config.get("workspace_id") or os.getenv("FABRIC_WORKSPACE_ID", "")).strip()
+        if workspace_id:
+            print("\n  Assigning API app access to Fabric workspace...")
+            ensure_fabric_workspace_contributor_role(workspace_id)
+        else:
+            print("\n  [SKIP] Fabric workspace role assignment skipped — workspace ID not provided.")
+            print("         Provide --workspace-id or set FABRIC_WORKSPACE_ID to grant the API managed identity access.")
 
     # Step 3: Notify the running backend so it reloads the data source into memory.
     # This makes the source visible in the UI immediately without restarting the API.

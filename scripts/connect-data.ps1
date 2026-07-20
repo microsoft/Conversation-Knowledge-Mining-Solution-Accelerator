@@ -18,7 +18,8 @@ param(
     [string]$Endpoint,
     [string]$Database,
     [string]$Table,
-    [string]$ConnectionString
+    [string]$ConnectionString,
+    [string]$WorkspaceId
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,6 +44,7 @@ function Sync-AgentSettingsToApi {
     $agentNameChat = Get-AzdEnvValue -Name "AGENT_NAME_CHAT"
     $agentNameTitle = Get-AzdEnvValue -Name "AGENT_NAME_TITLE"
     $useSql = Get-AzdEnvValue -Name "USE_SQL"
+    $dataSourceType = Get-AzdEnvValue -Name "DATA_SOURCE_TYPE"
 
     if (-not $agentNameChat -or -not $agentNameTitle) {
         # Fall back to .env if azd env values are not available.
@@ -56,6 +58,9 @@ function Sync-AgentSettingsToApi {
             }
             if (-not $useSql) {
                 $useSql = (Get-Content $envFilePath | Where-Object { $_ -match '^USE_SQL=' }) -replace '^USE_SQL=', ''
+            }
+            if (-not $dataSourceType) {
+                $dataSourceType = (Get-Content $envFilePath | Where-Object { $_ -match '^DATA_SOURCE_TYPE=' }) -replace '^DATA_SOURCE_TYPE=', ''
             }
         }
     }
@@ -73,7 +78,7 @@ function Sync-AgentSettingsToApi {
     az webapp config appsettings set `
         --name $apiAppName `
         --resource-group $resourceGroup `
-        --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" `
+        --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" "DATA_SOURCE_TYPE=$dataSourceType" `
         --output none
 
     if ($LASTEXITCODE -eq 0) {
@@ -130,6 +135,7 @@ if ($Endpoint)          { $pyArgs += "--endpoint", $Endpoint }
 if ($Database)          { $pyArgs += "--database", $Database }
 if ($Table)             { $pyArgs += "--table", $Table }
 if ($ConnectionString)  { $pyArgs += "--connection-string", $ConnectionString }
+if ($WorkspaceId)       { $pyArgs += "--workspace-id", $WorkspaceId }
 
 & $pythonExe (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
 
@@ -270,6 +276,7 @@ elseif ($resolvedSourceType -eq "fabric") {
             "--scenario", "fabric_byod",
             "--data-source-type", "fabric",
             "--data-source-name", $resolvedName,
+            "--data-source-table", $resolvedTable,
             "--agent-name", $agentName
         )
 

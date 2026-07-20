@@ -42,26 +42,5 @@
       "has_preprocessed": false,
       "byod": true
     }
-  },
-  "data_sources": {
-    "azure_search": {
-      "name": "Azure AI Search",
-      "description": "Connect an existing Azure AI Search index",
-      "fields": ["endpoint", "table"],
-      "prompts": {
-        "endpoint": "Search endpoint (e.g. https://my-search.search.windows.net)",
-        "table": "Index name"
-      }
-    },
-    "fabric": {
-      "name": "Microsoft Fabric",
-      "description": "Connect a Fabric Lakehouse or Warehouse via SQL endpoint",
-      "fields": ["endpoint", "database", "table"],
-      "prompts": {
-        "endpoint": "SQL endpoint (e.g. your-server.database.fabric.microsoft.com)",
-        "database": "Lakehouse/Warehouse name",
-        "table": "Table name"
-      }
-    }
   }
 }

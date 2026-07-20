@@ -185,6 +185,63 @@ def get_sql_response(sql_query: str) -> str:
 
 
 @tool
+def query_fabric_data(query: str) -> str:
+    """Execute a T-SQL SELECT query against the connected Microsoft Fabric warehouse/lakehouse.
+
+    Use this to read live source records from the Fabric table.
+    The query argument MUST be a valid T-SQL SELECT statement — never natural language.
+    For enriched analytics (topics, summaries, entities, key phrases), use get_sql_response
+    against the 'documents' table instead.
+
+    Args:
+        query: A valid T-SQL SELECT statement to execute against the Fabric SQL endpoint.
+               Example: SELECT TOP 20 CategoryName, CategoryDescription FROM productcategory WHERE IsActive = 1
+
+    Returns:
+        JSON string with results, column names, and row count.
+    """
+    try:
+        from src.api.modules.data_sources.registry import data_source_registry
+        from src.api.modules.data_sources.base import DataSourceType
+
+        data_source_registry._ensure_loaded()
+        config = next(
+            (c for c in data_source_registry.list_all() if c.source_type == DataSourceType.FABRIC),
+            None,
+        )
+        if not config:
+            return json.dumps({"success": False, "error": "No Fabric data source is connected.", "results": []})
+
+        adapter = data_source_registry._get_adapter(DataSourceType.FABRIC)
+        conn = adapter._get_connection(config)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            columns = [d[0] for d in cursor.description] if cursor.description else []
+            rows = cursor.fetchall()
+            results = [dict(zip(columns, row)) for row in rows]
+        finally:
+            conn.close()
+
+        return json.dumps({
+            "success": True,
+            "count": len(results),
+            "columns": columns,
+            "results": results,
+            "table": config.table_or_query,
+        }, default=str)
+
+    except Exception as e:
+        logger.error(f"Fabric query tool error: {e}", exc_info=True)
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "results": [],
+            "hint": "Column name or table name may be wrong. Run: SELECT TOP 1 * FROM <table_name> to discover the exact column names, then retry with correct column names."
+        })
+
+
+@tool
 def get_schema_and_sample_values(top_n: int = 5) -> str:
     """Discover the exact metadata field names and sample values stored in the documents table.
 
