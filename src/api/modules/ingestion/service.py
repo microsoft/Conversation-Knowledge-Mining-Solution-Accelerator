@@ -794,6 +794,15 @@ class IngestionService:
                     or item.get("Body")
                     or ""
                 )
+            # Normalize type — derive from filename extension when not provided
+            if "type" not in item or not item["type"]:
+                ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+                if ext == "json" and filename.lower().startswith("convo"):
+                    item["type"] = "conversation"
+                elif ext:
+                    item["type"] = ext
+                else:
+                    item["type"] = "json"
             meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
             if "source_type" not in meta:
                 meta["source_type"] = source
