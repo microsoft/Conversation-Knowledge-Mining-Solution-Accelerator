@@ -264,6 +264,24 @@ class DataSourceRegistry:
             logger.warning(f"Failed to delete data source '{source_id}' from SQL: {e}")
         return True
 
+    def clear_all_external_sources(self) -> int:
+        """Delete all registered data sources from SQL and reset the in-memory cache.
+        Returns the number of sources that were removed."""
+        count = len(self._cache)
+        self._cache = {}
+        self._loaded = False
+        try:
+            from src.api.storage.sql_service import sql_service
+            if sql_service.available:
+                conn = sql_service._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM external_data_sources")
+                conn.commit()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Failed to clear external_data_sources table: {e}")
+        return count
+
     def get(self, source_id: str) -> Optional[DataSourceConfig]:
         self._ensure_loaded()
         return self._cache.get(source_id)

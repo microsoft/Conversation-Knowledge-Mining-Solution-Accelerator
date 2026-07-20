@@ -180,35 +180,16 @@ function Invoke-DataCleanup {
         [hashtable]$Headers
     )
 
-    # Always clear existing demo data (SQL documents + insights cache) before loading.
-    Write-Host "Clearing existing data before loading new scenario..." -ForegroundColor Yellow
+    # Clear existing demo data (documents, insights cache) and any external data source
+    # registrations so every scenario starts from a clean slate.
+    Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
     try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $Headers | Out-Null
-        Write-Host "Previous data cleared." -ForegroundColor Green
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
+        Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
     } catch {
-        Write-Host "ERROR: Could not clear existing demo data before scenario load: $_" -ForegroundColor Red
+        Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
         Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
         exit 1
-    }
-
-    # Also clear connected external sources for scenario isolation on Home/Explore.
-    Write-Host "Removing existing external source connections for scenario isolation..." -ForegroundColor Yellow
-    try {
-        $existingSources = Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/" -Method GET -Headers $Headers
-        if ($existingSources -and $existingSources.Count -gt 0) {
-            foreach ($src in $existingSources) {
-                try {
-                    Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/$($src.id)" -Method DELETE -Headers $Headers | Out-Null
-                } catch {
-                    Write-Host "  Warning: Could not remove data source '$($src.name)': $_" -ForegroundColor Yellow
-                }
-            }
-            Write-Host "Removed $($existingSources.Count) external data source connection(s)." -ForegroundColor Green
-        } else {
-            Write-Host "No external data sources found." -ForegroundColor DarkGray
-        }
-    } catch {
-        Write-Host "Warning: Could not list/remove external data sources: $_" -ForegroundColor Yellow
     }
 }
 
@@ -371,7 +352,7 @@ if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not 
     if ($ClearExisting) {
         Write-Host "Clearing existing data..." -ForegroundColor Yellow
         try {
-            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear" -Method DELETE -Headers $headers | Out-Null
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $headers | Out-Null
             Write-Host "Data cleared." -ForegroundColor Green
         } catch {
             Write-Host "Warning: Could not clear data — $_" -ForegroundColor Yellow

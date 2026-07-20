@@ -592,7 +592,7 @@ def _build_runtime_extraction_filters() -> FilterSchema:
 
 
 @router.delete("/clear")
-async def clear_documents():
+async def clear_documents(include_external: bool = False):
     ingestion_service.clear()
     # Also clear the insights plan cache so it regenerates for new data
     try:
@@ -603,10 +603,22 @@ async def clear_documents():
         dashboard_service._schema_hash = None
     except Exception as e:
         logger.warning(f"Failed to clear insights cache: {e}")
+
+    cleared_count = 0
+    if include_external:
+        try:
+            from src.api.modules.data_sources.registry import data_source_registry
+            cleared_count = data_source_registry.clear_all_external_sources()
+            logger.info(f"Cleared {cleared_count} external data source(s) from external_data_sources table")
+        except Exception as e:
+            logger.warning(f"Failed to clear external data sources: {e}")
+
     return {
         "message": (
-            "Scenario and uploaded documents cleared; external source registrations preserved"
-        )
+            f"Scenario and uploaded documents cleared; {cleared_count} external source registration(s) also cleared"
+            if include_external
+            else "Scenario and uploaded documents cleared; external source registrations preserved"
+        ),
     }
 
 
