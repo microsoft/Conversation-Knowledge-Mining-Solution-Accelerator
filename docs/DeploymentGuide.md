@@ -245,7 +245,7 @@ azd up
    - Writes the `azd` environment values to a local `.env` file
    - Creates a Python virtual environment and installs [infra/scripts/post-provision/requirements.txt](../infra/scripts/post-provision/requirements.txt)
    - Grants the API managed identity access to Azure SQL ([setup-sql-roles.ps1](../infra/scripts/post-provision/setup-sql-roles.ps1))
-   - Presents the interactive data setup menu ([setup-data.ps1](../infra/scripts/post-provision/setup-data.ps1))
+   - Presents the interactive data setup menu ([setup-data.ps1](../infra/scripts/post-provision/setup-data.ps1)), which prompts you to **select a scenario**. Based on your choice it uploads the sample dataset, **creates the Azure AI Foundry agents**, and wires up the search index and SQL connections. See [Step 5.2](#52-run-post-deployment-data-setup) for details.
 
 **⚠️ Deployment Issues:** If you encounter errors or timeouts, try a different region as there may be capacity constraints. For detailed error solutions, see our [Troubleshooting Guide](./TroubleShootingSteps.md).
 
@@ -311,7 +311,7 @@ The system presents available scenarios for selection:
 Enter your choice [1-6]:
 ```
 
-Upon selection, the corresponding datasets and configuration files are uploaded, an Azure AI Foundry agent (ChatAgent + SummaryAgent) is created, and connections are configured.
+Upon selection, the corresponding datasets and configuration files are uploaded, the Azure AI Foundry agents (a ChatAgent for grounded Q&A and a SummaryAgent that generates concise chat conversation titles) are created, and connections are configured.
 
 **Non-interactive usage:**
 ```powershell
@@ -452,7 +452,6 @@ azd env get-values
 Now that your deployment is complete and tested, explore these resources to enhance your experience:
 
 📚 **Learn More:**
-- [Local Development Setup](./LocalDevelopmentSetup.md) - Set up your local development environment
 - [Sample Questions](./SampleQuestions.md) - Explore sample questions and workflows
 - [Customizing azd Parameters](./CustomizingAzdParameters.md) - Advanced configuration options
 - [App Authentication Setup](./AppAuthentication.md) - Secure your application
@@ -462,4 +461,3 @@ Now that your deployment is complete and tested, explore these resources to enha
 
 - 🐛 **Issues:** Check [Troubleshooting Guide](./TroubleShootingSteps.md)
 - 💬 **Support:** [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues)
-- 🔧 **Development:** See [Local Development Setup](./LocalDevelopmentSetup.md)

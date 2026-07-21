@@ -113,4 +113,3 @@ Then restart the App Services from the Azure Portal if needed.
 
 - 🐛 [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues)
 - 📖 [Deployment Guide](./DeploymentGuide.md)
-- 🔧 [Local Development Setup](./LocalDevelopmentSetup.md)

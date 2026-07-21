@@ -211,7 +211,6 @@ You may want to consider additional security measures, such as:
 - [App Authentication Setup](./docs/AppAuthentication.md)
 - [Customizing azd Parameters](./docs/CustomizingAzdParameters.md)
 - [Sample Questions](./docs/SampleQuestions.md)
-- [Local Development Setup](./docs/LocalDevelopmentSetup.md)
 - [Troubleshooting Guide](./docs/TroubleShootingSteps.md)
 
 <br/>
