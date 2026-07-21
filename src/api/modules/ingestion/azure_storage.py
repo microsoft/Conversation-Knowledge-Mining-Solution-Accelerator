@@ -286,7 +286,7 @@ class AzureStorageService:
 
     def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str], has_blobs: bool = True) -> dict:
         """Delete all data for a file: blob, search index entries, and search chunks.
-        
+
         Args:
             file_id: The file identifier
             filename: The filename
@@ -301,7 +301,7 @@ class AzureStorageService:
             try:
                 blob_service = self._get_blob_client()
                 container = blob_service.get_container_client(settings.azure_storage_container)
-                
+
                 # Delete raw blob (raw/{file_id}/{filename})
                 try:
                     blob = container.get_blob_client(f"raw/{file_id}/{filename}")
@@ -310,7 +310,7 @@ class AzureStorageService:
                     logger.debug(f"Deleted raw blob: raw/{file_id}/{filename}")
                 except Exception as e:
                     logger.debug(f"Raw blob delete failed for raw/{file_id}/{filename}: {e}")
-                
+
                 # Delete extracted text blob (extracted/{file_id}/content.txt)
                 try:
                     blob = container.get_blob_client(f"extracted/{file_id}/content.txt")

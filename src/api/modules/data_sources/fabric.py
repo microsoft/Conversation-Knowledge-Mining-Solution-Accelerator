@@ -222,7 +222,7 @@ class FabricDataSource(BaseExternalDataSource):
             conn = self._get_connection(config)
             cursor = conn.cursor()
             table = validate_table_name(config.table_or_query)
-            
+
             # Test 1: Check table exists and count rows
             cursor.execute(f"SELECT COUNT(*) FROM [{table}]")
             count = cursor.fetchone()[0]
@@ -240,9 +240,9 @@ class FabricDataSource(BaseExternalDataSource):
 
             cursor.execute(f"SELECT COUNT(*) FROM [{table}] WHERE [{text_field}] IS NOT NULL")
             non_null_count = cursor.fetchone()[0]
-            
+
             conn.close()
-            
+
             msg = f"Connected to Fabric. Table has {count} rows, {non_null_count} with non-NULL text field."
             logger.info(f"Fabric connection test passed: {msg}")
             return {"success": True, "row_count": count, "message": msg}
@@ -292,9 +292,9 @@ class FabricDataSource(BaseExternalDataSource):
             # Use LOWER() for case-insensitive search and filter NULL values
             text_field = f"[{runtime_mapping.text_field}]"
             sql = f"""
-            SELECT TOP {top_k} {select_str} 
-            FROM [{table}] 
-            WHERE {text_field} IS NOT NULL 
+            SELECT TOP {top_k} {select_str}
+            FROM [{table}]
+            WHERE {text_field} IS NOT NULL
               AND LOWER(CAST({text_field} AS NVARCHAR(MAX))) LIKE ?
             """
 
@@ -311,7 +311,7 @@ class FabricDataSource(BaseExternalDataSource):
                     doc["id"] = str(uuid.uuid4())[:8]
                 doc["score"] = 1.0
                 docs.append(doc)
-            
+
             logger.debug(f"Fabric search for '{query}' returned {len(docs)} results")
             return docs
         except Exception as e:
@@ -329,12 +329,12 @@ class FabricDataSource(BaseExternalDataSource):
             if not text_col:
                 conn.close()
                 return []
-            
+
             # Sample from non-NULL text field rows to avoid empty documents
             text_field = f"[{text_col}]"
             sql = f"""
-            SELECT TOP {count} * FROM [{table}] 
-            WHERE {text_field} IS NOT NULL 
+            SELECT TOP {count} * FROM [{table}]
+            WHERE {text_field} IS NOT NULL
             ORDER BY NEWID()
             """
             cursor.execute(sql)
@@ -349,7 +349,7 @@ class FabricDataSource(BaseExternalDataSource):
                 if not doc["id"]:
                     doc["id"] = str(uuid.uuid4())[:8]
                 docs.append(doc)
-            
+
             logger.debug(f"Fabric sample returned {len(docs)} documents")
             return docs
         except Exception as e:
@@ -368,7 +368,7 @@ class FabricDataSource(BaseExternalDataSource):
                 conn.close()
                 logger.warning("Fabric fetch_all skipped: no usable text column found")
                 return
-            
+
             # Only fetch rows with non-NULL text field
             text_field = f"[{text_col}]"
             sql = f"SELECT * FROM [{table}] WHERE {text_field} IS NOT NULL"
@@ -389,6 +389,6 @@ class FabricDataSource(BaseExternalDataSource):
                 yield batch
 
             conn.close()
-            logger.debug(f"Fabric fetch_all completed successfully")
+            logger.debug("Fabric fetch_all completed successfully")
         except Exception as e:
             logger.warning(f"Fabric fetch_all failed: {e}")
