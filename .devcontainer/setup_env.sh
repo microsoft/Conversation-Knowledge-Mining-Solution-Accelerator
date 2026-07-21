@@ -4,7 +4,5 @@ git fetch
 git pull
 
 # provide execute permission to quotacheck script
-sudo chmod +x ./infra/scripts/checkquota_km.sh
-sudo chmod +x ./infra/scripts/quota_check_params.sh
-sudo chmod +x ./infra/scripts/process_sample_data.sh
-sudo chmod +x ./infra/scripts/process_custom_data.sh
+sudo chmod +x ./infra/scripts/pre-provision/checkquota_kmv1.sh
+sudo chmod +x ./infra/scripts/pre-provision/quota_check_params.sh

@@ -2,7 +2,6 @@ param openaiName string
 param searchName string
 param storageName string
 param cosmosName string
-param cuName string
 param backendPrincipalId string
 
 @description('Principal ID of the frontend web app managed identity')
@@ -74,6 +73,16 @@ resource searchContribRole 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   }
 }
 
+resource searchOpenAIRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(openai.id, search.id, roles.cognitiveServicesOpenAIUser)
+  scope: openai
+  properties: {
+    roleDefinitionId: roles.cognitiveServicesOpenAIUser
+    principalId: search.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource storageRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storage.id, backendPrincipalId, roles.storageBlobDataContributor)
   scope: storage
@@ -101,16 +110,6 @@ resource cosmosRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@20
     roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/${roles.cosmosDBDataContributor}'
     principalId: backendPrincipalId
     scope: cosmos.id
-  }
-}
-
-resource cuRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(cu.id, backendPrincipalId, roles.cognitiveServicesUser)
-  scope: cu
-  properties: {
-    roleDefinitionId: roles.cognitiveServicesUser
-    principalId: backendPrincipalId
-    principalType: 'ServicePrincipal'
   }
 }
 
@@ -186,16 +185,6 @@ resource deployerStorageQueueRole 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource deployerCuRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(deployerPrincipalId)) {
-  name: guid(cu.id, deployerPrincipalId, roles.cognitiveServicesUser)
-  scope: cu
-  properties: {
-    roleDefinitionId: roles.cognitiveServicesUser
-    principalId: deployerPrincipalId
-    principalType: 'User'
-  }
-}
-
 // ========== AI Foundry Project Roles ========== //
 
 resource aiProjectSearchReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiProjectPrincipalId)) {
@@ -233,10 +222,6 @@ resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
 
 resource cosmos 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existing = if (!empty(cosmosName)) {
   name: cosmosName
-}
-
-resource cu 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
-  name: cuName
 }
 
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = if (!empty(acrName)) {

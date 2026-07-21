@@ -1750,7 +1750,7 @@ class DashboardService:
             "What kinds of insights can this dashboard generate?",
         ]
         response["ai_layout"] = [{"type": "summary", "title": "No Data Available",
-                                   "text": "Upload documents or connect a data source to begin."}]
+                                  "text": "Upload documents or connect a data source to begin."}]
         return response
 
 

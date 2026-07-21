@@ -9,8 +9,30 @@ function stripLinks(input: string): string {
   return out;
 }
 
-/** Simple markdown to JSX — handles bold, italic, lists, headers, line breaks */
-export function renderMarkdown(text: string): React.ReactNode {
+function splitTableRow(row: string): string[] {
+  let s = row.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+function isTableSeparator(row: string): boolean {
+  const cells = splitTableRow(row);
+  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c));
+}
+
+type ColAlign = "left" | "right" | "center";
+
+function alignFromSeparatorCell(cell: string): ColAlign {
+  const left = cell.startsWith(":");
+  const right = cell.endsWith(":");
+  if (left && right) return "center";
+  if (right) return "right";
+  return "left";
+}
+
+/** Simple markdown to JSX — handles bold, italic, lists, headers, tables, line breaks */
+export function renderMarkdown(text: string, onCitation?: (n: number) => void): React.ReactNode {
   const cleanText = stripLinks(text);
   // Normalize line endings
   const lines = cleanText.replace(/\r\n/g, "\n").split("\n");
@@ -37,25 +59,54 @@ export function renderMarkdown(text: string): React.ReactNode {
     }
   };
 
+  // Render a citation token [N] as a blue superscript. Clickable when onCitation is provided.
+  const renderCitation = (inner: string, key: React.Key): React.ReactNode => {
+    if (onCitation && /^\d+$/.test(inner)) {
+      const n = parseInt(inner, 10);
+      return (
+        <sup
+          key={key}
+          role="button"
+          tabIndex={0}
+          onClick={() => onCitation(n)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onCitation(n); }}
+          style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super", cursor: "pointer" }}
+        >
+          [{inner}]
+        </sup>
+      );
+    }
+    return (
+      <sup key={key} style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super" }}>
+        [{inner}]
+      </sup>
+    );
+  };
+
+  // Split a plain string into text and [citation] tokens, keeping citations blue.
+  const withCitations = (s: string, prefix: string): React.ReactNode[] =>
+    s.split(/(\[[^\]]+\])/g).map((part, i) => {
+      if (part.startsWith("[") && part.endsWith("]")) {
+        return renderCitation(part.slice(1, -1), `${prefix}-${i}`);
+      }
+      return <React.Fragment key={`${prefix}-${i}`}>{part}</React.Fragment>;
+    });
+
   const inlineFormat = (s: string): React.ReactNode => {
     // Process inline formatting: **bold**, *italic*, `code`, [citation]
     const parts = s.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\])/g);
     return parts.map((part, i) => {
       if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={i}>{part.slice(2, -2)}</strong>;
+        return <strong key={i}>{withCitations(part.slice(2, -2), `b${i}`)}</strong>;
       }
       if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
-        return <em key={i}>{part.slice(1, -1)}</em>;
+        return <em key={i}>{withCitations(part.slice(1, -1), `i${i}`)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
         return <code key={i} style={{ background: "#f1f5f9", padding: "1px 4px", borderRadius: 3, fontSize: "0.9em" }}>{part.slice(1, -1)}</code>;
       }
       if (part.startsWith("[") && part.endsWith("]")) {
-        return (
-          <sup key={i} style={{ color: "#2563eb", fontSize: "0.7em", fontWeight: 600, margin: "0 1px", verticalAlign: "super" }}>
-            [{part.slice(1, -1)}]
-          </sup>
-        );
+        return renderCitation(part.slice(1, -1), i);
       }
       return part;
     });
@@ -64,6 +115,66 @@ export function renderMarkdown(text: string): React.ReactNode {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // GFM table: a header row followed by a separator row (| --- | --- |)
+    if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      flushList();
+      const headerCells = splitTableRow(trimmed);
+      const aligns = splitTableRow(lines[i + 1]).map(alignFromSeparatorCell);
+      const bodyRows: string[][] = [];
+      let j = i + 2;
+      while (j < lines.length && lines[j].trim() !== "" && lines[j].includes("|")) {
+        bodyRows.push(splitTableRow(lines[j]));
+        j++;
+      }
+      elements.push(
+        <div key={`tbl-${i}`} style={{ overflowX: "auto", margin: "8px 0" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {headerCells.map((h, k) => (
+                  <th
+                    key={k}
+                    style={{
+                      textAlign: aligns[k] || "left",
+                      padding: "6px 10px",
+                      borderBottom: "2px solid #cbd5e1",
+                      background: "#f8fafc",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {inlineFormat(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bodyRows.map((r, ri) => (
+                <tr key={ri}>
+                  {headerCells.map((_, ci) => (
+                    <td
+                      key={ci}
+                      style={{
+                        textAlign: aligns[ci] || "left",
+                        padding: "6px 10px",
+                        borderBottom: "1px solid #e2e8f0",
+                        color: "#334155",
+                      }}
+                    >
+                      {inlineFormat(r[ci] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      i = j - 1;
+      continue;
+    }
 
     // Bullet list (-, *, •, with optional indentation)
     if (/^\s*[-•*]\s+/.test(line)) {

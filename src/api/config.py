@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     azure_ai_agent_endpoint: str = ""  # AZURE_AI_AGENT_ENDPOINT
     agent_name_chat: str = ""          # AGENT_NAME_CHAT
     agent_name_title: str = ""         # AGENT_NAME_TITLE
+    solution_suffix: str = ""          # SOLUTION_SUFFIX
     # Whether the chat agent was created with the SQL tool (scenario-dependent).
     # The backend only attaches get_sql_response when this is true.
     use_sql: bool = False              # USE_SQL
@@ -26,8 +27,8 @@ class Settings(BaseSettings):
     # Azure OpenAI (direct SDK fallback when Foundry IQ is not configured)
     azure_openai_endpoint: str = ""
     azure_openai_api_version: str = "2024-10-21"
-    azure_openai_embedding_deployment: str = "text-embedding-ada-002"
-    azure_openai_chat_deployment: str = "gpt-5.1"
+    azure_openai_embedding_deployment: str = "text-embedding-3-small"
+    azure_openai_chat_deployment: str = "gpt-5.2"
 
     # Azure Cognitive Search
     azure_search_endpoint: str = ""
@@ -35,8 +36,8 @@ class Settings(BaseSettings):
 
     # Azure Content Understanding
     azure_content_understanding_endpoint: str = ""
-    azure_content_understanding_api_version: str = "2024-12-01-preview"
-    azure_content_understanding_analyzer_id: str = "km-document"
+    azure_content_understanding_api_version: str = "2025-11-01"
+    azure_content_understanding_analyzer_id: str = "km_document"
 
     # Admin API Key (local dev / script auth — never set in production)
     admin_api_key: str = ""

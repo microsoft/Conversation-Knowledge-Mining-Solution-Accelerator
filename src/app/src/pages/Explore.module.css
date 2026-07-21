@@ -126,16 +126,13 @@
   padding: 10px 14px; border-radius: 8px; background: #ffffff;
   border: 1px solid #e5e7eb; font-size: 12px;
   display: flex; flex-direction: column; gap: 4px;
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
 }
-.evidenceItem:hover { background: #ffffff; border-color: #e5e7eb; }
+.evidenceItem:hover { background: #f8fafc; border-color: #2563eb; }
 .evidenceTitle {
-  font-weight: 600; color: #0f172a; font-size: 12px;
+  font-weight: 600; color: #2563eb; font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.evidencePreview {
-  font-size: 11px; color: #64748b; line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .disclaimer { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 

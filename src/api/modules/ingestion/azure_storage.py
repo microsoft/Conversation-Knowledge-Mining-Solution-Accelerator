@@ -3,23 +3,15 @@
 import json
 import logging
 from typing import Optional
+from urllib.parse import quote
 
 from datetime import datetime, timedelta, timezone
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings, generate_blob_sas, BlobSasPermissions
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
-from azure.search.documents.indexes.models import (
-    SearchIndex,
-    SearchField,
-    SearchFieldDataType,
-    SimpleField,
-    SearchableField,
-    VectorSearch,
-    HnswAlgorithmConfiguration,
-    VectorSearchProfile,
-)
 
 from src.api.config import get_settings
 
@@ -33,6 +25,7 @@ class AzureStorageService:
         self._blob_client: Optional[BlobServiceClient] = None
         self._search_client: Optional[SearchClient] = None
         self._credential = None
+        self._index_ensured = False
 
     def _get_credential(self):
         if self._credential is None:
@@ -59,58 +52,23 @@ class AzureStorageService:
         return self._search_client
 
     def _ensure_search_index(self):
-        """Create the search index with vector search support if it doesn't exist."""
+        """Verify the search index exists. It is created by the setup script, not here."""
+        if self._index_ensured:
+            return
         settings = get_settings()
         index_client = SearchIndexClient(
             endpoint=settings.azure_search_endpoint,
             credential=self._get_credential(),
         )
-
-        # Vector search configuration
-        vector_search = VectorSearch(
-            algorithms=[HnswAlgorithmConfiguration(name="hnsw-config")],
-            profiles=[VectorSearchProfile(name="vector-profile", algorithm_configuration_name="hnsw-config")],
-        )
-
-        fields = [
-            SimpleField(name="id", type=SearchFieldDataType.String, key=True, filterable=True),
-            SimpleField(name="doc_id", type=SearchFieldDataType.String, filterable=True),
-            SimpleField(name="chunk_index", type=SearchFieldDataType.Int32, filterable=True, sortable=True),
-            SearchableField(name="text", type=SearchFieldDataType.String),
-            SearchableField(name="summary", type=SearchFieldDataType.String),
-            SimpleField(name="type", type=SearchFieldDataType.String, filterable=True, facetable=True),
-            SimpleField(name="product", type=SearchFieldDataType.String, filterable=True, facetable=True),
-            SimpleField(name="category", type=SearchFieldDataType.String, filterable=True, facetable=True),
-            SimpleField(name="timestamp", type=SearchFieldDataType.String, filterable=True, sortable=True),
-            SimpleField(name="source_file", type=SearchFieldDataType.String, filterable=True),
-            SearchableField(name="key_phrases", type=SearchFieldDataType.String, collection=True, filterable=True),
-            SearchableField(name="entities", type=SearchFieldDataType.String, collection=True, filterable=True),
-            SearchableField(name="topics", type=SearchFieldDataType.String, collection=True, filterable=True),
-            SearchField(
-                name="text_vector",
-                type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
-                searchable=True,
-                vector_search_dimensions=1536,  # text-embedding-ada-002
-                vector_search_profile_name="vector-profile",
-            ),
-        ]
-        index = SearchIndex(
-            name=settings.azure_search_index_name,
-            fields=fields,
-            vector_search=vector_search,
-        )
         try:
-            index_client.create_or_update_index(index)
+            index_client.get_index(settings.azure_search_index_name)
+        except ResourceNotFoundError as e:
+            raise RuntimeError(
+                f"Search index '{settings.azure_search_index_name}' not found. Run the data setup script first."
+            ) from e
         except Exception as e:
-            msg = str(e)
-            # Benign race: another worker/startup path is creating/updating the same index.
-            if (
-                "ResourceCreationConcurrencyConflict" in msg
-                or ("OperationNotAllowed" in msg and "concurrent operation" in msg)
-            ):
-                logger.debug("Search index ensure skipped due to concurrent update")
-            else:
-                logger.warning(f"Could not ensure search index: {e}")
+            logger.warning(f"Could not verify search index (continuing): {e}")
+        self._index_ensured = True
 
     def upload_raw_file(self, file_id: str, filename: str, content: bytes) -> bool:
         """Upload a raw file (PDF, DOCX, etc.) to blob storage for background processing."""
@@ -172,7 +130,8 @@ class AzureStorageService:
                 permission=BlobSasPermissions(read=True),
                 expiry=datetime.now(timezone.utc) + timedelta(hours=1),
             )
-            return f"https://{settings.azure_storage_account}.blob.core.windows.net/{settings.azure_storage_container}/{blob_path}?{sas}"
+            encoded_path = quote(blob_path, safe="/")
+            return f"https://{settings.azure_storage_account}.blob.core.windows.net/{settings.azure_storage_container}/{encoded_path}?{sas}"
         except Exception as e:
             logger.warning(f"SAS URL generation failed for {file_id}/{filename}: {e}")
             return None
@@ -206,6 +165,13 @@ class AzureStorageService:
 
         self._ensure_search_index()
         search_client = self._get_search_client()
+
+        # Ensure every document key is valid for Azure AI Search (letters, digits, _,
+        # -, =). Filenames may produce ids with '%' or spaces (e.g. '...04%3A00%3A00').
+        from src.api.modules.ingestion.chunking import sanitize_key
+        for doc in documents:
+            if "id" in doc:
+                doc["id"] = sanitize_key(str(doc["id"]))
 
         indexed = 0
         try:
@@ -320,7 +286,7 @@ class AzureStorageService:
 
     def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str], has_blobs: bool = True) -> dict:
         """Delete all data for a file: blob, search index entries, and search chunks.
-        
+
         Args:
             file_id: The file identifier
             filename: The filename
@@ -335,7 +301,7 @@ class AzureStorageService:
             try:
                 blob_service = self._get_blob_client()
                 container = blob_service.get_container_client(settings.azure_storage_container)
-                
+
                 # Delete raw blob (raw/{file_id}/{filename})
                 try:
                     blob = container.get_blob_client(f"raw/{file_id}/{filename}")
@@ -344,7 +310,7 @@ class AzureStorageService:
                     logger.debug(f"Deleted raw blob: raw/{file_id}/{filename}")
                 except Exception as e:
                     logger.debug(f"Raw blob delete failed for raw/{file_id}/{filename}: {e}")
-                
+
                 # Delete extracted text blob (extracted/{file_id}/content.txt)
                 try:
                     blob = container.get_blob_client(f"extracted/{file_id}/content.txt")

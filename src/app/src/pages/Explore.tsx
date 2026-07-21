@@ -17,7 +17,7 @@ import { SkeletonText } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
-const ChatContent: React.FC<{ content: string }> = ({ content }: { content: string }) => {
+const ChatContent: React.FC<{ content: string; onCitation?: (n: number) => void }> = ({ content, onCitation }: { content: string; onCitation?: (n: number) => void }) => {
   const parts = content.split(/(```chart[\s\S]*?```)/g);
   return (
     <>
@@ -30,7 +30,7 @@ const ChatContent: React.FC<{ content: string }> = ({ content }: { content: stri
             if (spec.type === "bar") return <BarChart key={i} data={spec.data} height={200} />;
           } catch {}
         }
-        return <React.Fragment key={i}>{renderMarkdown(part)}</React.Fragment>;
+        return <React.Fragment key={i}>{renderMarkdown(part, onCitation)}</React.Fragment>;
       })}
     </>
   );
@@ -162,7 +162,8 @@ const Explore: React.FC = () => {
       }
       const [fR, dR, sR] = await Promise.allSettled(requests);
       const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
-      const newFiles = rawFiles;
+      // Explore only lists processed sources (files that produced documents).
+      const newFiles = rawFiles.filter((f: any) => (f.doc_count || 0) > 0);
       const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
       const connected = rawDS.filter((ds: any) => ds.status === "connected");
       const newDS = dedupeDataSources(connected);
@@ -214,7 +215,8 @@ const Explore: React.FC = () => {
 
   useEffect(() => {
     if (!ingestionSnapshot) return;
-    const nextFiles = Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [];
+    const nextFiles = (Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [])
+      .filter((f: any) => (f.doc_count || 0) > 0);
     const nextSources = Array.isArray(ingestionSnapshot.dataSources)
       ? dedupeDataSources(ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected"))
       : [];
@@ -256,7 +258,21 @@ const Explore: React.FC = () => {
     setChatInput("");
     setChatLoading(true);
     try {
-      const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) as string[] : undefined;
+      const selectableFiles = files.filter((f: any) => isFileSelectable(f.status));
+      const allSelected =
+        selectableFiles.length > 0 &&
+        selectableFiles.every((f: any) => selectedDocIds.has(f.id));
+
+      // Scope only on a proper subset. Selecting every file (the only option in
+      // single-file scenarios like contact center) means "whole corpus" — sending
+      // a source_file filter there would wrongly exclude the AI Search index,
+      // whose source_file values differ from the SQL documents table.
+      const docIds =
+        selectedDocIds.size > 0 && !allSelected
+          ? files.filter((f: any) => selectedDocIds.has(f.id))
+              .map((f: any) => f.filename)
+              .filter(Boolean) as string[]
+          : undefined;
       const scope = docIds ? "documents" as const : "all" as const;
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
       const res = await askQuestion(q, 5, filters, scope, docIds, activeSessionId);
@@ -505,7 +521,12 @@ const Explore: React.FC = () => {
                     <div key={i} className={s.userMsg}><ChatContent content={msg.content} /></div>
                   ) : (
                     <div key={i} className={s.assistantWrap}>
-                      <div className={s.assistantMsg}><ChatContent content={msg.content} /></div>
+                      <div className={s.assistantMsg}>
+                        <ChatContent
+                          content={msg.content}
+                          onCitation={(n: number) => { const src = (msg.sources || [])[n - 1]; if (src) openCitation(src); }}
+                        />
+                      </div>
                       {(msg.sources?.length ?? 0) > 0 && (
                         <>
                           <button className={s.evidenceToggle} onClick={() => toggleSource(i)}>
@@ -515,10 +536,14 @@ const Explore: React.FC = () => {
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
-                                <div key={j} className={s.evidenceItem}>
-                                  <div className={s.evidenceTitle}>{src.source_file || src.doc_id}</div>
-                                  {src.text && <div className={s.evidencePreview}>{src.text}</div>}
-                                </div>
+                                <button
+                                  key={j}
+                                  type="button"
+                                  className={s.evidenceItem}
+                                  onClick={() => openCitation(src)}
+                                >
+                                  <span className={s.evidenceTitle}>{src.source_file || src.doc_id}</span>
+                                </button>
                               ))}
                             </div>
                           )}

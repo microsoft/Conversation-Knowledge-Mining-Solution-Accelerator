@@ -15,7 +15,7 @@ from cachetools import TTLCache
 
 from src.api.config import get_settings
 from src.api.modules.rag.models import QAResponse, Source
-from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values
+from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values, query_fabric_data
 
 logger = logging.getLogger(__name__)
 
@@ -81,15 +81,17 @@ def _collect_citations(response: Any, get_urls: list) -> list:
 
 
 def _strip_links_from_answer(text: str) -> str:
-    """Strip stray inline citation artifacts the model may leak, without touching newlines."""
+    """Strip stray inline citation artifacts the model may leak, without touching newlines.
+
+    Numeric citation markers ([1], [2] ...) are intentionally preserved so the UI can
+    render them as clickable superscripts mapped to the sources list.
+    """
     out = text
     # 1. Remove (sources: ...) / (source: ...) prose dumps
     out = re.sub(r'[ \t]*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
     # 2. Remove standalone [8-hex] doc IDs like [842c7caf]
     out = re.sub(r'[ \t]*\[[a-f0-9]{8}\][ \t]*', ' ', out, flags=re.IGNORECASE)
-    # 3. Remove numeric citation markers: [1], [1-5], [1][4], [1, 2], [1,2,3] etc.
-    out = re.sub(r'[ \t]*\[\d[\d,\s\-]*\](?:\[\d[\d,\s\-]*\])*[ \t]*', ' ', out)
-    # 4. Collapse any double spaces introduced by the above
+    # 3. Collapse any double spaces introduced by the above
     out = re.sub(r'  +', ' ', out)
     return out.strip()
 
@@ -150,28 +152,47 @@ class RAGService:
                 # Attach the SQL tool only when the agent was created with it
                 # (USE_SQL is scenario-dependent and set at agent-creation time).
                 use_sql = (os.getenv("USE_SQL") or str(settings.use_sql)).strip().lower() in ("1", "true", "yes", "on")
+                data_source_type = (os.getenv("DATA_SOURCE_TYPE") or "azure_search").strip().lower()
+                if data_source_type == "fabric":
+                    agent_tools = [query_fabric_data, get_schema_and_sample_values, get_sql_response]
+                elif use_sql:
+                    agent_tools = [get_schema_and_sample_values, get_sql_response]
+                else:
+                    agent_tools = []
                 agent = FoundryAgent(
                     project_client=project_client,
                     agent_name=agent_name,
-                    tools=[get_schema_and_sample_values, get_sql_response] if use_sql else [],
+                    tools=agent_tools,
                 )
 
                 # Reuse or create a server-side conversation thread for continuity
                 thread_id = _thread_cache.get(conversation_id) if conversation_id else None
                 if not thread_id:
                     openai_client = project_client.get_openai_client()
-                    conversation = await openai_client.conversations.create()
-                    thread_id = conversation.id
-                    if conversation_id:
-                        _thread_cache[conversation_id] = thread_id
+                    try:
+                        conversation = await openai_client.conversations.create()
+                        thread_id = conversation.id
+                        if conversation_id:
+                            _thread_cache[conversation_id] = thread_id
+                    finally:
+                        try:
+                            await openai_client.close()
+                        except Exception:
+                            pass
 
                 session = AgentSession(service_session_id=thread_id)
                 out = ""
                 stream = agent.run(user_input, stream=True, session=session)
                 async for chunk in stream:
-                    text = str(chunk.text) if chunk.text else ""
-                    text = re.sub(r"【\d+:\d+†?[^】]*】", _replace_marker, text)
-                    out += text
+                    out += str(chunk.text) if chunk.text else ""
+
+                # Convert the agent's raw AI Search citation markers (e.g. 【4:0†source】)
+                # into sequential [N] markers on the FULL text — doing it per-chunk lets
+                # markers split across stream boundaries leak through as raw text.
+                out = re.sub(r"【\d+(?::\d+)?†?[^】]*】", _replace_marker, out)
+                # Drop any residual raw markers that didn't match the expected form so no
+                # search citation artifacts remain in the answer (only [N] markers stay).
+                out = re.sub(r"【[^】]*】", "", out)
 
                 # Citations come from the final response, matching test_agent.py:
                 # collect annotations + recover per-document get_urls from the raw stream.
@@ -186,10 +207,9 @@ class RAGService:
                 sources.append(Source(
                     doc_id=title,
                     score=0.0,
-                    text=title,
+                    text="",
                     source_file=title,
                     url=url,
-                    metadata={"url": url},
                 ))
             return out, sources
 
@@ -810,6 +830,48 @@ class RAGService:
             logger.exception("Exception while fetching citation content")
             return {"error": "Unable to fetch content"}
 
+    def _build_scope_preamble(
+        self,
+        document_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
+    ) -> str:
+        """Build a soft-scoping instruction block that is prepended to the user
+        question before it is sent to the agent.
+
+        This is a prompt-level hint only: the agent still performs its own retrieval
+        through its configured tools. We simply tell it which selected documents and
+        active filters to restrict the answer to.
+        """
+        lines: list[str] = []
+
+        if document_ids:
+            # Scope by source_file (resolved on the frontend); it maps
+            # consistently across single-doc and multi-record files.
+            doc_lines = "\n".join(f"- {did}" for did in document_ids)
+            lines.append(
+                "Restrict your answer to ONLY content from the following selected "
+                "source file(s), identified by their source_file. Do not use any "
+                "other documents from the knowledge base:\n" + doc_lines
+            )
+
+        if filters:
+            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            if filt_lines:
+                lines.append(
+                    "Only consider content matching these filters:\n" + filt_lines
+                )
+
+        if not lines:
+            return ""
+
+        return (
+            "[SCOPE CONSTRAINTS]\n"
+            + "\n\n".join(lines)
+            + "\n\nIf the selected documents do not contain the answer, say so "
+            "explicitly rather than drawing on other sources.\n"
+            "[END SCOPE CONSTRAINTS]\n\n"
+        )
+
     def answer_question(
         self,
         question: str,
@@ -817,120 +879,27 @@ class RAGService:
         filters: Optional[dict] = None,
         include_sources: bool = True,
         document_ids: Optional[list[str]] = None,
-        external_index_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
     ) -> QAResponse:
         settings = get_settings()
 
-        # External index path
-        if external_index_id:
-            return self._answer_from_external(question, top_k, external_index_id, include_sources, conversation_id)
+        # Agent-only flow: the Foundry agent performs its own retrieval through its
+        # configured tools (Azure AI Search / SQL) and returns the answer together
+        # with its citations. No backend retrieval, merge, or grounded fallback is
+        # used — the response and sources come solely from the agent.
+        #
+        # Document/filter scoping is applied as a soft prompt hint only: selected
+        # documents and active filters are prepended to the question so the agent
+        # restricts its own retrieval accordingly.
+        scope_preamble = self._build_scope_preamble(document_ids, filters)
+        agent_input = f"{scope_preamble}Question: {question}" if scope_preamble else question
+        answer, agent_sources = self._run_agent(agent_input, conversation_id)
 
-        # 1. If filters are active, narrow document_ids to matching files
-        if filters and not document_ids:
-            from src.api.modules.ingestion.service import ingestion_service
-            matching_ids = self._filter_document_ids(filters, ingestion_service)
-            if matching_ids is not None:
-                document_ids = matching_ids
-
-        from src.api.modules.runtime.retrieval_engine import retrieval_engine
-        search_docs = retrieval_engine.retrieve(
-            query=question,
-            top_k=top_k,
-            filters=filters,
-            document_ids=document_ids,
-            source="all",
-        )
-
-        # For files in 'extracted' state (not yet indexed), inject blob text directly
-        if document_ids:
-            extracted_docs = self._build_extracted_context(document_ids, question)
-            if extracted_docs:
-                # Merge: extracted docs fill gaps for files not yet in AI Search
-                indexed_file_ids = {d["doc_id"] for d in search_docs}
-                for doc in extracted_docs:
-                    if doc["doc_id"] not in indexed_file_ids:
-                        search_docs.append(doc)
-        else:
-            # No specific document scope — check if any uploaded files are only extracted
-            from src.api.modules.ingestion.service import ingestion_service
-            ingestion_service._ensure_loaded()
-            extracted_ids = [
-                f.id for f in ingestion_service._uploaded_files.values()
-                if f.status == "extracted"
-            ]
-            if extracted_ids:
-                extracted_docs = self._build_extracted_context(extracted_ids, question)
-                search_docs.extend(extracted_docs)
-
-        # Normalize mixed result shapes (runtime retrieval + extracted context)
-        normalized_docs = []
-        for doc in search_docs:
-            doc_id = doc.get("doc_id") or doc.get("id")
-            if not doc_id:
-                doc_id = str(doc.get("source_file") or f"doc-{len(normalized_docs) + 1}")
-            normalized_docs.append({
-                **doc,
-                "doc_id": doc_id,
-                "text": doc.get("text", ""),
-                "type": doc.get("type", "unknown"),
-                "source_file": doc.get("source_file", "unknown"),
-            })
-        search_docs = normalized_docs
-
-        # Deduplicate by doc_id (keep highest score per document)
-        seen = {}
-        deduped = []
-        for doc in search_docs:
-            did = doc["doc_id"]
-            if did in seen:
-                if doc.get("score", 0) > deduped[seen[did]].get("score", 0):
-                    deduped[seen[did]] = doc
-                continue
-            seen[did] = len(deduped)
-            deduped.append(doc)
-        search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)
-        search_docs = self._filter_noise_docs(search_docs, "answer-question-post-merge")[:top_k]
-
-        if not search_docs:
-            logger.info("AI Search returned no results, falling back to SQL search")
-            search_docs = self._search_sql(question, top_k, document_ids)
-
-        if not search_docs:
-            logger.info("SQL search returned no results, falling back to in-memory search")
-            search_docs = self._search_in_memory(question, top_k, document_ids)
-
-        # 3. Generate answer
-        try:
-            answer, agent_sources = self._run_agent(question, conversation_id)
-        except Exception as e:
-            logger.warning(f"Agent call failed in answer_question, using fallback answer: {e}")
-            answer = self._build_fallback_answer(question, search_docs)
-            agent_sources = []
-
-        if not (answer or "").strip() or _is_unhelpful_answer(answer):
-            logger.warning("Agent answer was empty/unhelpful in answer_question, using grounded fallback")
-            answer = self._build_grounded_answer(question, search_docs)
-
-        # Surface the agent's own citations first; when the agent used SQL only
-        # (no search tool call) agent_sources is empty, so fall back to the
-        # search_docs that were retrieved in the background so the UI always
-        # shows which data sources were consulted.
-        doc_sources: list[Source] = []
-        for i, doc in enumerate(search_docs[:5]):
-            doc_sources.append(Source(
-                doc_id=doc["doc_id"],
-                score=round(doc.get("score", 0), 4),
-                text=str(doc.get("text", ""))[:500],
-                source_file=doc.get("source_file", ""),
-            ))
-        agent_filtered = self._filter_noise_sources(agent_sources, "answer-question-response")
-        combined_sources = self._merge_sources(agent_filtered, doc_sources)
-        combined_sources = self._filter_noise_sources(combined_sources, "answer-question-final")
+        sources = self._filter_noise_sources(agent_sources, "answer-question-response")
         return QAResponse(
             question=question,
             answer=_strip_links_from_answer(answer),
-            sources=combined_sources if include_sources else [],
+            sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
 
@@ -1023,6 +992,3 @@ class RAGService:
 
 
 rag_service = RAGService()
-
-
-

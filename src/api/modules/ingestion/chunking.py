@@ -2,12 +2,15 @@
 
 import hashlib
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
-# Defaults aligned with text-embedding-ada-002 (8191 token limit, ~4 chars/token)
+# Defaults aligned with text-embedding-3-small (8191 token limit, ~4 chars/token)
 DEFAULT_CHUNK_SIZE = 1000  # characters
 DEFAULT_CHUNK_OVERLAP = 200  # characters
+
+_INVALID_KEY_CHARS = re.compile(r"[^A-Za-z0-9_\-=]")
 
 
 def content_hash(text: str) -> str:
@@ -15,10 +18,22 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
+def sanitize_key(value: str) -> str:
+    """Make a string safe for use as an Azure AI Search document key.
+
+    Replaces any character outside [A-Za-z0-9_-=] with an underscore. Deterministic,
+    so the same input always maps to the same key (safe for idempotent upserts).
+    """
+    return _INVALID_KEY_CHARS.sub("_", value)
+
+
 def chunk_id(doc_id: str, chunk_index: int, chunk_text: str) -> str:
     """Generate a deterministic chunk ID based on doc ID and content hash.
-    Same content always produces the same ID — safe for upserts."""
-    return f"{doc_id}_c{chunk_index}_{content_hash(chunk_text)}"
+    Same content always produces the same ID — safe for upserts.
+
+    The doc ID is sanitized so filenames with characters invalid in Azure AI
+    Search keys (e.g. '%', spaces) don't break indexing."""
+    return f"{sanitize_key(doc_id)}_c{chunk_index}_{content_hash(chunk_text)}"
 
 
 def chunk_text(

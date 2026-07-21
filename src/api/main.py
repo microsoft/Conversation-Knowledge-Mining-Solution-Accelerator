@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import logging
+import os
 import time
 import uuid
 from collections import defaultdict
@@ -26,6 +27,34 @@ from src.api.modules.data_sources.router import router as data_sources_router
 from src.api.modules.insights.router import router as insights_router
 
 logger = logging.getLogger(__name__)
+
+# Configure logging
+# Basic application logging (default: INFO level)
+AZURE_BASIC_LOGGING_LEVEL = os.getenv("AZURE_BASIC_LOGGING_LEVEL", "INFO").upper()
+# Azure package logging (default: WARNING level to suppress INFO)
+AZURE_PACKAGE_LOGGING_LEVEL = os.getenv("AZURE_PACKAGE_LOGGING_LEVEL", "WARNING").upper()
+# Azure logging packages (default: empty list)
+AZURE_LOGGING_PACKAGES = [
+    pkg.strip() for pkg in os.getenv("AZURE_LOGGING_PACKAGES", "").split(",") if pkg.strip()
+]
+
+# Basic config: logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=getattr(logging, AZURE_BASIC_LOGGING_LEVEL, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Suppress noisy Azure SDK internal loggers.
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies._universal").setLevel(logging.WARNING)
+logging.getLogger("azure.cosmos").setLevel(logging.WARNING)
+logging.getLogger("azure.identity").setLevel(logging.WARNING)
+# Suppress per-request HTTP logs (httpx logs every Content Understanding poll at INFO).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# Package config: Azure loggers set to WARNING to suppress INFO
+for logger_name in AZURE_LOGGING_PACKAGES:
+    logging.getLogger(logger_name).setLevel(getattr(logging, AZURE_PACKAGE_LOGGING_LEVEL, logging.WARNING))
 
 
 def _parse_origins(raw: str) -> list[str]:

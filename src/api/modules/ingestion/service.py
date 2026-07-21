@@ -777,6 +777,32 @@ class IngestionService:
         by_type: dict[str, int] = {}
         normalized_items: list[dict] = []
         for item in data:
+            # Normalize id — fall back to known alternatives or generate one.
+            if "id" not in item or not item["id"]:
+                item["id"] = (
+                    item.get("ConversationId")
+                    or item.get("conversation_id")
+                    or item.get("doc_id")
+                    or str(__import__("uuid").uuid4())
+                )
+            # Normalize text — map common alternative field names.
+            if "text" not in item or not item["text"]:
+                item["text"] = (
+                    item.get("Content")
+                    or item.get("content")
+                    or item.get("body")
+                    or item.get("Body")
+                    or ""
+                )
+            # Normalize type — derive from filename extension when not provided
+            if "type" not in item or not item["type"]:
+                ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+                if ext == "json" and filename.lower().startswith("convo"):
+                    item["type"] = "conversation"
+                elif ext:
+                    item["type"] = ext
+                else:
+                    item["type"] = "json"
             meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
             if "source_type" not in meta:
                 meta["source_type"] = source
@@ -974,7 +1000,7 @@ class IngestionService:
                     logger.warning(f"Failed to clear internal uploaded_files: {e}")
                     failed_tables.append("uploaded_files(internal)")
 
-                for table in ["filter_schemas", "enrichment_cache"]:
+                for table in ["filter_schemas", "enrichment_cache", "insights_cache"]:
                     try:
                         cursor.execute(f"DELETE FROM {table}")
                         cleared_tables.append(table)
