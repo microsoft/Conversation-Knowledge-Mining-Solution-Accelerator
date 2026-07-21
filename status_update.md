@@ -8,7 +8,7 @@
 
 **Why we built it.** Every team has data they wish they could just talk to — call transcripts, contracts, research papers, support tickets, patient records, policy documents. But building a knowledge mining solution from scratch for each use case takes months. This accelerator eliminates that. Deploy once, bring whatever data you have, and the platform adapts. The dashboards, filters, chat behavior, and processing pipelines all shape themselves to your content. No domain-specific code, no hardcoded schemas.
 
-**Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-5.1, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore — all restructured with dedicated CSS module files and cleaned-up component layouts. The Explore page now shows source citations inline under each answer with clean filenames and snippets (no more raw UUIDs or redundant side panel). Infra deploys cleanly via `azd up` with Managed Identity and RBAC. Queue Storage RBAC roles are provisioned. A two-stage async pipeline (extract → chunk/embed/index) runs via Azure Queue Storage.
+**Where we are today.** The core platform is functional end-to-end. Document ingestion (multi-format, async two-stage queue), hybrid search (keyword + vector), RAG chat with GPT-5.2, LLM-planned insights dashboard, configurable pipelines, and 5 external data source connectors are all built and working. Frontend has Home, Insights, Explore — all restructured with dedicated CSS module files and cleaned-up component layouts. The Explore page now shows source citations inline under each answer with clean filenames and snippets (no more raw UUIDs or redundant side panel). Infra deploys cleanly via `azd up` with Managed Identity and RBAC. Queue Storage RBAC roles are provisioned. A two-stage async pipeline (extract → chunk/embed/index) runs via Azure Queue Storage.
 
 **What still needs work.** Testing, quick-connect wizard UI (backend endpoint is built), docs.
 ---
@@ -27,7 +27,7 @@
 - **Document ingestion** — Users upload files, the system processes them in the background via a two-stage async queue pipeline (extract → chunk/embed/index) through Azure Queue Storage. The upload response is instant. File status tracking fixed so earlier stages no longer overwrite later status
 - **External data connectors** — Connect to Fabric, SQL databases, Synapse, ODBC sources, or an existing Azure AI Search index. The system figures out which columns map to which fields. Can pull data in, query live, or both
 - **Hybrid search** — Combines keyword matching and semantic similarity for better results
-- **RAG chat** — Users ask questions in natural language, the system finds relevant content and GPT-5.1 generates an answer with citations
+- **RAG chat** — Users ask questions in natural language, the system finds relevant content and GPT-5.2 generates an answer with citations
 - **Insights engine** — Looks at what data you have, decides which charts and KPIs are useful, and builds a dashboard automatically. No hardcoded charts — adapts to any dataset
 - **Auth** — Azure AD login via App Service EasyAuth, with role-based access control
 
@@ -46,8 +46,8 @@
 |-------|------------|
 | Backend API | **FastAPI (Python 3.11)** |
 | Frontend | **React 18 + Fluent UI React v9** |
-| LLM — chat + insights | **Azure OpenAI GPT-5.1** |
-| Embeddings | **text-embedding-ada-002** |
+| LLM — chat + insights | **Azure OpenAI GPT-5.2** |
+| Embeddings | **text-embedding-3-small** |
 | Search | **Azure AI Search** |
 | Document extraction | **Azure Content Understanding** |
 | Agent orchestration | **Azure AI Agent Service (via AI Foundry)** |
@@ -74,7 +74,7 @@
                      ▼                                      ▼                  ▼
             ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
             │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
-            │  GPT-5.1 + ada-2 │                    │  Search     │   │  Understanding   │
+            │  GPT-5.2 + emb   │                    │  Search     │   │  Understanding   │
             └─────────────────┘                    │  (HNSW)     │   └────────┬────────┘
                      │                             └──────┬──────┘            │
                      ▼                                    ▼                   ▼
@@ -95,7 +95,7 @@ Upload (instant response)
        → Content Understanding (text, summary, topics, key phrases)
        → Queue: enrichment
             → Chunk text (1000 chars, 200 overlap, paragraph-aware)
-            → Embed (ada-002, 1536 dims, cached)
+            → Embed (text-embedding-3-small, cached)
             → Index in AI Search (HNSW, upserts, content-hash IDs)
             → Status → "ready"
 ```
@@ -112,7 +112,7 @@ The platform is designed so you can swap data, change the domain, or extend beha
 
 | What adapts | How |
 |-------------|-----|
-| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-5.1 to decide which visualizations make sense. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. |
+| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-5.2 to decide which visualizations make sense. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. |
 | **Search filters** | Filters are generated from your data's actual fields and values — not predefined. Different datasets produce different filter panels. |
 | **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml` — change it per use case without touching code. |
 | **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. Works across schemas without manual config for most datasets. |
