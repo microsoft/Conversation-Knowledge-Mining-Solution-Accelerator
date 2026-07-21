@@ -39,11 +39,11 @@ The AI model deployments are defined as parameters in [infra/main.bicep](../infr
 
 ## Examples
 
-**Deploy to East US 2 with a specific environment name:**
+**Deploy to Australia East with a specific environment name:**
 
 ```shell
 azd env set AZURE_ENV_NAME kmdev
-azd env set AZURE_LOCATION eastus2
+azd env set AZURE_LOCATION australiaeast
 azd up
 ```
 
@@ -60,7 +60,7 @@ azd up
 **Set the Content Understanding region:**
 
 ```shell
-azd env set AZURE_CU_LOCATION westus
+azd env set AZURE_CU_LOCATION swedencentral
 azd up
 ```
 

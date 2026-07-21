@@ -29,7 +29,7 @@ gpt-5.2:150, gpt-4o-mini:150, gpt-4:150, text-embedding-3-small:80
 ## 📌 Default Regions
 
 ```
-eastus, eastus2, australiaeast, uksouth, francecentral, westus
+australiaeast, swedencentral, southeastasia, westus3
 ```
 
 ## Usage Scenarios
@@ -65,19 +65,19 @@ eastus, eastus2, australiaeast, uksouth, francecentral, westus
 ✔️ Check default models in specific region(s):
 
 ```shell
-./quota_check_params.sh --regions eastus2,eastus
+./quota_check_params.sh --regions southeastasia,westus3
 ```
 
 ✔️ Passing both models and regions:
 
 ```shell
-./quota_check_params.sh --models gpt-5.2:150 --regions eastus2,eastus
+./quota_check_params.sh --models gpt-5.2:150 --regions southeastasia,westus3
 ```
 
 ✔️ Multiple models with a single region:
 
 ```shell
-./quota_check_params.sh --models gpt-5.2:150,text-embedding-3-small:80 --regions eastus2 --verbose
+./quota_check_params.sh --models gpt-5.2:150,text-embedding-3-small:80 --regions swedencentral --verbose
 ```
 
 ## Running the Quota Check
