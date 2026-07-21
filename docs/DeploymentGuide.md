@@ -50,7 +50,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/)
 - [GPT Model Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models)
 
-**Recommended Regions:** Australia East, Sweden Central, Southeast Asia, West US3
+**Recommended Regions:** Australia East, Sweden Central, Southeast Asia
 
 🔍 **Check Availability:** Use [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/) to verify service availability.
 
