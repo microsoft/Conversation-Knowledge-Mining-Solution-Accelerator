@@ -7,8 +7,8 @@
     in Azure SQL. No running backend required — works right after azd up.
     The app queries your source at runtime (no data movement).
 .EXAMPLE
-    ./scripts/connect-data.ps1
-    ./scripts/connect-data.ps1 -Type azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
+    ./infra/scripts/post-provision/connect-data.ps1
+    ./infra/scripts/post-provision/connect-data.ps1 -Type azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
 #>
 
 param(
@@ -95,7 +95,7 @@ Write-Host "  Knowledge Mining — Connect Data Source" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
 $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 $pipExe = Join-Path $projectRoot ".venv\Scripts\pip.exe"
@@ -204,13 +204,13 @@ if ($resolvedSourceType -eq "azure_search") {
             Sync-AgentSettingsToApi -ProjectRoot $projectRoot
         } else {
             Write-Host "[WARN] Agent creation encountered errors. You can retry:" -ForegroundColor Yellow
-            Write-Host "       python scripts/create_agent.py --scenario azure_search_byod --index-name $resolvedTable --agent-name $agentName" -ForegroundColor DarkGray
+            Write-Host "       python infra/scripts/post-provision/create_agent.py --scenario azure_search_byod --index-name $resolvedTable --agent-name $agentName" -ForegroundColor DarkGray
         }
     } else {
         Write-Host ""
         Write-Host "[WARN] AZURE_AI_AGENT_ENDPOINT not found - skipping agent creation." -ForegroundColor Yellow
         Write-Host "       Set AZURE_AI_AGENT_ENDPOINT in .env and run:" -ForegroundColor DarkGray
-        Write-Host "       python scripts/create_agent.py --scenario azure_search_byod --index-name $resolvedTable --agent-name $agentName" -ForegroundColor DarkGray
+        Write-Host "       python infra/scripts/post-provision/create_agent.py --scenario azure_search_byod --index-name $resolvedTable --agent-name $agentName" -ForegroundColor DarkGray
     }
 
     # Auto-enrich the data source for rich insights
@@ -233,7 +233,7 @@ if ($resolvedSourceType -eq "azure_search") {
         Write-Host ""
         Write-Host "⚠️  Enrichment encountered issues (non-critical)." -ForegroundColor Yellow
         Write-Host "   You can manually enrich later with:" -ForegroundColor DarkGray
-        Write-Host "   ./scripts/enrich-byod-data.ps1 -SourceId <your-index-name> -SourceType azure_search" -ForegroundColor DarkGray
+        Write-Host "   ./infra/scripts/post-provision/enrich-byod-data.ps1 -SourceId <your-index-name> -SourceType azure_search" -ForegroundColor DarkGray
     }
 }
 elseif ($resolvedSourceType -eq "fabric") {
@@ -287,13 +287,13 @@ elseif ($resolvedSourceType -eq "fabric") {
             Sync-AgentSettingsToApi -ProjectRoot $projectRoot
         } else {
             Write-Host "[WARN] Agent creation encountered errors. You can retry:" -ForegroundColor Yellow
-            Write-Host "       python scripts/create_agent.py --scenario fabric_byod --data-source-type fabric --data-source-name $resolvedName --agent-name $agentName" -ForegroundColor DarkGray
+            Write-Host "       python infra/scripts/post-provision/create_agent.py --scenario fabric_byod --data-source-type fabric --data-source-name $resolvedName --agent-name $agentName" -ForegroundColor DarkGray
         }
     } else {
         Write-Host ""
         Write-Host "[WARN] AZURE_AI_AGENT_ENDPOINT not found - skipping agent creation." -ForegroundColor Yellow
         Write-Host "       Set AZURE_AI_AGENT_ENDPOINT in .env and run:" -ForegroundColor DarkGray
-        Write-Host "       python scripts/create_agent.py --scenario fabric_byod --data-source-type fabric --data-source-name $resolvedName --agent-name $agentName" -ForegroundColor DarkGray
+        Write-Host "       python infra/scripts/post-provision/create_agent.py --scenario fabric_byod --data-source-type fabric --data-source-name $resolvedName --agent-name $agentName" -ForegroundColor DarkGray
     }
 
     # Auto-enrich the data source for rich insights
@@ -317,7 +317,8 @@ elseif ($resolvedSourceType -eq "fabric") {
             Write-Host ""
             Write-Host "⚠️  Enrichment encountered issues (non-critical)." -ForegroundColor Yellow
             Write-Host "   You can manually enrich later with:" -ForegroundColor DarkGray
-            Write-Host "   ./scripts/enrich-byod-data.ps1 -SourceId <your-connection-id> -SourceType fabric" -ForegroundColor DarkGray
+            Write-Host "   ./infra/scripts/post-provision/enrich-byod-data.ps1 -SourceId <your-connection-id> -SourceType fabric" -ForegroundColor DarkGray
         }
     }
 }
+

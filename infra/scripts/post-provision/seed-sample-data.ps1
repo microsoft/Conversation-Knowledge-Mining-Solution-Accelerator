@@ -8,7 +8,7 @@
       - sample_processed_data.json          → Cosmos DB (documents) + Azure SQL
       - sample_processed_data_key_phrases.json → Cosmos DB (key_phrases)
 .EXAMPLE
-    ./scripts/seed-sample-data.ps1
+    ./infra/scripts/post-provision/seed-sample-data.ps1
 #>
 
 $ErrorActionPreference = "Stop"
@@ -19,7 +19,7 @@ Write-Host "  Knowledge Mining — Seed Sample Data" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
 # Ensure .env exists (created by azd postprovision hook)
 $envFile = Join-Path $projectRoot ".env"

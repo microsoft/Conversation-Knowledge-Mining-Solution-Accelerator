@@ -14,15 +14,15 @@
 
 .EXAMPLE
     # Interactive — choose scenario or data source
-    ./scripts/setup-data.ps1
+    ./infra/scripts/post-provision/setup-data.ps1
 
     # Load a scenario pack
-    ./scripts/setup-data.ps1 -Scenario contact-center
-    ./scripts/setup-data.ps1 -Scenario mortgage-application
-    ./scripts/setup-data.ps1 -Scenario telecom-analysis
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
 
     # Connect Azure AI Search index
-    ./scripts/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
+    ./infra/scripts/post-provision/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
 #>
 
 param(
@@ -54,7 +54,7 @@ Write-Host "  Knowledge Mining — Data Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
 # Read a deploy value from azd env, falling back to the project .env
 function Get-DeployValue {
@@ -498,6 +498,6 @@ if ($Scenario) {
     Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
     & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "WARNING: Agent setup failed — retry with: ./scripts/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
+        Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
     }
 }

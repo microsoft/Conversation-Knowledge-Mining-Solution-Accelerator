@@ -129,8 +129,8 @@ After deploying with `azd up`, users run a script to seed one of three built-in 
 | 4 | **Bring Your Own Data** | — | None — user connects their own source | User connects via the data source connectors (Fabric, SQL, Synapse, ODBC, Azure AI Search) or uploads files directly through the UI |
 
 **How it works:**
-- **Post-deployment script** — After `azd up`, run `./scripts/setup-data.ps1 -Scenario contact-center` (or `mortgage-application` / `telecom-analysis`). Or run `./scripts/setup-data.ps1` with no args for an interactive menu. The platform auto-adapts dashboards, filters, and chat grounding to whatever data lands.
-- **Scenario 4 (BYOD)** — Skip the seeding script entirely. Instead, upload files through the Home page, run `./scripts/setup-data.ps1 -DataPath path/to/files`, or connect an external data source via the API / quick-connect endpoint. The platform figures out the schema and adapts.
+- **Post-deployment script** — After `azd up`, run `./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center` (or `mortgage-application` / `telecom-analysis`). Or run `./infra/scripts/post-provision/setup-data.ps1` with no args for an interactive menu. The platform auto-adapts dashboards, filters, and chat grounding to whatever data lands.
+- **Scenario 4 (BYOD)** — Skip the seeding script entirely. Instead, upload files through the Home page, run `./infra/scripts/post-provision/setup-data.ps1 -DataPath path/to/files`, or connect an external data source via the API / quick-connect endpoint. The platform figures out the schema and adapts.
 - **Scenario config** — `data/config/scenarios.json` defines each pack's folder, data types, and whether it has pre-processed data.
 
 **Why this works:** There is zero domain-specific logic in the codebase. The same deployment handles all four scenarios. The dashboards, search filters, and chat behavior shape themselves to whatever content is indexed. The scenario pack just determines which sample data gets loaded — not how the platform behaves.
@@ -143,7 +143,7 @@ After deploying with `azd up`, users run a script to seed one of three built-in 
 |---|------|--------|---------|
 | 1 | **Copilot Studio agent** | Not started | Build a Copilot Studio agent that connects to the KM backend APIs. Users would interact with their knowledge base directly from Teams, M365, or any Copilot Studio channel — without needing to open the web app. |
 | 2 | **Quick-connect wizard UI** | Backend done | Backend `/quick-connect` endpoint is built and working. Need a multi-step frontend dialog for the "bring your data" flow. |
-| 3 | **Use-case selection flow** | Done | Deployers pick a scenario via `./scripts/setup-data.ps1 -Scenario <name>` (or interactively). Three built-in packs: `contact-center`, `mortgage-application`, `telecom-analysis`. Config in `data/config/scenarios.json`. |
+| 3 | **Use-case selection flow** | Done | Deployers pick a scenario via `./infra/scripts/post-provision/setup-data.ps1 -Scenario <name>` (or interactively). Three built-in packs: `contact-center`, `mortgage-application`, `telecom-analysis`. Config in `data/config/scenarios.json`. |
 | 4 | **Testing** | Not started | Unit tests per module, integration tests for the ingestion pipeline, E2E tests for the chat flow. |
 | 5 | **Docs** | Not started | User guide and developer guide (how to add connectors, capabilities, pipeline steps). |
 
@@ -157,15 +157,15 @@ azd auth login
 azd up
 
 # Post-deploy
-./infra/scripts/setup-agent.ps1       # Create AI agent
+./infra/scripts/post-provision/setup-agent.ps1       # Create AI agent
 
 # Load a scenario pack (pick one)
-./scripts/setup-data.ps1 -Scenario contact-center
-./scripts/setup-data.ps1 -Scenario mortgage-application
-./scripts/setup-data.ps1 -Scenario telecom-analysis
+./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
+./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
+./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
 
 # Or run interactively
-./scripts/setup-data.ps1
+./infra/scripts/post-provision/setup-data.ps1
 
 # Local dev
 python -m venv venv && venv\Scripts\activate
@@ -177,3 +177,5 @@ cd src/app && npm install && npm start
 # Tear down
 azd down
 ```
+
+

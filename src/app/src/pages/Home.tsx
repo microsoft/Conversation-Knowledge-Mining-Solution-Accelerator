@@ -501,7 +501,7 @@ const Home: React.FC = () => {
                   <TextBulletListSquare20Regular style={{ color: "#059669" }} />
                 </div>
                 <div className={s.valueTitle}>Load a scenario pack</div>
-                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./scripts/setup-data.ps1</code> to load a built-in scenario pack.</div>
+                <div className={s.valueDesc}>Run <code style={{ fontSize: 11 }}>./infra/scripts/post-provision/setup-data.ps1</code> to load a built-in scenario pack.</div>
               </div>
             </div>
           </div>

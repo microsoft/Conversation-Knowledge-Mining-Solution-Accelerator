@@ -6,8 +6,8 @@
     This script provisions all Azure resources, builds Docker images,
     deploys to Container Apps, and assigns RBAC roles.
 .EXAMPLE
-    ./infra/scripts/deploy.ps1
-    ./infra/scripts/deploy.ps1 -Location eastus2
+    ./infra/scripts/post-provision/deploy.ps1
+    ./infra/scripts/post-provision/deploy.ps1 -Location eastus2
 #>
 
 param(

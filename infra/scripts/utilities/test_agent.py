@@ -6,12 +6,12 @@ streams responses. The agent uses Azure AI Search to retrieve relevant documents
 and answers questions grounded in the knowledge base.
 
 Usage:
-    python infra/scripts/test_agent.py                # Default agent
-    python infra/scripts/test_agent.py -v             # Verbose mode
-    python infra/scripts/test_agent.py --agent-name MyAgent
+    python infra/scripts/utilities/test_agent.py                # Default agent
+    python infra/scripts/utilities/test_agent.py -v             # Verbose mode
+    python infra/scripts/utilities/test_agent.py --agent-name MyAgent
 
 Prerequisites:
-    - Run infra/scripts/create_agent.py first
+    - Run infra/scripts/post-provision/create_agent.py first
     - .env file configured with AZURE_AI_AGENT_ENDPOINT
 """
 
@@ -69,7 +69,7 @@ if not os.path.exists(config_dir):
 agent_ids_path = os.path.join(config_dir, "agent_ids.json")
 if not os.path.exists(agent_ids_path):
     print("ERROR: agent_ids.json not found")
-    print("       Run infra/scripts/create_agent.py first")
+    print("       Run infra/scripts/post-provision/create_agent.py first")
     sys.exit(1)
 
 with open(agent_ids_path) as f:
@@ -79,7 +79,7 @@ with open(agent_ids_path) as f:
 CHAT_AGENT_NAME = args.agent_name or agent_ids.get("chat_agent_name")
 if not CHAT_AGENT_NAME:
     print("ERROR: No agent name found")
-    print("       Run infra/scripts/create_agent.py first or provide --agent-name")
+    print("       Run infra/scripts/post-provision/create_agent.py first or provide --agent-name")
     sys.exit(1)
 
 # ============================================================================
@@ -130,7 +130,7 @@ try:
     print(f"[OK] Agent '{CHAT_AGENT_NAME}' found")
 except Exception as e:
     print(f"[FAIL] Agent '{CHAT_AGENT_NAME}' not found: {e}")
-    print("       Run infra/scripts/create_agent.py first")
+    print("       Run infra/scripts/post-provision/create_agent.py first")
     sys.exit(1)
 
 # Get OpenAI client for conversations
@@ -254,3 +254,4 @@ def main():
 
 
 main()
+

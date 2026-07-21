@@ -32,7 +32,7 @@ The platform is fully scenario-agnostic. The same deployment handles call center
 
 ### How It Works
 
-**Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or run `./scripts/setup-data.ps1` to load a built-in sample scenario pack. The upload is acknowledged instantly; processing runs in the background.
+**Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or run `./infra/scripts/post-provision/setup-data.ps1` to load a built-in sample scenario pack. The upload is acknowledged instantly; processing runs in the background.
 
 **Processing pipeline** — Azure Content Understanding extracts text, summary, topics, and key phrases. Results are stored in Azure SQL. Embeddings are generated using ada-002 and indexed in Azure AI Search (hybrid HNSW + BM25).
 
@@ -120,14 +120,14 @@ Upload (instant response)
 
 4. Optionally run data setup separately using the interactive menu:
    ```bash
-   ./scripts/setup-data.ps1
+   ./infra/scripts/post-provision/setup-data.ps1
    ```
    
    Or load a specific scenario directly:
    ```bash
-   ./scripts/setup-data.ps1 -Scenario contact-center
-   ./scripts/setup-data.ps1 -Scenario mortgage-application
-   ./scripts/setup-data.ps1 -Scenario telecom-analysis
+   ./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
+   ./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
+   ./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
    ```
    
    See **[Industry scenarios](#industry-scenarios)** below for scenario descriptions and additional options (Azure AI Search, Microsoft Fabric, or upload files manually).
@@ -197,24 +197,24 @@ The solution is fully data-driven and can be adapted to any industry. After depl
 
 **Option 1 — Load a sample scenario pack** (recommended to start)
 ```bash
-./scripts/setup-data.ps1                              # interactive menu to choose
-./scripts/setup-data.ps1 -Scenario contact-center
-./scripts/setup-data.ps1 -Scenario mortgage-application
-./scripts/setup-data.ps1 -Scenario telecom-analysis
+./infra/scripts/post-provision/setup-data.ps1                              # interactive menu to choose
+./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
+./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
+./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
 ```
 
 **Option 2 — Connect an existing Azure AI Search index**
 
 Reuse an existing search index without uploading data:
 ```bash
-./scripts/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
+./infra/scripts/post-provision/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
 ```
 
 **Option 3 — Connect Microsoft Fabric**
 
 Connect a Fabric Lakehouse or Warehouse using its SQL endpoint:
 ```bash
-./scripts/setup-data.ps1 -ExternalSource fabric -Name "My Warehouse" -Endpoint "your-server.database.fabric.microsoft.com" -Database "MyWarehouse" -Table "MyTable"
+./infra/scripts/post-provision/setup-data.ps1 -ExternalSource fabric -Name "My Warehouse" -Endpoint "your-server.database.fabric.microsoft.com" -Database "MyWarehouse" -Table "MyTable"
 ```
 
 **Option 4 — Upload your own files later**
@@ -346,3 +346,4 @@ You must also comply with all domestic and international export laws and regulat
 You acknowledge that the Software and Microsoft Products and Services (1) are not designed, intended or made available as a medical device(s), and (2) are not designed or intended to be a substitute for professional medical advice, diagnosis, treatment, or judgment and should not be used to replace or as a substitute for professional medical advice, diagnosis, treatment, or judgment. Customer is solely responsible for displaying and/or obtaining appropriate consents, warnings, disclaimers, and acknowledgements to end users of Customer's implementation of the Online Services.
 
 BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY.
+

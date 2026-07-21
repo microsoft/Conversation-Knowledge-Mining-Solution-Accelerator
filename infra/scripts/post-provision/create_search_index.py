@@ -1,7 +1,7 @@
 """Create the Knowledge Mining Azure AI Search index (solution / non-external scenarios).
 
 Usage:
-    python scripts/create_search_index.py --search-endpoint <url> --openai-endpoint <url>
+    python infra/scripts/post-provision/create_search_index.py --search-endpoint <url> --openai-endpoint <url>
 """
 
 import argparse
@@ -133,3 +133,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

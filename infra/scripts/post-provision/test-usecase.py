@@ -1,8 +1,8 @@
 """Seed a different use case (insurance claims) to test generic insights.
 
 Usage:
-  python scripts/test-usecase.py              # seeds insurance claims
-  python scripts/test-usecase.py --clear      # clears and restores call transcripts
+  python infra/scripts/post-provision/test-usecase.py              # seeds insurance claims
+  python infra/scripts/post-provision/test-usecase.py --clear      # clears and restores call transcripts
 """
 
 import argparse
@@ -14,7 +14,7 @@ import random
 from datetime import datetime, timedelta
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 env_path = os.path.join(project_root, ".env")
 
 if os.path.exists(env_path):
@@ -175,3 +175,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
