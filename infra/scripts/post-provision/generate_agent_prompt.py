@@ -7,9 +7,9 @@ reads data/config/scenarios.json and builds instructions tailored to the selecte
 scenario so the agent answers using the right data and tools.
 
 Usage:
-    python scripts/generate_agent_prompt.py                          # SCENARIO env or first scenario
-    python scripts/generate_agent_prompt.py --scenario contact-center
-    python scripts/generate_agent_prompt.py --scenario mortgage-application
+    python infra/scripts/post-provision/generate_agent_prompt.py                          # SCENARIO env or first scenario
+    python infra/scripts/post-provision/generate_agent_prompt.py --scenario contact-center
+    python infra/scripts/post-provision/generate_agent_prompt.py --scenario mortgage-application
 
 Output:
     - data/config/agent_prompt.txt        - Agent instructions for the scenario
@@ -22,7 +22,7 @@ import os
 import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 
 parser = argparse.ArgumentParser(description="Generate scenario-based agent prompt")
 parser.add_argument("--scenario", type=str, help="Scenario key from scenarios.json")
@@ -189,5 +189,6 @@ Files saved:
   - {prompt_path}
 
 Next step:
-  python scripts/create_agent.py --scenario {scenario_key}
+  python infra/scripts/post-provision/create_agent.py --scenario {scenario_key}
 """)
+

@@ -1,4 +1,4 @@
-<svg viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg">
+<svg width="1400" height="1000" viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
       .section-title { font-size: 16px; font-weight: bold; fill: #000; }

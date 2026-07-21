@@ -23,8 +23,8 @@ import time
 from typing import List, Dict, Any
 from datetime import datetime
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Add project root to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 from src.api.config import get_settings
 from src.api.modules.processing.service import processing_service

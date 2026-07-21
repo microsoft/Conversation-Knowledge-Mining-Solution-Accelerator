@@ -55,7 +55,7 @@ ConvertTo-Json -InputObject $roles -Depth 5 | Set-Content -Path $tmp -Encoding u
 Write-Host "API identity : $apiName ($principalId), account type: $accountType" -ForegroundColor DarkGray
 Write-Host "SQL target   : $server / $database" -ForegroundColor DarkGray
 
-$script = Join-Path $PSScriptRoot "post-provision/add_user_scripts/assign_sql_roles.py"
+$script = Join-Path $PSScriptRoot "add_user_scripts/assign_sql_roles.py"
 python $script --server $server --database $database --roles-file $tmp
 $exit = $LASTEXITCODE
 
@@ -67,3 +67,4 @@ if ($exit -ne 0) {
 }
 
 Write-Host "SQL roles assigned." -ForegroundColor Green
+

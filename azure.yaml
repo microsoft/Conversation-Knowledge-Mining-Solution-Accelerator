@@ -43,9 +43,9 @@ hooks:
         #    at them (apps are provisioned with a placeholder hello-world image) ──
         Write-Host ""
         Write-Host "Building & pushing container images..." -ForegroundColor Yellow
-        & ./infra/scripts/build-images.ps1
+        & ./infra/scripts/build/build-images.ps1
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build-images.ps1" -ForegroundColor Red
+          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build-images.ps1" -ForegroundColor Red
           exit 1
         }
 
@@ -63,18 +63,18 @@ hooks:
         }
         & ./.venv/Scripts/Activate.ps1
         python -m pip install --quiet --upgrade pip
-        pip install --quiet -r scripts/requirements.txt
+        pip install --quiet -r infra/scripts/post-provision/requirements.txt
 
         # ── Step 2: Grant API identity access to SQL ──
         Write-Host ""
-        & ./infra/scripts/setup-sql-roles.ps1
+        & ./infra/scripts/post-provision/setup-sql-roles.ps1
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/setup-sql-roles.ps1" -ForegroundColor Yellow
+          Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
         }
 
         # ── Step 3: Choose use case, load data, then create the scenario agent ──
         Write-Host ""
-        & ./scripts/setup-data.ps1 -AllowDeployedFallback
+        & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
 
         # ── Done ──
         Write-Host ""
@@ -96,9 +96,9 @@ hooks:
         #    at them (apps are provisioned with a placeholder hello-world image) ──
         echo ""
         echo "Building & pushing container images..."
-        pwsh -File ./infra/scripts/build-images.ps1
+        pwsh -File ./infra/scripts/build/build-images.ps1
         if [ $? -ne 0 ]; then
-          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build-images.ps1"
+          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build-images.ps1"
           exit 1
         fi
 
@@ -114,16 +114,16 @@ hooks:
         fi
         . ./.venv/bin/activate
         python -m pip install --quiet --upgrade pip
-        pip install --quiet -r scripts/requirements.txt
+        pip install --quiet -r infra/scripts/post-provision/requirements.txt
 
         # ── Step 2: Grant API identity access to SQL ──
         echo ""
         echo "Granting API identity SQL access..."
-        pwsh -File ./infra/scripts/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/setup-sql-roles.ps1"
+        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/post-provision/setup-sql-roles.ps1"
 
         # ── Step 3: Choose use case, load data, then create the scenario agent ──
         echo ""
-        pwsh -File ./scripts/setup-data.ps1 -AllowDeployedFallback
+        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
 
         echo ""
         echo "========================================"

@@ -8,7 +8,7 @@
 .PARAMETER Scenario
     Scenario key from data/config/scenarios.json used to generate the agent prompt.
 .EXAMPLE
-    ./scripts/setup-agent.ps1 -Scenario contact-center
+    ./infra/scripts/post-provision/setup-agent.ps1 -Scenario contact-center
 #>
 
 param(
@@ -29,7 +29,7 @@ Write-Host "  Knowledge Mining - Agent Setup" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-$envFile = Join-Path $PSScriptRoot ".." ".env"
+$envFile = Join-Path $PSScriptRoot ".." ".." ".." ".env"
 if (-not (Test-Path $envFile)) {
     Write-Host "WARNING: .env file not found. Trying azd env values..." -ForegroundColor Yellow
 
@@ -43,7 +43,7 @@ if (-not (Test-Path $envFile)) {
 }
 
 # Activate venv if available
-$venvPath = Join-Path $PSScriptRoot ".." "venv" "Scripts" "Activate.ps1"
+$venvPath = Join-Path $PSScriptRoot ".." ".." ".." "venv" "Scripts" "Activate.ps1"
 if (Test-Path $venvPath) {
     & $venvPath
 }
@@ -98,8 +98,8 @@ if ($LASTEXITCODE -eq 0) {
 
     Write-Host ""
     Write-Host "Test it:" -ForegroundColor Yellow
-    Write-Host "  python infra/scripts/test_agent.py"
-    Write-Host "  python infra/scripts/test_agent.py -v  (verbose mode)"
+    Write-Host "  python infra/scripts/utilities/test_agent.py"
+    Write-Host "  python infra/scripts/utilities/test_agent.py -v  (verbose mode)"
     Write-Host ""
 } else {
     Write-Host "Agent creation failed." -ForegroundColor Red

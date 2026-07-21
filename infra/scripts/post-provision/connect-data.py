@@ -10,8 +10,8 @@ Prerequisites:
   - Your Azure identity must have SQL admin access on the deployed database
 
 Usage:
-  python scripts/connect-data.py                          # interactive prompts
-  python scripts/connect-data.py --type azure_search \\
+  python infra/scripts/post-provision/connect-data.py                          # interactive prompts
+  python infra/scripts/post-provision/connect-data.py --type azure_search \\
       --name "My Index" \\
       --endpoint https://my-search.search.windows.net \\
       --table my-index-name                               # non-interactive
@@ -32,7 +32,7 @@ from urllib.parse import urlparse
 # Load .env
 # ---------------------------------------------------------------------------
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 env_path = os.path.join(project_root, ".env")
 
 if os.path.exists(env_path):
@@ -942,3 +942,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

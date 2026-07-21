@@ -65,7 +65,7 @@ for _noisy in (
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 config_dir = os.path.join(project_root, "data", "config")
 env_path = os.path.join(project_root, ".env")
 
@@ -108,7 +108,7 @@ if DATA_SOURCE_TYPE != "azure_search":
     SEARCH_CONNECTION_NAME = ""
     INDEX_NAME = ""
 
-# Agent names — from env, else default to <Name>-<solution suffix>.
+# Agent names ΓÇö from env, else default to <Name>-<solution suffix>.
 SOLUTION_SUFFIX = os.getenv("SOLUTION_SUFFIX", "")
 CHAT_AGENT_NAME = os.getenv("AGENT_NAME_CHAT") or (f"ChatAgent-{SOLUTION_SUFFIX}" if SOLUTION_SUFFIX else "ChatAgent")
 TITLE_AGENT_NAME = os.getenv("AGENT_NAME_TITLE") or (f"SummaryAgent-{SOLUTION_SUFFIX}" if SOLUTION_SUFFIX else "SummaryAgent")
@@ -300,7 +300,7 @@ def build_tools():
                 name="get_sql_response",
                 description=(
                     "Execute T-SQL on the documents table. "
-                    "All metadata is stored as JSON — use JSON_VALUE(metadata, '$.field') for filtering. "
+                    "All metadata is stored as JSON ΓÇö use JSON_VALUE(metadata, '$.field') for filtering. "
                     "All values are strings; match exactly. "
                     "Call get_schema_and_sample_values first to verify exact field values if a query returns zero rows."
                 ),
@@ -322,7 +322,7 @@ def build_tools():
             warnings.append(f"SQL tools unavailable (FunctionTool import failed): {e}")
             logger.warning(f"SQL tools skipped: {e}")
     elif tools:
-        logger.info("Search-only scenario — SQL tools not needed")
+        logger.info("Search-only scenario ΓÇö SQL tools not needed")
     
     # Fail loudly if no tools were built
     if not tools:
@@ -535,7 +535,7 @@ if os.path.exists(env_path):
     except Exception as _env_err:
         logger.warning(f"Could not update .env automatically: {_env_err}")
 else:
-    logger.info(".env file not found — skipping local .env update")
+    logger.info(".env file not found ΓÇö skipping local .env update")
 
 # The API App Service settings (AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL) are
 # updated by the calling PowerShell script (setup-agent.ps1) using `az webapp

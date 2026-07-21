@@ -5,8 +5,8 @@
 .DESCRIPTION
     Runs azd down to remove all provisioned resources.
 .EXAMPLE
-    ./infra/scripts/teardown.ps1
-    ./infra/scripts/teardown.ps1 -Force
+    ./infra/scripts/utilities/teardown.ps1
+    ./infra/scripts/utilities/teardown.ps1 -Force
 #>
 
 param(

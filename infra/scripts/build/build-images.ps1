@@ -11,13 +11,13 @@
     RESOURCE_GROUP_NAME). After pushing, each App Service is pointed at its ACR
     image and set to pull via managed identity, then restarted.
 .EXAMPLE
-    bash/pwsh: ./infra/scripts/build-images.ps1
+    bash/pwsh: ./infra/scripts/build/build-images.ps1
 #>
 
 $ErrorActionPreference = "Stop"
 
-# Repo root is two levels up from this script (infra/scripts -> repo root)
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+# Repo root is three levels up from this script (infra/scripts/build -> repo root)
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
 function Get-AzdValue([string]$key) {
     $val = (azd env get-value $key 2>$null)
