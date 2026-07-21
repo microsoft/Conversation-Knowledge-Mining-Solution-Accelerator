@@ -52,7 +52,7 @@ param adminApiKey string = ''
 
 // ── Container Image Configuration ──
 // Images are built and pushed to the dedicated ACR provisioned below by the
-// post-deployment script (infra/scripts/build/build-images.ps1). App Services boot on
+// post-deployment script (infra/scripts/build/build_and_push_images.ps1). App Services boot on
 // a public hello-world image and are switched to these images by that script.
 @description('Backend container image name (repository) to build and push to the provisioned ACR')
 param backendContainerImageName string = 'km-api'
