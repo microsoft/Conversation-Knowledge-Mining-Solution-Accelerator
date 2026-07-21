@@ -241,7 +241,7 @@ azd up
 1. **Pre-provision** — Generates and stores an `ADMIN_API_KEY` in the `azd` environment.
 2. **Provision** — Creates all Azure resources using the Bicep templates in `infra/`. The backend and frontend App Services start with a temporary placeholder image.
 3. **Post-provision** — Runs automatically after provisioning:
-   - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build-images.ps1](../infra/scripts/build/build-images.ps1))
+   - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build_and_push_images.ps1](../infra/scripts/build/build_and_push_images.ps1))
    - Writes the `azd` environment values to a local `.env` file
    - Creates a Python virtual environment and installs [infra/scripts/post-provision/requirements.txt](../infra/scripts/post-provision/requirements.txt)
    - Grants the API managed identity access to Azure SQL ([setup-sql-roles.ps1](../infra/scripts/post-provision/setup-sql-roles.ps1))
@@ -274,7 +274,7 @@ This solution provisions a dedicated **Azure Container Registry (ACR)** in your 
 
 - **For PowerShell (Windows):**
   ```powershell
-  ./infra/scripts/build/build-images.ps1
+  ./infra/scripts/build/build_and_push_images.ps1
   ```
 
 **What the script does:**

@@ -11,7 +11,7 @@
     RESOURCE_GROUP_NAME). After pushing, each App Service is pointed at its ACR
     image and set to pull via managed identity, then restarted.
 .EXAMPLE
-    bash/pwsh: ./infra/scripts/build/build-images.ps1
+    bash/pwsh: ./infra/scripts/build/build_and_push_images.ps1
 #>
 
 $ErrorActionPreference = "Stop"

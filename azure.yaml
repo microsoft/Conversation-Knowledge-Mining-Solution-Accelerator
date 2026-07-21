@@ -43,9 +43,9 @@ hooks:
         #    at them (apps are provisioned with a placeholder hello-world image) ──
         Write-Host ""
         Write-Host "Building & pushing container images..." -ForegroundColor Yellow
-        & ./infra/scripts/build/build-images.ps1
+        & ./infra/scripts/build/build_and_push_images.ps1
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build-images.ps1" -ForegroundColor Red
+          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1" -ForegroundColor Red
           exit 1
         }
 
@@ -96,9 +96,9 @@ hooks:
         #    at them (apps are provisioned with a placeholder hello-world image) ──
         echo ""
         echo "Building & pushing container images..."
-        pwsh -File ./infra/scripts/build/build-images.ps1
+        pwsh -File ./infra/scripts/build/build_and_push_images.ps1
         if [ $? -ne 0 ]; then
-          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build-images.ps1"
+          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1"
           exit 1
         fi
 

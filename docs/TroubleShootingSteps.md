@@ -51,7 +51,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 **Solution:** Rebuild and push the images manually:
 ```powershell
-./infra/scripts/build/build-images.ps1
+./infra/scripts/build/build_and_push_images.ps1
 ```
 Then restart the App Services from the Azure Portal if needed.
 
