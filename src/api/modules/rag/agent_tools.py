@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from agent_framework import tool
 
@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 @tool
 def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] = None) -> str:
     """Search Azure AI Search index for relevant documents.
-    
+
     This tool searches an Azure AI Search index using hybrid search (keyword + vector).
     Use this when the user asks questions that require searching document content,
     summaries, or specific information from indexed documents.
-    
+
     Args:
         query: The search query to run against the index
         top_k: Maximum number of results to return (default: 5)
         filters: Optional filter criteria as key-value pairs
-        
+
     Returns:
         JSON string containing search results with doc_id, text, summary, type, and source_file
     """
@@ -30,7 +30,7 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
         from azure.identity import DefaultAzureCredential
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
-        
+
         settings = get_settings()
         if not settings.azure_search_endpoint:
             return json.dumps({
@@ -38,14 +38,14 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
                 "error": "Azure AI Search not configured",
                 "results": []
             })
-        
+
         credential = DefaultAzureCredential()
         client = SearchClient(
             endpoint=settings.azure_search_endpoint,
             index_name=settings.azure_search_index_name,
             credential=credential,
         )
-        
+
         # Generate query embedding for vector search
         vector_queries = []
         try:
@@ -59,14 +59,14 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
             ))
         except Exception as e:
             logger.debug(f"Vector search unavailable, using keyword only: {e}")
-        
+
         # Schema-agnostic search avoids brittle $select failures across different index schemas.
         results = list(client.search(
             search_text=query,
             vector_queries=vector_queries if vector_queries else None,
             top=top_k,
         ))
-        
+
         docs = []
         seen = {}  # doc_id -> index in docs (dedup chunks from same document)
         for r in results:
@@ -92,13 +92,13 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
                 "source_file": r.get("source_file") or r.get("title") or "",
                 "score": score,
             })
-        
+
         return json.dumps({
             "success": True,
             "count": len(docs),
             "results": docs
         })
-        
+
     except Exception as e:
         logger.error(f"Azure AI Search tool error: {e}", exc_info=True)
         return json.dumps({
