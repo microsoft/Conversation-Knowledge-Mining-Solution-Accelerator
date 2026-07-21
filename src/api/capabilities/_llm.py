@@ -64,7 +64,6 @@ def get_llm_chat_client():
                 credential=credential,
             )
             openai_client = project.inference.get_azure_openai_client()
-            from openai import AsyncAzureOpenAI
             _agent_chat_client = OpenAIChatCompletionClient(
                 model=settings.azure_openai_chat_deployment,
                 async_client=openai_client,

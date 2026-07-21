@@ -19,95 +19,95 @@ class UnifiedDataSourceRegistry:
     @staticmethod
     def _cluster_topics(items: list[dict], similarity_threshold: float = 0.75) -> list[dict]:
         """Cluster similar topics/phrases to deduplicate and reduce noise.
-        
+
         Merges topics that are >75% similar (e.g., "network provider", "network providers").
         Returns deduplicated list with merged counts, sorted by frequency.
         """
         if not items:
             return []
-        
+
         # Build initial map of label -> total_value
         label_map: dict[str, int] = {}
         for item in items:
             label = str(item.get("label") or "").strip()
             if label:
                 label_map[label] = label_map.get(label, 0) + int(item.get("value") or 0)
-        
+
         if len(label_map) <= 1:
             return [{"label": k, "value": v} for k, v in sorted(label_map.items(), key=lambda x: -x[1])]
-        
+
         # Cluster similar labels using string similarity
         clusters: dict[str, list[str]] = {}  # Primary label -> list of equivalent labels
         processed: set[str] = set()
-        
+
         sorted_labels = sorted(label_map.keys(), key=lambda x: -label_map[x])
-        
+
         for primary in sorted_labels:
             if primary in processed:
                 continue
-            
+
             cluster = [primary]
             processed.add(primary)
-            
+
             # Find all labels similar to this one
             for candidate in sorted_labels:
                 if candidate in processed or candidate == primary:
                     continue
-                
+
                 # Compute string similarity using SequenceMatcher
                 similarity = SequenceMatcher(None, primary.lower(), candidate.lower()).ratio()
-                
+
                 if similarity >= similarity_threshold:
                     cluster.append(candidate)
                     processed.add(candidate)
-            
+
             clusters[primary] = cluster
-        
+
         # Merge counts for each cluster
         result = []
         for primary, members in clusters.items():
             total_value = sum(label_map[member] for member in members)
             result.append({"label": primary, "value": total_value})
-        
+
         # Sort by value descending
         return sorted(result, key=lambda x: -x.get("value", 0))
 
     @staticmethod
     def _compute_trend_data(items: list[dict], docs_by_section: dict[str, list[dict]]) -> list[dict]:
         """Compute trend indicators (stable, increasing, decreasing) for facet items.
-        
+
         Compares occurrence in early documents vs. late documents to determine trend.
         Adds 'trend' field: 'increasing' (>20% higher in later docs), 'decreasing', or 'stable'.
         """
         if not items or not docs_by_section:
             return items
-        
+
         early_docs = docs_by_section.get("early", [])
         late_docs = docs_by_section.get("late", [])
-        
+
         if not early_docs or not late_docs:
             return items
-        
+
         result = []
         for item in items:
             label = str(item.get("label") or "").strip().lower()
             if not label:
                 result.append(item)
                 continue
-            
+
             # Count occurrences in early vs late sections
             early_count = sum(
-                1 for doc in early_docs 
+                1 for doc in early_docs
                 if label in str(doc.get("text") or "").lower() or label in str(doc.get("topics") or "").lower()
             )
             late_count = sum(
-                1 for doc in late_docs 
+                1 for doc in late_docs
                 if label in str(doc.get("text") or "").lower() or label in str(doc.get("topics") or "").lower()
             )
-            
+
             early_ratio = early_count / max(len(early_docs), 1)
             late_ratio = late_count / max(len(late_docs), 1)
-            
+
             # Determine trend direction
             if late_ratio > early_ratio * 1.2:
                 trend = "increasing"
@@ -115,12 +115,10 @@ class UnifiedDataSourceRegistry:
                 trend = "decreasing"
             else:
                 trend = "stable"
-            
+
             result.append({**item, "trend": trend})
-        
+
         return result
-
-
 
     def _source_quality_score(self, cfg: Any) -> float:
         """Prefer stable, human-friendly names when duplicate connections exist."""
@@ -288,13 +286,13 @@ class UnifiedDataSourceRegistry:
     ) -> dict:
         """Compute extraction facets. Prefers persisted enrichment fields when available;
         falls back to runtime text mining when they are not.
-        
+
         Includes trend indicators (increasing, decreasing, stable) by comparing early vs. late documents.
         """
         docs = self.sample(source=source, count=max(20, count), filters=filters)
         if not docs:
             return {"entities": [], "topics": [], "key_phrases": []}
-        
+
         # Split docs into early and late sections for trend detection
         split_idx = max(1, len(docs) // 2)
         docs_by_section = {

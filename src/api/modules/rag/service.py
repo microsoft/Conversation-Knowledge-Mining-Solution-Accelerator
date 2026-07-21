@@ -845,14 +845,13 @@ class RAGService:
         lines: list[str] = []
 
         if document_ids:
-            # document_ids from the payload are the canonical index doc_id values
-            # (e.g. "Bernadette-digital-construction-purchase-contract"), so pass
-            # them straight through — no filename/chunk-id resolution needed.
+            # Scope by source_file (resolved on the frontend); it maps
+            # consistently across single-doc and multi-record files.
             doc_lines = "\n".join(f"- {did}" for did in document_ids)
             lines.append(
-                "Restrict your answer to ONLY the following selected document(s), "
-                "identified by their doc_id. Do not use any other documents from "
-                "the knowledge base:\n" + doc_lines
+                "Restrict your answer to ONLY content from the following selected "
+                "source file(s), identified by their source_file. Do not use any "
+                "other documents from the knowledge base:\n" + doc_lines
             )
 
         if filters:
@@ -993,6 +992,3 @@ class RAGService:
 
 
 rag_service = RAGService()
-
-
-

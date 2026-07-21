@@ -159,7 +159,7 @@ class ContentUnderstandingService:
         size_mb = max(1, int((file_size_bytes + (1024 * 1024 - 1)) / (1024 * 1024)))
         computed = settings.cu_poll_base_wait_sec + (size_mb * settings.cu_poll_per_mb_wait_sec)
         return max(settings.cu_poll_base_wait_sec, min(computed, cap))
-    
+
     def _ensure_defaults(self):
         """Ensure Content Understanding default model deployments are configured."""
 
@@ -238,7 +238,7 @@ class ContentUnderstandingService:
             if resp.status_code == 200:
                 self._analyzers_ensured.add(analyzer_id)
                 return
-            
+
             # Configure defaults if required
             self._ensure_defaults()
 
@@ -367,10 +367,10 @@ class ContentUnderstandingService:
 
             headers = {**self._auth_headers(), "Content-Type": "application/json"}
             body = {
-                "inputs":[
+                "inputs": [
                     {
                         "url": file_url
-                    }          
+                    }
                 ]
             }
 

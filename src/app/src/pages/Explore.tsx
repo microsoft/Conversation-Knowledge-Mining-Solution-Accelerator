@@ -258,7 +258,21 @@ const Explore: React.FC = () => {
     setChatInput("");
     setChatLoading(true);
     try {
-      const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) as string[] : undefined;
+      const selectableFiles = files.filter((f: any) => isFileSelectable(f.status));
+      const allSelected =
+        selectableFiles.length > 0 &&
+        selectableFiles.every((f: any) => selectedDocIds.has(f.id));
+
+      // Scope only on a proper subset. Selecting every file (the only option in
+      // single-file scenarios like contact center) means "whole corpus" — sending
+      // a source_file filter there would wrongly exclude the AI Search index,
+      // whose source_file values differ from the SQL documents table.
+      const docIds =
+        selectedDocIds.size > 0 && !allSelected
+          ? files.filter((f: any) => selectedDocIds.has(f.id))
+              .map((f: any) => f.filename)
+              .filter(Boolean) as string[]
+          : undefined;
       const scope = docIds ? "documents" as const : "all" as const;
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
       const res = await askQuestion(q, 5, filters, scope, docIds, activeSessionId);

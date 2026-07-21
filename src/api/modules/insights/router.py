@@ -34,4 +34,3 @@ async def get_dashboard(
     except Exception as e:
         logger.exception(f"Insights dashboard error: {e}")
         return JSONResponse(status_code=500, content={"detail": "Dashboard generation failed", "error": str(e)})
-
