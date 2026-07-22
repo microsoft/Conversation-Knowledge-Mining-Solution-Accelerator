@@ -70,11 +70,7 @@ async def list_data_sources():
 
 @router.post("/scenario")
 async def register_scenario(request: RegisterScenarioRequest):
-    """Register a seeded scenario as an inert 'native' data source.
-
-    Called by post-provision setup so the scenario's use-case name surfaces at
-    runtime (like external connections) without rebuilding the frontend image.
-    """
+    """Register a seeded scenario as an inert 'native' data source (used by post-provision)."""
     config = data_source_registry.register_scenario(
         name=request.name,
         use_case=request.use_case,
