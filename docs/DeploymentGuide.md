@@ -279,9 +279,14 @@ You can also retrieve the URL from the Azure Portal:
 
 This solution provisions a dedicated **Azure Container Registry (ACR)** in your resource group. Image building is integrated into the `azd up` **postprovision** hook and runs automatically. The images are **built remotely in ACR using `az acr build`**. If you need to rebuild and push images manually (for example, after a code change), run:
 
-- **For PowerShell (Windows):**
+- **Windows (PowerShell):**
   ```powershell
   ./infra/scripts/build/build_and_push_images.ps1
+  ```
+
+* **Linux / macOS:**
+  ```bash
+  pwsh ./infra/scripts/build/build_and_push_images.ps1
   ```
 
 **What the script does:**
@@ -296,9 +301,14 @@ This solution provisions a dedicated **Azure Container Registry (ACR)** in your 
 
 During the `azd up` postprovision hook, an interactive data setup menu is presented. You can also run it manually at any time from the project root:
 
-- **For PowerShell (Windows):**
+- **Windows (PowerShell):**
   ```powershell
   ./infra/scripts/post-provision/setup-data.ps1
+  ```
+
+* **Linux / macOS:**
+  ```bash
+  pwsh ./infra/scripts/post-provision/setup-data.ps1
   ```
 
 The system presents available scenarios for selection:
