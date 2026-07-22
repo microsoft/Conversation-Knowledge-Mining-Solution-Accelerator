@@ -87,17 +87,6 @@
   align-items: center; justify-content: center; gap: 16px;
   padding: 48px 24px; text-align: center;
 }
-.suggestions {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  justify-content: center; max-width: 500px; margin-top: 8px;
-}
-.suggestionBtn {
-  padding: 10px 16px; border-radius: 10px; border: 1px solid #e5e7eb;
-  background: #ffffff; font-size: 13px; color: #475569;
-  cursor: pointer; font-family: inherit; text-align: left;
-  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
-}
-.suggestionBtn:hover { border-color: #2563eb; color: #2563eb; box-shadow: 0 1px 4px rgba(37,99,235,0.08); }
 
 .userMsg {
   align-self: flex-end; background: #2563eb; color: #ffffff;

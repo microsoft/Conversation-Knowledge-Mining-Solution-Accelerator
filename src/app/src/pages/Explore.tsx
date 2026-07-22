@@ -36,14 +36,6 @@ const ChatContent: React.FC<{ content: string; onCitation?: (n: number) => void 
   );
 };
 
-const PROMPTS = [
-  "What are the key findings?",
-  "Identify trends and patterns",
-  "What are the main topics?",
-  "What risks or issues exist?",
-  "Summarize the data",
-];
-
 const isFileSelectable = (status?: string): boolean => status === "ready" || status === "extracted" || !status;
 
 const getFileStatusText = (status?: string): string | null => {
@@ -508,11 +500,6 @@ const Explore: React.FC = () => {
                 <Text size={300} style={{ color: "#64748b" }}>
                   Charts, summaries, trends, and analysis — all through conversation.
                 </Text>
-                <div className={s.suggestions}>
-                  {PROMPTS.map((p: string) => (
-                    <button key={p} className={s.suggestionBtn} onClick={() => handleChat(p)}>{p}</button>
-                  ))}
-                </div>
               </div>
             ) : (
               <>
