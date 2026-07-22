@@ -169,7 +169,7 @@ const Home: React.FC = () => {
       (dataSources.length > 0 ? uiConfig?.useCaseName : undefined)
     );
     if (sourceName) {
-      if (firstSource?.source_type) {
+      if (firstSource?.source_type && firstSource.source_type !== "native") {
         return `${sourceName} Connection`;
       }
       return `${sourceName} Dataset`;
@@ -177,7 +177,9 @@ const Home: React.FC = () => {
     return "My Data";
   };
 
-  const isExternalConnectionCard = Boolean(dataSources[0]?.source_type);
+  const isExternalConnectionCard = Boolean(
+    dataSources[0]?.source_type && dataSources[0]?.source_type !== "native"
+  );
   const primaryExternalSourceName = isExternalConnectionCard ? dataSources[0]?.name : undefined;
 
   const buildSummary = () => {
@@ -192,7 +194,7 @@ const Home: React.FC = () => {
 
     // User uploaded their own files (no seeded scenario active) — show a generic label.
     if (uploadedFileCount > 0) {
-      return "My Dataset";
+      return "Custom Dataset";
     }
     // Fallback to data sources if no uploaded files
     const parts: string[] = [];
@@ -374,7 +376,7 @@ const Home: React.FC = () => {
                 </span>
                 <Button appearance="outline" size="medium" icon={<Search24Regular />}
                   onClick={() => navigate(primaryExternalSourceName ? `/explore?source=${encodeURIComponent(primaryExternalSourceName)}` : "/explore")}>Explore data</Button>
-                {!isExternalConnectionCard && (
+                {!isExternalConnectionCard && dataSources.length === 0 && (
                   <Button appearance="outline" size="medium" icon={<ArrowUpload24Regular />}
                     disabled={uploading}
                     onClick={() => { resetUpload(); fileInputRef.current?.click(); }}>
@@ -383,7 +385,7 @@ const Home: React.FC = () => {
                 )}
               </div>
               {/* Upload feedback shown inline when data is already present */}
-              {!isExternalConnectionCard && (uploadMsg || uploadError) && !uploading && (
+              {!isExternalConnectionCard && dataSources.length === 0 && (uploadMsg || uploadError) && !uploading && (
                 <div style={{ marginTop: 8, fontSize: 13 }}>
                   {uploadDone && <span style={{ color: "#059669" }}>✓ {uploadMsg}</span>}
                   {uploadError && <span style={{ color: "#dc2626" }}>⚠ {uploadError}</span>}

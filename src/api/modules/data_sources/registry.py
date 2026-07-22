@@ -295,8 +295,26 @@ class DataSourceRegistry:
         self._ensure_loaded()
         return [
             c for c in self._cache.values()
-            if c.status == "connected" and c.query_mode in (QueryMode.LIVE, QueryMode.BOTH)
+            if c.source_type != DataSourceType.NATIVE
+            and c.status == "connected" and c.query_mode in (QueryMode.LIVE, QueryMode.BOTH)
         ]
+
+    def register_scenario(self, name: str, use_case: str = "", doc_count: int = 0) -> DataSourceConfig:
+        """Register a seeded scenario as an inert 'native' data source so its
+        use-case name surfaces at runtime without a frontend rebuild."""
+        self._ensure_loaded()
+        config = DataSourceConfig(
+            name=name,
+            source_type=DataSourceType.NATIVE,
+            use_case=use_case or name,
+            status="seeded",
+            query_mode=QueryMode.INGEST,
+            doc_count=doc_count,
+        )
+        config.id = str(uuid.uuid4())[:12]
+        self._cache[config.id] = config
+        self._persist(config)
+        return config
 
     def test_connection(self, config: DataSourceConfig) -> dict:
         adapter = self._get_adapter(config.source_type)

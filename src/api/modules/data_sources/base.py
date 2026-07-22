@@ -40,6 +40,8 @@ class DataSourceType(str, Enum):
     SYNAPSE = "synapse"
     ODBC = "odbc"
     AZURE_SEARCH = "azure_search"
+    # Inert marker for a seeded scenario (no adapter; hidden from live query and UI).
+    NATIVE = "native"
 
 
 class AuthMethod(str, Enum):

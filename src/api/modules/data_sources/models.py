@@ -25,6 +25,13 @@ class CreateDataSourceRequest(BaseModel):
     query_mode: QueryMode = QueryMode.BOTH
 
 
+class RegisterScenarioRequest(BaseModel):
+    """Register a seeded scenario as an inert 'native' data source."""
+    name: str
+    use_case: str = ""
+    doc_count: int = 0
+
+
 class UpdateDataSourceRequest(BaseModel):
     name: Optional[str] = None
     use_case: Optional[str] = None

@@ -115,7 +115,7 @@ Select one of the following options to deploy the Conversation Knowledge Mining 
 <details>
 <summary><b>Option C: Visual Studio Code Web</b></summary>
 
-[![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://vscode.dev/)
+[![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=)
 
 1. Click the badge above (may take a few minutes to load)
 2. Sign in with your Azure account when prompted
@@ -279,9 +279,14 @@ You can also retrieve the URL from the Azure Portal:
 
 This solution provisions a dedicated **Azure Container Registry (ACR)** in your resource group. Image building is integrated into the `azd up` **postprovision** hook and runs automatically. The images are **built remotely in ACR using `az acr build`**. If you need to rebuild and push images manually (for example, after a code change), run:
 
-- **For PowerShell (Windows):**
+- **Windows (PowerShell):**
   ```powershell
   ./infra/scripts/build/build_and_push_images.ps1
+  ```
+
+* **Linux / macOS:**
+  ```bash
+  pwsh ./infra/scripts/build/build_and_push_images.ps1
   ```
 
 **What the script does:**
@@ -296,9 +301,14 @@ This solution provisions a dedicated **Azure Container Registry (ACR)** in your 
 
 During the `azd up` postprovision hook, an interactive data setup menu is presented. You can also run it manually at any time from the project root:
 
-- **For PowerShell (Windows):**
+- **Windows (PowerShell):**
   ```powershell
   ./infra/scripts/post-provision/setup-data.ps1
+  ```
+
+* **Linux / macOS:**
+  ```bash
+  pwsh ./infra/scripts/post-provision/setup-data.ps1
   ```
 
 The system presents available scenarios for selection:

@@ -89,7 +89,9 @@ const DataSources: React.FC = () => {
       
       const [filesRes, srcRes] = await Promise.allSettled(requests);
       setUploadedFiles(filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : []);
-      setSources(srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current);
+      const rawSrc = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current;
+      // Hide inert 'native' scenario markers — they aren't real connections.
+      setSources(rawSrc.filter((s: any) => s.source_type !== "native"));
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -100,7 +102,11 @@ const DataSources: React.FC = () => {
   useEffect(() => {
     if (!ingestionSnapshot) return;
     setUploadedFiles(Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : []);
-    setSources(Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources : []);
+    setSources(
+      Array.isArray(ingestionSnapshot.dataSources)
+        ? ingestionSnapshot.dataSources.filter((s: any) => s.source_type !== "native")
+        : []
+    );
   }, [ingestionSnapshot]);
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
