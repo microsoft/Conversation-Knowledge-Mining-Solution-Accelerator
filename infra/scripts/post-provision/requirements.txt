@@ -7,3 +7,6 @@ azure-cosmos==4.16.1
 azure-mgmt-web==11.0.0
 pyodbc==5.3.0
 cachetools==5.5.2
+pydantic==2.13.4
+pydantic-settings==2.14.2
+openai==2.32.0
