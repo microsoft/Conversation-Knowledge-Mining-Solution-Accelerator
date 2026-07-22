@@ -208,6 +208,99 @@ def get_search_service_resource_id(endpoint: str) -> str:
     return out.strip()
 
 
+# Well-known Azure built-in role definition GUIDs (stable across tenants/locales, unlike display
+# names). See https://learn.microsoft.com/azure/search/search-security-rbac#assign-built-in-roles
+# and https://learn.microsoft.com/azure/role-based-access-control/built-in-roles.
+ROLE_READER = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+ROLE_OWNER = "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+ROLE_CONTRIBUTOR = "b24988ac-6180-42a0-ab88-20f7382dd24c"
+ROLE_SEARCH_SERVICE_CONTRIBUTOR = "7ca78c08-252a-4471-8644-bb5ff32d4ba0"
+ROLE_SEARCH_INDEX_DATA_READER = "1407120a-92aa-4202-b7e9-c0e197c71c8f"
+ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR = "8ebe5a00-799e-43f5-93ac-243d3dce84a7"
+
+# Display names, used only for console output.
+ROLE_NAMES = {
+    ROLE_READER: "Reader",
+    ROLE_OWNER: "Owner",
+    ROLE_CONTRIBUTOR: "Contributor",
+    ROLE_SEARCH_SERVICE_CONTRIBUTOR: "Search Service Contributor",
+    ROLE_SEARCH_INDEX_DATA_READER: "Search Index Data Reader",
+    ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR: "Search Index Data Contributor",
+}
+
+
+def _has_any_role(principal_id: str, scope: str, role_ids: tuple[str, ...]) -> bool:
+    """Check whether the principal already has any of the given roles at/above scope (inherited included)."""
+    rc, existing, _ = _run_az_command(
+        ["az", "role", "assignment", "list", "--assignee-object-id", principal_id,
+         "--scope", scope, "--query", "[].roleDefinitionId", "-o", "tsv"]
+    )
+    if rc != 0 or not existing:
+        return False
+    # roleDefinitionId is a full resource ID; compare by trailing GUID.
+    assigned = {line.rsplit("/", 1)[-1].lower() for line in existing.splitlines()}
+    return any(role_id.lower() in assigned for role_id in role_ids)
+
+
+def _assign_role_if_missing(
+    principal_id: str, principal_type: str, scope: str, role_id: str, identity_label: str,
+    equivalent_roles: tuple[str, ...] = (),
+) -> bool:
+    """Create a role assignment unless the principal already has this role or an equivalent
+    one (e.g. Contributor already implies Reader's list-objects permission). Returns True if
+    the role requirement is satisfied afterward."""
+    role_name = ROLE_NAMES.get(role_id, role_id)
+
+    if equivalent_roles and _has_any_role(principal_id, scope, equivalent_roles):
+        print(f"  [OK] {identity_label} already has a role equivalent to {role_name} on external search")
+        return True
+
+    rc, existing, _ = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "list",
+            "--assignee-object-id",
+            principal_id,
+            "--scope",
+            scope,
+            "--role",
+            role_id,
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ]
+    )
+    if rc == 0 and existing:
+        print(f"  [OK] RBAC already exists: {role_name} on external search for {identity_label}")
+        return True
+
+    rc, _, err = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "create",
+            "--assignee-object-id",
+            principal_id,
+            "--assignee-principal-type",
+            principal_type,
+            "--scope",
+            scope,
+            "--role",
+            role_id,
+        ]
+    )
+    if rc == 0:
+        print(f"  [OK] Granted {role_name} on external search to {identity_label}")
+        return True
+
+    print(f"  [WARN] Failed to grant {role_name} role automatically: {err}")
+    return False
+
+
 def ensure_search_index_reader_role(endpoint: str) -> None:
     """Grant API managed identity Search Index Data Reader on external search service."""
     principal_id, app_name = get_api_principal_context()
@@ -220,52 +313,60 @@ def ensure_search_index_reader_role(endpoint: str) -> None:
         print("  [WARN] Could not resolve Azure AI Search resource ID from endpoint; skipping Search RBAC assignment.")
         return
 
-    role_name = "Search Index Data Reader"
-    rc, existing, _ = _run_az_command(
-        [
-            "az",
-            "role",
-            "assignment",
-            "list",
-            "--assignee-object-id",
-            principal_id,
-            "--scope",
-            scope,
-            "--role",
-            role_name,
-            "--query",
-            "[0].id",
-            "-o",
-            "tsv",
-        ]
+    identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
+    _assign_role_if_missing(
+        principal_id, "ServicePrincipal", scope, ROLE_SEARCH_INDEX_DATA_READER, identity_label,
+        equivalent_roles=(ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR,),
     )
-    if rc == 0 and existing:
-        identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
-        print(f"  [OK] RBAC already exists: {role_name} on external search for {identity_label}")
+
+
+def get_signed_in_user_principal() -> tuple[str, str]:
+    """Resolve the (object ID, principal type) of the current `az login` identity."""
+    rc, out, _ = _run_az_command(["az", "ad", "signed-in-user", "show", "--query", "id", "-o", "tsv"])
+    if rc == 0 and out:
+        return out.strip(), "User"
+
+    # `az ad signed-in-user` only works for user principals; fall back for service-principal logins.
+    rc, out, _ = _run_az_command(["az", "account", "show", "--query", "user.name", "-o", "tsv"])
+    if rc != 0 or not out:
+        return "", ""
+    rc, out, _ = _run_az_command(["az", "ad", "sp", "show", "--id", out.strip(), "--query", "id", "-o", "tsv"])
+    if rc == 0 and out:
+        return out.strip(), "ServicePrincipal"
+    return "", ""
+
+
+# Roles that already satisfy each requirement, per
+# https://learn.microsoft.com/azure/search/search-security-rbac#summary-of-permissions
+# "List all objects on the service" (control plane): Owner/Contributor/Reader/Search Service Contributor.
+_LIST_OBJECTS_ROLES = (ROLE_OWNER, ROLE_CONTRIBUTOR, ROLE_READER, ROLE_SEARCH_SERVICE_CONTRIBUTOR)
+# "Query an index" (data plane): only the two Search Index Data roles — Owner/Contributor do NOT
+# grant this via RBAC (they can only retrieve admin keys and query out-of-band).
+_QUERY_INDEX_ROLES = (ROLE_SEARCH_INDEX_DATA_READER, ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR)
+
+
+def ensure_user_search_roles(endpoint: str) -> None:
+    """Grant the signed-in identity Reader (index auto-discovery) and Search Index Data Reader
+    (connection test) on the external search service, skipping roles already covered by an
+    equivalent/broader role (e.g. inherited Contributor). Requires role-assignment permission
+    (Owner / User Access Administrator); failures warn and are non-fatal.
+    """
+    principal_id, principal_type = get_signed_in_user_principal()
+    if not principal_id:
+        print("  [WARN] Could not resolve signed-in identity; skipping automatic Search RBAC assignment for your account.")
+        print("         Ensure your account has Reader and Search Index Data Reader on the search service.")
         return
 
-    rc, _, err = _run_az_command(
-        [
-            "az",
-            "role",
-            "assignment",
-            "create",
-            "--assignee-object-id",
-            principal_id,
-            "--assignee-principal-type",
-            "ServicePrincipal",
-            "--scope",
-            scope,
-            "--role",
-            role_name,
-        ]
-    )
-    if rc == 0:
-        identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
-        print(f"  [OK] Granted {role_name} on external search to {identity_label}")
+    scope = get_search_service_resource_id(endpoint)
+    if not scope:
+        print("  [WARN] Could not resolve Azure AI Search resource ID from endpoint; skipping Search RBAC assignment.")
         return
 
-    print(f"  [WARN] Failed to grant {role_name} role automatically: {err}")
+    identity_label = "your signed-in identity"
+    _assign_role_if_missing(principal_id, principal_type, scope, ROLE_READER, identity_label,
+                             equivalent_roles=_LIST_OBJECTS_ROLES)
+    _assign_role_if_missing(principal_id, principal_type, scope, ROLE_SEARCH_INDEX_DATA_READER, identity_label,
+                             equivalent_roles=_QUERY_INDEX_ROLES)
 
 
 def _parse_foundry_account_project() -> tuple[str, str]:
@@ -400,35 +501,11 @@ def ensure_foundry_search_connection(endpoint: str) -> str:
         return conn_name
 
     # The agent's search tool needs both roles (matches the solution's own search RBAC):
-    #   - Search Index Data Reader  → query documents
+    #   - Search Index Data Reader   → query documents
     #   - Search Service Contributor → resolve/describe the index
-    for role_name in ("Search Index Data Reader", "Search Service Contributor"):
-        rc, existing, _ = _run_az_command(
-            [
-                "az", "role", "assignment", "list",
-                "--assignee-object-id", project_principal_id,
-                "--scope", search_resource_id,
-                "--role", role_name,
-                "--query", "[0].id", "-o", "tsv",
-            ]
-        )
-        if rc == 0 and existing:
-            print(f"  [OK] RBAC already exists: {role_name} for Foundry project ({project_principal_id})")
-            continue
-
-        rc, _, err = _run_az_command(
-            [
-                "az", "role", "assignment", "create",
-                "--assignee-object-id", project_principal_id,
-                "--assignee-principal-type", "ServicePrincipal",
-                "--scope", search_resource_id,
-                "--role", role_name,
-            ]
-        )
-        if rc == 0:
-            print(f"  [OK] Granted {role_name} on external search to Foundry project ({project_principal_id})")
-        else:
-            print(f"  [WARN] Failed to grant {role_name} to Foundry project: {err}")
+    identity_label = f"Foundry project ({project_principal_id})"
+    for role_id in (ROLE_SEARCH_INDEX_DATA_READER, ROLE_SEARCH_SERVICE_CONTRIBUTOR):
+        _assign_role_if_missing(project_principal_id, "ServicePrincipal", search_resource_id, role_id, identity_label)
     return conn_name
 
 
@@ -821,6 +898,10 @@ def main():
             config = prompt_missing_fields(config)
     else:
         config = interactive_prompts()
+
+    if config.get("source_type") == "azure_search" and config.get("endpoint"):
+        print("\n  Checking your access to the external Azure AI Search service...")
+        ensure_user_search_roles(config["endpoint"])
 
     try:
         config = resolve_azure_search_index(config, interactive=is_interactive)
