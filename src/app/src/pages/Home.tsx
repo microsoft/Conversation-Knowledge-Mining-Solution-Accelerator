@@ -194,7 +194,7 @@ const Home: React.FC = () => {
 
     // User uploaded their own files (no seeded scenario active) — show a generic label.
     if (uploadedFileCount > 0) {
-      return "My Dataset";
+      return "Custom Dataset";
     }
     // Fallback to data sources if no uploaded files
     const parts: string[] = [];
