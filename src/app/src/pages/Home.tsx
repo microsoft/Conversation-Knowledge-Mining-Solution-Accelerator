@@ -169,7 +169,7 @@ const Home: React.FC = () => {
       (dataSources.length > 0 ? uiConfig?.useCaseName : undefined)
     );
     if (sourceName) {
-      if (firstSource?.source_type) {
+      if (firstSource?.source_type && firstSource.source_type !== "native") {
         return `${sourceName} Connection`;
       }
       return `${sourceName} Dataset`;
@@ -177,7 +177,9 @@ const Home: React.FC = () => {
     return "My Data";
   };
 
-  const isExternalConnectionCard = Boolean(dataSources[0]?.source_type);
+  const isExternalConnectionCard = Boolean(
+    dataSources[0]?.source_type && dataSources[0]?.source_type !== "native"
+  );
   const primaryExternalSourceName = isExternalConnectionCard ? dataSources[0]?.name : undefined;
 
   const buildSummary = () => {

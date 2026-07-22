@@ -165,7 +165,7 @@ const Explore: React.FC = () => {
       // Explore only lists processed sources (files that produced documents).
       const newFiles = rawFiles.filter((f: any) => (f.doc_count || 0) > 0);
       const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
-      const connected = rawDS.filter((ds: any) => ds.status === "connected");
+      const connected = rawDS.filter((ds: any) => ds.status === "connected" && ds.source_type !== "native");
       const newDS = dedupeDataSources(connected);
       const newSchema = sR.status === "fulfilled" ? sR.value.data : schema;
       setFiles(newFiles);

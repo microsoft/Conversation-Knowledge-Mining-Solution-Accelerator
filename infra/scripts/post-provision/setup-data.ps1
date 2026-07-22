@@ -304,6 +304,19 @@ if ($Scenario) {
     # Always clear existing demo data + external sources before loading any scenario/use case
     Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
 
+    # Register the scenario as an inert 'native' data source so its use-case name
+    # surfaces in the UI at runtime (like external connections) — no frontend image
+    # rebuild needed. It is not a real connection: hidden from the connections UI
+    # and skipped by chat's live-query path.
+    try {
+        $scenarioBody = @{ name = $pack.name; use_case = $pack.name } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/scenario" -Method POST `
+            -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
+        Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
+    } catch {
+        Write-Host "WARNING: Could not register scenario use case name: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
     # Create the solution search index (seeded scenarios only)
     Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
     $searchEndpoint = Get-DeployValue "AZURE_SEARCH_ENDPOINT"

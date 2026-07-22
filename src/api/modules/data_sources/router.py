@@ -11,6 +11,7 @@ from src.api.modules.data_sources.models import (
     DataSourceResponse,
     TestConnectionResponse,
     IngestResponse,
+    RegisterScenarioRequest,
 )
 from src.api.modules.data_sources.registry import data_source_registry
 
@@ -25,6 +26,7 @@ _SOURCE_TYPE_LABELS = {
     DataSourceType.FABRIC: "Microsoft Fabric",
     DataSourceType.SYNAPSE: "Azure Synapse",
     DataSourceType.ODBC: "ODBC Connection",
+    DataSourceType.NATIVE: "",
 }
 
 
@@ -64,6 +66,21 @@ async def list_data_sources():
     """List all configured data sources."""
     sources = data_source_registry.list_all()
     return [_to_response(s) for s in sources]
+
+
+@router.post("/scenario")
+async def register_scenario(request: RegisterScenarioRequest):
+    """Register a seeded scenario as an inert 'native' data source.
+
+    Called by post-provision setup so the scenario's use-case name surfaces at
+    runtime (like external connections) without rebuilding the frontend image.
+    """
+    config = data_source_registry.register_scenario(
+        name=request.name,
+        use_case=request.use_case,
+        doc_count=request.doc_count,
+    )
+    return _to_response(config)
 
 
 @router.post("/")
