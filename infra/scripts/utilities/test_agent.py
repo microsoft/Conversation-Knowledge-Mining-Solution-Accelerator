@@ -98,21 +98,50 @@ print(f"Model: {agent_ids.get('model', 'N/A')}")
 print(f"Tools: Search{' + SQL' if USE_SQL else ' only'}{' (Fabric)' if DATA_SOURCE_TYPE == 'fabric' else ''}")
 print("Type 'quit' to exit, 'help' for sample questions\n")
 
-sample_questions = [
-    "What are the top customer support issues?",
-    "Summarize the key themes across all documents",
-    "Which products are mentioned most frequently?",
-    "What are common billing-related problems?",
-    "How are connectivity issues typically resolved?",
-    "What FAQs exist for the ZX-3000?",
+SCENARIO = agent_ids.get("scenario", "")
+
+# Mirrors docs/SampleQuestions.md — keep both in sync when adding/changing questions.
+SAMPLE_QUESTIONS_BY_SCENARIO = {
+    "contact-center": [
+        "Please provide the total number of calls by date for the last 7 days.",
+        "Provide a summary of performance issues users reported this week.",
+        "Turn these key topics into a structured FAQ.",
+    ],
+    "telecom-analysis": [
+        "Total number of calls by date for last 7 days.",
+        "What are top 7 challenges user reported.",
+        "What are the top recommendations to reduce these customer challenges?",
+    ],
+    "mortgage-application": [
+        "What are the key findings in the Annual Housing Report?",
+        "Summarize the key clauses in the purchase contracts.",
+        "What risks are identified across the mortgage documents?",
+    ],
+    "azure_search_byod": [
+        "Summarize the main topics.",
+        "What are the top categories by volume?",
+    ],
+    "fabric_byod": [
+        "Summarize the main topics.",
+        "What are the top categories by volume?",
+    ],
+}
+
+# Generic fallback for unrecognized/legacy scenarios (older agent_ids.json without a "scenario" key).
+DEFAULT_SAMPLE_QUESTIONS = [
+    "What are the main topics?",
+    "What risks or issues exist?",
+    "Summarize the data",
 ]
+
+sample_questions = SAMPLE_QUESTIONS_BY_SCENARIO.get(SCENARIO, DEFAULT_SAMPLE_QUESTIONS)
 
 
 def show_help():
     print("\nSample questions to try:")
     for i, q in enumerate(sample_questions, 1):
         print(f"  {i}. {q}")
-    print("\n  Type a number (1-6) to use a sample question\n")
+    print(f"\n  Type a number (1-{len(sample_questions)}) to use a sample question\n")
 
 
 def clean(text: str) -> str:
