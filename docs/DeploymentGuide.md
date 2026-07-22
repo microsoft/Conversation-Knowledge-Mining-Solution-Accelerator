@@ -325,6 +325,8 @@ Enter your choice [1-6]:
 
 Upon selection, the corresponding datasets and configuration files are uploaded, the Azure AI Foundry agents (a ChatAgent for grounded Q&A and a SummaryAgent that generates concise chat conversation titles) are created, and connections are configured.
 
+> **Option 6 — Skip (upload your own files later):** Choosing **Skip** loads no sample data. You can upload your own files directly from the web application's **Home** page at any time. Supported formats: **PDF, DOCX, JSON, CSV, TXT, images (PNG/JPG), WAV, MP3**.
+
 **Non-interactive usage:**
 ```powershell
 ./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center

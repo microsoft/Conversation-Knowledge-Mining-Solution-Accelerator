@@ -32,7 +32,7 @@ The solution leverages Microsoft Foundry, Azure Content Understanding, Azure Ope
 
 The platform turns any conversational or enterprise dataset into an interactive, insight-driven experience through three integrated surfaces:
 
-- **Home** — Upload files (PDF, DOCX, JSON, CSV, WAV, images) or load a built-in sample scenario pack. Uploads are acknowledged instantly; processing runs in the background.
+- **Home** — Upload your own files (PDF, DOCX, JSON, CSV, TXT, images, WAV, MP3) or load a built-in sample scenario pack. If you choose **Skip** during data setup, you can upload files here at any time. Uploads are acknowledged instantly; processing runs in the background.
 - **Explore** — Converse with your data. Questions are routed to a Microsoft Foundry ChatAgent with two tools: Azure AI Search (semantic retrieval) and SQL (structured analytics). The agent reasons across both and returns grounded, structured answers.
 - **Insights** — The LLM reads your dataset's schema and generates a plan for KPIs and charts. The result is an adaptive dashboard where layouts, filters, and metrics are all data-driven, not hard-coded.
 
