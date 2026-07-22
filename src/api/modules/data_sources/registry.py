@@ -300,14 +300,8 @@ class DataSourceRegistry:
         ]
 
     def register_scenario(self, name: str, use_case: str = "", doc_count: int = 0) -> DataSourceConfig:
-        """Register a seeded scenario as an inert 'native' data source.
-
-        This lets the scenario's use-case name surface at runtime the same way
-        external connections do (via GET /data-sources), so the UI shows the
-        correct name without rebuilding the frontend image. It is not a real
-        connection: it has no adapter, is skipped by live query, and is hidden
-        from the connections UI.
-        """
+        """Register a seeded scenario as an inert 'native' data source so its
+        use-case name surfaces at runtime without a frontend rebuild."""
         self._ensure_loaded()
         config = DataSourceConfig(
             name=name,

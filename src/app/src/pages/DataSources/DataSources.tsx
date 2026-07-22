@@ -90,8 +90,7 @@ const DataSources: React.FC = () => {
       const [filesRes, srcRes] = await Promise.allSettled(requests);
       setUploadedFiles(filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : []);
       const rawSrc = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current;
-      // Hide inert 'native' scenario markers — they exist only to surface the
-      // use-case name on Home, not as real connections.
+      // Hide inert 'native' scenario markers — they aren't real connections.
       setSources(rawSrc.filter((s: any) => s.source_type !== "native"));
     } catch { /* ignore */ }
     finally { setLoading(false); }

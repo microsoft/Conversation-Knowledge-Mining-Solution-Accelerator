@@ -40,9 +40,7 @@ class DataSourceType(str, Enum):
     SYNAPSE = "synapse"
     ODBC = "odbc"
     AZURE_SEARCH = "azure_search"
-    # Inert marker for a seeded/sample scenario (not a real external connection).
-    # Used only to surface the scenario's use-case name at runtime; it has no
-    # adapter and is excluded from live query and the connections UI.
+    # Inert marker for a seeded scenario (no adapter; hidden from live query and UI).
     NATIVE = "native"
 
 

@@ -305,9 +305,7 @@ if ($Scenario) {
     Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
 
     # Register the scenario as an inert 'native' data source so its use-case name
-    # surfaces in the UI at runtime (like external connections) — no frontend image
-    # rebuild needed. It is not a real connection: hidden from the connections UI
-    # and skipped by chat's live-query path.
+    # surfaces in the UI at runtime without a frontend rebuild.
     try {
         $scenarioBody = @{ name = $pack.name; use_case = $pack.name } | ConvertTo-Json -Compress
         Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/scenario" -Method POST `
