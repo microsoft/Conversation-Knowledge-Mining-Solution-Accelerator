@@ -10,3 +10,4 @@ cachetools==5.5.2
 pydantic==2.13.4
 pydantic-settings==2.14.2
 openai==2.32.0
+numpy==2.4.6
