@@ -29,7 +29,7 @@ gpt-5.2:150, gpt-4o-mini:150, gpt-4:150, text-embedding-3-small:80
 ## 📌 Default Regions
 
 ```
-australiaeast, swedencentral, southeastasia, westus3
+australiaeast, swedencentral, southeastasia
 ```
 
 ## Usage Scenarios
@@ -65,13 +65,13 @@ australiaeast, swedencentral, southeastasia, westus3
 ✔️ Check default models in specific region(s):
 
 ```shell
-./quota_check_params.sh --regions southeastasia,westus3
+./quota_check_params.sh --regions southeastasia,swedencentral
 ```
 
 ✔️ Passing both models and regions:
 
 ```shell
-./quota_check_params.sh --models gpt-5.2:150 --regions southeastasia,westus3
+./quota_check_params.sh --models gpt-5.2:150 --regions southeastasia,swedencentral
 ```
 
 ✔️ Multiple models with a single region:

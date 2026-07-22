@@ -13,7 +13,7 @@ This guide covers common issues encountered during deployment and post-deploymen
 2. Create a new environment in a different region:
    ```shell
    azd env new kmretry
-   azd env set AZURE_LOCATION eastus2
+   azd env set AZURE_LOCATION australiaeast
    azd up
    ```
 3. Or request a quota increase in the [Azure Portal](https://portal.azure.com/) under your Azure OpenAI resource → **Quotas**.
@@ -32,7 +32,7 @@ azd up
 
 **Symptom:** Deployment times out or fails with a "capacity" or "not available in region" error.
 
-**Solution:** Try a different [recommended region](./DeploymentGuide.md#12-check-service-availability--quota): East US, East US2, Australia East, UK South, France Central.
+**Solution:** Try a different [recommended region](./DeploymentGuide.md#12-check-service-availability--quota): Australia East, Sweden Central, Southeast Asia.
 
 ### PowerShell script execution blocked
 

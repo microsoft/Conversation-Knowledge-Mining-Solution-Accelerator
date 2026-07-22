@@ -50,7 +50,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 - [Azure Queue Storage](https://learn.microsoft.com/en-us/azure/storage/queues/)
 - [GPT Model Capacity](https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models)
 
-**Recommended Regions:** Australia East, Sweden Central, Southeast Asia, West US3
+**Recommended Regions:** Australia East, Sweden Central, Southeast Asia
 
 🔍 **Check Availability:** Use [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/) to verify service availability.
 
@@ -206,15 +206,22 @@ To adjust quota settings, follow the [Quota Check Instructions](./quota_check.md
 
 ### 4.1 Authenticate with Azure
 
+Sign in with **both** the Azure Developer CLI and the Azure CLI. `azd` provisions the infrastructure, and the post-provision scripts use the Azure CLI (`az acr build`, `az webapp`, etc.) — the two tools keep separate credential stores, so you need to log in to each.
+
 ```shell
 azd auth login
+az login
 ```
 
-> **Note for VS Code Web Users:** If you're using VS Code Web and have already authenticated using `az login --use-device-code` in Option C, you may skip this step or proceed with `azd auth login` if prompted.
+**Alternatively, login using a device code (recommended when using VS Code Web):**
+```shell
+az login --use-device-code
+```
 
 **For specific tenants:**
 ```shell
 azd auth login --tenant-id <tenant-id>
+az login --tenant <tenant-id>
 ```
 
 **Finding Tenant ID:**
@@ -295,6 +302,11 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
   ```
 
 The system presents available scenarios for selection:
+
+> **Bring-Your-Own-Data (BYOD) prerequisites (before choosing options 4 or 5):** These options connect to an *external* source, which requires additional access **for the identity running the setup script** (your `az login` identity):
+>
+> - **Option 4 — Azure AI Search:** You need at least the **Search Index Data Reader** role on the target Azure AI Search service so the script can list and read the existing index. The script also grants the backend App Service and the Foundry project read access at runtime.
+> - **Option 5 — Microsoft Fabric:** You need the **Admin** role on the target Fabric workspace, because the script assigns the backend App Service's managed identity the **Contributor** role on that workspace (via the Fabric REST API).
 
 ```
 ============================================
