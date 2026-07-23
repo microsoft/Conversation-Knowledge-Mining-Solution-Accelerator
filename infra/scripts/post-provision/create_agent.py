@@ -560,3 +560,9 @@ logger.info(f"  Tools: {', '.join([(getattr(t, 'name', None) or type(t).__name__
 logger.info(f"Title Agent: {TITLE_AGENT_NAME}")
 logger.info(f"  Model: {MODEL}")
 logger.info(f"  Tools: None (text generation only)")
+logger.info("\nNext step (activate the venv first, then run):")
+if os.name == "nt":
+    logger.info("  .venv\\Scripts\\Activate.ps1")
+else:
+    logger.info("  source .venv/bin/activate")
+logger.info("  python infra/scripts/utilities/test_agent.py")

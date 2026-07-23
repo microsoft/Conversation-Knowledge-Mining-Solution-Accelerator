@@ -313,10 +313,7 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
 
 The system presents available scenarios for selection:
 
-> **Bring-Your-Own-Data (BYOD) prerequisites (before choosing options 4 or 5):** These options connect to an *external* source, which requires additional access **for the identity running the setup script** (your `az login` identity):
->
-> - **Option 4 — Azure AI Search:** You need at least the **Search Index Data Reader** role on the target Azure AI Search service so the script can list and read the existing index. The script also grants the backend App Service and the Foundry project read access at runtime.
-> - **Option 5 — Microsoft Fabric:** You need the **Admin** role on the target Fabric workspace, because the script assigns the backend App Service's managed identity the **Contributor** role on that workspace (via the Fabric REST API).
+**Prerequisites:** Option 5 — Microsoft Fabric requires **Admin** role on the target Fabric workspace for your `az login` identity, so the setup script can grant the API's managed identity Contributor access there.
 
 ```
 ============================================
