@@ -48,6 +48,7 @@ for _noisy in (
     "httpcore",
     "openai",
     "urllib3",
+    "asyncio",
 ):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 

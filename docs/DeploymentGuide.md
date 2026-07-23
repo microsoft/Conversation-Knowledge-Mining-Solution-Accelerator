@@ -313,7 +313,7 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
 
 The system presents available scenarios for selection:
 
-**Prerequisites:** Option 5 — Microsoft Fabric requires **Admin** role on the target Fabric workspace for your `az login` identity, so the setup script can grant the API's managed identity Contributor access there.
+> **Options 4 & 5 — Connect your own data (BYOD):** Before choosing Azure AI Search or Microsoft Fabric, gather the connection details (endpoint, index/table names, workspace ID, required permissions) listed in the [Connect Your Own Data Guide](./ConnectDataSource.md).
 
 ```
 ============================================
