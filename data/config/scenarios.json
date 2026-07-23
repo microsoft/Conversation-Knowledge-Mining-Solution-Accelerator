@@ -41,6 +41,14 @@
       "data_types": ["external"],
       "has_preprocessed": false,
       "byod": true
+    },
+    "skip": {
+      "name": "Knowledge Mining",
+      "description": "General-purpose knowledge mining assistant that answers questions from your ingested documents.",
+      "data_folder": null,
+      "data_types": [],
+      "has_preprocessed": false,
+      "skip": true
     }
   }
 }
