@@ -303,12 +303,12 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
 
 - **Windows (PowerShell):**
   ```powershell
-  ./infra/scripts/post-provision/setup-data.ps1
+  ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
 * **Linux / macOS:**
   ```bash
-  pwsh ./infra/scripts/post-provision/setup-data.ps1
+  pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
 The system presents available scenarios for selection:
@@ -336,9 +336,9 @@ Upon selection, the corresponding datasets and configuration files are uploaded,
 
 **Non-interactive usage:**
 ```powershell
-./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
-./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
-./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario contact-center
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario mortgage-application
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario telecom-analysis
 ```
 
 ### 5.3 Access the Application
