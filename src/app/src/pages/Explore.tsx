@@ -498,7 +498,7 @@ const Explore: React.FC = () => {
                 <Sparkle24Regular style={{ fontSize: 36, color: "#cbd5e1" }} />
                 <Text size={500} weight="semibold" style={{ color: "#0f172a" }}>Ask your data</Text>
                 <Text size={300} style={{ color: "#64748b" }}>
-                  Charts, summaries, trends, and analysis — all through conversation.
+                  Summaries, trends, and analysis — all through conversation.
                 </Text>
               </div>
             ) : (

@@ -303,17 +303,17 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
 
 - **Windows (PowerShell):**
   ```powershell
-  ./infra/scripts/post-provision/setup-data.ps1
+  ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
 * **Linux / macOS:**
   ```bash
-  pwsh ./infra/scripts/post-provision/setup-data.ps1
+  pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
 The system presents available scenarios for selection:
 
-**Prerequisites:** Option 5 — Microsoft Fabric requires **Admin** role on the target Fabric workspace for your `az login` identity, so the setup script can grant the API's managed identity Contributor access there.
+> **Options 4 & 5 — Bring your own data (BYOD):** Before choosing Azure AI Search or Microsoft Fabric, gather the connection details (endpoint, index/table names, workspace ID, required permissions) listed in the [Bring Your Own Data Guide](./ConnectDataSource.md).
 
 ```
 ============================================
@@ -336,9 +336,9 @@ Upon selection, the corresponding datasets and configuration files are uploaded,
 
 **Non-interactive usage:**
 ```powershell
-./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
-./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
-./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario contact-center
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario mortgage-application
+./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback -Scenario telecom-analysis
 ```
 
 ### 5.3 Access the Application

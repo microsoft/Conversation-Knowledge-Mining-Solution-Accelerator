@@ -193,6 +193,24 @@ function Invoke-DataCleanup {
     }
 }
 
+# Ensure the solution search index exists
+function Invoke-EnsureSearchIndex {
+    Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
+    $searchEndpoint = Get-DeployValue "AZURE_SEARCH_ENDPOINT"
+    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
+    $openaiEndpoint = Get-DeployValue "AZURE_OPENAI_ENDPOINT"
+    $embeddingDeployment = Get-DeployValue "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
+    $idxArgs = @((Join-Path $PSScriptRoot "create_search_index.py"))
+    if ($searchEndpoint)      { $idxArgs += "--search-endpoint", $searchEndpoint }
+    if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
+    if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
+    if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
+    python @idxArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
+    }
+}
+
 # ── Interactive mode if no params ──
 if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
     # Build menu dynamically from scenarios.json
@@ -201,6 +219,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
     # Add scenarios
     foreach ($key in $scenarioConfig.scenarios.PSObject.Properties.Name) {
         $s = $scenarioConfig.scenarios.$key
+        if ($s.skip) { continue }
         $null = $menuItems.Add(@{ type = "scenario"; key = $key; name = $s.name; description = $s.description })
     }
 
@@ -261,9 +280,18 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             exit $LASTEXITCODE
         }
         "skip" {
+            Write-Host ""
             Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
-            Write-Host "Skipped. You can upload documents from the web UI." -ForegroundColor Yellow
-            exit 0
+            Write-Host "Skipped data loading. You can upload documents from the web UI." -ForegroundColor Yellow
+            Write-Host ""
+            Invoke-EnsureSearchIndex
+            Write-Host ""
+            Write-Host "Creating default AI agent with SQL and Azure AI Search tools..." -ForegroundColor Yellow
+            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario skip" -ForegroundColor Yellow
+            }
+            exit $LASTEXITCODE
         }
     }
 }
@@ -316,20 +344,7 @@ if ($Scenario) {
     }
 
     # Create the solution search index (seeded scenarios only)
-    Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
-    $searchEndpoint = Get-DeployValue "AZURE_SEARCH_ENDPOINT"
-    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
-    $openaiEndpoint = Get-DeployValue "AZURE_OPENAI_ENDPOINT"
-    $embeddingDeployment = Get-DeployValue "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
-    $idxArgs = @((Join-Path $PSScriptRoot "create_search_index.py"))
-    if ($searchEndpoint)      { $idxArgs += "--search-endpoint", $searchEndpoint }
-    if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
-    if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
-    if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
-    python @idxArgs
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
-    }
+    Invoke-EnsureSearchIndex
 
     # Contact Center has pre-processed data — use the direct seed path
     if ($pack.has_preprocessed -eq $true) {
