@@ -1,0 +1,18 @@
+{
+  "appTitle": "Knowledge Mining",
+  "useCaseName": "Telecom Analysis",
+  "modules": {
+    "chat": {
+      "enabled": true,
+      "label": "Explore"
+    },
+    "insights": {
+      "enabled": true,
+      "label": "Insights"
+    },
+    "sources": {
+      "enabled": true,
+      "label": "Sources"
+    }
+  }
+}

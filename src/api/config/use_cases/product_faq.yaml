@@ -1,0 +1,24 @@
+name: product_faq
+description: >
+  Product FAQ: ingest, filter FAQs, index for self-service search.
+input_types: ["faq_document"]
+tags: ["faq", "product"]
+priority: 8
+on_error:
+  strategy: fail_fast
+
+steps:
+  - name: ingest_data
+    kind: system
+    type: ingest
+
+  - name: select_faqs
+    kind: capability
+    capability: select
+    params:
+      where:
+        type: faq_document
+
+  - name: index_documents
+    kind: system
+    type: index_filtered

@@ -1,0 +1,394 @@
+"""Service for persisting documents to Azure Blob Storage and indexing in Azure AI Search."""
+
+import json
+import logging
+from typing import Optional
+from urllib.parse import quote
+
+from datetime import datetime, timedelta, timezone
+
+from azure.core.exceptions import ResourceNotFoundError
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient, ContentSettings, generate_blob_sas, BlobSasPermissions
+from azure.search.documents import SearchClient
+from azure.search.documents.indexes import SearchIndexClient
+
+from src.api.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+
+class AzureStorageService:
+    """Uploads documents to Azure Blob Storage and indexes them in Azure AI Search."""
+
+    def __init__(self):
+        self._blob_client: Optional[BlobServiceClient] = None
+        self._search_client: Optional[SearchClient] = None
+        self._credential = None
+        self._index_ensured = False
+
+    def _get_credential(self):
+        if self._credential is None:
+            self._credential = DefaultAzureCredential()
+        return self._credential
+
+    def _get_blob_client(self) -> BlobServiceClient:
+        if self._blob_client is None:
+            settings = get_settings()
+            url = f"https://{settings.azure_storage_account}.blob.core.windows.net"
+            self._blob_client = BlobServiceClient(
+                account_url=url, credential=self._get_credential()
+            )
+        return self._blob_client
+
+    def _get_search_client(self) -> SearchClient:
+        if self._search_client is None:
+            settings = get_settings()
+            self._search_client = SearchClient(
+                endpoint=settings.azure_search_endpoint,
+                index_name=settings.azure_search_index_name,
+                credential=self._get_credential(),
+            )
+        return self._search_client
+
+    def _ensure_search_index(self):
+        """Verify the search index exists. It is created by the setup script, not here."""
+        if self._index_ensured:
+            return
+        settings = get_settings()
+        index_client = SearchIndexClient(
+            endpoint=settings.azure_search_endpoint,
+            credential=self._get_credential(),
+        )
+        try:
+            index_client.get_index(settings.azure_search_index_name)
+        except ResourceNotFoundError as e:
+            raise RuntimeError(
+                f"Search index '{settings.azure_search_index_name}' not found. Run the data setup script first."
+            ) from e
+        except Exception as e:
+            logger.warning(f"Could not verify search index (continuing): {e}")
+        self._index_ensured = True
+
+    def upload_raw_file(self, file_id: str, filename: str, content: bytes) -> bool:
+        """Upload a raw file (PDF, DOCX, etc.) to blob storage for background processing."""
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return False
+        try:
+            blob_service = self._get_blob_client()
+            container = blob_service.get_container_client(settings.azure_storage_container)
+            if not container.exists():
+                container.create_container()
+
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            }
+            content_type = mime_map.get(ext, "application/octet-stream")
+
+            blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+            blob.upload_blob(
+                content,
+                overwrite=True,
+                content_settings=ContentSettings(content_type=content_type),
+            )
+            return True
+        except Exception as e:
+            import traceback
+            logger.error(f"Raw file upload failed for {filename}: {e}\n{traceback.format_exc()}")
+            return False
+
+    def download_raw_file(self, file_id: str, filename: str) -> bytes:
+        """Download a raw file from blob storage for retry processing."""
+        settings = get_settings()
+        blob_service = self._get_blob_client()
+        container = blob_service.get_container_client(settings.azure_storage_container)
+        blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+        return blob.download_blob().readall()
+
+    def get_raw_file_sas_url(self, file_id: str, filename: str) -> str | None:
+        """Generate a short-lived SAS URL for a raw file so CU can read it directly."""
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return None
+        try:
+            blob_path = f"raw/{file_id}/{filename}"
+            # Use user delegation key for Entra-only storage accounts
+            blob_service = self._get_blob_client()
+            delegation_key = blob_service.get_user_delegation_key(
+                key_start_time=datetime.now(timezone.utc),
+                key_expiry_time=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+            sas = generate_blob_sas(
+                account_name=settings.azure_storage_account,
+                container_name=settings.azure_storage_container,
+                blob_name=blob_path,
+                user_delegation_key=delegation_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+            encoded_path = quote(blob_path, safe="/")
+            return f"https://{settings.azure_storage_account}.blob.core.windows.net/{settings.azure_storage_container}/{encoded_path}?{sas}"
+        except Exception as e:
+            logger.warning(f"SAS URL generation failed for {file_id}/{filename}: {e}")
+            return None
+
+    def upload_to_blob(self, doc_id: str, doc_data: dict) -> bool:
+        """Upload a single document to blob storage."""
+        settings = get_settings()
+        try:
+            blob_service = self._get_blob_client()
+            container = blob_service.get_container_client(settings.azure_storage_container)
+
+            # Create container if needed
+            if not container.exists():
+                container.create_container()
+
+            blob = container.get_blob_client(f"{doc_id}.json")
+            blob.upload_blob(
+                json.dumps(doc_data, indent=2),
+                overwrite=True,
+                content_settings=ContentSettings(content_type="application/json"),
+            )
+            return True
+        except Exception as e:
+            logger.debug(f"Blob upload failed for {doc_id}: {e}")
+            return False
+
+    def index_in_search(self, documents: list[dict]) -> int:
+        """Index documents in Azure AI Search. Returns count of successfully indexed docs."""
+        if not documents:
+            return 0
+
+        self._ensure_search_index()
+        search_client = self._get_search_client()
+
+        # Ensure every document key is valid for Azure AI Search (letters, digits, _,
+        # -, =). Filenames may produce ids with '%' or spaces (e.g. '...04%3A00%3A00').
+        from src.api.modules.ingestion.chunking import sanitize_key
+        for doc in documents:
+            if "id" in doc:
+                doc["id"] = sanitize_key(str(doc["id"]))
+
+        indexed = 0
+        try:
+            result = search_client.upload_documents(documents=documents)
+            for r in result:
+                if r.succeeded:
+                    indexed += 1
+                else:
+                    logger.warning(f"Search index failed for {r.key}: {r.error_message}")
+        except Exception as e:
+            logger.warning(f"Search indexing failed: {e}")
+
+        return indexed
+
+    def index_chunks(self, doc_id: str, chunks: list[str], embeddings: list[list[float]],
+                     metadata: dict) -> int:
+        """Index document chunks with vector embeddings in Azure AI Search."""
+        if not chunks:
+            return 0
+
+        self._ensure_search_index()
+        search_client = self._get_search_client()
+
+        search_docs = []
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            # Deterministic chunk ID based on content hash — safe for upserts
+            from src.api.modules.ingestion.chunking import chunk_id
+            cid = chunk_id(doc_id, i, chunk)
+            search_docs.append({
+                "id": cid,
+                "doc_id": doc_id,
+                "chunk_index": i,
+                "text": chunk,
+                "summary": metadata.get("summary", ""),
+                "type": metadata.get("type", "unknown"),
+                "product": metadata.get("product", ""),
+                "category": metadata.get("category", ""),
+                "timestamp": metadata.get("timestamp", ""),
+                "source_file": metadata.get("source_file", ""),
+                "key_phrases": metadata.get("key_phrases", []),
+                "entities": metadata.get("entities", []),
+                "topics": metadata.get("topics", []),
+                "text_vector": embedding,
+            })
+
+        indexed = 0
+        # Upsert in batches of 100 — merge_or_upload ensures idempotency
+        for batch_start in range(0, len(search_docs), 100):
+            batch = search_docs[batch_start:batch_start + 100]
+            try:
+                result = search_client.merge_or_upload_documents(documents=batch)
+                for r in result:
+                    if r.succeeded:
+                        indexed += 1
+                    else:
+                        logger.warning(f"Chunk index failed for {r.key}: {r.error_message}")
+            except Exception as e:
+                logger.warning(f"Chunk batch indexing failed: {e}")
+
+        return indexed
+
+    def persist_documents(self, docs: list[dict]) -> dict:
+        """Upload docs to blob storage and index in search. Called after ingestion.
+
+        Args:
+            docs: List of raw document dicts with id, type, text, metadata keys.
+
+        Returns:
+            Summary dict with blob_uploaded and search_indexed counts.
+        """
+        blob_count = 0
+        blob_failed = 0
+        search_docs = []
+
+        for doc in docs:
+            # Upload to blob
+            if self.upload_to_blob(doc["id"], doc):
+                blob_count += 1
+            else:
+                blob_failed += 1
+
+            # Prepare for search indexing
+            text = doc.get("text", "")
+            if isinstance(text, list):
+                text = "\n".join(
+                    f"{seg.get('speaker', 'Unknown')}: {seg.get('text', '')}"
+                    for seg in text
+                )
+
+            search_docs.append({
+                "id": doc["id"],
+                "text": text,
+                "summary": doc.get("summary", ""),
+                "type": doc.get("type", "unknown"),
+                "product": doc.get("metadata", {}).get("product", ""),
+                "category": doc.get("metadata", {}).get("category", ""),
+                "timestamp": doc.get("metadata", {}).get("timestamp", ""),
+                "source_file": doc.get("metadata", {}).get("source_file", ""),
+                "key_phrases": doc.get("key_phrases", []),
+                "entities": [e.get("name", "") for e in doc.get("entities", []) if isinstance(e, dict)],
+                "topics": doc.get("topics", []),
+            })
+
+        if blob_failed > 0:
+            logger.warning(f"Blob upload: {blob_failed}/{len(docs)} failed (auth issue — assign 'Storage Blob Data Contributor')")
+
+        # Index in search
+        search_count = self.index_in_search(search_docs)
+
+        logger.info(f"Persisted {blob_count} to blob, {search_count} to search index")
+        return {"blob_uploaded": blob_count, "search_indexed": search_count}
+
+    def delete_file_data(self, file_id: str, filename: str, doc_ids: list[str], has_blobs: bool = True) -> dict:
+        """Delete all data for a file: blob, search index entries, and search chunks.
+
+        Args:
+            file_id: The file identifier
+            filename: The filename
+            doc_ids: List of document IDs to delete
+            has_blobs: Whether this file has blob storage (False for seed data)
+        """
+        result = {"blob_deleted": False, "search_docs_deleted": 0, "search_chunks_deleted": 0, "extracted_blob_deleted": False}
+
+        # Delete blobs for this file (only if it was uploaded, not seed data)
+        settings = get_settings()
+        if has_blobs and settings.azure_storage_account:
+            try:
+                blob_service = self._get_blob_client()
+                container = blob_service.get_container_client(settings.azure_storage_container)
+
+                # Delete raw blob (raw/{file_id}/{filename})
+                try:
+                    blob = container.get_blob_client(f"raw/{file_id}/{filename}")
+                    blob.delete_blob()
+                    result["blob_deleted"] = True
+                    logger.debug(f"Deleted raw blob: raw/{file_id}/{filename}")
+                except Exception as e:
+                    logger.debug(f"Raw blob delete failed for raw/{file_id}/{filename}: {e}")
+
+                # Delete extracted text blob (extracted/{file_id}/content.txt)
+                try:
+                    blob = container.get_blob_client(f"extracted/{file_id}/content.txt")
+                    blob.delete_blob()
+                    result["extracted_blob_deleted"] = True
+                    logger.debug(f"Deleted extracted blob: extracted/{file_id}/content.txt")
+                except Exception as e:
+                    logger.debug(f"Extracted blob delete failed for extracted/{file_id}/content.txt: {e}")
+
+                # Delete doc-level blobs ({doc_id}.json at container root,
+                # matching the path used by upload_to_blob)
+                for doc_id in doc_ids:
+                    try:
+                        blob = container.get_blob_client(f"{doc_id}.json")
+                        blob.delete_blob()
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning(f"Blob delete failed for {file_id}: {e}")
+
+        # Delete from AI Search: doc-level entries + all chunks
+        if settings.azure_search_endpoint:
+            try:
+                search_client = self._get_search_client()
+
+                # Delete doc-level entries
+                if doc_ids:
+                    search_client.delete_documents(documents=[{"id": did} for did in doc_ids])
+                    result["search_docs_deleted"] = len(doc_ids)
+
+                # Find and delete all chunks by doc_id filter
+                for doc_id in doc_ids:
+                    chunk_ids = []
+                    search_results = search_client.search(
+                        search_text="*",
+                        filter=f"doc_id eq '{doc_id}'",
+                        select=["id"],
+                        top=1000,
+                    )
+                    for r in search_results:
+                        chunk_ids.append(r["id"])
+                    if chunk_ids:
+                        for batch_start in range(0, len(chunk_ids), 100):
+                            batch = chunk_ids[batch_start:batch_start + 100]
+                            search_client.delete_documents(documents=[{"id": cid} for cid in batch])
+                        result["search_chunks_deleted"] += len(chunk_ids)
+            except Exception as e:
+                logger.warning(f"Search cleanup failed for {file_id}: {e}")
+
+        logger.info(f"Cleanup for file '{file_id}': {result}")
+        return result
+
+    def clear_all_blobs(self) -> int:
+        """Delete every blob in the storage container (raw/, extracted/, documents/, etc.).
+
+        Used when clearing all data before loading a new scenario so that stale
+        files from a previous scenario are not left behind in storage.
+        Returns the number of blobs deleted.
+        """
+        settings = get_settings()
+        if not settings.azure_storage_account:
+            return 0
+
+        deleted = 0
+        try:
+            blob_service = self._get_blob_client()
+            container = blob_service.get_container_client(settings.azure_storage_container)
+            blob_names = [b.name for b in container.list_blobs()]
+            for name in blob_names:
+                try:
+                    container.delete_blob(name)
+                    deleted += 1
+                except Exception:
+                    pass
+            logger.info(f"Cleared all blobs from container '{settings.azure_storage_container}': deleted {deleted}")
+        except Exception as e:
+            logger.warning(f"Failed to clear blobs: {e}")
+        return deleted
+
+
+azure_storage_service = AzureStorageService()

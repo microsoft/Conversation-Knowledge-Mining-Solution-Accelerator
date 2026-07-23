@@ -200,10 +200,7 @@ resource cognitiveService_deployments 'Microsoft.CognitiveServices/accounts/depl
     }
     sku: deployment.?sku ?? {
       name: sku
-      capacity: sku.?capacity
-      tier: sku.?tier
-      size: sku.?size
-      family: sku.?family
+      capacity: 10
     }
   }
 ]
@@ -431,4 +428,3 @@ type endpointType = {
   @description('The endpoint URI.')
   endpoint: string?
 }
-

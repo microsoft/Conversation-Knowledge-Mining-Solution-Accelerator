@@ -1,0 +1,532 @@
+/* ── Page shell ─────────────────────────────────────────────────────────────── */
+.page {
+  min-height: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f5f7fa 0%, #f1f3f7 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: 24px 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: visible;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .content { padding: 16px 16px 24px; gap: 14px; }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+.dashHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.dashTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.3px;
+}
+.dashMeta {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ── 1. Insight Strip ───────────────────────────────────────────────────────── */
+.insightStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 24px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  max-width: 360px;
+  white-space: normal;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+.chipRising  { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.chipFalling { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.chipAnomaly { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.chipNeutral { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+/* ── 2. KPI Overview ────────────────────────────────────────────────────────── */
+.kpiTileGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+.kpiTile {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  position: relative;
+  min-height: 110px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+.kpiTile:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+.kpiNum {
+  font-size: 36px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.kpiLbl {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-top: 6px;
+}
+.kpiTrend {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ── Shared section + card ──────────────────────────────────────────────────── */
+.sectionBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sectionHeading {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0 2px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+.card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+@media (max-width: 900px) { .card { padding: 16px; border-radius: 10px; } }
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 12px;
+  letter-spacing: -0.2px;
+}
+.cardDesc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.briefText {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── Dashboard 2-col grid ───────────────────────────────────────────────────── */
+.dashboardGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) { .dashboardGrid { grid-template-columns: 1fr; gap: 14px; } }
+
+.gridItem { display: flex; min-width: 0; }
+.gridItem > * { flex: 1; min-width: 0; }
+.gridItemFull { grid-column: 1 / -1; display: flex; min-width: 0; }
+.gridItemFull > * { flex: 1; min-width: 0; }
+
+/* ── 3. Topic Landscape treemap ─────────────────────────────────────────────── */
+.tmLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.tmChip {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 16px;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+/* ── 6. Sentiment ───────────────────────────────────────────────────────────── */
+.sentimentRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sentimentChips { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.sentimentChip  { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.sentimentSwatch{ width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.sentimentLabel { font-size: 13px; color: #475569; flex: 1; font-weight: 500; }
+.sentimentVal   { font-size: 14px; font-weight: 700; color: #0f172a; }
+
+/* ── 7. Relationship Graph SVG ──────────────────────────────────────────────── */
+.relSvg { width: 100%; display: block; }
+.relLegend {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  margin-top: 12px;
+}
+.emptySection { font-size: 13px; color: #94a3b8; padding: 32px 0; text-align: center; }
+
+/* ── 8. Entity Intelligence Table ───────────────────────────────────────────── */
+.entityTable { width: 100%; border-collapse: collapse; }
+.entityTable th {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+.entityTable td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #0f172a;
+  border-bottom: 1px solid #f3f4f6;
+}
+.entityTable tr:last-child td { border-bottom: none; }
+.entityTable tr:hover td { background: #f9fafb; }
+.miniBar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; width: 80px; }
+.miniBarFill { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.3s ease; }
+
+/* ── 9. Anomaly Panel ───────────────────────────────────────────────────────── */
+.anomalyGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.anomalyCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-left: 3px solid #dc2626;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.6;
+  transition: all 0.2s ease;
+}
+.anomalyCard:hover {
+  border-color: #fc8181;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.08);
+}
+.anomalyCardFull { flex-direction: column; align-items: stretch; }
+.anomalyIcon { font-size: 18px; flex-shrink: 0; }
+.anomalyText { flex: 1; }
+.anomalyRow  { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid #f8fafc; }
+.anomalyRow:last-child { border-bottom: none; }
+
+/* ── 10. Cross-Source Insights ──────────────────────────────────────────────── */
+.crossRow { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.crossLabel { font-size: 13px; color: #475569; width: 120px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.crossBarWrap { flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+.crossBar { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+.crossVal { font-size: 13px; font-weight: 700; color: #0f172a; width: 40px; text-align: right; }
+
+/* ── 11. Recommended Investigations ────────────────────────────────────────── */
+.recommendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 900px) { .recommendGrid { grid-template-columns: 1fr; } }
+
+.recommendCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+.recommendCard:hover { border-color: #2563eb; background: #eff6ff; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.08); }
+.recommendIdx {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.recommendText {
+  flex: 1;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  font-weight: 500;
+}
+.recommendArrow { font-size: 18px; color: #2563eb; opacity: 0; transition: opacity 0.2s ease; }
+.recommendCard:hover .recommendArrow { opacity: 1; transform: translateX(2px); }
+
+/* ── 12. Chat Entry ─────────────────────────────────────────────────────────── */
+.chatEntry {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+.chatEntry:hover {
+  background: #dfe9f8;
+  border-color: #93c5fd;
+}
+.chatEntryTitle { font-size: 15px; font-weight: 700; color: #1e40af; letter-spacing: -0.2px; }
+.chatEntrySub   { font-size: 13px; color: #1e40af; margin-top: 3px; opacity: 0.9; }
+
+/* ── Empty / Error ──────────────────────────────────────────────────────────── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 14px;
+  padding: 60px 28px;
+  color: #94a3b8;
+  text-align: center;
+}
+.empty h2 { font-size: 17px; font-weight: 700; color: #475569; margin: 0; letter-spacing: -0.2px; }
+.empty p  { margin: 0; font-size: 13px; color: #94a3b8; }
+
+/* ── Disclaimer ─────────────────────────────────────────────────────────────── */
+.disclaimer { text-align: center; font-size: 12px; color: #94a3b8; padding: 8px 0 3px; }
+
+/* ── AI FINDINGS - MODERN SLEEK DESIGN ──────────────────────────────────── */
+.sectionCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.sectionCard:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.sectionBody {
+  margin-top: 16px;
+}
+
+.insightGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .insightGrid { gap: 12px; }
+  .sectionCard { padding: 18px; }
+}
+
+.insightCard {
+  border: 1px solid #e5e7eb !important;
+  border-left: none !important;
+  border-radius: 10px;
+  padding: 0 !important;
+  background: #fff !important;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.insightCard:hover {
+  border-color: #d1d5db !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+.insightBody {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.findingsHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.severityRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scorePill {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  padding: 4px 10px;
+  background: #f3f4f6;
+  border-radius: 6px;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.tagRow > * {
+  font-size: 12px !important;
+  padding: 3px 10px !important;
+  border-radius: 6px !important;
+  color: #475569 !important;
+}
+
+.explainBox {
+  padding: 14px 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border-left: 3px solid #dbeafe;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.explainBox > * {
+  margin: 0 !important;
+}
+
+.explainBox > :first-child {
+  color: #0f172a !important;
+  font-size: 13px !important;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.explainBox > :not(:first-child) {
+  color: #475569 !important;
+  font-size: 13px !important;
+  line-height: 1.6;
+}
+
+/* Discovery/Exploration Grid */
+.discoveryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .discoveryGrid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
+
+.discoveryButton {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 13px;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #0f172a;
+  transition: all 0.2s ease;
+  text-align: center;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+.discoveryButton:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1e40af;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.1);
+}
+
+/* Timeline */
+.timelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.timelineItem {
+  padding: 14px 16px;
+  background: #f9fafb;
+  border-left: 3px solid #3b82f6;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.6;
+  transition: all 0.2s ease;
+}
+
+.timelineItem:hover {
+  background: #f3f4f6;
+  border-left-color: #2563eb;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+

@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
-      accelerator_name: "CKM"
+      accelerator_name: "KM"
     steps:
       - name: Determine Test Suite Display Name
         id: test_suite

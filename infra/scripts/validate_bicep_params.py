@@ -5,11 +5,11 @@ Validates that parameter names in *.parameters.json files exactly match
 the param declarations in their corresponding Bicep templates.
 
 Checks performed:
-  1. Whitespace  – parameter names must have no leading/trailing spaces.
-  2. Existence   – every JSON parameter must map to a `param` in the Bicep file.
-  3. Casing      – names must match exactly (case-sensitive).
-  4. Orphaned    – required Bicep params (no default) missing from the JSON file.
-  5. Env vars    – parameter values bound to environment variables must use the
+  1. Whitespace   parameter names must have no leading/trailing spaces.
+  2. Existence    every JSON parameter must map to a `param` in the Bicep file.
+  3. Casing       names must match exactly (case-sensitive).
+  4. Orphaned     required Bicep params (no default) missing from the JSON file.
+  5. Env vars     parameter values bound to environment variables must use the
                   AZURE_ENV_* naming convention, except for explicitly allowed
                   names (for example, AZURE_LOCATION, AZURE_EXISTING_AIPROJECT_RESOURCE_ID).
 
@@ -20,7 +20,7 @@ Usage:
   # Auto-discover all *.parameters.json files under infra/
   python validate_bicep_params.py --dir infra
 
-  # CI mode – exit code 1 on any error
+  # CI mode exit code 1 on any error
   python validate_bicep_params.py --dir infra --strict
 
 Returns exit-code 0 when no errors are found, 1 when errors are found (in --strict mode).

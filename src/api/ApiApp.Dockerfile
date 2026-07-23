@@ -8,21 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory inside the container
 WORKDIR /app
+COPY requirements.txt ./src/api/
+RUN pip install --no-cache-dir -r src/api/requirements.txt
 
-# Copy only the requirements file first to leverage Docker layer caching
-COPY ./requirements.txt .
+# Build context is ./src/api — recreate the src.api package layout
+COPY . ./src/api/
+RUN touch src/__init__.py
 
-# Install Python dependencies
-RUN pip install --upgrade pip setuptools wheel \ 
-    && pip install --no-cache-dir -r requirements.txt && rm -rf /root/.cache
+# Non-root user
+RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+USER appuser
 
-# Copy the backend application code into the container
-COPY ./ .
-
-# Expose port 80 for incoming traffic
-EXPOSE 80
-
-# Start the application using Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "80"]
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:8000/api/health || exit 1
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,1026 @@
+"""Connect an external data source to the Knowledge Mining app.
+
+Registers a data source connection directly in Azure SQL so the app can
+query it at runtime. No running backend required — works right after azd up.
+
+Supported sources: Azure AI Search, Microsoft Fabric.
+
+Prerequisites:
+  - Run `azd up` first (creates .env with SQL connection details)
+  - Your Azure identity must have SQL admin access on the deployed database
+
+Usage:
+  python infra/scripts/post-provision/connect-data.py                          # interactive prompts
+  python infra/scripts/post-provision/connect-data.py --type azure_search \\
+      --name "My Index" \\
+      --endpoint https://my-search.search.windows.net \\
+      --table my-index-name                               # non-interactive
+"""
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import struct
+import sys
+import uuid
+from urllib import request as urlrequest
+from urllib.parse import urlparse
+
+# ---------------------------------------------------------------------------
+# Load .env
+# ---------------------------------------------------------------------------
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
+env_path = os.path.join(project_root, ".env")
+
+if os.path.exists(env_path):
+    with open(env_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().split("#")[0].strip()
+                if key and value:
+                    os.environ.setdefault(key, value)
+else:
+    print("WARNING: .env file not found — using existing environment variables")
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+SQL_SERVER = os.getenv("AZURE_SQL_SERVER", "")
+SQL_DATABASE = os.getenv("AZURE_SQL_DATABASE", "km-db")
+
+# ---------------------------------------------------------------------------
+# Data source types
+# ---------------------------------------------------------------------------
+SOURCE_TYPES = {
+    "1": {
+        "type": "azure_search",
+        "label": "Azure AI Search",
+        "fields": ["endpoint", "table"],
+        "prompts": {
+            "endpoint": "Search endpoint (e.g. https://my-search.search.windows.net): ",
+            "table": "Index name: ",
+        },
+    },
+    "2": {
+        "type": "fabric",
+        "label": "Microsoft Fabric",
+        "fields": ["workspace_id", "endpoint", "database", "table"],
+        "prompts": {
+            "workspace_id": "Fabric workspace ID (GUID, for role assignment — press Enter to skip): ",
+            "endpoint": "SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ",
+            "database": "Lakehouse/Warehouse name: ",
+            "table": "Table name: ",
+        },
+    },
+}
+
+
+def _run_az_command(args: list[str]) -> tuple[int, str, str]:
+    """Run an Azure CLI/AZD command and return rc/stdout/stderr."""
+    if not args:
+        return 1, "", "No command provided"
+
+    exe = args[0]
+    resolved = shutil.which(exe)
+
+    # Windows can expose Azure CLIs via .cmd files and/or well-known install paths.
+    if not resolved and os.name == "nt":
+        for ext in (".cmd", ".exe", ".bat"):
+            resolved = shutil.which(f"{exe}{ext}")
+            if resolved:
+                break
+
+    if not resolved and os.name == "nt":
+        win_candidates = {
+            "az": [
+                r"C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+                r"C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin\az.cmd",
+            ],
+            "azd": [
+                os.path.expandvars(r"%USERPROFILE%\\.azd\\bin\\azd.exe"),
+                r"C:\Program Files\Azure Developer CLI\azd.exe",
+            ],
+        }
+        for candidate in win_candidates.get(exe, []):
+            if candidate and os.path.exists(candidate):
+                resolved = candidate
+                break
+
+    if not resolved:
+        return 127, "", f"Command not found: {exe}"
+
+    cmd = [resolved, *args[1:]]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        stdout, stderr = proc.communicate()
+        return proc.returncode, (stdout or "").strip(), (stderr or "").strip()
+    except OSError as e:
+        return 1, "", str(e)
+
+
+def get_azd_env_value(name: str) -> str:
+    """Read a value from the active azd environment, if available."""
+    rc, out, _ = _run_az_command(["azd", "env", "get-value", name])
+    if rc != 0:
+        return ""
+    return "" if out.startswith("ERROR:") else out
+
+
+def get_api_principal_context() -> tuple[str, str]:
+    """Resolve backend API principal ID and app name from env/azd/Azure."""
+    principal_id = (os.getenv("AZURE_API_PRINCIPAL_ID") or "").strip()
+    api_app_name = (os.getenv("API_APP_NAME") or "").strip()
+
+    if not principal_id:
+        principal_id = get_azd_env_value("AZURE_API_PRINCIPAL_ID")
+    if not api_app_name:
+        api_app_name = get_azd_env_value("API_APP_NAME")
+
+    if not api_app_name:
+        backend_uri = (os.getenv("SERVICE_BACKEND_URI") or get_azd_env_value("SERVICE_BACKEND_URI")).strip()
+        parsed = urlparse(backend_uri)
+        host = parsed.hostname or ""
+        if host.endswith(".azurewebsites.net"):
+            api_app_name = host.split(".")[0]
+
+    if not principal_id and api_app_name:
+        env_name = (os.getenv("AZURE_ENV_NAME") or get_azd_env_value("AZURE_ENV_NAME")).strip()
+        resource_group = (os.getenv("AZURE_RESOURCE_GROUP") or "").strip()
+        if not resource_group and env_name:
+            resource_group = f"rg-{env_name}"
+        if resource_group:
+            rc, out, _ = _run_az_command(
+                [
+                    "az",
+                    "webapp",
+                    "identity",
+                    "show",
+                    "--name",
+                    api_app_name,
+                    "--resource-group",
+                    resource_group,
+                    "--query",
+                    "principalId",
+                    "-o",
+                    "tsv",
+                ]
+            )
+            if rc == 0:
+                principal_id = out
+
+    return principal_id.strip(), api_app_name.strip()
+
+
+def get_search_service_resource_id(endpoint: str) -> str:
+    """Resolve the Azure resource ID for an Azure AI Search endpoint."""
+    endpoint = normalize_endpoint(endpoint)
+    host = urlparse(endpoint).hostname or ""
+    if not host.endswith(".search.windows.net"):
+        return ""
+
+    service_name = host.split(".")[0]
+    if not service_name:
+        return ""
+
+    rc, out, _ = _run_az_command(
+        [
+            "az",
+            "resource",
+            "list",
+            "--name",
+            service_name,
+            "--resource-type",
+            "Microsoft.Search/searchServices",
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ]
+    )
+    if rc != 0:
+        return ""
+    return out.strip()
+
+
+# Well-known Azure built-in role definition GUIDs (stable across tenants/locales, unlike display
+# names). See https://learn.microsoft.com/azure/search/search-security-rbac#assign-built-in-roles
+# and https://learn.microsoft.com/azure/role-based-access-control/built-in-roles.
+ROLE_READER = "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+ROLE_OWNER = "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
+ROLE_CONTRIBUTOR = "b24988ac-6180-42a0-ab88-20f7382dd24c"
+ROLE_SEARCH_SERVICE_CONTRIBUTOR = "7ca78c08-252a-4471-8644-bb5ff32d4ba0"
+ROLE_SEARCH_INDEX_DATA_READER = "1407120a-92aa-4202-b7e9-c0e197c71c8f"
+ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR = "8ebe5a00-799e-43f5-93ac-243d3dce84a7"
+
+# Display names, used only for console output.
+ROLE_NAMES = {
+    ROLE_READER: "Reader",
+    ROLE_OWNER: "Owner",
+    ROLE_CONTRIBUTOR: "Contributor",
+    ROLE_SEARCH_SERVICE_CONTRIBUTOR: "Search Service Contributor",
+    ROLE_SEARCH_INDEX_DATA_READER: "Search Index Data Reader",
+    ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR: "Search Index Data Contributor",
+}
+
+
+def _has_any_role(principal_id: str, scope: str, role_ids: tuple[str, ...]) -> bool:
+    """Check whether the principal already has any of the given roles at/above scope (inherited included)."""
+    rc, existing, _ = _run_az_command(
+        ["az", "role", "assignment", "list", "--assignee-object-id", principal_id,
+         "--scope", scope, "--query", "[].roleDefinitionId", "-o", "tsv"]
+    )
+    if rc != 0 or not existing:
+        return False
+    # roleDefinitionId is a full resource ID; compare by trailing GUID.
+    assigned = {line.rsplit("/", 1)[-1].lower() for line in existing.splitlines()}
+    return any(role_id.lower() in assigned for role_id in role_ids)
+
+
+def _assign_role_if_missing(
+    principal_id: str, principal_type: str, scope: str, role_id: str, identity_label: str,
+    equivalent_roles: tuple[str, ...] = (),
+) -> bool:
+    """Create a role assignment unless the principal already has this role or an equivalent
+    one (e.g. Contributor already implies Reader's list-objects permission). Returns True if
+    the role requirement is satisfied afterward."""
+    role_name = ROLE_NAMES.get(role_id, role_id)
+
+    if equivalent_roles and _has_any_role(principal_id, scope, equivalent_roles):
+        print(f"  [OK] {identity_label} already has a role equivalent to {role_name} on external search")
+        return True
+
+    rc, existing, _ = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "list",
+            "--assignee-object-id",
+            principal_id,
+            "--scope",
+            scope,
+            "--role",
+            role_id,
+            "--query",
+            "[0].id",
+            "-o",
+            "tsv",
+        ]
+    )
+    if rc == 0 and existing:
+        print(f"  [OK] RBAC already exists: {role_name} on external search for {identity_label}")
+        return True
+
+    rc, _, err = _run_az_command(
+        [
+            "az",
+            "role",
+            "assignment",
+            "create",
+            "--assignee-object-id",
+            principal_id,
+            "--assignee-principal-type",
+            principal_type,
+            "--scope",
+            scope,
+            "--role",
+            role_id,
+        ]
+    )
+    if rc == 0:
+        print(f"  [OK] Granted {role_name} on external search to {identity_label}")
+        return True
+
+    print(f"  [WARN] Failed to grant {role_name} role automatically: {err}")
+    return False
+
+
+def ensure_search_index_reader_role(endpoint: str) -> None:
+    """Grant API managed identity Search Index Data Reader on external search service."""
+    principal_id, app_name = get_api_principal_context()
+    if not principal_id:
+        print("  [WARN] Could not resolve API managed identity principal ID; skipping Search RBAC assignment.")
+        return
+
+    scope = get_search_service_resource_id(endpoint)
+    if not scope:
+        print("  [WARN] Could not resolve Azure AI Search resource ID from endpoint; skipping Search RBAC assignment.")
+        return
+
+    identity_label = f"{app_name} ({principal_id})" if app_name else principal_id
+    _assign_role_if_missing(
+        principal_id, "ServicePrincipal", scope, ROLE_SEARCH_INDEX_DATA_READER, identity_label,
+        equivalent_roles=(ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR,),
+    )
+
+
+def get_signed_in_user_principal() -> tuple[str, str]:
+    """Resolve the (object ID, principal type) of the current `az login` identity."""
+    rc, out, _ = _run_az_command(["az", "ad", "signed-in-user", "show", "--query", "id", "-o", "tsv"])
+    if rc == 0 and out:
+        return out.strip(), "User"
+
+    # `az ad signed-in-user` only works for user principals; fall back for service-principal logins.
+    rc, out, _ = _run_az_command(["az", "account", "show", "--query", "user.name", "-o", "tsv"])
+    if rc != 0 or not out:
+        return "", ""
+    rc, out, _ = _run_az_command(["az", "ad", "sp", "show", "--id", out.strip(), "--query", "id", "-o", "tsv"])
+    if rc == 0 and out:
+        return out.strip(), "ServicePrincipal"
+    return "", ""
+
+
+# Roles that already satisfy each requirement, per
+# https://learn.microsoft.com/azure/search/search-security-rbac#summary-of-permissions
+# "List all objects on the service" (control plane): Owner/Contributor/Reader/Search Service Contributor.
+_LIST_OBJECTS_ROLES = (ROLE_OWNER, ROLE_CONTRIBUTOR, ROLE_READER, ROLE_SEARCH_SERVICE_CONTRIBUTOR)
+# "Query an index" (data plane): only the two Search Index Data roles — Owner/Contributor do NOT
+# grant this via RBAC (they can only retrieve admin keys and query out-of-band).
+_QUERY_INDEX_ROLES = (ROLE_SEARCH_INDEX_DATA_READER, ROLE_SEARCH_INDEX_DATA_CONTRIBUTOR)
+
+
+def ensure_user_search_roles(endpoint: str) -> None:
+    """Grant the signed-in identity Reader (index auto-discovery) and Search Index Data Reader
+    (connection test) on the external search service, skipping roles already covered by an
+    equivalent/broader role (e.g. inherited Contributor). Requires role-assignment permission
+    (Owner / User Access Administrator); failures warn and are non-fatal.
+    """
+    principal_id, principal_type = get_signed_in_user_principal()
+    if not principal_id:
+        print("  [WARN] Could not resolve signed-in identity; skipping automatic Search RBAC assignment for your account.")
+        print("         Ensure your account has Reader and Search Index Data Reader on the search service.")
+        return
+
+    scope = get_search_service_resource_id(endpoint)
+    if not scope:
+        print("  [WARN] Could not resolve Azure AI Search resource ID from endpoint; skipping Search RBAC assignment.")
+        return
+
+    identity_label = "your signed-in identity"
+    _assign_role_if_missing(principal_id, principal_type, scope, ROLE_READER, identity_label,
+                             equivalent_roles=_LIST_OBJECTS_ROLES)
+    _assign_role_if_missing(principal_id, principal_type, scope, ROLE_SEARCH_INDEX_DATA_READER, identity_label,
+                             equivalent_roles=_QUERY_INDEX_ROLES)
+
+
+def _parse_foundry_account_project() -> tuple[str, str]:
+    """Parse the Foundry account and project names from AZURE_AI_AGENT_ENDPOINT."""
+    endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or "").strip()
+    if not endpoint:
+        return "", ""
+    parsed = urlparse(endpoint)
+    account = (parsed.hostname or "").split(".")[0]  # e.g. aif-<token>
+    project = ""
+    parts = [p for p in parsed.path.split("/") if p]
+    if "projects" in parts:
+        idx = parts.index("projects")
+        if idx + 1 < len(parts):
+            project = parts[idx + 1]
+    return account, project
+
+
+def _get_subscription_id() -> str:
+    rc, out, _ = _run_az_command(["az", "account", "show", "--query", "id", "-o", "tsv"])
+    return out.strip() if rc == 0 else ""
+
+
+def _get_resource_group() -> str:
+    rg = (os.getenv("RESOURCE_GROUP_NAME") or os.getenv("AZURE_RESOURCE_GROUP") or "").strip()
+    if not rg:
+        rg = (get_azd_env_value("RESOURCE_GROUP_NAME") or get_azd_env_value("AZURE_RESOURCE_GROUP")).strip()
+    return rg
+
+
+def ensure_foundry_search_connection(endpoint: str) -> str:
+    """Create/update a Foundry project connection that targets the BYOD search
+    endpoint, grant the Foundry project identity read access on it, and return
+    the connection name (empty string on failure)."""
+    endpoint = normalize_endpoint(endpoint)
+    if not endpoint:
+        return ""
+
+    account, project = _parse_foundry_account_project()
+    if not account or not project:
+        print("  [WARN] Could not parse Foundry account/project from AZURE_AI_AGENT_ENDPOINT; skipping search connection.")
+        return ""
+
+    subscription = _get_subscription_id()
+    resource_group = _get_resource_group()
+    if not subscription or not resource_group:
+        print("  [WARN] Could not resolve subscription/resource group; skipping search connection.")
+        return ""
+
+    search_resource_id = get_search_service_resource_id(endpoint)
+    if not search_resource_id:
+        print("  [WARN] Could not resolve BYOD search resource ID; skipping search connection.")
+        return ""
+
+    rc, location, _ = _run_az_command(
+        ["az", "resource", "show", "--ids", search_resource_id, "--query", "location", "-o", "tsv"]
+    )
+    location = location.strip() if rc == 0 else ""
+
+    service_name = (urlparse(endpoint).hostname or "").split(".")[0]
+    conn_name = f"byod-{service_name}"[:60]
+    api_version = "2025-10-01-preview"
+
+    conn_url = (
+        f"https://management.azure.com/subscriptions/{subscription}"
+        f"/resourceGroups/{resource_group}/providers/Microsoft.CognitiveServices"
+        f"/accounts/{account}/projects/{project}/connections/{conn_name}"
+        f"?api-version={api_version}"
+    )
+    body = {
+        "properties": {
+            "category": "CognitiveSearch",
+            "target": endpoint,
+            "authType": "AAD",
+            "isSharedToAll": True,
+            "metadata": {"ApiType": "Azure", "ResourceId": search_resource_id, "location": location},
+        }
+    }
+
+    import tempfile
+    body_path = ""
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as bf:
+            json.dump(body, bf)
+            body_path = bf.name
+        rc, _, err = _run_az_command(
+            ["az", "rest", "--method", "put", "--url", conn_url, "--body", f"@{body_path}"]
+        )
+        if rc != 0:
+            print(f"  [WARN] Failed to create Foundry search connection: {err}")
+            return ""
+        print(f"  [OK] Foundry search connection '{conn_name}' -> {endpoint}")
+    finally:
+        if body_path:
+            try:
+                os.unlink(body_path)
+            except OSError:
+                pass
+
+    # The connection uses AAD, so the agent's search tool authenticates as the
+    # Foundry project identity — grant it read access on the external search.
+    project_resource_id = (
+        f"/subscriptions/{subscription}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.CognitiveServices/accounts/{account}/projects/{project}"
+    )
+    project_api_version = "2025-06-01"
+    project_principal_id = ""
+    rc, out, _ = _run_az_command(
+        [
+            "az", "resource", "show", "--ids", project_resource_id,
+            "--api-version", project_api_version,
+            "--query", "identity.principalId", "-o", "tsv",
+        ]
+    )
+    if rc == 0 and out.strip():
+        project_principal_id = out.strip()
+    else:
+        rc, proj_out, _ = _run_az_command(
+            [
+                "az", "rest", "--method", "get",
+                "--url", f"https://management.azure.com{project_resource_id}?api-version={project_api_version}",
+            ]
+        )
+        if rc == 0 and proj_out:
+            try:
+                project_principal_id = (json.loads(proj_out).get("identity") or {}).get("principalId", "")
+            except (json.JSONDecodeError, AttributeError):
+                project_principal_id = ""
+
+    if not project_principal_id:
+        print("  [WARN] Could not resolve Foundry project identity; connection may lack search access.")
+        return conn_name
+
+    # The agent's search tool needs both roles (matches the solution's own search RBAC):
+    #   - Search Index Data Reader   → query documents
+    #   - Search Service Contributor → resolve/describe the index
+    identity_label = f"Foundry project ({project_principal_id})"
+    for role_id in (ROLE_SEARCH_INDEX_DATA_READER, ROLE_SEARCH_SERVICE_CONTRIBUTOR):
+        _assign_role_if_missing(project_principal_id, "ServicePrincipal", search_resource_id, role_id, identity_label)
+    return conn_name
+
+
+def ensure_fabric_workspace_contributor_role(workspace_id: str) -> None:
+    """Assign Fabric workspace Contributor role to the API's managed identity.
+
+    The API authenticates to Fabric SQL via DefaultAzureCredential (managed identity).
+    For that to succeed, the identity must be a workspace member with at least
+    Contributor access.
+
+    Args:
+        workspace_id: Fabric workspace GUID.
+    """
+    principal_id, api_app_name = get_api_principal_context()
+    if not principal_id:
+        print("  [WARN] Could not resolve API managed identity principal ID; skipping Fabric role assignment.")
+        return
+
+    import urllib.request as _urlreq
+    import urllib.error as _urlerr
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://api.fabric.microsoft.com/.default").token
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+    url = f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/roleAssignments"
+    body = json.dumps({
+        "principal": {"id": principal_id, "type": "ServicePrincipal"},
+        "role": "Contributor",
+    }).encode()
+
+    req = _urlreq.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with _urlreq.urlopen(req, timeout=30) as resp:
+            if resp.status == 201:
+                identity_label = f"{api_app_name} ({principal_id})" if api_app_name else principal_id
+                print(f"  [OK] Contributor role assigned on Fabric workspace to {identity_label}")
+    except _urlerr.HTTPError as e:
+        if e.code == 409:
+            print("  [OK] Fabric workspace role assignment already exists")
+        else:
+            print(f"  [WARN] Failed to assign Fabric workspace role. HTTP {e.code}: {e.read().decode()[:200]}")
+    except Exception as e:
+        print(f"  [WARN] Failed to assign Fabric workspace role: {e}")
+
+
+def normalize_endpoint(endpoint: str) -> str:
+    """Return an https endpoint without trailing slash."""
+    endpoint = (endpoint or "").strip()
+    if not endpoint:
+        return endpoint
+    if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+        endpoint = f"https://{endpoint}"
+    return endpoint.rstrip("/")
+
+
+def list_azure_search_indexes(endpoint: str) -> list[str]:
+    """List index names from an Azure AI Search service using Entra auth."""
+    endpoint = normalize_endpoint(endpoint)
+    if not endpoint:
+        return []
+
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://search.azure.com/.default")
+    req = urlrequest.Request(
+        f"{endpoint}/indexes?api-version=2024-07-01",
+        headers={
+            "Authorization": f"Bearer {token.token}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+
+    with urlrequest.urlopen(req, timeout=20) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+        values = payload.get("value", []) if isinstance(payload, dict) else []
+        return [item.get("name") for item in values if isinstance(item, dict) and item.get("name")]
+
+
+def resolve_azure_search_index(config: dict, interactive: bool) -> dict:
+    """Ensure Azure AI Search config has index name; discover indexes when missing."""
+    if config.get("source_type") != "azure_search":
+        return config
+
+    config["endpoint"] = normalize_endpoint(config.get("endpoint", ""))
+    current_index = (config.get("table_or_query") or "").strip()
+    if current_index:
+        config["table_or_query"] = current_index
+        return config
+
+    try:
+        indexes = list_azure_search_indexes(config.get("endpoint", ""))
+    except Exception as e:
+        if interactive:
+            print(f"\n  Could not auto-discover indexes: {e}")
+            manual = input("  Enter index name manually: ").strip()
+            config["table_or_query"] = manual
+            return config
+        raise RuntimeError(
+            "Index name is required for Azure AI Search. Auto-discovery failed; pass --table <index-name>."
+        ) from e
+
+    if not indexes:
+        if interactive:
+            manual = input("\n  No indexes found. Enter index name manually: ").strip()
+            config["table_or_query"] = manual
+            return config
+        raise RuntimeError(
+            "No indexes were found on this Azure AI Search endpoint. "
+            "Confirm the endpoint is correct, then pass --table <index-name> if it exists."
+        )
+
+    if len(indexes) == 1:
+        config["table_or_query"] = indexes[0]
+        print(f"\n  Auto-selected index: {indexes[0]}")
+        return config
+
+    if interactive:
+        print("\n  Available indexes:")
+        for i, idx in enumerate(indexes, start=1):
+            print(f"    {i}. {idx}")
+        while True:
+            choice = input(f"  Select index (1-{len(indexes)}): ").strip()
+            if choice.isdigit() and 1 <= int(choice) <= len(indexes):
+                config["table_or_query"] = indexes[int(choice) - 1]
+                return config
+            print("  Invalid selection.")
+
+    raise RuntimeError(
+        "Multiple indexes found. Pass --table <index-name> or run without CLI args for interactive selection."
+    )
+
+
+# ---------------------------------------------------------------------------
+# SQL helpers
+# ---------------------------------------------------------------------------
+def get_sql_connection():
+    """Connect to Azure SQL with Entra ID (passwordless)."""
+    import pyodbc
+    from azure.identity import DefaultAzureCredential
+
+    credential = DefaultAzureCredential()
+    token = credential.get_token("https://database.windows.net/.default")
+    token_bytes = token.token.encode("utf-16-le")
+    token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
+
+    conn_str = (
+        f"Driver={{ODBC Driver 18 for SQL Server}};"
+        f"Server={SQL_SERVER};"
+        f"Database={SQL_DATABASE};"
+        f"Encrypt=yes;TrustServerCertificate=no;"
+    )
+    return pyodbc.connect(conn_str, attrs_before={1256: token_struct})
+
+
+def ensure_table(conn):
+    """Create external_data_sources table if it doesn't exist."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'external_data_sources')
+        CREATE TABLE external_data_sources (
+            id NVARCHAR(255) PRIMARY KEY,
+            name NVARCHAR(500),
+            source_type NVARCHAR(50),
+            connection_string NVARCHAR(MAX),
+            endpoint NVARCHAR(500),
+            database_name NVARCHAR(500),
+            table_or_query NVARCHAR(MAX),
+            auth_method NVARCHAR(50),
+            field_mapping NVARCHAR(MAX),
+            query_mode NVARCHAR(50),
+            status NVARCHAR(50),
+            doc_count INT DEFAULT 0,
+            last_sync NVARCHAR(100),
+            error_message NVARCHAR(MAX),
+            created_at DATETIME2 DEFAULT GETUTCDATE(),
+            updated_at DATETIME2 DEFAULT GETUTCDATE()
+        )
+    """)
+    conn.commit()
+
+
+def save_data_source(conn, data: dict):
+    """Upsert a data source row into Azure SQL."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        MERGE external_data_sources AS target
+        USING (SELECT ? AS id) AS source ON target.id = source.id
+        WHEN MATCHED THEN UPDATE SET
+            name=?, source_type=?, connection_string=?, endpoint=?,
+            database_name=?, table_or_query=?, auth_method=?,
+            field_mapping=?, query_mode=?, status=?, doc_count=?,
+            last_sync=?, error_message=?, updated_at=GETUTCDATE()
+        WHEN NOT MATCHED THEN INSERT
+            (id, name, source_type, connection_string, endpoint,
+             database_name, table_or_query, auth_method,
+             field_mapping, query_mode, status, doc_count,
+             last_sync, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """,
+        data["id"],
+        data["name"], data["source_type"],
+        data.get("connection_string", ""), data.get("endpoint", ""),
+        data.get("database", ""), data.get("table_or_query", ""),
+        data.get("auth_method", "managed_identity"),
+        json.dumps(data.get("field_mapping", {})),
+        data.get("query_mode", "both"), data.get("status", "disconnected"),
+        data.get("doc_count", 0), data.get("last_sync", ""),
+        data.get("error_message", ""),
+        # INSERT values
+        data["id"],
+        data["name"], data["source_type"],
+        data.get("connection_string", ""), data.get("endpoint", ""),
+        data.get("database", ""), data.get("table_or_query", ""),
+        data.get("auth_method", "managed_identity"),
+        json.dumps(data.get("field_mapping", {})),
+        data.get("query_mode", "both"), data.get("status", "disconnected"),
+        data.get("doc_count", 0), data.get("last_sync", ""),
+        data.get("error_message", ""),
+    )
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Connection testing (uses the adapter classes directly)
+# ---------------------------------------------------------------------------
+def test_source_connection(config: dict) -> dict:
+    """Test the data source connection using the app's adapter classes."""
+    # Add repo root to path so imports using `src.*` resolve consistently.
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    from src.api.modules.data_sources.base import DataSourceConfig, DataSourceType
+
+    adapter_map = {
+        "azure_search": "src.api.modules.data_sources.azure_search",
+        "fabric": "src.api.modules.data_sources.fabric",
+    }
+
+    source_type = config["source_type"]
+    module_path = adapter_map.get(source_type)
+    if not module_path:
+        return {"success": False, "row_count": 0, "message": f"Unknown type: {source_type}"}
+
+    import importlib
+    mod = importlib.import_module(module_path)
+    # Each module has one class that ends with DataSource
+    adapter_cls = None
+    for attr_name in dir(mod):
+        obj = getattr(mod, attr_name)
+        if isinstance(obj, type) and attr_name.endswith("DataSource") and attr_name != "BaseExternalDataSource":
+            adapter_cls = obj
+            break
+
+    if not adapter_cls:
+        return {"success": False, "row_count": 0, "message": f"No adapter found for {source_type}"}
+
+    ds_config = DataSourceConfig(
+        name=config.get("name", ""),
+        source_type=DataSourceType(source_type),
+        connection_string=config.get("connection_string", ""),
+        endpoint=config.get("endpoint", ""),
+        database=config.get("database", ""),
+        table_or_query=config.get("table_or_query", ""),
+    )
+
+    adapter = adapter_cls()
+    return adapter.test_connection(ds_config)
+
+
+# ---------------------------------------------------------------------------
+# Interactive prompts
+# ---------------------------------------------------------------------------
+def interactive_prompts() -> dict:
+    """Gather data source config via interactive prompts."""
+    print()
+    print("Select a data source type:")
+    print()
+    for key, info in SOURCE_TYPES.items():
+        print(f"  {key}. {info['label']}")
+    print()
+
+    choice = input("Enter choice (1-2): ").strip()
+    if choice not in SOURCE_TYPES:
+        print(f"Invalid choice: {choice}")
+        sys.exit(1)
+
+    source = SOURCE_TYPES[choice]
+    print(f"\nConfiguring {source['label']}...")
+    print()
+
+    name = input("Display name for this data source: ").strip()
+    if not name:
+        name = source["label"]
+
+    config = {"name": name, "source_type": source["type"]}
+
+    for field in source["fields"]:
+        # For Azure AI Search, index can be auto-discovered from endpoint.
+        if source["type"] == "azure_search" and field == "table":
+            value = input("Index name (optional, press Enter to auto-discover): ").strip()
+        else:
+            value = input(source["prompts"][field]).strip()
+        if field == "table":
+            config["table_or_query"] = value
+        elif field == "connection_string":
+            config["connection_string"] = value
+        else:
+            config[field] = value
+
+    return config
+
+
+def prompt_missing_fields(config: dict) -> dict:
+    """When --type is provided but required values are missing, prompt for them."""
+    source_type = (config.get("source_type") or "").strip()
+
+    if source_type == "azure_search":
+        if not (config.get("endpoint") or "").strip():
+            config["endpoint"] = normalize_endpoint(
+                input("Search endpoint (e.g. https://my-search.search.windows.net): ").strip()
+            )
+        if not (config.get("table_or_query") or "").strip():
+            config["table_or_query"] = input("Index name (optional, press Enter to auto-discover): ").strip()
+
+    elif source_type == "fabric":
+        if not (config.get("workspace_id") or "").strip():
+            workspace_id = input("Fabric workspace ID (GUID, for role assignment — press Enter to skip): ").strip()
+            if workspace_id:
+                config["workspace_id"] = workspace_id
+        if not (config.get("endpoint") or "").strip():
+            config["endpoint"] = input("SQL endpoint (e.g. your-server.database.fabric.microsoft.com): ").strip()
+        if not (config.get("database") or "").strip():
+            config["database"] = input("Lakehouse/Warehouse name: ").strip()
+        if not (config.get("table_or_query") or "").strip():
+            config["table_or_query"] = input("Table name: ").strip()
+
+    return config
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(description="Connect a data source to Knowledge Mining")
+    parser.add_argument("--type", choices=["azure_search", "fabric"],
+                        help="Data source type")
+    parser.add_argument("--name", help="Display name")
+    parser.add_argument("--endpoint", help="Service endpoint URL")
+    parser.add_argument("--database", help="Database/lakehouse name")
+    parser.add_argument("--table", help="Table or index name")
+    parser.add_argument("--connection-string", help="ODBC connection string")
+    parser.add_argument("--workspace-id", help="Fabric workspace ID (GUID) for role assignment")
+    args = parser.parse_args()
+
+    print()
+    print("========================================")
+    print("  Knowledge Mining — Connect Data Source")
+    print("========================================")
+
+    # Validate SQL config
+    if not SQL_SERVER:
+        print("\nERROR: AZURE_SQL_SERVER not set.")
+        print("Make sure you have run 'azd up' and a .env file exists.")
+        sys.exit(1)
+
+    # Interactive when user did not pass --type, OR when --type was passed
+    # without all required values and the terminal can accept prompts.
+    is_interactive = not bool(args.type)
+    if args.type and sys.stdin.isatty():
+        if args.type == "azure_search":
+            is_interactive = is_interactive or not (args.endpoint and args.table)
+        elif args.type == "fabric":
+            is_interactive = is_interactive or not (args.endpoint and args.database and args.table)
+
+    if args.type:
+        config = {
+            "name": args.name or args.type,
+            "source_type": args.type,
+            "endpoint": normalize_endpoint(args.endpoint or ""),
+            "database": args.database or "",
+            "table_or_query": args.table or "",
+            "connection_string": args.connection_string or "",
+            "workspace_id": getattr(args, "workspace_id", None) or os.getenv("FABRIC_WORKSPACE_ID", ""),
+        }
+        if is_interactive:
+            config = prompt_missing_fields(config)
+    else:
+        config = interactive_prompts()
+
+    if config.get("source_type") == "azure_search" and config.get("endpoint"):
+        print("\n  Checking your access to the external Azure AI Search service...")
+        ensure_user_search_roles(config["endpoint"])
+
+    try:
+        config = resolve_azure_search_index(config, interactive=is_interactive)
+    except Exception as e:
+        print(f"\n  [FAIL] {e}")
+        sys.exit(1)
+
+    print(f"\n  Type    : {config['source_type']}")
+    print(f"  Name    : {config['name']}")
+    if config.get("endpoint"):
+        print(f"  Endpoint: {config['endpoint']}")
+    if config.get("table_or_query"):
+        print(f"  Table   : {config['table_or_query']}")
+
+    # Step 1: Test connection
+    print("\n  Testing connection...")
+    try:
+        result = test_source_connection(config)
+    except Exception as e:
+        result = {"success": False, "row_count": 0, "message": str(e)}
+
+    if result["success"]:
+        row_count = result.get("row_count", 0)
+        print(f"  [OK] Connected — {row_count} rows found")
+        config["status"] = "connected"
+        config["doc_count"] = row_count
+        config["error_message"] = ""
+    else:
+        print(f"  [FAIL] {result.get('message', 'Connection failed')}")
+        retry = input("\n  Register anyway? (y/N): ").strip().lower()
+        if retry != "y":
+            sys.exit(1)
+        config["status"] = "error"
+        config["doc_count"] = 0
+        config["error_message"] = result.get("message", "")
+
+    # Step 2: Write to Azure SQL
+    print(f"\n  Registering in Azure SQL ({SQL_SERVER})...")
+    config["id"] = str(uuid.uuid4())[:12]
+
+    try:
+        conn = get_sql_connection()
+        ensure_table(conn)
+        save_data_source(conn, config)
+        conn.close()
+        print(f"  [OK] Data source '{config['name']}' registered (id: {config['id']})")
+    except Exception as e:
+        print(f"  [FAIL] SQL write failed: {e}")
+        sys.exit(1)
+
+    if config.get("source_type") == "azure_search":
+        print("\n  Assigning API app access to external Azure AI Search...")
+        ensure_search_index_reader_role(config.get("endpoint", ""))
+        print("\n  Creating AI Foundry connection to external Azure AI Search...")
+        config["search_connection"] = ensure_foundry_search_connection(config.get("endpoint", ""))
+
+    elif config.get("source_type") == "fabric":
+        workspace_id = (config.get("workspace_id") or os.getenv("FABRIC_WORKSPACE_ID", "")).strip()
+        if workspace_id:
+            print("\n  Assigning API app access to Fabric workspace...")
+            ensure_fabric_workspace_contributor_role(workspace_id)
+        else:
+            print("\n  [SKIP] Fabric workspace role assignment skipped — workspace ID not provided.")
+            print("         Provide --workspace-id or set FABRIC_WORKSPACE_ID to grant the API managed identity access.")
+
+    # Step 3: Notify the running backend so it reloads the data source into memory.
+    # This makes the source visible in the UI immediately without restarting the API.
+    backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+    try:
+        import urllib.request as _urlreq
+        payload = json.dumps({
+            "name": config["name"],
+            "source_type": config["source_type"],
+            "endpoint": config.get("endpoint", ""),
+            "database": config.get("database", ""),
+            "table_or_query": config.get("table_or_query", ""),
+            "auth_method": "managed_identity",
+            "query_mode": "live",
+        }).encode()
+        req = _urlreq.Request(
+            f"{backend_url}/api/data-sources/",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        admin_key = os.getenv("ADMIN_API_KEY", "")
+        if admin_key:
+            req.add_header("X-Admin-Api-Key", admin_key)
+        with _urlreq.urlopen(req, timeout=5) as resp:
+            if resp.status in (200, 201):
+                print(f"  [OK] Backend notified — source is live in the app")
+    except Exception as e:
+        print(f"  [INFO] Could not notify backend ({e}) — source will appear after backend restart")
+
+    print(f"\n{'='*40}")
+    print("  Done!")
+    print(f"{'='*40}")
+    print(f"\n  The app will query this source at runtime.")
+    print(f"  No data was moved — queries go directly to your source.")
+    print()
+
+    # Write connection details to a temp file so the calling PowerShell script
+    # can read the actual index/table name after interactive prompts.
+    last_conn_path = os.path.join(project_root, ".last_byod_connection.json")
+    try:
+        last_conn = {
+            "source_type": config.get("source_type", ""),
+            "source_id": config.get("id", ""),
+            "name": config.get("name", ""),
+            "table_or_query": config.get("table_or_query", ""),
+            "endpoint": config.get("endpoint", ""),
+            "search_connection": config.get("search_connection", ""),
+        }
+        with open(last_conn_path, "w") as _f:
+            json.dump(last_conn, _f)
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    main()
+
