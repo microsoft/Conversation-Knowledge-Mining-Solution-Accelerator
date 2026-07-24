@@ -1,5 +1,7 @@
 FROM python:3.13-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install ODBC driver for SQL Server
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gnupg2 unixodbc-dev && \
@@ -10,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 COPY requirements.txt ./src/api/
-RUN pip install --no-cache-dir -r src/api/requirements.txt
+RUN pip install --no-cache-dir --root-user-action=ignore -r src/api/requirements.txt
 
 # Build context is ./src/api — recreate the src.api package layout
 COPY . ./src/api/

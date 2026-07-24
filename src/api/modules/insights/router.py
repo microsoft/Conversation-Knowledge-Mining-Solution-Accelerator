@@ -1,10 +1,14 @@
 """Insights dashboard API router."""
 
+import logging
+
 from fastapi import APIRouter, Request, Query
+from fastapi.responses import JSONResponse
 
 from src.api.modules.insights.service import dashboard_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/dashboard")
@@ -25,20 +29,8 @@ async def get_dashboard(
     """
     reserved = {"refresh"}
     filters = {k: v for k, v in request.query_params.items() if k not in reserved}
-    result = dashboard_service.get_dashboard(filters or None, refresh)
-    
-    # If no documents but result is empty, check for external data sources
-    # and provide a helpful message
-    if result.get("headline") == "No Data Available":
-        try:
-            from src.api.modules.data_sources.registry import registry
-            sources = registry.list_sources()
-            if sources and len(sources) > 0:
-                result["headline"] = "External Data Source Detected"
-                result["summary"] = "Insights are available from your external data sources. Connect or configure a data source to view detailed analytics."
-                result["runtime"]["summarySignals"] = [result["headline"], result["summary"]]
-        except Exception:
-            pass  # Continue with default empty state if registry check fails
-    
-    return result
-
+    try:
+        return dashboard_service.get_dashboard(filters or None, refresh)
+    except Exception as e:
+        logger.exception(f"Insights dashboard error: {e}")
+        return JSONResponse(status_code=500, content={"detail": "Dashboard generation failed", "error": str(e)})

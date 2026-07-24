@@ -1,127 +1,436 @@
-from typing import Optional
+from typing import Optional, Any
+import asyncio
 import logging
 import os
 import re
-import json
+from urllib.parse import unquote
 
-import yaml
 from azure.identity import DefaultAzureCredential
-from openai import AzureOpenAI
-from agent_framework import Agent
+from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
+from azure.ai.projects.aio import AIProjectClient
+from agent_framework import AgentSession
+from agent_framework_foundry import FoundryAgent
+from agent_framework_openai._chat_client import RawOpenAIChatClient
+from cachetools import TTLCache
 
 from src.api.config import get_settings
-from src.api.capabilities._llm import get_llm_client
 from src.api.modules.rag.models import QAResponse, Source
-from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
+from src.api.modules.rag.agent_tools import get_sql_response, get_schema_and_sample_values, query_fabric_data
 
 logger = logging.getLogger(__name__)
 
-# Load prompts from config file (editable without code changes)
-_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "config", "prompts.yaml")
-_PROMPTS: dict = {}
-try:
-    with open(_PROMPTS_PATH, "r", encoding="utf-8") as f:
-        _PROMPTS = yaml.safe_load(f) or {}
-except Exception:
-    logger.warning("Could not load prompts.yaml — using built-in defaults")
+# Maps a stable conversation_id (from UI) -> Foundry conversation/thread id, so
+# multi-turn chats reuse server-side history. Mirrors chat_service.py's thread cache.
+_thread_cache: TTLCache = TTLCache(maxsize=1000, ttl=3600.0)
 
 
-def _get_prompt(key: str, fallback: str, **kwargs) -> str:
-    """Load a prompt from config, falling back to the built-in default."""
-    template = _PROMPTS.get(key, fallback)
-    if not kwargs:
-        return template
+def _extract_get_urls(response: Any) -> list:
+    """Extract per-document get_urls from the raw Azure AI Search stream events.
 
-    # Use literal token replacement (e.g., {context}) so JSON examples in prompts
-    # do not trigger str.format() KeyError on keys like {"type": ...}.
-    rendered = template
-    for token, value in kwargs.items():
-        rendered = rendered.replace("{" + token + "}", str(value))
-    return rendered
+    Mirrors scripts/test_agent.py: the GA annotations payload only carries the
+    root search URL for doc_N citations, so the per-document URLs must be pulled
+    from the raw stream events.
+    """
+    get_urls: list = []
+    for raw_agent_update in getattr(response, "raw_representation", None) or []:
+        raw_chat_update = getattr(raw_agent_update, "raw_representation", raw_agent_update)
+        event = getattr(raw_chat_update, "raw_representation", raw_chat_update)
+        try:
+            for url in RawOpenAIChatClient._extract_azure_ai_search_get_urls(event):
+                if url not in get_urls:
+                    get_urls.append(url)
+        except Exception:
+            continue
+    return get_urls
+
+
+def _collect_citations(response: Any, get_urls: list) -> list:
+    """Build a citation list from the final response, enriching doc_N citations
+    with the per-document get_urls extracted from the raw Azure AI Search stream.
+
+    Mirrors scripts/test_agent.py::collect_citations.
+    """
+    citations: list = []
+    seen: set = set()
+    url_iter = iter(get_urls)
+    for message in getattr(response, "messages", None) or []:
+        for content in getattr(message, "contents", None) or []:
+            for ann in getattr(content, "annotations", None) or []:
+                if not isinstance(ann, dict) or ann.get("type") != "citation":
+                    continue
+                title = ann.get("title", "N/A")
+                add_props = ann.get("additional_properties") or {}
+                url = add_props.get("get_url") or ann.get("url")
+                # GA regression: doc_N citations only carry the root search URL,
+                # so fall back to the next per-document get_url from the raw stream.
+                if isinstance(title, str) and title.startswith("doc_"):
+                    url = add_props.get("get_url") or next(url_iter, url)
+                    # Derive the real document id from the get_url so the citation
+                    # label shows the actual doc id instead of the ordinal doc_N.
+                    # get_url format: .../indexes/{index}/docs/{document_id}?api-version=...
+                    if isinstance(url, str):
+                        m = re.search(r"/docs/([^?]+)", url)
+                        if m:
+                            title = unquote(m.group(1))
+                key = (title, url)
+                if key in seen:
+                    continue
+                seen.add(key)
+                citations.append({"title": title, "url": url or "N/A"})
+    return citations
 
 
 def _strip_links_from_answer(text: str) -> str:
-    """Remove embedded source citations from answer text, keeping the actual content."""
+    """Strip stray inline citation artifacts the model may leak, without touching newlines.
+
+    Numeric citation markers ([1], [2] ...) are intentionally preserved so the UI can
+    render them as clickable superscripts mapped to the sources list.
+    """
     out = text
-    # Remove (sources: ...) or (source: ...) - only this pattern
-    out = re.sub(r'\s*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
-    # Remove standalone bracketed doc IDs like [842c7caf] but not other brackets
-    out = re.sub(r'\s*\[[a-f0-9]{8}\]\s*', ' ', out, flags=re.IGNORECASE)
-    # Clean up multiple spaces
-    out = re.sub(r'\s+', ' ', out)
+    # 1. Remove (sources: ...) / (source: ...) prose dumps
+    out = re.sub(r'[ \t]*\(\s*sources?:\s*[^)]+\)', '', out, flags=re.IGNORECASE)
+    # 2. Remove standalone [8-hex] doc IDs like [842c7caf]
+    out = re.sub(r'[ \t]*\[[a-f0-9]{8}\][ \t]*', ' ', out, flags=re.IGNORECASE)
+    # 3. Collapse any double spaces introduced by the above
+    out = re.sub(r'  +', ' ', out)
     return out.strip()
+
+
+def _is_unhelpful_answer(text: str) -> bool:
+    t = str(text or "").strip().lower()
+    if not t:
+        return True
+    patterns = [
+        "i cannot answer this question",
+        "cannot answer this question from the data available",
+        "please rephrase",
+        "add more details",
+        "i don't have enough information",
+        "i do not have enough information",
+        "unable to answer",
+    ]
+    return any(p in t for p in patterns)
 
 
 class RAGService:
     """Retrieval-Augmented Generation service for question answering."""
 
     def __init__(self):
-        self._client: Optional[AzureOpenAI] = None
-        self._agent: Optional[Agent] = None
+        pass
 
-    def _get_client(self) -> AzureOpenAI:
-        if self._client is None:
-            self._client = get_llm_client()
-        return self._client
+    def _run_agent(self, user_input: str, conversation_id: Optional[str] = None) -> tuple[str, list[Source]]:
+        """Invoke the single pre-created Foundry agent and return (text, citations).
 
-    def _get_agent(self) -> Agent:
-        """Get or create the RAG agent with AI Search and SQL tools."""
-        if self._agent is None:
-            from src.api.capabilities._llm import get_llm_chat_client
-            from src.api.modules.rag.agent_tools import search_azure_ai_search, get_sql_response
-            
-            chat_client = get_llm_chat_client()
-            self._agent = Agent(
-                name="rag_agent",
-                instructions=(
-                    "You are a helpful assistant for answering questions about documents and data. "
-                    "You have access to two tools:\n"
-                    "1. search_azure_ai_search - Search document content, summaries, and text from Azure AI Search\n"
-                    "2. get_sql_response - Query the SQL database for structured data, statistics, and records\n\n"
-                    "Strategy:\n"
-                    "- For document content, text search, or document-based questions: use search_azure_ai_search\n"
-                    "- For statistics, counts, aggregations, or structured queries: use get_sql_response\n"
-                    "- Always cite your sources when providing information from documents\n"
-                    "- Be accurate and only use information from the tool results\n"
-                    "- If you cannot answer from the available tools, say so explicitly"
-                ),
-                client=chat_client,
-                tools=[search_azure_ai_search, get_sql_response],
-            )
-        return self._agent
+        Reuses a cached Foundry conversation/thread per conversation_id so multi-turn
+        history is kept server-side, matching the reference chat_service.py.
+        """
+        settings = get_settings()
 
-    def _invoke_agent(self, system_prompt: str, user_query: str) -> str:
-        """Invoke the agent with a system prompt and user query, return the response."""
-        import asyncio
+        async def _run() -> tuple[str, list[Source]]:
+            agent_endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or settings.azure_ai_agent_endpoint).strip()
+            agent_name = (os.getenv("AGENT_NAME_CHAT") or settings.agent_name_chat).strip()
+            if not agent_name:
+                raise ValueError("AGENT_NAME_CHAT is not configured. Set AGENT_NAME_CHAT in .env or environment.")
+            if not agent_endpoint:
+                raise ValueError("AZURE_AI_AGENT_ENDPOINT is not configured. Set AZURE_AI_AGENT_ENDPOINT in .env or environment.")
+
+            marker_map: dict[str, int] = {}
+
+            def _replace_marker(match):
+                marker = match.group(0)
+                if marker not in marker_map:
+                    marker_map[marker] = len(marker_map) + 1
+                return f"[{marker_map[marker]}]"
+
+            async with (
+                AsyncDefaultAzureCredential() as credential,
+                AIProjectClient(
+                    endpoint=agent_endpoint,
+                    credential=credential,
+                ) as project_client,
+            ):
+                # Attach the SQL tool only when the agent was created with it
+                # (USE_SQL is scenario-dependent and set at agent-creation time).
+                use_sql = (os.getenv("USE_SQL") or str(settings.use_sql)).strip().lower() in ("1", "true", "yes", "on")
+                data_source_type = (os.getenv("DATA_SOURCE_TYPE") or "azure_search").strip().lower()
+                if data_source_type == "fabric":
+                    agent_tools = [query_fabric_data, get_schema_and_sample_values, get_sql_response]
+                elif use_sql:
+                    agent_tools = [get_schema_and_sample_values, get_sql_response]
+                else:
+                    agent_tools = []
+                agent = FoundryAgent(
+                    project_client=project_client,
+                    agent_name=agent_name,
+                    tools=agent_tools,
+                )
+
+                # Reuse or create a server-side conversation thread for continuity
+                thread_id = _thread_cache.get(conversation_id) if conversation_id else None
+                if not thread_id:
+                    openai_client = project_client.get_openai_client()
+                    try:
+                        conversation = await openai_client.conversations.create()
+                        thread_id = conversation.id
+                        if conversation_id:
+                            _thread_cache[conversation_id] = thread_id
+                    finally:
+                        try:
+                            await openai_client.close()
+                        except Exception:
+                            pass
+
+                session = AgentSession(service_session_id=thread_id)
+                out = ""
+                stream = agent.run(user_input, stream=True, session=session)
+                async for chunk in stream:
+                    out += str(chunk.text) if chunk.text else ""
+
+                # Convert the agent's raw AI Search citation markers (e.g. 【4:0†source】)
+                # into sequential [N] markers on the FULL text — doing it per-chunk lets
+                # markers split across stream boundaries leak through as raw text.
+                out = re.sub(r"【\d+(?::\d+)?†?[^】]*】", _replace_marker, out)
+                # Drop any residual raw markers that didn't match the expected form so no
+                # search citation artifacts remain in the answer (only [N] markers stay).
+                out = re.sub(r"【[^】]*】", "", out)
+
+                # Citations come from the final response, matching test_agent.py:
+                # collect annotations + recover per-document get_urls from the raw stream.
+                response = await stream.get_final_response()
+                get_urls = _extract_get_urls(response)
+                citation_dicts = _collect_citations(response, get_urls)
+
+            sources: list[Source] = []
+            for c in citation_dicts:
+                title = c["title"]
+                url = c["url"]
+                sources.append(Source(
+                    doc_id=title,
+                    score=0.0,
+                    text="",
+                    source_file=title,
+                    url=url,
+                ))
+            return out, sources
+
+        return asyncio.run(_run())
+
+    def generate_title(self, messages: list[dict]) -> Optional[str]:
+        """Generate a short conversation title using the configured title agent."""
+        settings = get_settings()
+
+        # Filter user messages and combine their content.
+        user_messages = [
+            {"role": msg["role"], "content": msg["content"]}
+            for msg in messages
+            if msg.get("role") == "user"
+        ]
+        combined_content = "\n".join([msg["content"] for msg in user_messages])
+        final_prompt = f"Generate a title for:\n{combined_content}"
+
+        async def _run() -> str:
+            agent_endpoint = (os.getenv("AZURE_AI_AGENT_ENDPOINT") or settings.azure_ai_agent_endpoint).strip()
+            title_agent_name = (os.getenv("AGENT_NAME_TITLE") or "SummaryAgent").strip()
+            async with (
+                AsyncDefaultAzureCredential() as credential,
+                AIProjectClient(
+                    endpoint=agent_endpoint,
+                    credential=credential,
+                ) as project_client,
+            ):
+                agent = FoundryAgent(project_client=project_client, agent_name=title_agent_name)
+                result = await agent.run(final_prompt)
+                title = str(result.text).strip() if result is not None else "New Conversation"
+                return title
+
         try:
-            agent = self._get_agent()
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query},
-            ]
-
-            # agent.run() is async — run it in a new event loop since we're called
-            # from asyncio.to_thread (a worker thread with no running event loop).
-            response = asyncio.run(agent.run(messages=messages))
-
-            # AgentResponse exposes the final assistant text via .text
-            if hasattr(response, 'text') and response.text:
-                return str(response.text)
-
-            # Fallback: look for last assistant message
-            if hasattr(response, 'messages') and response.messages:
-                for msg in reversed(response.messages):
-                    content = getattr(msg, 'content', None)
-                    role = getattr(msg, 'role', None)
-                    if content and role in ('assistant', None):
-                        return str(content)
-
-            return str(response) if response else ""
-
+            return asyncio.run(_run())
         except Exception as e:
-            logger.error(f"Agent invocation failed: {e}", exc_info=True)
-            raise
+            logger.exception("Error generating title: %s", str(e))
+            # Fallback to last user message or default.
+            if user_messages:
+                return user_messages[-1]["content"][:50]
+            return "New Conversation"
+
+    @staticmethod
+    def _merge_sources(primary: list[Source], fallback: list[Source]) -> list[Source]:
+        """Merge sources while preserving order and removing duplicates."""
+        merged: list[Source] = []
+        seen: set[tuple[str, str]] = set()
+        for src in [*primary, *fallback]:
+            key = (src.doc_id, src.source_file or "")
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(src)
+        return merged
+
+    @staticmethod
+    def _build_fallback_answer(question: str, docs: list[dict]) -> str:
+        """Return a non-empty deterministic answer when agent output is unavailable."""
+        if not docs:
+            return (
+                "I could not generate an answer right now. "
+                "No relevant content was found in the current data scope."
+            )
+
+        lines = [
+            "I could not generate a full agent response right now, but here are the top relevant findings:",
+        ]
+        for i, doc in enumerate(docs[:3], 1):
+            source_name = doc.get("source_file") or doc.get("doc_id") or f"Source {i}"
+            snippet = (doc.get("summary") or doc.get("text") or "").strip()
+            snippet = re.sub(r"\s+", " ", snippet)
+            if len(snippet) > 220:
+                snippet = snippet[:220].rstrip() + "..."
+            if not snippet:
+                snippet = "Relevant content found, but no preview text is available."
+            lines.append(f"{i}. {source_name}: {snippet}")
+
+        lines.append("You can retry the same question or narrow filters for a more specific answer.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_grounded_answer(question: str, docs: list[dict]) -> str:
+        """Build an AI-synthesised, actionable answer from retrieved docs.
+
+        Uses the LLM to produce a structured, insightful response with numbered
+        citations when possible. Falls back to a structured snippet list if the
+        LLM call fails.
+        """
+        if not docs:
+            return (
+                "I could not find enough relevant evidence in the current scope to answer that confidently. "
+                "Try narrowing filters or selecting specific sources."
+            )
+
+        top_docs = docs[:5]
+
+        # Build a compact context block with numbered sources for citation anchoring.
+        context_parts: list[str] = []
+        for i, doc in enumerate(top_docs, 1):
+            source_name = str(doc.get("source_file") or doc.get("doc_id") or f"Source {i}")
+            blob = str(doc.get("summary") or doc.get("text") or "").strip()
+            blob = re.sub(r"\s+", " ", blob)[:600]
+            if blob:
+                context_parts.append(f"[{i}] {source_name}\n{blob}")
+
+        if not context_parts:
+            return (
+                "I could not extract readable content from the matching records. "
+                "Try selecting a specific source or broadening your filters."
+            )
+
+        context_block = "\n\n".join(context_parts)
+        system_prompt = (
+            "You are an intelligent data analyst assistant. "
+            "Answer the user's question concisely and analytically based only on the provided records. "
+            "Structure your response with: a direct answer, key observations, and actionable implications. "
+            "Do NOT include inline citation markers like [1], [2], or [1-5] anywhere in your response. "
+            "Do not hallucinate or reference sources not provided. "
+            "Keep the total response under 300 words."
+        )
+        user_prompt = (
+            f"Question: {question}\n\n"
+            f"Records:\n{context_block}\n\n"
+            "Provide a structured, insightful answer without any citation markers."
+        )
+
+        try:
+            from src.api.capabilities._llm import get_llm_client
+            from src.api.config import get_settings
+            settings = get_settings()
+            client = get_llm_client()
+            resp = client.chat.completions.create(
+                model=settings.azure_openai_chat_deployment,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_completion_tokens=600,
+            )
+            answer = (resp.choices[0].message.content or "").strip()
+            if answer:
+                return _strip_links_from_answer(answer)
+        except Exception as e:
+            logger.warning(f"LLM synthesis in grounded answer failed: {e}")
+
+        # Structured fallback without LLM
+        lines = ["**Based on the available records:**\n"]
+        for i, doc in enumerate(top_docs[:4], 1):
+            source_name = str(doc.get("source_file") or doc.get("doc_id") or f"Source {i}")
+            blob = str(doc.get("summary") or doc.get("text") or "").strip()
+            blob = re.sub(r"\s+", " ", blob)[:220]
+            if blob:
+                lines.append(f"**[{i}] {source_name}**\n{blob}")
+        lines.append("\n*Try asking a follow-up question to drill into a specific finding.*")
+        return "\n\n".join(lines)
+
+    @staticmethod
+    def _is_noise_doc(doc: dict) -> bool:
+        """Detect ingestion/error blobs that should not be used for QA grounding."""
+        text = str(doc.get("text") or "")
+        summary = str(doc.get("summary") or "")
+        source_file = str(doc.get("source_file") or "").lower()
+        doc_type = str(doc.get("type") or "").lower()
+        blob = f"{summary} {text}".lower()
+
+        # Noise signatures from failed audio extraction and upload-status artifacts.
+        hard_markers = [
+            "automatic transcription is not available",
+            "cu analyze_url failed",
+            "errorprocessingfile",
+            "file is corrupted or format is unsupported",
+        ]
+        if any(marker in blob for marker in hard_markers):
+            return True
+
+        # Audio-transcription fallback docs are operational status artifacts, not business knowledge.
+        if "audio/transcription-fallback" in doc_type:
+            return True
+
+        # WAV upload status snippets with no semantic content are low-signal for QA.
+        # Keep this broad to catch truncated or partially indexed variants.
+        if source_file.endswith(".wav") and (
+            "uploaded successfully" in blob
+            or "audio uploaded:" in blob
+            or "automatic transcription" in blob
+        ):
+            return True
+
+        return False
+
+    def _filter_noise_sources(self, sources: list[Source], phase: str) -> list[Source]:
+        """Filter noisy source entries before returning them to the UI."""
+        if not sources:
+            return sources
+        filtered: list[Source] = []
+        removed = 0
+        for src in sources:
+            doc = {
+                "text": src.text,
+                "summary": "",
+                "source_file": src.source_file,
+                "type": "",
+            }
+            if self._is_noise_doc(doc):
+                removed += 1
+                continue
+            filtered.append(src)
+        if removed > 0:
+            logger.info(f"Filtered {removed} noisy sources during {phase}")
+        return filtered
+
+    def _filter_noise_docs(self, docs: list[dict], phase: str) -> list[dict]:
+        """Remove noisy retrieval results while preserving order of useful documents."""
+        if not docs:
+            return docs
+        filtered = [d for d in docs if not self._is_noise_doc(d)]
+        removed = len(docs) - len(filtered)
+        if removed > 0:
+            logger.info(f"Filtered {removed} noisy docs during {phase}")
+        return filtered
 
     def _get_blob_text_for_file(self, file_id: str) -> str:
         """Read extracted text from blob storage for 'extracted'-status files."""
@@ -245,7 +554,7 @@ class RAGService:
                 query_emb = emb_service.generate_embedding(query)
                 vector_queries.append(VectorizedQuery(
                     vector=query_emb.embedding,
-                    k_nearest_neighbors=top_k,
+                    k=top_k,
                     fields="text_vector",
                 ))
             except Exception as e:
@@ -287,7 +596,7 @@ class RAGService:
                     "source_file": r.get("source_file", ""),
                     "score": score,
                 })
-            return docs
+            return self._filter_noise_docs(docs, "azure-ai-search")
         except Exception as e:
             logger.error(f"Azure AI Search failed: {e}", exc_info=True)
             raise RuntimeError("Search service unavailable") from e
@@ -364,6 +673,7 @@ class RAGService:
                         })
                 conn.close()
 
+            scored = self._filter_noise_docs(scored, "sql-search")
             scored.sort(key=lambda x: x["score"], reverse=True)
             return scored[:top_k]
         except Exception as e:
@@ -411,6 +721,7 @@ class RAGService:
                     "score": 0.1,
                 })
 
+        scored = self._filter_noise_docs(scored, "in-memory-search")
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
@@ -443,6 +754,7 @@ class RAGService:
     def _answer_from_external(
         self, question: str, top_k: int,
         external_index_id: str, include_sources: bool,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         """Answer a question using an external Azure AI Search index."""
         from src.api.modules.ingestion.external_index import external_index_service
@@ -456,11 +768,9 @@ class RAGService:
                 sources=[], model=settings.azure_openai_chat_deployment,
             )
 
-        context_parts = []
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"],
                 score=round(doc.get("score", 0), 4),
@@ -468,21 +778,98 @@ class RAGService:
                 source_file=doc.get("source_file", ""),
             ))
 
-        context = "\n\n---\n\n".join(context_parts)
-        system_prompt = _get_prompt(
-            "rag_external_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.\n\nDocuments:\n{context}",
-            context=context,
-        )
+        try:
+            answer, agent_sources = self._run_agent(question, conversation_id)
+        except Exception as e:
+            logger.warning(f"Agent call failed in external index path, using fallback answer: {e}")
+            answer = self._build_fallback_answer(question, search_docs)
+            agent_sources = []
 
-        # Use agent for response generation
-        answer = self._invoke_agent(system_prompt, question)
-        
+        if not (answer or "").strip():
+            logger.warning("Agent returned empty answer in external index path, using fallback answer")
+            answer = self._build_fallback_answer(question, search_docs)
+
+        sources = sources + agent_sources
         return QAResponse(
             question=question,
             answer=_strip_links_from_answer(answer),
             sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
+        )
+
+    def fetch_citation_content(self, url: str) -> dict:
+        """Fetch a cited document's content directly from Azure AI Search using the
+        citation's get_url.
+
+        Fetches the cited document's content from Azure AI Search using our
+        index field names (``text``/``source_file`` instead of ``content``/``sourceurl``).
+        The get_url points at ``.../indexes/{index}/docs/{key}?api-version=...`` and is
+        fetched with an Entra bearer token scoped to Azure Cognitive Search.
+        """
+        import requests
+
+        credential = DefaultAzureCredential()
+        token = credential.get_token("https://search.azure.com/.default")
+        try:
+            response = requests.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token.token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=10,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                content = data.get("text") or data.get("content") or ""
+                title = data.get("source_file") or data.get("sourceurl") or ""
+                return {"content": content, "title": title}
+            logger.warning(f"Citation content fetch failed: url={url}, status={response.status_code}")
+            return {"error": f"HTTP {response.status_code}"}
+        except Exception:
+            logger.exception("Exception while fetching citation content")
+            return {"error": "Unable to fetch content"}
+
+    def _build_scope_preamble(
+        self,
+        document_ids: Optional[list[str]] = None,
+        filters: Optional[dict] = None,
+    ) -> str:
+        """Build a soft-scoping instruction block that is prepended to the user
+        question before it is sent to the agent.
+
+        This is a prompt-level hint only: the agent still performs its own retrieval
+        through its configured tools. We simply tell it which selected documents and
+        active filters to restrict the answer to.
+        """
+        lines: list[str] = []
+
+        if document_ids:
+            # Scope by source_file (resolved on the frontend); it maps
+            # consistently across single-doc and multi-record files.
+            doc_lines = "\n".join(f"- {did}" for did in document_ids)
+            lines.append(
+                "Restrict your answer to ONLY content from the following selected "
+                "source file(s), identified by their source_file. Do not use any "
+                "other documents from the knowledge base:\n" + doc_lines
+            )
+
+        if filters:
+            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            if filt_lines:
+                lines.append(
+                    "Only consider content matching these filters:\n" + filt_lines
+                )
+
+        if not lines:
+            return ""
+
+        return (
+            "[SCOPE CONSTRAINTS]\n"
+            + "\n\n".join(lines)
+            + "\n\nIf the selected documents do not contain the answer, say so "
+            "explicitly rather than drawing on other sources.\n"
+            "[END SCOPE CONSTRAINTS]\n\n"
         )
 
     def answer_question(
@@ -492,140 +879,26 @@ class RAGService:
         filters: Optional[dict] = None,
         include_sources: bool = True,
         document_ids: Optional[list[str]] = None,
-        external_index_id: Optional[str] = None,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         settings = get_settings()
 
-        # External index path
-        if external_index_id:
-            return self._answer_from_external(question, top_k, external_index_id, include_sources)
+        # Agent-only flow: the Foundry agent performs its own retrieval through its
+        # configured tools (Azure AI Search / SQL) and returns the answer together
+        # with its citations. No backend retrieval, merge, or grounded fallback is
+        # used — the response and sources come solely from the agent.
+        #
+        # Document/filter scoping is applied as a soft prompt hint only: selected
+        # documents and active filters are prepended to the question so the agent
+        # restricts its own retrieval accordingly.
+        scope_preamble = self._build_scope_preamble(document_ids, filters)
+        agent_input = f"{scope_preamble}Question: {question}" if scope_preamble else question
+        answer, agent_sources = self._run_agent(agent_input, conversation_id)
 
-        # 1. If filters are active, narrow document_ids to matching files
-        if filters and not document_ids:
-            from src.api.modules.ingestion.service import ingestion_service
-            matching_ids = self._filter_document_ids(filters, ingestion_service)
-            if matching_ids is not None:
-                document_ids = matching_ids
-
-        # 2. Search: try Azure AI Search first, then external data sources, then in-memory
-        try:
-            search_docs = self._search_azure_ai_search(question, top_k, document_ids)
-        except RuntimeError:
-            logger.warning("Azure AI Search unavailable, falling back to in-memory search")
-            search_docs = []
-
-        # For files in 'extracted' state (not yet indexed), inject blob text directly
-        if document_ids:
-            extracted_docs = self._build_extracted_context(document_ids, question)
-            if extracted_docs:
-                # Merge: extracted docs fill gaps for files not yet in AI Search
-                indexed_file_ids = {d["doc_id"] for d in search_docs}
-                for doc in extracted_docs:
-                    if doc["doc_id"] not in indexed_file_ids:
-                        search_docs.append(doc)
-        else:
-            # No specific document scope — check if any uploaded files are only extracted
-            from src.api.modules.ingestion.service import ingestion_service
-            ingestion_service._ensure_loaded()
-            extracted_ids = [
-                f.id for f in ingestion_service._uploaded_files.values()
-                if f.status == "extracted"
-            ]
-            if extracted_ids:
-                extracted_docs = self._build_extracted_context(extracted_ids, question)
-                search_docs.extend(extracted_docs)
-
-        # Only include external live-query sources when user is not explicitly scoped to selected documents.
-        if not document_ids:
-            external_docs = self._search_external_data_sources(question, top_k)
-            if external_docs:
-                search_docs.extend(external_docs)
-
-        # Normalize mixed result shapes (AI Search, extracted context, external data sources)
-        normalized_docs = []
-        for doc in search_docs:
-            doc_id = doc.get("doc_id") or doc.get("id")
-            if not doc_id:
-                doc_id = str(doc.get("source_file") or f"doc-{len(normalized_docs) + 1}")
-            normalized_docs.append({
-                **doc,
-                "doc_id": doc_id,
-                "text": doc.get("text", ""),
-                "type": doc.get("type", "unknown"),
-                "source_file": doc.get("source_file", "unknown"),
-            })
-        search_docs = normalized_docs
-
-        # Deduplicate by doc_id (keep highest score per document)
-        seen = {}
-        deduped = []
-        for doc in search_docs:
-            did = doc["doc_id"]
-            if did in seen:
-                if doc.get("score", 0) > deduped[seen[did]].get("score", 0):
-                    deduped[seen[did]] = doc
-                continue
-            seen[did] = len(deduped)
-            deduped.append(doc)
-        search_docs = sorted(deduped, key=lambda x: x.get("score", 0), reverse=True)[:top_k]
-
-        if not search_docs:
-            logger.info("AI Search returned no results, falling back to SQL search")
-            search_docs = self._search_sql(question, top_k, document_ids)
-
-        if not search_docs:
-            logger.info("SQL search returned no results, falling back to in-memory search")
-            search_docs = self._search_in_memory(question, top_k, document_ids)
-
-        # 3. Build context
-        context_parts = []
-        sources = []
-        for i, doc in enumerate(search_docs):
-            text = doc["text"]
-            # Truncate very long texts to fit context window
-            if len(text) > 4000:
-                text = text[:4000] + "..."
-            context_parts.append(
-                f"[Source {i + 1} | id={doc['doc_id']}] (type: {doc['type']}, file: {doc['source_file']}):\n{text}"
-            )
-            sources.append(Source(
-                doc_id=doc["doc_id"],
-                score=round(doc.get("score", 0), 4),
-                text=text[:500],
-                source_file=doc.get("source_file", ""),
-            ))
-
-        context = "\n\n---\n\n".join(context_parts)
-
-        # 3. Generate answer
-        scope_instruction = ""
-        if document_ids:
-            scope_instruction = (
-                "\nThe user has already selected the document scope. "
-                "Do not ask the user to specify or pick documents again."
-            )
-
-        system_prompt = _get_prompt(
-            "rag_system_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
-            scope_instruction=scope_instruction,
-            context=context,
-        )
-
-        client = self._get_client()
-        response = client.chat.completions.create(
-            model=settings.azure_openai_chat_deployment,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question},
-            ],
-            temperature=0.3,
-            max_tokens=1000,
-        )
-
+        sources = self._filter_noise_sources(agent_sources, "answer-question-response")
         return QAResponse(
             question=question,
-            answer=_strip_links_from_answer(response.choices[0].message.content),
+            answer=_strip_links_from_answer(answer),
             sources=sources if include_sources else [],
             model=settings.azure_openai_chat_deployment,
         )
@@ -636,6 +909,7 @@ class RAGService:
         top_k: int = 5,
         filters: Optional[dict] = None,
         document_ids: Optional[list[str]] = None,
+        conversation_id: Optional[str] = None,
     ) -> QAResponse:
         """Multi-turn conversation with RAG context."""
         settings = get_settings()
@@ -658,8 +932,14 @@ class RAGService:
             if matching_ids is not None:
                 document_ids = matching_ids
 
-        # Search: AI Search first, then external sources, fallback to in-memory
-        search_docs = self._search_azure_ai_search(last_user_message, top_k, document_ids)
+        from src.api.modules.runtime.retrieval_engine import retrieval_engine
+        search_docs = retrieval_engine.retrieve(
+            query=last_user_message,
+            top_k=top_k,
+            filters=filters,
+            document_ids=document_ids,
+            source="all",
+        )
 
         # Also inject blob text for 'extracted'-status files not yet in AI Search
         if document_ids:
@@ -678,55 +958,35 @@ class RAGService:
             if extracted_ids:
                 search_docs.extend(self._build_extracted_context(extracted_ids, last_user_message))
 
-        if not document_ids:
-            external_docs = self._search_external_data_sources(last_user_message, top_k)
-            if external_docs:
-                search_docs.extend(external_docs)
-                search_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
-                search_docs = search_docs[:top_k]
+        search_docs = self._filter_noise_docs(search_docs, "answer-conversation-post-merge")
 
-        if not search_docs:
-            logger.info("AI Search returned no results, falling back to SQL search")
-            search_docs = self._search_sql(last_user_message, top_k, document_ids)
-
-        if not search_docs:
-            search_docs = self._search_in_memory(last_user_message, top_k, document_ids)
-
-        context_parts = []
         sources = []
         for i, doc in enumerate(search_docs):
             text = doc["text"][:4000]
-            context_parts.append(f"[Source {i + 1} | id={doc['doc_id']}]:\n{text}")
             sources.append(Source(
                 doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
                 text=text[:500],
                 source_file=doc.get("source_file", ""),
             ))
 
-        context = "\n\n---\n\n".join(context_parts)
-        scope_instruction = ""
-        if document_ids:
-            scope_instruction = (
-                "\nThe user has already selected the document scope. "
-                "Do not ask the user to specify or pick documents again."
-            )
+        all_messages = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
+        try:
+            answer, agent_sources = self._run_agent(all_messages, conversation_id)
+        except Exception as e:
+            logger.warning(f"Agent call failed in answer_conversation, using fallback answer: {e}")
+            answer = self._build_fallback_answer(last_user_message, search_docs)
+            agent_sources = []
 
-        system_prompt = _get_prompt(
-            "rag_conversation_prompt",
-            "You are a helpful assistant. Answer based ONLY on the provided documents.{scope_instruction}\n\nDocuments:\n{context}",
-            scope_instruction=scope_instruction,
-            context=context,
-        )
+        if not (answer or "").strip() or _is_unhelpful_answer(answer):
+            logger.warning("Agent answer was empty/unhelpful in answer_conversation, using grounded fallback")
+            answer = self._build_grounded_answer(last_user_message, search_docs)
 
-        all_messages = [{"role": "system", "content": system_prompt}] + messages
-
-        # Use the last user message as the query; pass full history as context via system prompt
-        answer = self._invoke_agent(system_prompt, last_user_message)
-
+        combined_sources = self._merge_sources(agent_sources, sources)
+        combined_sources = self._filter_noise_sources(combined_sources, "answer-conversation-response")
         return QAResponse(
             question=last_user_message,
             answer=_strip_links_from_answer(answer),
-            sources=sources,
+            sources=combined_sources,
             model=settings.azure_openai_chat_deployment,
         )
 

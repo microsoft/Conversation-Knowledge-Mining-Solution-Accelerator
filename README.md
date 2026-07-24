@@ -1,371 +1,270 @@
-# Knowledge Mining Solution Accelerator
+# Conversation Knowledge Mining Solution Accelerator
 
-Deploy once, bring your data, start asking questions. This solution accelerator uses Azure OpenAI, Azure AI Search, Azure Content Understanding, and Azure AI Foundry to extract knowledge from structured and unstructured data and enable interactive exploration through natural language chat and auto-generated dashboards. It adapts to any dataset — no domain-specific code, no hardcoded schemas.
+Welcome to the *Conversation Knowledge Mining* solution accelerator, designed to help organizations derive actionable insights from large volumes of conversational data using generative AI. This accelerator provides a foundation for building AI-driven analysis systems that extract key phrases, model topics, and enable interactive natural language exploration across conversations, documents, and recordings.
+
+When working with high volumes of unstructured conversational data, analysts often face significant challenges, including surfacing meaningful patterns, maintaining consistency in analysis, and asking the right follow-up questions without extensive manual exploration.
+
+The Conversation Knowledge Mining solution accelerator allows users to upload or connect data and have it automatically processed through an AI extraction pipeline, then explore it through an interactive chat experience and auto-generated insights dashboards. This automation not only saves time but also ensures accuracy and consistency in surfacing operational intelligence.
+
+<br/>
 
 <div align="center">
-
-[**SOLUTION OVERVIEW**](#solution-overview)  |  [**QUICK DEPLOY**](#quick-deploy)  |  [**SCENARIO PACKS**](#scenario-packs)  |  [**BUSINESS USE CASE**](#business-use-case)  |  [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
+  
+[**SOLUTION OVERVIEW**](#solution-overview) \| [**QUICK DEPLOY**](#quick-deploy) \| [**BUSINESS SCENARIO**](#business-scenario) \| [**SUPPORTING DOCUMENTATION**](#supporting-documentation)
 
 </div>
+<br/>
 
-> **Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards.
+**Note:** With any AI solutions you create using these templates, you are responsible for assessing all associated risks and for complying with all applicable laws and safety standards. Learn more in the transparency documents for [Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md).
+<br/>
 
----
+<h2><img src="./docs/images/solution-overview.png" width="48" />
+Solution overview
+</h2>
 
-## Solution Overview
+The solution leverages Microsoft Foundry, Azure Content Understanding, Azure OpenAI Service, Azure AI Search, Azure SQL Database, and Azure App Service to create an intelligent conversation analysis pipeline. It uses a Foundry-hosted agent approach where a specialized ChatAgent reasons across both semantic search and structured analytics to answer questions grounded in your data.
 
-This solution processes structured and unstructured data — PDFs, DOCX, images, JSON, CSV, TXT, SQL databases, handwritten text, charts, tables, and form fields — and makes it explorable through conversational chat, auto-generated dashboards, and configurable processing pipelines. The platform is fully use-case agnostic: the same deployment that analyzes call center transcripts can analyze legal contracts, research papers, insurance claims, or any other content.
+### Solution architecture
+|![image](./docs/images/architecture.svg)|
+|---|
 
-### Solution Architecture
+### How it works
 
-```
-┌──────────┐         ┌──────────────────┐         ┌───────────────────┐
-│  Browser │  HTTP   │  Frontend        │  REST   │  Backend          │
-│          │────────▶│  React / Fluent  │────────▶│  FastAPI / Python │
-└──────────┘         └──────────────────┘         └─────────┬─────────┘
-                                                            │
-                     ┌──────────────────────────────────────┼──────────────────┐
-                     │                                      │                  │
-                     ▼                                      ▼                  ▼
-            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
-            │  Azure OpenAI   │                    │  Azure AI   │   │  Azure Content   │
-            │  GPT-4o + ada-2 │                    │  Search     │   │  Understanding   │
-            └─────────────────┘                    │  (HNSW)     │   └────────┬────────┘
-                     │                             └──────┬──────┘            │
-                     ▼                                    ▼                   ▼
-            ┌─────────────────┐                    ┌─────────────┐   ┌─────────────────┐
-            │  AI Foundry     │                    │  Azure SQL  │   │  Blob + Queue   │
-            │  Agent Service  │                    │  Database   │   │  Storage        │
-            └─────────────────┘                    └─────────────┘   └─────────────────┘
-                                                   ┌─────────────┐
-                                                   │  Cosmos DB  │
-                                                   └─────────────┘
-```
+The platform turns any conversational or enterprise dataset into an interactive, insight-driven experience through three integrated surfaces:
 
-### Document Processing Pipeline
+- **Home** — Upload your own files (PDF, DOCX, JSON, CSV, TXT, images, WAV, MP3) or load a built-in sample scenario pack. If you choose **Skip** during data setup, you can upload files here at any time. Uploads are acknowledged instantly; processing runs in the background.
+- **Explore** — Converse with your data. Questions are routed to a Microsoft Foundry ChatAgent with two tools: Azure AI Search (semantic retrieval) and SQL (structured analytics). The agent reasons across both and returns grounded, structured answers.
+- **Insights** — The LLM reads your dataset's schema and generates a plan for KPIs and charts. The result is an adaptive dashboard where layouts, filters, and metrics are all data-driven, not hard-coded.
 
-```
-Upload (instant response)
-  → Azure Blob Storage (raw file)
-  → Queue: extraction
-       → Azure Content Understanding (text, summary, topics, key phrases)
-       → Queue: enrichment
-            → Chunk text (1000 chars, 200 overlap, paragraph-aware)
-            → Generate embeddings (text-embedding-ada-002, 1536 dims, cached)
-            → Index chunks + vectors in Azure AI Search (HNSW, upserts)
-            → Status → "ready"
-```
+<br/>
 
-### Key Features
+### Additional resources
 
+[Azure Content Understanding Documentation](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/)
+
+[Azure AI Foundry Documentation](https://learn.microsoft.com/en-us/azure/ai-foundry/)
+
+[Azure AI Search Documentation](https://learn.microsoft.com/en-us/azure/search/)
+
+<br/>
+
+### Key features
 <details open>
-<summary>Click to learn more about the key features this solution enables</summary>
+  <summary>Click to learn more about the key features this solution enables</summary>
 
-- **Chat-based insights discovery**
-  Hybrid search (keyword + vector) powered by Azure AI Search and GPT-4o for natural language exploration. An intelligent agent automatically routes queries to the best tool — document search or SQL queries — to ground answers in your data. Source citations appear inline under each answer with clean filenames and snippets.
+  - **Mined entities and relationships** <br/>
+  Azure Content Understanding and Azure OpenAI extract entities, topics, and relationships from unstructured conversations to build a richer knowledge base.
 
-- **Multi-modal information processing**
-  Ingest and extract knowledge from structured and unstructured content: PDF, DOCX, images, JSON, CSV, TXT, SQL databases, and external data sources.
+  - **Processed data at scale** <br/>
+  The pipeline processes high-volume conversation data, generates embeddings, and indexes results for fast hybrid retrieval using RAG patterns.
 
-- **Async document processing**
-  Two-stage queue pipeline: upload returns instantly, extraction and enrichment run in the background via Azure Queue Storage with automatic retries.
+  - **Visualized insights** <br/>
+  An interactive dashboard surfaces trends, distributions, and outliers so teams can quickly move from raw conversation logs to actionable understanding.
 
-- **LLM-planned insights dashboard**
-  The system analyzes your data schema, uses an LLM to plan which charts and KPIs are relevant, then computes exact numbers via SQL. Feed it support tickets and you get sentiment breakdowns; feed it contracts and you get clause categories. Adapts to any dataset — no hardcoded charts.
+  - **Natural language interaction** <br/>
+  Users can ask contextual questions, follow up on findings, and get grounded responses with citations through an intuitive chat experience.
 
-- **Configurable processing pipelines**
-  YAML-defined pipelines with 11 pluggable capabilities (classify, summarize, extract entities, filter, generate, search, select, embed, transform, etc.). Auto-trigger on upload or run manually.
+  - **LLM-planned insights dashboard** <br/>
+  The system analyzes your data schema, then plans and computes relevant KPIs and charts automatically for each dataset.
 
-- **Dynamic filter generation**
-  Filters are generated automatically from your data's actual metadata fields and values — not predefined. Different datasets produce different filter panels. The system analyzes document metadata to discover categorical dimensions (e.g., sentiment, topic, category) and creates interactive filters for each.
-
-- **Document explorer**
-  Browse individual documents, search across your corpus, open a document, and ask for on-the-fly summaries or entity extraction (people, places, topics).
-
-- **Bring Your Own Index**
-  Connect an existing Azure AI Search index during post-deployment setup and immediately chat with it — no upload needed.
-
-- **Bring Your Own Data**
-  Connect external databases (Microsoft Fabric, SQL, Azure Synapse) during post-deployment setup with auto-detected field mapping and one-click ingestion.
-
+  - **Bring Your Own Index / Data** <br/>
+  Connect an existing Azure AI Search index or external database (Microsoft Fabric, SQL) without uploading data again.
 
 </details>
 
-### How It Adapts to Any Use Case
+<br /><br />
+<h2><img src="./docs/images/quick-deploy.png" width="48" />
+Quick deploy
+</h2>
 
-There is zero domain-specific logic in the codebase. The platform adapts automatically to whatever data you provide:
+### How to install or deploy
+Follow the quick deploy steps on the deployment guide to deploy this solution to your own Azure subscription.
 
-| What adapts | How |
-|-------------|-----|
-| **Dashboard charts & KPIs** | The insights engine reads your data's schema and values, then uses GPT-4o to decide which visualizations make sense. |
-| **Search filters** | Filters are automatically generated from your data's metadata fields. The system analyzes document metadata (extracted from JSON fields) to discover categorical dimensions and creates interactive filter panels. |
-| **Chat grounding** | RAG retrieval works on whatever content is indexed. The system prompt is configurable via `prompts.yaml`. |
-| **Field mapping** | When connecting a data source, the system auto-detects which columns are the ID, text body, title, timestamp, etc. |
+> **Note:** This solution accelerator requires **Azure Developer CLI (azd) version 1.18.0 or higher**. Please ensure you have the latest version installed before proceeding with deployment. [Download azd here](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
 
----
+> **Note:** Container images are built **remotely in Azure Container Registry** using `az acr build`. For local deployment (Option D in the deployment guide), install the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli).
 
-## Quick Deploy
+[Click here to launch the deployment guide](./docs/DeploymentGuide.md)
+<br/><br/>
 
-### Prerequisites
+| [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Dev Containers](https://img.shields.io/static/v1?style=for-the-badge&label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator) | [![Open in Visual Studio Code Web](https://img.shields.io/static/v1?style=for-the-badge&label=Visual%20Studio%20Code%20(Web)&message=Open&color=blue&logo=visualstudiocode&logoColor=white)](https://vscode.dev/azure/?vscode-azure-exp=foundry&agentPayload=eyJiYXNlVXJsIjogImh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9taWNyb3NvZnQvQ29udmVyc2F0aW9uLUtub3dsZWRnZS1NaW5pbmctU29sdXRpb24tQWNjZWxlcmF0b3IvcmVmcy9oZWFkcy9tYWluL2luZnJhL3ZzY29kZV93ZWIiLCAiaW5kZXhVcmwiOiAiL2luZGV4Lmpzb24iLCAidmFyaWFibGVzIjogeyJhZ2VudElkIjogIiIsICJjb25uZWN0aW9uU3RyaW5nIjogIiIsICJ0aHJlYWRJZCI6ICIiLCAidXNlck1lc3NhZ2UiOiAiIiwgInBsYXlncm91bmROYW1lIjogIiIsICJsb2NhdGlvbiI6ICIiLCAic3Vic2NyaXB0aW9uSWQiOiAiIiwgInJlc291cmNlSWQiOiAiIiwgInByb2plY3RSZXNvdXJjZUlkIjogIiIsICJlbmRwb2ludCI6ICIifSwgImNvZGVSb3V0ZSI6IFsiYWktcHJvamVjdHMtc2RrIiwgInB5dGhvbiIsICJkZWZhdWx0LWF6dXJlLWF1dGgiLCAiZW5kcG9pbnQiXX0=) | 
+|---|---|---|
+ 
+<br/>
 
-- Azure subscription with permissions to create resource groups, resources, and assign roles
-- [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd) >= 1.18.0
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for container-based deployment)
+> **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause.
 
-### How to Deploy
+> ⚠️ **Important: Check Azure OpenAI Quota Availability**
+ <br/>To ensure sufficient quota is available in your subscription, please follow the [quota check instructions guide](./docs/quota_check.md) before you deploy the solution.
 
-1. Clone the repository and navigate to the project root
+<br/>
 
-2. Login to Azure:
-   ```bash
-   azd auth login
-   ```
+### Prerequisites and Costs
 
-3. Deploy all resources:
-   ```bash
-   azd up
-   ```
-   After provisioning, the post-deployment script will:
-   - Set up the AI agent automatically
-   - Present an interactive menu to choose a scenario pack or connect a data source
+To deploy this solution accelerator, ensure you have access to an [Azure subscription](https://azure.microsoft.com/free/) with the necessary permissions to create **resource groups and resources**. Follow the steps in [Azure Account Set Up](./docs/AzureAccountSetUp.md).
 
-   You can also run the data setup separately:
-   ```bash
-   # Run interactively to choose from a menu
-   ./scripts/setup-data.ps1
+Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/table) page and select a **region** where the following services are available: Azure OpenAI Service, Azure AI Content Understanding, Azure AI Search, and Search Semantic Ranker.
 
-   # Or specify directly
-   ./scripts/setup-data.ps1 -Scenario contact-center
-   ./scripts/setup-data.ps1 -Scenario mortgage-application
-   ./scripts/setup-data.ps1 -Scenario telecom-analysis
-   ```
+Here are some example regions where the services are available: Australia East, Sweden Central, Southeast Asia.
 
-4. (Optional) Configure authentication:
-   - Go to Azure Portal → App Service → **Authentication** → **Add identity provider** → **Microsoft**
+Pricing varies per region and usage, so it isn't possible to predict exact costs for your usage. The majority of the Azure resources used in this infrastructure are on usage-based pricing tiers. However, Azure Container Registry has a fixed cost per registry per day.
 
-After deploying, the Home page is ready for your data — upload files or load a scenario pack to get started:
+Use the [Azure pricing calculator](https://azure.microsoft.com/en-us/pricing/calculator) to calculate the cost of this solution in your subscription.
 
-![Home page after deployment](docs/images/data-free-homepage.png)
+| Product | Description | Cost |
+|---|---|---|
+| [Azure OpenAI Service](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Powers chat (gpt-5.2), embeddings (text-embedding-3-small), and summarization | [Pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/) |
+| [Azure AI Content Understanding](https://learn.microsoft.com/en-us/azure/ai-services/content-understanding/) | Extracts text, summaries, topics, and key phrases from content | [Pricing](https://azure.microsoft.com/en-us/pricing/details/content-understanding/) |
+| [Azure AI Foundry](https://learn.microsoft.com/en-us/azure/ai-foundry/) | Agent orchestration, governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/en-us/pricing/details/ai-studio/) |
+| [Azure AI Search](https://learn.microsoft.com/en-us/azure/search/) | Powers hybrid (BM25 + vector) data search | [Pricing](https://azure.microsoft.com/en-us/pricing/details/search/) |
+| [Azure App Service](https://learn.microsoft.com/azure/app-service/) | Hosts the backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
+| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/) | Stores metadata, chat history, and enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
+| [Azure Storage Account](https://learn.microsoft.com/azure/storage/) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
+| [Azure Container Registry](https://learn.microsoft.com/azure/container-registry/) | Stores container images for deployment | [Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
 
-> ⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use by running `azd down`.
+<br/>
 
----
+>⚠️ **Important:** To avoid unnecessary costs, remember to take down your app if it's no longer in use,
+either by deleting the resource group in the Portal or running `azd down`.
 
-## Scenario Packs
+<br /><br />
+<h2><img src="./docs/images/business-scenario.png" width="48" />
+Business Scenario
+</h2>
 
-After deploying with `azd up`, the post-deployment script presents an interactive menu to seed data. You can choose a built-in scenario pack, connect an external data source, or skip and upload documents from the web UI later.
+|![image](./docs/images/homepage-ui.png)|
+|---|
 
-All options are defined in [`data/config/scenarios.json`](data/config/scenarios.json) and can be extended.
+<br/>
 
-### Built-in Scenarios
+Analysts often work with large volumes of unstructured conversational data, making it difficult to extract actionable insights quickly and accurately. Traditional tools limit interaction with data, making it hard to surface patterns or ask the right follow-up questions without extensive manual exploration. Some of the challenges they face include:
 
-| # | Scenario | Data folder | Sample data | What users see |
-|---|----------|-------------|-------------|----------------|
-| 1 | **Contact Center** | `data/ContactCenter_usecase/` | JSON call transcripts (5 conversations) + pre-processed search index data | Sentiment trends, topic clusters, agent performance, Q&A over conversations |
-| 2 | **Mortgage Application** | `data/MortgageApplication_usecase/` | PDF documents (housing reports, purchase contracts, NPL reports) | Document summarization, clause extraction, risk analysis, Q&A over mortgage docs |
-| 3 | **Telecom Analysis** | `data/telecom_analysis_usecase/` | JSON call transcripts (5) + WAV audio recordings (5) | Call analysis, audio transcription, sentiment breakdowns, topic clustering |
+- Difficulty surfacing meaningful patterns across high volumes of conversations
+- Time-consuming manual review of transcripts, documents, and recordings
+- High risk of inconsistency and missed signals from manual analysis
+- Limited ability to ask contextual, natural language questions of the data
 
-### Connect External Data Sources
+By using the *Conversation Knowledge Mining* solution accelerator, users can automate extraction, explore data conversationally, and surface adaptive dashboards that reduce manual analysis effort.
 
-These options are also available in the post-deployment menu. No data movement — the app queries your source at runtime.
+### Business value
+<details>
+  <summary>Click to learn more about what value this solution provides</summary>
 
-| # | Source | What you provide |
-|---|--------|-----------------|
-| 4 | **Azure AI Search** | Search endpoint + index name |
-| 5 | **Microsoft Fabric** | SQL endpoint + database + table name |
-| 6 | **SQL Database** | ODBC connection string + table name |
-| 7 | **Azure Synapse Analytics** | Synapse endpoint + database + table name |
+  - **Better decision-making** <br/>
+  Summarized, contextualized data helps organizations make informed strategic decisions that drive operational improvements at scale.
 
-### Bring Your Own Data
+  - **Time saved** <br/>
+  Automated insight extraction and scalable data exploration reduce manual analysis efforts.
 
-Upload files directly from the web UI after deployment. Supported formats: PDF, DOCX, images, JSON, CSV, TXT, and audio (WAV, MP3).
+  - **Interactive data insights** <br/>
+  Employees can engage directly with conversational data using natural language.
 
-> ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+  - **Actionable insights** <br/>
+  Clear, contextual insights empower employees to take meaningful action based on data-driven evidence.
 
-### Adding Custom Scenarios and Data Sources
+  - **Scalability** <br/>
+  Enables organizations to handle increasing volumes of conversational data without proportional resource increases.
 
-All scenario packs and external data source options are defined in [`data/config/scenarios.json`](data/config/scenarios.json). The setup menu is generated dynamically from this file — no code changes are required to add new options.
+</details>
 
-#### Add a new scenario pack
+### Use Case
+<details>
+  <summary>Click to learn more about what use cases this solution provides</summary>
 
-1. Create a folder under `data/` for your data (e.g. `data/Insurance_usecase/`)
-2. Add your files — JSON transcripts, PDFs, DOCX, images, etc.
-3. Add an entry to the `scenarios` object in `data/config/scenarios.json`:
+The solution ships with three built-in sample scenario packs and two bring-your-own-data connectors, all selectable from the post-deployment data setup menu:
 
-```json
-"insurance-claims": {
-  "name": "Insurance Claims",
-  "description": "Claims documents — fraud detection, severity classification, processing time analysis",
-  "data_folder": "Insurance_usecase",
-  "data_types": ["pdf", "docx"],
-  "has_preprocessed": false
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Display name shown in the setup menu |
-| `description` | Yes | One-line description shown below the menu option |
-| `data_folder` | Yes | Subfolder name under `data/` containing your files |
-| `data_types` | Yes | Array of file extensions (e.g. `["json"]`, `["pdf", "docx"]`) |
-| `has_preprocessed` | Yes | Set to `true` if your data includes pre-computed embeddings and enrichments |
-| `preprocessed_files` | Only if `has_preprocessed` is `true` | Object with paths to `search_index`, `processed_data`, and `key_phrases` files |
-
-If you have pre-enriched data (embeddings, sentiments, topics already computed), set `has_preprocessed: true` and specify the file paths:
-
-```json
-"my-scenario": {
-  "name": "My Scenario",
-  "description": "Pre-enriched dataset with embeddings",
-  "data_folder": "MyData_usecase",
-  "data_types": ["json"],
-  "has_preprocessed": true,
-  "preprocessed_files": {
-    "search_index": "sample_search_index_data.json",
-    "processed_data": "sample_processed_data.json",
-    "key_phrases": "sample_processed_data_key_phrases.json"
-  }
-}
-```
-
-#### Add a new external data source
-
-Add an entry to the `data_sources` object. The `fields` array defines what the user is prompted for, and `prompts` provides the help text:
-
-```json
-"cosmosdb": {
-  "name": "Azure Cosmos DB",
-  "description": "Connect a Cosmos DB container",
-  "fields": ["endpoint", "database", "container"],
-  "prompts": {
-    "endpoint": "Cosmos endpoint (e.g. https://my-account.documents.azure.com)",
-    "database": "Database name",
-    "container": "Container name"
-  }
-}
-```
-
-After editing `scenarios.json`, run the setup script to see your new options:
-
-```bash
-./scripts/setup-data.ps1
-```
-
----
-
-### Local Development
+| Use Case | Persona | Challenges | Summary/Approach |
+|----------|---------|------------|------------------|
+| Contact Center (IT Helpdesk) | Helpdesk Analyst | High volumes of IT helpdesk call transcripts make it hard to mine sentiment, cluster recurring topics, and measure agent performance. | Sentiment analysis, topic clustering, and agent performance insights over JSON call transcripts. Ships with a pre-built search index for instant exploration. |
+| Mortgage Application | Loan Analyst | Reviewing lengthy housing reports and purchase contracts (PDF) manually is slow and error-prone. | Document summarization, clause extraction, and risk analysis across housing reports and purchase contracts. |
+| Telecom Analysis | Operations Analyst | Call transcripts and audio recordings are difficult to transcribe, cluster, and act on at scale. | Transcription, sentiment breakdowns, and topic clustering across JSON transcripts and WAV recordings. |
+| Bring Your Own Data (Azure AI Search) | Data Analyst | Existing data already lives in an Azure AI Search index and should not be re-uploaded. | Connect an existing Azure AI Search index for conversational AI access — no re-ingestion required. |
+| Bring Your Own Data (Microsoft Fabric) | Data Analyst | Data resides in a Microsoft Fabric Lakehouse or Warehouse and needs conversational access. | Connect a Fabric Lakehouse or Warehouse for conversational AI access over your existing data. |
 
-**Backend:**
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r src/api/requirements.txt
-./scripts/start-local-backend.ps1
-```
+</details>
 
-For single-process local development on Windows, prefer [scripts/start-local-backend.ps1](scripts/start-local-backend.ps1). It stops any existing listener on port 8000 before starting the API and avoids `--reload` by default, which is more stable on Windows.
+<br /><br />
 
-**Frontend:**
-```bash
-cd src/app
-npm install
-REACT_APP_API_BASE_URL=http://localhost:8000/api npm start
-```
+<h2><img src="./docs/images/supporting-documentation.png" width="48" />
+Supporting documentation
+</h2>
 
-**Docker:**
-```bash
-docker-compose up --build
-```
+### Security guidelines
 
-> **Note:** For local development with Azure Queue processing, assign yourself the **Storage Queue Data Contributor** role on the storage account. Without it, the queue worker falls back to in-process background tasks.
+This template uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for secure access between Azure resources, eliminating the need for hard-coded credentials. All Azure service communication uses RBAC.
 
-> **Note:** To allow setup scripts to fall back to deployed Azure backend if local health check fails (useful for CI/CD), set `KM_ALLOW_DEPLOYED_BACKEND_FALLBACK=1`. See [DEPLOYMENT.md](DEPLOYMENT.md) for full environment variable reference.
+To ensure continued best practices in your own repository, we recommend that anyone creating solutions based on our templates ensure that the [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) setting is enabled.
 
-### Azure Services and Costs
+You may want to consider additional security measures, such as:
 
-Check the [Azure Products by Region](https://azure.microsoft.com/en-us/explore/global-infrastructure/products-by-region/?products=all&regions=all) page and select a region where the following services are available.
+* Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).
+* Protecting the Azure App Service instance with a [Virtual Network](https://learn.microsoft.com/azure/app-service/overview-vnet-integration).
+* Configuring [App Service authentication](./docs/AppAuthentication.md) to require users to sign in.
 
-| Service | Purpose | Pricing |
-|---------|---------|---------|
-| [Azure AI Services (OpenAI)](https://learn.microsoft.com/azure/cognitive-services/openai/overview) | Chat (GPT-4o), embeddings (ada-002), summarization | [Pricing](https://azure.microsoft.com/pricing/details/cognitive-services/) |
-| [Azure AI Search](https://learn.microsoft.com/azure/search/search-what-is-azure-search) | Hybrid search (BM25 + HNSW vector) for document retrieval | [Pricing](https://azure.microsoft.com/pricing/details/search/) |
-| [Azure AI Foundry](https://learn.microsoft.com/azure/ai-studio/what-is-ai-studio) | Agent orchestration with intelligent tool routing (search vs. SQL), centralized governance, tracing, and quotas | [Pricing](https://azure.microsoft.com/pricing/details/ai-studio/) |
-| [Azure App Service](https://learn.microsoft.com/azure/app-service/overview) | Hosts backend API and frontend web application | [Pricing](https://azure.microsoft.com/pricing/details/app-service/linux/) |
-| [Azure Storage Account](https://learn.microsoft.com/azure/storage/common/storage-account-overview) | Blob storage for documents, Queue storage for async processing | [Pricing](https://azure.microsoft.com/pricing/details/storage/blobs/) |
-| [Azure SQL Database](https://learn.microsoft.com/azure/azure-sql/database/sql-database-paas-overview) | Primary database — structured data, chat history, metadata, enrichment cache | [Pricing](https://azure.microsoft.com/pricing/details/azure-sql-database/single/) |
-| [Azure Cosmos DB](https://learn.microsoft.com/azure/cosmos-db/introduction) | Optional alternative database — set `DATABASE_PROVIDER=cosmos` in `.env` | [Pricing](https://azure.microsoft.com/pricing/details/cosmos-db/autoscale-provisioned/) |
+<br/>
 
----
+### Additional documentation
 
-## Business Use Case
+- [Deployment Guide](./docs/DeploymentGuide.md)
+- [Quota Check](./docs/quota_check.md)
+- [Azure Account Set Up](./docs/AzureAccountSetUp.md)
+- [App Authentication Setup](./docs/AppAuthentication.md)
+- [Customizing azd Parameters](./docs/CustomizingAzdParameters.md)
+- [Sample Questions](./docs/SampleQuestions.md)
+- [Troubleshooting Guide](./docs/TroubleShootingSteps.md)
 
-In large organizations, it's difficult and time-consuming to analyze large volumes of unstructured data. Traditional tools limit interaction with data, making it hard to surface patterns or ask follow-up questions without extensive manual exploration.
+<br/>
 
-This solution addresses those challenges by enabling:
+### Cross references
+Check out similar solution accelerators
 
-- **Natural language interaction** — Ask questions about your documents using conversational chat
-- **Automated extraction** — AI extracts entities, relationships, and key information from unstructured content
-- **Adaptive dashboards** — The insights engine reads your data and auto-generates relevant charts, KPIs, and key findings
-- **Interactive exploration** — Dynamic filters and structured insights help users navigate large datasets
-- **Faster decision-making** — Summarized, contextualized data reduces manual analysis effort
+| Solution Accelerator | Description |
+|---|---|
+| [Document Knowledge Mining](https://github.com/microsoft/Document-Knowledge-Mining-Solution-Accelerator) | Extract structured information from unstructured documents using AI |
+| [Content Processing](https://github.com/microsoft/content-processing-solution-accelerator) | Extract data from multi-modal content and map it to schemas with confidence scoring |
+| [Multi-Agent Custom Automation Engine](https://github.com/microsoft/Multi-Agent-Custom-Automation-Engine-Solution-Accelerator) | Coordinate multiple specialized AI agents to accomplish business processes |
 
-> ⚠️ The sample data used in this repository is synthetic and generated using Azure OpenAI service. The data is intended for use as sample data only.
+<br/>
 
----
+💡 Want to get familiar with Microsoft's AI and Data Engineering best practices? Check out our playbooks to learn more
 
-## Supporting Documentation
+| Playbook | Description |
+|:---|:---|
+| [AI&nbsp;playbook](https://learn.microsoft.com/en-us/ai/playbook/) | The Artificial Intelligence (AI) Playbook provides enterprise software engineers with solutions, capabilities, and code developed to solve real-world AI problems. |
+| [Data&nbsp;playbook](https://learn.microsoft.com/en-us/data-engineering/playbook/understanding-data-playbook) | The data playbook provides enterprise software engineers with solutions which contain code developed to solve real-world problems. |
 
-### Tech Stack
+<br/> 
 
-| Component | Product | Why |
-|-----------|---------|-----|
-| Backend API | **FastAPI** | Async-native, auto-generated OpenAPI docs, dependency injection |
-| Frontend | **React + Fluent UI 2** | Microsoft design system, accessible components, TypeScript |
-| LLM (chat + insights) | **Azure OpenAI GPT-4o** | model for grounded Q&A and reasoning |
-| Embeddings | **text-embedding-ada-002** | Proven embedding model, 1536 dims, good cost/quality ratio |
-| Vector + keyword search | **Azure AI Search** | Hybrid search (BM25 + HNSW) in one service, managed |
-| Document extraction | **Azure Content Understanding** | Handles PDF, images, handwriting, tables — multi-modal |
-| Agent orchestration | **Azure AI Foundry** | Managed agent service with tool support |
-| Intelligent tool routing | **Agent Framework** (`agent_framework`, `agent_framework_openai`) | Python framework for binding tools, intelligent routing, and multi-turn agentic workflows |
-| LLM client layer | **Foundry IQ (`azure-ai-projects`)** | All model access goes through a single Foundry Project for centralized governance, tracing, and quotas |
-| Structured data | **Azure SQL Database** (default) | Primary database — metadata, chat history, enrichment cache, data source configs |
-| Structured data (alt) | **Azure Cosmos DB** (optional) | Alternative database — set `DATABASE_PROVIDER=cosmos` |
-| File + queue storage | **Azure Blob + Queue** | Raw file storage + async job queue for the processing pipeline |
-| Auth | **App Service EasyAuth** | Zero-code Azure AD integration |
+## Provide feedback
 
+Have questions, find a bug, or want to request a feature? [Submit a new issue](https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues) on this repo and we'll connect.
 
+<br/>
 
-### Security Guidelines
+## Responsible AI Transparency FAQ 
+Please refer to the transparency documents for [Agent Service](https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/agents/transparency-note) and [Agent Framework](https://github.com/microsoft/agent-framework/blob/main/TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
 
-This solution uses [Managed Identity](https://learn.microsoft.com/entra/identity/managed-identities-azure-resources/overview) for secure access to Azure resources, eliminating the need for hard-coded credentials. All Azure service communication uses RBAC — no API keys in app config.
-
-To maintain strong security practices:
-- Enable [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) in your repository
-- Consider enabling [Microsoft Defender for Cloud](https://learn.microsoft.com/azure/defender-for-cloud/) to monitor Azure resources
-- Use [Virtual Networks](https://learn.microsoft.com/azure/app-service/overview-vnet-integration) for production deployments
-
----
-
-## Provide Feedback
-
-Have questions, find a bug, or want to request a feature? [Submit a new issue](../../issues) on this repo.
-
----
-
-## Responsible AI Transparency FAQ
-
-Please refer to [Transparency FAQ](./TRANSPARENCY_FAQ.md) for responsible AI transparency details of this solution accelerator.
-
----
+<br/>
 
 ## Disclaimers
+This release is an artificial intelligence (AI) system that generates text based on user input. The text generated by this system may include ungrounded content, meaning that it is not verified by any reliable source or based on any factual data. The data included in this release is synthetic, meaning that it is artificially created by the system and may contain factual errors or inconsistencies. Users of this release are responsible for determining the accuracy, validity, and suitability of any content generated by the system for their intended purposes. Users should not rely on the system output as a source of truth or as a substitute for human judgment or expertise.
 
-This release is an artificial intelligence (AI) system that generates text in response to user queries. The system is designed to answer questions **only** from documents that have been uploaded to the platform. It does not search the web, use external data sources, or generate responses from its general training data.
+This release only supports English language input and output. Users should not attempt to use the system with any other language or format. The system output may not be compatible with any translation tools or services, and may lose its meaning or coherence if translated.
 
-While the system is designed to ground all responses in the uploaded documents, AI-generated outputs may occasionally contain inaccuracies. Users are responsible for verifying the accuracy and suitability of any content generated by the system.
+This release does not reflect the opinions, views, or values of Microsoft Corporation or any of its affiliates, subsidiaries, or partners. The system output is solely based on the system's own logic and algorithms, and does not represent any endorsement, recommendation, or advice from Microsoft or any other entity. Microsoft disclaims any liability or responsibility for any damages, losses, or harms arising from the use of this release or its output by any user or third party.
 
-To the extent that the Software includes components or code used in or derived from Microsoft products or services, you must also comply with the Product Terms applicable to such Microsoft Products and Services.
+This release does not provide any financial advice, legal advice and is not designed to replace the role of qualified client advisors in appropriately advising clients. Users should not use the system output for any financial decisions, legal guidance or transactions, and should consult with a professional financial advisor and or legal advisor as appropriate before taking any action based on the system output. Microsoft is not a financial institution or a fiduciary, and does not offer any financial products or services through this release or its output.
 
-You must also comply with all domestic and international export laws and regulations that apply to the Software. For further information on export restrictions, visit https://aka.ms/exporting.
+This release is intended as a proof of concept only, and is not a finished or polished product. It is not intended for commercial use or distribution, and is subject to change or discontinuation without notice. Any planned deployment of this release or its output should include comprehensive testing and evaluation to ensure it is fit for purpose and meets the user's requirements and expectations. Microsoft does not guarantee the quality, performance, reliability, or availability of this release or its output, and does not provide any warranty or support for it.
 
-BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY.
+This Software requires the use of third-party components which are governed by separate proprietary or open-source licenses as identified below, and you must comply with the terms of each applicable license in order to use the Software. You acknowledge and agree that this license does not grant you a license or other right to use any such third-party proprietary or open-source components.
+
+To the extent that the Software includes components or code used in or derived from Microsoft products or services, including without limitation Microsoft Azure Services (collectively, "Microsoft Products and Services"), you must also comply with the Product Terms applicable to such Microsoft Products and Services. You acknowledge and agree that the license governing the Software does not grant you a license or other right to use Microsoft Products and Services. Nothing in the license or this ReadMe file will serve to supersede, amend, terminate or modify any terms in the Product Terms for any Microsoft Products and Services.
+
+You must also comply with all domestic and international export laws and regulations that apply to the Software, which include restrictions on destinations, end users, and end use. For further information on export restrictions, visit https://aka.ms/exporting.
+
+You acknowledge that the Software and Microsoft Products and Services (1) are not designed, intended or made available as a medical device(s), and (2) are not designed or intended to be a substitute for professional medical advice, diagnosis, treatment, or judgment and should not be used to replace or as a substitute for professional medical advice, diagnosis, treatment, or judgment. Customer is solely responsible for displaying and/or obtaining appropriate consents, warnings, disclaimers, and acknowledgements to end users of Customer's implementation of the Online Services.
+
+You acknowledge the Software is not subject to SOC 1 and SOC 2 compliance audits. No Microsoft technology, nor any of its component technologies, including the Software, is intended or made available as a substitute for the professional advice, opinion, or judgment of a certified financial services professional. Do not use the Software to replace, substitute, or provide professional financial advice or judgment.
+
+BY ACCESSING OR USING THE SOFTWARE, YOU ACKNOWLEDGE THAT THE SOFTWARE IS NOT DESIGNED OR INTENDED TO SUPPORT ANY USE IN WHICH A SERVICE INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE COULD RESULT IN THE DEATH OR SERIOUS BODILY INJURY OF ANY PERSON OR IN PHYSICAL OR ENVIRONMENTAL DAMAGE (COLLECTIVELY, "HIGH-RISK USE"), AND THAT YOU WILL ENSURE THAT, IN THE EVENT OF ANY INTERRUPTION, DEFECT, ERROR, OR OTHER FAILURE OF THE SOFTWARE, THE SAFETY OF PEOPLE, PROPERTY, AND THE ENVIRONMENT ARE NOT REDUCED BELOW A LEVEL THAT IS REASONABLY, APPROPRIATE, AND LEGAL, WHETHER IN GENERAL OR IN A SPECIFIC INDUSTRY. BY ACCESSING THE SOFTWARE, YOU FURTHER ACKNOWLEDGE THAT YOUR HIGH-RISK USE OF THE SOFTWARE IS AT YOUR OWN RISK.

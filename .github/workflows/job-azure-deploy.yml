@@ -26,6 +26,11 @@ on:
         required: false
         default: false
         type: boolean
+      enable_scalability:
+        description: 'Enable scalability features for WAF deployments (opt-in)'
+        required: false
+        default: false
+        type: boolean
       exp:
         description: 'Enable EXP'
         required: false
@@ -342,12 +347,22 @@ jobs:
           AZURE_REGIONS: ${{ vars.AZURE_REGIONS_KM }}
         run: |
           chmod +x infra/scripts/checkquota_km.sh
-          if ! infra/scripts/checkquota_km.sh; then
-            # If quota check fails due to insufficient quota, set the flag
-            if grep -q "No region with sufficient quota found" infra/scripts/checkquota_km.sh; then
-              echo "QUOTA_FAILED=true" >> $GITHUB_ENV
-            fi
-            exit 1  # Fail the pipeline if any other failure occurs
+          infra/scripts/checkquota_km.sh
+
+          quota_failed="$(grep -E '^QUOTA_FAILED=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+          valid_region="$(grep -E '^VALID_REGION=' "$GITHUB_ENV" 2>/dev/null | tail -n 1 | cut -d'=' -f2- || true)"
+
+          if [[ "${quota_failed:-false}" == "true" ]]; then
+            echo "❌ Quota check failed: no region has required model quota."
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -z "${valid_region:-}" ]]; then
+            echo "❌ Quota check did not provide VALID_REGION. Marking quota check as failed."
+            echo "QUOTA_FAILED=true" >> "$GITHUB_ENV"
+          fi
+
+          if [[ "${quota_failed:-false}" != "true" && -n "${valid_region:-}" ]]; then
+            echo "✅ Quota check passed. Selected region: ${valid_region}"
           fi
 
       - name: Set Quota Failure Output
@@ -374,6 +389,11 @@ jobs:
           INPUT_TRIGGER_TYPE: ${{ inputs.trigger_type }}
           INPUT_AZURE_LOCATION: ${{ inputs.azure_location }}
         run: |
+          if [[ -z "${VALID_REGION:-}" ]]; then
+            echo "❌ ERROR: VALID_REGION is empty after quota check."
+            exit 1
+          fi
+
           echo "Selected Region from Quota Check: $VALID_REGION"
           echo "AZURE_ENV_AI_SERVICE_LOCATION=$VALID_REGION" >> $GITHUB_ENV
           echo "AZURE_ENV_AI_SERVICE_LOCATION=$VALID_REGION" >> $GITHUB_OUTPUT
@@ -412,15 +432,19 @@ jobs:
         id: check_create_rg
         shell: bash
         run: |
-          set -e  
+          set -e
+          OWNER_TAG_VALUE="${{ github.actor }}"
           echo "🔍 Checking if resource group '$RESOURCE_GROUP_NAME' exists..."
           rg_exists=$(az group exists --name $RESOURCE_GROUP_NAME)
           if [ "$rg_exists" = "false" ]; then
             echo "📦 Resource group does not exist. Creating new resource group '$RESOURCE_GROUP_NAME' in location '$AZURE_LOCATION'..."
-            az group create --name $RESOURCE_GROUP_NAME --location $AZURE_LOCATION --tags ${{ env.RG_TAGS }} || { echo "❌ Error creating resource group"; exit 1; }
+            echo "🏷️  Adding Owner tag: Owner=${OWNER_TAG_VALUE}"
+            az group create --name $RESOURCE_GROUP_NAME --location $AZURE_LOCATION --tags ${{ env.RG_TAGS }} "Owner=${OWNER_TAG_VALUE}" || { echo "❌ Error creating resource group"; exit 1; }
             echo "✅ Resource group '$RESOURCE_GROUP_NAME' created successfully."
           else
             echo "✅ Resource group '$RESOURCE_GROUP_NAME' already exists. Deploying to existing resource group."
+            echo "🏷️  Adding Owner tag on existing resource group: Owner=${OWNER_TAG_VALUE}"
+            az group update --name "$RESOURCE_GROUP_NAME" --set tags.Owner="${OWNER_TAG_VALUE}" --output none || echo "⚠️  Warning: failed to update Owner tag on existing resource group '$RESOURCE_GROUP_NAME'."
           fi
           echo "RESOURCE_GROUP_NAME=$RESOURCE_GROUP_NAME" >> $GITHUB_OUTPUT
           echo "RESOURCE_GROUP_NAME=$RESOURCE_GROUP_NAME" >> $GITHUB_ENV
@@ -551,6 +575,7 @@ jobs:
       BUILD_DOCKER_IMAGE: ${{ github.event.inputs.build_docker_image || 'false' }}
       EXP: ${{ needs.azure-setup.outputs.EXP_ENABLED }}
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
+      ENABLE_SCALABILITY: ${{ inputs.enable_scalability == true && 'true' || 'false' }}
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
       AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.azure_existing_aiproject_resource_id }}
       USE_CASE: ${{ inputs.use_case }}
@@ -570,6 +595,7 @@ jobs:
       BUILD_DOCKER_IMAGE: ${{ github.event.inputs.build_docker_image || 'false' }}
       EXP: ${{ needs.azure-setup.outputs.EXP_ENABLED }}
       WAF_ENABLED: ${{ inputs.waf_enabled == true && 'true' || 'false' }}
+      ENABLE_SCALABILITY: ${{ inputs.enable_scalability == true && 'true' || 'false' }}
       AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID: ${{ inputs.azure_env_existing_log_analytics_workspace_rid }}
       AZURE_EXISTING_AIPROJECT_RESOURCE_ID: ${{ inputs.azure_existing_aiproject_resource_id }}
       USE_CASE: ${{ inputs.use_case }}

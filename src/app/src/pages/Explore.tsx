@@ -7,16 +7,17 @@ import {
   Checkmark24Regular, ArrowUpload24Regular,
 } from "@fluentui/react-icons";
 import { askQuestion, getUploadedFiles, getExtractionInfo, listDataSources,
-  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession, refreshIngestionCache } from "../api/client";
+  saveChatHistory, listChatSessions, loadChatHistory, deleteChatSession, refreshIngestionCache,
+  fetchCitationContent } from "../api/client";
 import { useAppState } from "../context/AppStateContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { DonutChart, BarChart } from "../components/Charts";
 import { renderMarkdown } from "../utils/markdown";
-import { SkeletonText, SkeletonChat } from "../components/Skeleton";
+import { SkeletonText } from "../components/Skeleton";
 import s from "./Explore.module.css";
 
 /* ── Chat content renderer ── */
-const ChatContent: React.FC<{ content: string }> = ({ content }: { content: string }) => {
+const ChatContent: React.FC<{ content: string; onCitation?: (n: number) => void }> = ({ content, onCitation }: { content: string; onCitation?: (n: number) => void }) => {
   const parts = content.split(/(```chart[\s\S]*?```)/g);
   return (
     <>
@@ -29,19 +30,11 @@ const ChatContent: React.FC<{ content: string }> = ({ content }: { content: stri
             if (spec.type === "bar") return <BarChart key={i} data={spec.data} height={200} />;
           } catch {}
         }
-        return <React.Fragment key={i}>{renderMarkdown(part)}</React.Fragment>;
+        return <React.Fragment key={i}>{renderMarkdown(part, onCitation)}</React.Fragment>;
       })}
     </>
   );
 };
-
-const PROMPTS = [
-  "What are the key findings?",
-  "Identify trends and patterns",
-  "What are the main topics?",
-  "What risks or issues exist?",
-  "Summarize the data",
-];
 
 const isFileSelectable = (status?: string): boolean => status === "ready" || status === "extracted" || !status;
 
@@ -60,6 +53,40 @@ const getFileStatusColor = (status?: string): string | undefined => {
 };
 
 const FILTER_BLOCKLIST = new Set(["page_count", "pagecount", "pages", "page"]);
+
+const normalizeSourcePart = (value?: string): string => String(value || "").trim().toLowerCase();
+
+const scoreSourceLabel = (source: any): number => {
+  const name = String(source?.name || "").trim();
+  const sourceType = String(source?.source_type || "").trim().toLowerCase();
+  const lower = name.toLowerCase();
+
+  let score = 0;
+  if (lower && lower !== sourceType) score += 2;
+  if (!lower.includes("test")) score += 2;
+  if (!lower.includes("endpoint")) score += 1;
+  if (/[\-_]/.test(lower)) score += 1;
+  return score;
+};
+
+const dedupeDataSources = (sources: any[]): any[] => {
+  const map = new Map<string, any>();
+  for (const source of sources) {
+    const key = [
+      normalizeSourcePart(source?.source_type),
+      normalizeSourcePart(source?.endpoint),
+      normalizeSourcePart(source?.database),
+      normalizeSourcePart(source?.table_or_query),
+      normalizeSourcePart(source?.auth_method),
+    ].join("|");
+
+    const current = map.get(key);
+    if (!current || scoreSourceLabel(source) > scoreSourceLabel(current)) {
+      map.set(key, source);
+    }
+  }
+  return Array.from(map.values());
+};
 
 /* ── Component ── */
 const Explore: React.FC = () => {
@@ -93,6 +120,8 @@ const Explore: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [activeCitation, setActiveCitation] = useState<{ title: string; content: string } | null>(null);
+  const [citationLoading, setCitationLoading] = useState(false);
   const refreshedCacheRef = useRef(false);
 
   useEffect(() => {
@@ -125,14 +154,24 @@ const Explore: React.FC = () => {
       }
       const [fR, dR, sR] = await Promise.allSettled(requests);
       const rawFiles = fR.status === "fulfilled" && Array.isArray(fR.value.data) ? fR.value.data : [];
-      const newFiles = rawFiles;
+      // Explore only lists processed sources (files that produced documents).
+      const newFiles = rawFiles.filter((f: any) => (f.doc_count || 0) > 0);
       const rawDS = dR.status === "fulfilled" && Array.isArray(dR.value.data) ? dR.value.data : dataSources;
-      const newDS = rawDS.filter((ds: any) => ds.status === "connected");
+      const connected = rawDS.filter((ds: any) => ds.status === "connected" && ds.source_type !== "native");
+      const newDS = dedupeDataSources(connected);
       const newSchema = sR.status === "fulfilled" ? sR.value.data : schema;
       setFiles(newFiles);
       setDataSources(newDS);
       if (newSchema) setSchema(newSchema);
       setExploreData({ files: newFiles, dataSources: newDS, schema: newSchema });
+
+      // If exactly one external source is connected, scope chat to it by default.
+      if (newDS.length === 1) {
+        const sourceName = String(newDS[0]?.name || "").trim();
+        if (sourceName) {
+          setActiveFilters((prev) => ({ ...prev, source: sourceName }));
+        }
+      }
     } catch (e) {
       // Prefer empty state over stale cross-scenario data when requests fail.
       setFiles([]);
@@ -168,13 +207,22 @@ const Explore: React.FC = () => {
 
   useEffect(() => {
     if (!ingestionSnapshot) return;
-    const nextFiles = Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [];
-    const nextSources = Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected") : [];
+    const nextFiles = (Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : [])
+      .filter((f: any) => (f.doc_count || 0) > 0);
+    const nextSources = Array.isArray(ingestionSnapshot.dataSources)
+      ? dedupeDataSources(ingestionSnapshot.dataSources.filter((ds: any) => ds.status === "connected"))
+      : [];
     const nextSchema = ingestionSnapshot.schema ?? schema;
     setFiles(nextFiles);
     setDataSources(nextSources);
     setSchema(nextSchema);
     setExploreData({ files: nextFiles, dataSources: nextSources, schema: nextSchema });
+    if (nextSources.length === 1) {
+      const sourceName = String(nextSources[0]?.name || "").trim();
+      if (sourceName) {
+        setActiveFilters((prev) => ({ ...prev, source: sourceName }));
+      }
+    }
   }, [ingestionSnapshot]);
 
   const handleChat = async (text?: string, options?: { resetConversation?: boolean }) => {
@@ -202,10 +250,24 @@ const Explore: React.FC = () => {
     setChatInput("");
     setChatLoading(true);
     try {
-      const docIds = selectedDocIds.size > 0 ? Array.from(selectedDocIds) as string[] : undefined;
+      const selectableFiles = files.filter((f: any) => isFileSelectable(f.status));
+      const allSelected =
+        selectableFiles.length > 0 &&
+        selectableFiles.every((f: any) => selectedDocIds.has(f.id));
+
+      // Scope only on a proper subset. Selecting every file (the only option in
+      // single-file scenarios like contact center) means "whole corpus" — sending
+      // a source_file filter there would wrongly exclude the AI Search index,
+      // whose source_file values differ from the SQL documents table.
+      const docIds =
+        selectedDocIds.size > 0 && !allSelected
+          ? files.filter((f: any) => selectedDocIds.has(f.id))
+              .map((f: any) => f.filename)
+              .filter(Boolean) as string[]
+          : undefined;
       const scope = docIds ? "documents" as const : "all" as const;
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
-      const res = await askQuestion(q, 5, filters, scope, docIds);
+      const res = await askQuestion(q, 5, filters, scope, docIds, activeSessionId);
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
       setMessages((prev: any[]) => [...prev, asstMsg]);
       const allMsgs = [...existingMessages, userMsg, asstMsg];
@@ -229,6 +291,28 @@ const Explore: React.FC = () => {
     setExpandedSources((prev: Set<number>) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   };
   const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); };
+  const openCitation = async (src: any) => {
+    const url = src?.url || src?.metadata?.url;
+    const label = src?.source_file || src?.doc_id || "Citation";
+    if (!url || url === "N/A") {
+      setActiveCitation({ title: label, content: "No source URL available for this citation." });
+      return;
+    }
+    setActiveCitation({ title: label, content: "" });
+    setCitationLoading(true);
+    try {
+      const res = await fetchCitationContent(url);
+      const data = res.data || {};
+      setActiveCitation({
+        title: data.title || label,
+        content: data.content || data.error || "No content available.",
+      });
+    } catch {
+      setActiveCitation({ title: label, content: "Failed to load citation content." });
+    } finally {
+      setCitationLoading(false);
+    }
+  };
   const loadSession = async (sid: string) => {
     try {
       const r = await loadChatHistory(sid);
@@ -262,6 +346,10 @@ const Explore: React.FC = () => {
       return !allValuesInSources;
     })
     : [];
+  const isExtractionDimension = (dimId?: string): boolean => {
+    const id = String(dimId || "").toLowerCase();
+    return id === "topics" || id === "entities" || id === "key_phrases";
+  };
   const totalRecords = readyFiles.reduce((sum: number, f: any) => sum + (f.doc_count || 0), 0) + dataSources.reduce((sum: number, d: any) => sum + (d.doc_count || 0), 0);
   const sessionCount = sessions.filter((sess: any) => sess.message_count > 0).length;
   const scopeLabel = selectedDocIds.size > 0
@@ -392,7 +480,7 @@ const Explore: React.FC = () => {
                         className={activeFilters[dim.id] === v.value ? s.filterValueActive : s.filterValue}
                         onClick={() => toggleFilter(dim.id, v.value)}>
                         <span style={{ flex: 1 }}>{v.label || v.value}</span>
-                        <Caption1>{v.count || 0}</Caption1>
+                        {!isExtractionDimension(dim.id) && <Caption1>{v.count || 0}</Caption1>}
                       </button>
                     ))}
                   </div>
@@ -410,13 +498,8 @@ const Explore: React.FC = () => {
                 <Sparkle24Regular style={{ fontSize: 36, color: "#cbd5e1" }} />
                 <Text size={500} weight="semibold" style={{ color: "#0f172a" }}>Ask your data</Text>
                 <Text size={300} style={{ color: "#64748b" }}>
-                  Charts, summaries, trends, and analysis — all through conversation.
+                  Summaries, trends, and analysis — all through conversation.
                 </Text>
-                <div className={s.suggestions}>
-                  {PROMPTS.map((p: string) => (
-                    <button key={p} className={s.suggestionBtn} onClick={() => handleChat(p)}>{p}</button>
-                  ))}
-                </div>
               </div>
             ) : (
               <>
@@ -425,7 +508,12 @@ const Explore: React.FC = () => {
                     <div key={i} className={s.userMsg}><ChatContent content={msg.content} /></div>
                   ) : (
                     <div key={i} className={s.assistantWrap}>
-                      <div className={s.assistantMsg}><ChatContent content={msg.content} /></div>
+                      <div className={s.assistantMsg}>
+                        <ChatContent
+                          content={msg.content}
+                          onCitation={(n: number) => { const src = (msg.sources || [])[n - 1]; if (src) openCitation(src); }}
+                        />
+                      </div>
                       {(msg.sources?.length ?? 0) > 0 && (
                         <>
                           <button className={s.evidenceToggle} onClick={() => toggleSource(i)}>
@@ -435,13 +523,14 @@ const Explore: React.FC = () => {
                           {expandedSources.has(i) && (
                             <div className={s.evidenceList}>
                               {(msg.sources || []).map((src: any, j: number) => (
-                                <div key={j} className={s.evidenceItem}>
-                                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                    <span style={{ fontWeight: 600, color: "#0f172a" }} title={src.doc_id}>{src.doc_id}</span>
-                                    <span style={{ color: "#2563eb", fontWeight: 600, fontSize: 11 }}>{(src.score * 100).toFixed(0)}%</span>
-                                  </div>
-                                  {src.text && <div style={{ color: "#64748b", marginTop: 2, fontSize: 11, lineHeight: 1.4 }}>{src.text.slice(0, 180)}</div>}
-                                </div>
+                                <button
+                                  key={j}
+                                  type="button"
+                                  className={s.evidenceItem}
+                                  onClick={() => openCitation(src)}
+                                >
+                                  <span className={s.evidenceTitle}>{src.source_file || src.doc_id}</span>
+                                </button>
                               ))}
                             </div>
                           )}
@@ -525,6 +614,34 @@ const Explore: React.FC = () => {
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ═══ CITATION PANEL ═══ */}
+      {activeCitation && (
+        <>
+          <div className={s.overlay} onClick={() => setActiveCitation(null)} />
+          <div className={s.histDrawer} style={{ width: 440 }}>
+            <div className={s.histHeader}>
+              Citation
+              <button onClick={() => setActiveCitation(null)}
+                style={{ border: "none", background: "none", cursor: "pointer", color: "#94a3b8" }}>
+                x
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", flex: 1, padding: 16 }}>
+              <h5 style={{ margin: "0 0 10px", fontSize: 13, color: "#0f172a", wordBreak: "break-all" }}>
+                {activeCitation.title}
+              </h5>
+              {citationLoading ? (
+                <div style={{ color: "#94a3b8", fontSize: 14 }}>Loading…</div>
+              ) : (
+                <div style={{ fontSize: 14, lineHeight: 1.75, color: "#334155", wordBreak: "break-word" }}>
+                  {renderMarkdown(activeCitation.content)}
+                </div>
+              )}
             </div>
           </div>
         </>

@@ -46,6 +46,19 @@ const TYPE_LABELS: Record<string, string> = {
   azure_search: "Azure AI Search",
 };
 
+const formatSourceDocumentLabel = (sourceType: string, count: number) => {
+  if (sourceType === "azure_search") {
+    return `${count.toLocaleString()} indexed item${count === 1 ? "" : "s"}`;
+  }
+  return `${count.toLocaleString()} ${count === 1 ? "record" : "records"}`;
+};
+
+const formatSourceStatus = (status: string) => {
+  if (status === "connected") return "Connected";
+  if (status === "error") return "Connection error";
+  return status;
+};
+
 const DataSources: React.FC = () => {
   const navigate = useNavigate();
   const { setExploreData, setInsights, ingestionSnapshot } = useAppState();
@@ -76,7 +89,9 @@ const DataSources: React.FC = () => {
       
       const [filesRes, srcRes] = await Promise.allSettled(requests);
       setUploadedFiles(filesRes.status === "fulfilled" && Array.isArray(filesRes.value.data) ? filesRes.value.data : []);
-      setSources(srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current);
+      const rawSrc = srcRes.status === "fulfilled" && Array.isArray(srcRes.value.data) ? srcRes.value.data : sourcesRef.current;
+      // Hide inert 'native' scenario markers — they aren't real connections.
+      setSources(rawSrc.filter((s: any) => s.source_type !== "native"));
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -87,7 +102,11 @@ const DataSources: React.FC = () => {
   useEffect(() => {
     if (!ingestionSnapshot) return;
     setUploadedFiles(Array.isArray(ingestionSnapshot.uploadedFiles) ? ingestionSnapshot.uploadedFiles : []);
-    setSources(Array.isArray(ingestionSnapshot.dataSources) ? ingestionSnapshot.dataSources : []);
+    setSources(
+      Array.isArray(ingestionSnapshot.dataSources)
+        ? ingestionSnapshot.dataSources.filter((s: any) => s.source_type !== "native")
+        : []
+    );
   }, [ingestionSnapshot]);
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -170,6 +189,8 @@ const DataSources: React.FC = () => {
   const readyFiles = uploadedFiles.filter((f) => f.status === "ready");
   const processingFiles = uploadedFiles.filter((f) => f.status === "processing");
   const failedFiles = uploadedFiles.filter((f) => f.status === "failed");
+  const connectedSources = sources.filter((s) => s.status === "connected");
+  const hasKnowledgeSources = readyFiles.length > 0 || connectedSources.length > 0;
   const totalRecords = readyFiles.reduce((sum, f) => sum + (f.doc_count || 0), 0)
     + sources.reduce((sum, s) => sum + (s.doc_count || 0), 0);
 
@@ -249,9 +270,9 @@ const DataSources: React.FC = () => {
           </div>
           <div style={{ flex: 1 }} />
           <Button appearance="primary" size="small" icon={<Search20Regular />}
-            onClick={() => navigate("/explore")} disabled={readyFiles.length === 0}>Explore</Button>
+            onClick={() => navigate("/explore")} disabled={!hasKnowledgeSources}>Explore</Button>
           <Button appearance="outline" size="small" icon={<DataBarVertical20Regular />}
-            onClick={() => navigate("/insights")} disabled={readyFiles.length === 0}>Insights</Button>
+            onClick={() => navigate("/insights")} disabled={!hasKnowledgeSources}>Insights</Button>
         </div>
       )}
 
@@ -318,32 +339,44 @@ const DataSources: React.FC = () => {
 
           {/* Database sources */}
           {sources.map((src) => (
-            <div key={`ds-${src.id}`} className="sourceRow">
-              <div className="sourceIcon dbIcon">
-                <Database24Regular style={{ fontSize: 18 }} />
-              </div>
-              <div className="sourceInfo">
-                <div className="sourceName">
-                  {src.name}
-                  <Badge appearance="tint" size="small" color={src.status === "connected" ? "success" : src.status === "error" ? "danger" : "warning"}
-                    style={{ marginLeft: 8, verticalAlign: "middle" }}>
-                    {src.status}
-                  </Badge>
+            <div key={`ds-${src.id}`} className="sourceRow sourceRowCard">
+              <div className="sourceCardHeader">
+                <div className="sourceIcon dbIcon">
+                  <Database24Regular style={{ fontSize: 18 }} />
                 </div>
-                <div className="sourceMeta">
-                  {TYPE_LABELS[src.source_type] || src.source_type} · {(src.doc_count ?? 0).toLocaleString()} rows
+                <div className="sourceCardTitle">Knowledge Source</div>
+              </div>
+              <div className="sourceInfo sourceInfoCard">
+                <div className="sourceFieldRow">
+                  <span className="sourceFieldLabel">Name:</span>
+                  <span className="sourceFieldValue">{src.name}</span>
+                </div>
+                <div className="sourceFieldRow">
+                  <span className="sourceFieldLabel">Type:</span>
+                  <span className="sourceFieldValue">{TYPE_LABELS[src.source_type] || src.source_type}</span>
+                </div>
+                <div className="sourceFieldRow">
+                  <span className="sourceFieldLabel">Status:</span>
+                  <span className="sourceFieldValue sourceFieldStatus">
+                    <Badge appearance="tint" size="small" color={src.status === "connected" ? "success" : src.status === "error" ? "danger" : "warning"}>
+                      {src.status === "connected" ? "✓ " : ""}{formatSourceStatus(src.status)}
+                    </Badge>
+                  </span>
+                </div>
+                <div className="sourceFieldRow">
+                  <span className="sourceFieldLabel">Documents:</span>
+                  <span className="sourceFieldValue">{formatSourceDocumentLabel(src.source_type, src.doc_count ?? 0)}</span>
                 </div>
               </div>
-              <div className="sourceActions">
+              <div className="sourceActions sourceActionsVisible sourceActionsCard">
                 {(src.query_mode === "ingest" || src.query_mode === "both") && (
                   <button className="actionBtn" title="Sync"
                     onClick={() => handleIngest(src.id)} disabled={ingesting === src.id}>
                     {ingesting === src.id ? <Spinner size="tiny" /> : <ArrowSync20Regular />}
                   </button>
                 )}
-                <button className="actionBtn" title="Explore" onClick={() => navigate("/explore")}>
-                  <Search20Regular />
-                </button>
+                <Button appearance="outline" size="small" onClick={() => navigate(`/insights?source=${encodeURIComponent(src.name)}`)}>View Insights</Button>
+                <Button appearance="primary" size="small" icon={<Search20Regular />} onClick={() => navigate(`/explore?source=${encodeURIComponent(src.name)}`)}>Explore Data</Button>
                 <button className="actionBtn deleteBtn" title="Delete"
                   onClick={() => handleDeleteSource(src.id)}>
                   <Delete20Regular />

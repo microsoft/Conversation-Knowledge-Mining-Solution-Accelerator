@@ -12,6 +12,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class CitationContentRequest(BaseModel):
+    url: str
+
+
+@router.post("/fetch-azure-search-content")
+async def fetch_azure_search_content(body: CitationContentRequest):
+    """Fetch the content of a cited Azure AI Search document by its get_url.
+
+    Accepts a JSON payload with a 'url' field and returns {content, title}
+    (or {error}).
+    """
+    if not body.url:
+        raise HTTPException(status_code=400, detail="URL is required")
+    try:
+        return await asyncio.to_thread(rag_service.fetch_citation_content, body.url)
+    except Exception as e:
+        logger.error(f"fetch-azure-search-content failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch citation content.")
+
+
 class SaveChatRequest(BaseModel):
     session_id: str
     messages: list[dict]
@@ -28,17 +48,26 @@ async def save_chat(body: SaveChatRequest, request: Request):
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
         session_exists = any(s["id"] == body.session_id for s in sessions)
+
+        resolved_title = None
+        if not session_exists:
+            resolved_title = body.title
+            if body.messages:
+                agent_title = await asyncio.to_thread(rag_service.generate_title, body.messages)
+                if agent_title:
+                    resolved_title = agent_title
+
         if not session_exists:
             db_service.create_session(
                 session_id=body.session_id,
                 user_id=user_id,
-                title=body.title or "Chat session",
+                title=resolved_title or "Chat session",
             )
         success = db_service.save_messages_bulk(body.session_id, body.messages)
         if success:
             db_service.update_session(
                 body.session_id, user_id,
-                title=body.title,
+                title=resolved_title,
                 message_count=len(body.messages),
             )
         return {"saved": success}
@@ -89,7 +118,7 @@ async def delete_chat_session(session_id: str, request: Request):
 
 @router.post("/ask", response_model=QAResponse)
 async def ask_question(request: QARequest):
-    """Ask a question against the knowledge base or an external index."""
+    """Ask a question against the knowledge base."""
     try:
         doc_ids = request.document_ids if request.chat_scope == "documents" else None
         return await asyncio.to_thread(
@@ -99,7 +128,7 @@ async def ask_question(request: QARequest):
             filters=request.filters,
             include_sources=request.include_sources,
             document_ids=doc_ids,
-            external_index_id=request.external_index_id if request.chat_scope == "external" else None,
+            conversation_id=request.conversation_id,
         )
     except Exception as e:
         logger.error(f"RAG query failed: {e}", exc_info=True)
@@ -115,6 +144,7 @@ async def conversation(request: ConversationRequest):
         return await asyncio.to_thread(
             rag_service.answer_conversation,
             messages=messages, top_k=request.top_k, filters=request.filters, document_ids=doc_ids,
+            conversation_id=request.conversation_id,
         )
     except Exception as e:
         logger.error(f"Conversation failed: {e}", exc_info=True)

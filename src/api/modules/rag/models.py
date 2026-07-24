@@ -10,6 +10,7 @@ class QARequest(BaseModel):
     chat_scope: Literal["all", "documents", "external"] = "all"
     document_ids: Optional[list[str]] = None
     external_index_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class Source(BaseModel):
@@ -17,6 +18,8 @@ class Source(BaseModel):
     score: float
     text: str
     source_file: str = ""
+    url: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 class QAResponse(BaseModel):
@@ -38,3 +41,4 @@ class ConversationRequest(BaseModel):
     chat_scope: Literal["all", "documents", "external"] = "all"
     document_ids: Optional[list[str]] = None
     external_index_id: Optional[str] = None
+    conversation_id: Optional[str] = None

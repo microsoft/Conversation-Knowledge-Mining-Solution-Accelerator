@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 from agent_framework import tool
 
@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 @tool
 def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] = None) -> str:
     """Search Azure AI Search index for relevant documents.
-    
+
     This tool searches an Azure AI Search index using hybrid search (keyword + vector).
     Use this when the user asks questions that require searching document content,
     summaries, or specific information from indexed documents.
-    
+
     Args:
         query: The search query to run against the index
         top_k: Maximum number of results to return (default: 5)
         filters: Optional filter criteria as key-value pairs
-        
+
     Returns:
         JSON string containing search results with doc_id, text, summary, type, and source_file
     """
@@ -30,7 +30,7 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
         from azure.identity import DefaultAzureCredential
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
-        
+
         settings = get_settings()
         if not settings.azure_search_endpoint:
             return json.dumps({
@@ -38,14 +38,14 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
                 "error": "Azure AI Search not configured",
                 "results": []
             })
-        
+
         credential = DefaultAzureCredential()
         client = SearchClient(
             endpoint=settings.azure_search_endpoint,
             index_name=settings.azure_search_index_name,
             credential=credential,
         )
-        
+
         # Generate query embedding for vector search
         vector_queries = []
         try:
@@ -54,22 +54,19 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
             query_emb = emb_service.generate_embedding(query)
             vector_queries.append(VectorizedQuery(
                 vector=query_emb.embedding,
-                k_nearest_neighbors=top_k,
+                k=top_k,
                 fields="text_vector",
             ))
         except Exception as e:
             logger.debug(f"Vector search unavailable, using keyword only: {e}")
-        
-        # Use fields that exist in both legacy and chunked index schemas
-        select_fields = ["id", "doc_id", "text", "summary", "type", "source_file"]
-        
-        results = client.search(
+
+        # Schema-agnostic search avoids brittle $select failures across different index schemas.
+        results = list(client.search(
             search_text=query,
             vector_queries=vector_queries if vector_queries else None,
             top=top_k,
-            select=select_fields,
-        )
-        
+        ))
+
         docs = []
         seen = {}  # doc_id -> index in docs (dedup chunks from same document)
         for r in results:
@@ -89,19 +86,19 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
             seen[doc_id] = len(docs)
             docs.append({
                 "doc_id": doc_id,
-                "text": r.get("text", ""),
+                "text": r.get("text") or r.get("content") or r.get("summary") or r.get("title") or "",
                 "summary": r.get("summary", ""),
                 "type": r.get("type", "unknown"),
-                "source_file": r.get("source_file", ""),
+                "source_file": r.get("source_file") or r.get("title") or "",
                 "score": score,
             })
-        
+
         return json.dumps({
             "success": True,
             "count": len(docs),
             "results": docs
         })
-        
+
     except Exception as e:
         logger.error(f"Azure AI Search tool error: {e}", exc_info=True)
         return json.dumps({
@@ -113,28 +110,46 @@ def search_azure_ai_search(query: str, top_k: int = 5, filters: Optional[dict] =
 
 @tool
 def get_sql_response(sql_query: str) -> str:
-    """Execute a SQL query against the knowledge mining database.
-    
-    This tool executes SQL queries to fetch structured data from the database.
-    Use this when the user asks for:
-    - Counts or statistics (e.g., "How many documents?")
-    - Specific records matching criteria
-    - Aggregations or calculations
-    - Structured data that requires SQL queries
-    
-    The available tables are:
-    - documents: id, text_content, summary, source_file, doc_type, metadata
-    - Any other configured tables in the knowledge mining database
-    
+    """Execute a T-SQL query against the knowledge mining documents table.
+
+    TABLE: documents
+    COLUMNS (always available):
+      id            - document identifier
+      text_content  - full conversation/document text
+      summary       - AI-generated summary
+      source_file   - filename the record came from
+      doc_type      - file extension / type
+      metadata      - JSON column; use JSON_VALUE(metadata, '$.field') to filter
+
+    METADATA FIELDS (call get_schema_and_sample_values first if unsure of exact values):
+      JSON_VALUE(metadata, '$.region')          - geographic region
+      JSON_VALUE(metadata, '$.priority')        - priority level
+      JSON_VALUE(metadata, '$.status')          - current status
+      JSON_VALUE(metadata, '$.claim_type')      - type of claim or topic
+      JSON_VALUE(metadata, '$.fraud_signal')    - fraud signal flag
+      JSON_VALUE(metadata, '$.channel')         - interaction channel
+      JSON_VALUE(metadata, '$.policy_type')     - policy or product type
+      JSON_VALUE(metadata, '$.adjuster_team')   - team responsible
+      JSON_VALUE(metadata, '$.estimated_amount_usd') - monetary estimate
+
+    CRITICAL RULES:
+    - All metadata values are stored as strings — always compare with single-quoted strings
+    - Match values EXACTLY as stored (case-sensitive). Call get_schema_and_sample_values
+      first to discover exact values before filtering on metadata fields.
+    - NEVER guess metadata values. If uncertain, run a discovery query first:
+        SELECT DISTINCT JSON_VALUE(metadata, '$.field') FROM documents
+    - Use TOP N to limit large result sets (e.g., SELECT TOP 10 ...)
+    - For text search use: text_content LIKE '%keyword%'
+
     Args:
-        sql_query: Valid T-SQL query to execute
-        
+        sql_query: Valid T-SQL query to execute against the documents table
+
     Returns:
-        JSON string containing query results or error message
+        JSON string with results, column names, and row count
     """
     try:
         from src.api.storage.sql_service import sql_service
-        
+
         sql_service._ensure_init()
         if not sql_service._initialized:
             return json.dumps({
@@ -142,35 +157,148 @@ def get_sql_response(sql_query: str) -> str:
                 "error": "SQL database not available",
                 "results": []
             })
-        
+
         conn = sql_service._get_connection()
         cursor = conn.cursor()
-        
-        # Execute the query
         cursor.execute(sql_query)
-        
-        # Fetch results
         rows = cursor.fetchall()
         columns = [description[0] for description in cursor.description] if cursor.description else []
-        
-        # Convert to list of dicts
-        results = []
-        for row in rows:
-            results.append(dict(zip(columns, row)))
-        
+        results = [dict(zip(columns, row)) for row in rows]
         conn.close()
-        
+
         return json.dumps({
             "success": True,
             "count": len(results),
             "columns": columns,
-            "results": results
-        })
-        
+            "results": results,
+            "hint": "If count is 0, call get_schema_and_sample_values to verify exact field values before retrying."
+        }, default=str)
+
     except Exception as e:
         logger.error(f"SQL query tool error: {e}", exc_info=True)
         return json.dumps({
             "success": False,
             "error": str(e),
-            "results": []
+            "results": [],
+            "hint": "Check your SQL syntax and field names. Use get_schema_and_sample_values to verify schema."
         })
+
+
+@tool
+def query_fabric_data(query: str) -> str:
+    """Execute a T-SQL SELECT query against the connected Microsoft Fabric warehouse/lakehouse.
+
+    Use this to read live source records from the Fabric table.
+    The query argument MUST be a valid T-SQL SELECT statement — never natural language.
+    For enriched analytics (topics, summaries, entities, key phrases), use get_sql_response
+    against the 'documents' table instead.
+
+    Args:
+        query: A valid T-SQL SELECT statement to execute against the Fabric SQL endpoint.
+               Example: SELECT TOP 20 CategoryName, CategoryDescription FROM productcategory WHERE IsActive = 1
+
+    Returns:
+        JSON string with results, column names, and row count.
+    """
+    try:
+        from src.api.modules.data_sources.registry import data_source_registry
+        from src.api.modules.data_sources.base import DataSourceType
+
+        data_source_registry._ensure_loaded()
+        config = next(
+            (c for c in data_source_registry.list_all() if c.source_type == DataSourceType.FABRIC),
+            None,
+        )
+        if not config:
+            return json.dumps({"success": False, "error": "No Fabric data source is connected.", "results": []})
+
+        adapter = data_source_registry._get_adapter(DataSourceType.FABRIC)
+        conn = adapter._get_connection(config)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            columns = [d[0] for d in cursor.description] if cursor.description else []
+            rows = cursor.fetchall()
+            results = [dict(zip(columns, row)) for row in rows]
+        finally:
+            conn.close()
+
+        return json.dumps({
+            "success": True,
+            "count": len(results),
+            "columns": columns,
+            "results": results,
+            "table": config.table_or_query,
+        }, default=str)
+
+    except Exception as e:
+        logger.error(f"Fabric query tool error: {e}", exc_info=True)
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "results": [],
+            "hint": "Column name or table name may be wrong. Run: SELECT TOP 1 * FROM <table_name> to discover the exact column names, then retry with correct column names."
+        })
+
+
+@tool
+def get_schema_and_sample_values(top_n: int = 5) -> str:
+    """Discover the exact metadata field names and sample values stored in the documents table.
+
+    Call this BEFORE writing SQL queries with metadata filters, especially when:
+    - A previous query returned zero rows
+    - You are unsure of exact field names or value casing
+    - The user references a concept that could map to multiple field names
+
+    Args:
+        top_n: Number of distinct sample values to return per field (default: 5)
+
+    Returns:
+        JSON with field names, sample values, and total document count
+    """
+    try:
+        from src.api.storage.sql_service import sql_service
+
+        sql_service._ensure_init()
+        if not sql_service._initialized:
+            return json.dumps({"success": False, "error": "SQL database not available"})
+
+        conn = sql_service._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        total = cursor.fetchone()[0]
+
+        cursor.execute(
+            "SELECT TOP 20 metadata FROM documents "
+            "WHERE metadata IS NOT NULL AND LEN(metadata) > 2"
+        )
+        field_samples: dict[str, set] = {}
+        for row in cursor.fetchall():
+            try:
+                meta = json.loads(row[0])
+                if not isinstance(meta, dict):
+                    continue
+                for key, val in meta.items():
+                    if val is None:
+                        continue
+                    sv = str(val).strip()
+                    if sv:
+                        field_samples.setdefault(key, set()).add(sv)
+            except Exception:
+                continue
+
+        schema = {
+            "total_documents": total,
+            "metadata_fields": {
+                field: sorted(list(values))[:top_n]
+                for field, values in sorted(field_samples.items())
+            }
+        }
+        conn.close()
+
+        return json.dumps({"success": True, "schema": schema}, default=str)
+
+    except Exception as e:
+        logger.error(f"Schema discovery tool error: {e}", exc_info=True)
+        return json.dumps({"success": False, "error": str(e)})

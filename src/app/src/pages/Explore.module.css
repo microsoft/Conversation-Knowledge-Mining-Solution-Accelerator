@@ -87,17 +87,6 @@
   align-items: center; justify-content: center; gap: 16px;
   padding: 48px 24px; text-align: center;
 }
-.suggestions {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  justify-content: center; max-width: 500px; margin-top: 8px;
-}
-.suggestionBtn {
-  padding: 10px 16px; border-radius: 10px; border: 1px solid #e5e7eb;
-  background: #ffffff; font-size: 13px; color: #475569;
-  cursor: pointer; font-family: inherit; text-align: left;
-  transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
-}
-.suggestionBtn:hover { border-color: #2563eb; color: #2563eb; box-shadow: 0 1px 4px rgba(37,99,235,0.08); }
 
 .userMsg {
   align-self: flex-end; background: #2563eb; color: #ffffff;
@@ -123,8 +112,16 @@
   padding: 6px 0; display: flex; flex-direction: column; gap: 4px;
 }
 .evidenceItem {
-  padding: 8px 12px; border-radius: 8px; background: #f8fafc;
-  border: 1px solid #f1f5f9; font-size: 12px;
+  padding: 10px 14px; border-radius: 8px; background: #ffffff;
+  border: 1px solid #e5e7eb; font-size: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.evidenceItem:hover { background: #f8fafc; border-color: #2563eb; }
+.evidenceTitle {
+  font-weight: 600; color: #2563eb; font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .disclaimer { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 

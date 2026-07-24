@@ -26,7 +26,7 @@ def classify(text: str = "", labels: list[str] | None = None, context: dict | No
             {"role": "user", "content": text},
         ],
         temperature=0.1,
-        max_tokens=100,
+        max_completion_tokens=100,
     )
     raw = response.choices[0].message.content.strip()
     raw = strip_code_fences(raw)

@@ -106,7 +106,7 @@ class ContentExtractionService:
             self._client = get_llm_client()
         return self._client
 
-    def _call_llm(self, system: str, user: str, max_tokens: int = 4000) -> dict:
+    def _call_llm(self, system: str, user: str, max_completion_tokens: int = 4000) -> dict:
         settings = get_settings()
         client = self._get_client()
         response = client.chat.completions.create(
@@ -116,7 +116,7 @@ class ContentExtractionService:
                 {"role": "user", "content": user},
             ],
             temperature=0.2,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_completion_tokens,
             response_format={"type": "json_object"},
         )
         raw = response.choices[0].message.content
@@ -163,7 +163,7 @@ class ContentExtractionService:
             + json.dumps(summaries, indent=2)
         )
 
-        result = self._call_llm(FILTER_SCHEMA_PROMPT, user_prompt, max_tokens=4000)
+        result = self._call_llm(FILTER_SCHEMA_PROMPT, user_prompt, max_completion_tokens=4000)
         return result
 
     def extract(self, documents: list[dict]) -> dict:

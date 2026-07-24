@@ -10,6 +10,8 @@ export interface Source {
   score: number;
   text?: string;
   filename?: string;
+  source_file?: string;
+  url?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -224,6 +226,20 @@ export interface InsightRuntime {
   events?: TimelineEvent[];
 }
 
+export interface AiLayoutBlock {
+  type: string;
+  title?: string;
+  text?: string;
+  description?: string;
+  label?: string;
+  value?: number | string | null;
+  items?: string[];
+  left_label?: string;
+  left_value?: number;
+  right_label?: string;
+  right_value?: number;
+}
+
 export interface DashboardResponse {
   datasetInfo?: {
     name: string;
@@ -244,6 +260,7 @@ export interface DashboardResponse {
   filters: DashboardFilter[];
   suggested_questions: string[];
   runtime?: InsightRuntime;
+  ai_layout?: AiLayoutBlock[];
 }
 
 // ── Data Sources ──

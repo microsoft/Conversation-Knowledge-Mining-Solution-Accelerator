@@ -52,7 +52,7 @@ def extract_relationships(text: str = "", context: dict | None = None, **kwargs)
             {"role": "user", "content": text[:6000]},
         ],
         temperature=0.1,
-        max_tokens=2000,
+        max_completion_tokens=2000,
     )
 
     raw = (response.choices[0].message.content or "").strip()

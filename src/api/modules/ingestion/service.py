@@ -116,6 +116,7 @@ class IngestionService:
                         doc_ids=item.get("doc_ids", []),
                         uploaded_at=item.get("uploaded_at", ""),
                         source=item.get("source", "uploaded"),
+                        status=item.get("status", "ready"),
                     )
                     # If doc_ids not stored in SQL, rebuild from loaded documents
                     if not uf.doc_ids:
@@ -694,6 +695,8 @@ class IngestionService:
             meta = item.get("metadata", {})
             if "source_file" not in meta:
                 meta["source_file"] = os.path.basename(file_path)
+            if "source_type" not in meta:
+                meta["source_type"] = "seed"
 
             # Preserve enrichment fields in metadata for filter building
             for field in _ENRICHMENT_FIELDS:
@@ -765,41 +768,92 @@ class IngestionService:
             sample_ids=list(self._documents.keys())[:5],
         )
 
-    def load_json_data(self, data: list[dict], filename: str = "uploaded_data.json") -> IngestionResult:
+    def load_json_data(
+        self,
+        data: list[dict],
+        filename: str = "uploaded_data.json",
+        source: str = "uploaded",
+    ) -> IngestionResult:
         self._ensure_loaded()
         by_type: dict[str, int] = {}
+        normalized_items: list[dict] = []
         for item in data:
+            # Normalize id — fall back to known alternatives or generate one.
+            if "id" not in item or not item["id"]:
+                item["id"] = (
+                    item.get("ConversationId")
+                    or item.get("conversation_id")
+                    or item.get("doc_id")
+                    or str(__import__("uuid").uuid4())
+                )
+            # Normalize text — map common alternative field names.
+            if "text" not in item or not item["text"]:
+                item["text"] = (
+                    item.get("Content")
+                    or item.get("content")
+                    or item.get("body")
+                    or item.get("Body")
+                    or ""
+                )
+            # Normalize type — derive from filename extension when not provided
+            if "type" not in item or not item["type"]:
+                ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+                if ext == "json" and filename.lower().startswith("convo"):
+                    item["type"] = "conversation"
+                elif ext:
+                    item["type"] = ext
+                else:
+                    item["type"] = "json"
+            meta = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            if "source_type" not in meta:
+                meta["source_type"] = source
+            if "source_file" not in meta and filename:
+                meta["source_file"] = filename
+            item["metadata"] = meta
+            normalized_items.append(item)
+
             doc = Document(
                 id=item["id"],
                 type=item.get("type", "unknown"),
                 text=item.get("text", ""),
-                metadata=DocumentMetadata(**{k: v for k, v in item.get("metadata", {}).items()
+                metadata=DocumentMetadata(**{k: v for k, v in meta.items()
                                              if k in DocumentMetadata.__fields__}),
             )
             self._documents[doc.id] = doc
             by_type[doc.type] = by_type.get(doc.type, 0) + 1
 
-            self._persist_doc(item)
+        # Persist in bulk when SQL is available; fallback to per-doc persistence.
+        try:
+            from src.api.storage.sql_service import sql_service
+            if not sql_service.save_documents_bulk(normalized_items):
+                for item in normalized_items:
+                    self._persist_doc(item)
+        except Exception:
+            for item in normalized_items:
+                self._persist_doc(item)
 
         # Track file immediately (in-memory) so it appears in the file list right away
         from datetime import datetime
         file_id = filename.rsplit(".", 1)[0].replace(" ", "_")
-        ingested_ids = [item["id"] for item in data]
+        ingested_ids = [item["id"] for item in normalized_items]
 
         # Preserve existing status/error if file already exists (e.g., set to "processing" by upload)
         existing = self._uploaded_files.get(file_id)
+        default_summary = f"{len(data)} documents"
+        if filename and filename.lower().endswith(".json"):
+            default_summary = filename
         uploaded_file = UploadedFile(
             id=file_id,
             filename=filename,
             doc_count=len(data),
-            summary=existing.summary if existing and existing.summary != "Processing..." else f"{len(data)} documents",
+            summary=existing.summary if existing and existing.summary != "Processing..." else default_summary,
             keywords=existing.keywords if existing else [],
             filter_values=existing.filter_values if existing else {},
             doc_ids=ingested_ids,
             uploaded_at=existing.uploaded_at if existing else datetime.utcnow().isoformat() + "Z",
             status=existing.status if existing else "ready",
             error=existing.error if existing else "",
-            source=existing.source if existing else "uploaded",  # Preserve source or default to uploaded
+            source=existing.source if existing else source,  # Preserve source or default to current load source
         )
         self._uploaded_files[file_id] = uploaded_file
         self._persist_file(uploaded_file)
@@ -912,8 +966,15 @@ class IngestionService:
 
     def clear(self):
         """Clear all data from memory, SQL, and AI Search."""
-        self._documents.clear()
-        self._uploaded_files.clear()
+        # Keep externally ingested docs in-memory; drop scenario/uploaded docs.
+        self._documents = {
+            doc_id: doc for doc_id, doc in self._documents.items()
+            if getattr(doc.metadata, "source_type", "uploaded") == "external_ingest"
+        }
+        self._uploaded_files = {
+            file_id: f for file_id, f in self._uploaded_files.items()
+            if (getattr(f, "source", "uploaded") == "external_ingest")
+        }
         self._filter_schema = FilterSchema()
         self._loaded_from_db = False
 
@@ -925,17 +986,53 @@ class IngestionService:
             if sql_service.available:
                 conn = sql_service._get_connection()
                 cursor = conn.cursor()
-                tables_to_clear = [
-                    "documents", "uploaded_files", "filter_schemas", 
-                    "enrichment_cache", "document_entities", "entity_relationships", "entity_nodes"
-                ]
-                for table in tables_to_clear:
+                # Scenario switch: clear only internal/scenario data.
+                try:
+                    cursor.execute("DELETE FROM documents WHERE ISNULL(source_type, 'uploaded') <> 'external_ingest'")
+                    cleared_tables.append("documents(internal)")
+                except Exception as e:
+                    logger.warning(f"Failed to clear internal documents: {e}")
+                    failed_tables.append("documents(internal)")
+
+                try:
+                    cursor.execute("DELETE FROM uploaded_files WHERE ISNULL(source, 'uploaded') <> 'external_ingest'")
+                    cleared_tables.append("uploaded_files(internal)")
+                except Exception as e:
+                    logger.warning(f"Failed to clear internal uploaded_files: {e}")
+                    failed_tables.append("uploaded_files(internal)")
+
+                for table in ["filter_schemas", "enrichment_cache", "insights_cache"]:
                     try:
                         cursor.execute(f"DELETE FROM {table}")
                         cleared_tables.append(table)
                     except Exception as e:
                         logger.warning(f"Failed to clear {table}: {e}")
                         failed_tables.append(table)
+
+                # Remove dangling graph rows after internal doc deletion.
+                for cleanup_sql, label in [
+                    ("DELETE FROM document_entities WHERE doc_id NOT IN (SELECT id FROM documents)", "document_entities(dangling)"),
+                    ("DELETE FROM entity_relationships WHERE doc_id NOT IN (SELECT id FROM documents)", "entity_relationships(dangling)"),
+                    (
+                        """
+                        DELETE FROM entity_nodes
+                        WHERE id NOT IN (
+                            SELECT DISTINCT entity_id FROM document_entities
+                            UNION
+                            SELECT DISTINCT subject_entity_id FROM entity_relationships
+                            UNION
+                            SELECT DISTINCT object_entity_id FROM entity_relationships WHERE object_entity_id IS NOT NULL
+                        )
+                        """,
+                        "entity_nodes(unused)",
+                    ),
+                ]:
+                    try:
+                        cursor.execute(cleanup_sql)
+                        cleared_tables.append(label)
+                    except Exception as e:
+                        logger.warning(f"Failed to clean {label}: {e}")
+                        failed_tables.append(label)
                 conn.commit()
                 conn.close()
                 if cleared_tables:

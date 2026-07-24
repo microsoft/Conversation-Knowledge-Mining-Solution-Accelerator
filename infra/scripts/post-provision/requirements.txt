@@ -1,0 +1,13 @@
+azure-identity==1.25.3
+azure-ai-projects==2.2.0
+agent-framework-core==1.9.0
+agent-framework-foundry==1.8.2
+azure-search-documents==11.7.0b2
+azure-cosmos==4.16.1
+azure-mgmt-web==11.0.0
+pyodbc==5.3.0
+cachetools==5.5.2
+pydantic==2.13.4
+pydantic-settings==2.14.2
+openai==2.32.0
+numpy==2.4.6

@@ -73,8 +73,10 @@ async def upload_json(
     if len(content) > max_bytes:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {settings.max_upload_file_size_mb} MB.")
     data = json.loads(content)
+    if isinstance(data, dict):
+        data = [data]
     if not isinstance(data, list):
-        raise HTTPException(status_code=400, detail="JSON must be an array of documents")
+        raise HTTPException(status_code=400, detail="JSON must be an object or an array of documents")
     if len(data) > settings.max_json_documents_per_upload:
         raise HTTPException(status_code=413, detail=f"Too many documents. Maximum is {settings.max_json_documents_per_upload}.")
     result = ingestion_service.load_json_data(data, filename=file.filename or "uploaded.json")
@@ -187,73 +189,55 @@ async def upload_document(
 
 
 def _process_single_document(file_id: str, filename: str, ext: str, content: bytes):
-    """Process a single document — used as fallback when queue is unavailable.
-    Runs the full pipeline: extract → chunk → embed → index → enrich."""
+    """Fallback single-file pipeline, used when the queue/blob storage is unavailable.
+
+    Runs the full flow: Content Understanding extract → chunk → embed → index → enrich.
+    Every file type is processed through Content Understanding (no local fast-path).
+    """
     import io
     from src.api.modules.document_intelligence.service import content_understanding_service
     from src.api.modules.ingestion.chunking import chunk_text
     from src.api.modules.processing.service import ProcessingService
-    from src.api.modules.ingestion.local_extractor import extract_text as local_extract
 
     try:
         settings = get_settings()
 
-        # Try local extraction first — will reject unsupported formats like WAV early
-        try:
-            local_text, needs_cu = local_extract(content, filename)
-            if local_text.strip() and not needs_cu:
-                logger.debug(f"[{file_id}] Local extraction succeeded for {filename}, skipping CU")
-                # Create a mock extracted object for consistency
-                extracted = type('obj', (object,), {
-                    'markdown': local_text,
-                    'page_count': 1,
-                    'fields': {}
-                })()
-            else:
-                extracted = None  # Will use CU below
-        except ValueError as ve:
-            # Format validation error (e.g., WAV not supported)
-            ingestion_service._update_file_status(file_id, "failed", error=str(ve))
-            return
-        except Exception as le:
-            logger.debug(f"[{file_id}] Local extraction failed: {le}, will try CU")
-            extracted = None
+        # ── Stage 1: Extract with Content Understanding ─────────────────
+        cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
+        extracted = None
 
-        # Stage 1: Extract using CU if needed
-        if extracted is None:
-            cu_wait_sec = content_understanding_service.resolve_max_wait(len(content), settings.cu_poll_max_wait_sec)
-
-            # Prefer SAS URL to avoid re-uploading bytes
-            if settings.cu_use_sas_url:
-                try:
-                    from src.api.modules.ingestion.azure_storage import azure_storage_service
-                    sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
-                    if sas_url:
-                        extracted = content_understanding_service.analyze_url(
-                            file_url=sas_url,
-                            filename=filename,
-                            max_wait_sec=cu_wait_sec,
-                        )
-                except Exception as e:
-                    logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
-
-            if extracted is None:
-                try:
-                    extracted = content_understanding_service.analyze(
-                        file=io.BytesIO(content),
+        # Prefer SAS URL analysis to avoid re-uploading bytes to CU.
+        if settings.cu_use_sas_url:
+            try:
+                from src.api.modules.ingestion.azure_storage import azure_storage_service
+                sas_url = azure_storage_service.get_raw_file_sas_url(file_id, filename)
+                if sas_url:
+                    extracted = content_understanding_service.analyze_url(
+                        file_url=sas_url,
                         filename=filename,
                         max_wait_sec=cu_wait_sec,
                     )
-                except TimeoutError:
-                    retry_wait_sec = settings.cu_poll_max_wait_sec
-                    logger.warning(
-                        f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s for {filename}"
-                    )
-                    extracted = content_understanding_service.analyze(
-                        file=io.BytesIO(content),
-                        filename=filename,
-                        max_wait_sec=retry_wait_sec,
-                    )
+            except Exception as e:
+                logger.warning(f"[{file_id}] SAS URL analysis failed, falling back to bytes: {e}")
+
+        # Byte-upload fallback (also the deterministic retry path on timeout).
+        if extracted is None:
+            try:
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=cu_wait_sec,
+                )
+            except TimeoutError:
+                retry_wait_sec = settings.cu_poll_max_wait_sec
+                logger.warning(
+                    f"[{file_id}] CU timeout at {cu_wait_sec}s; retrying once with {retry_wait_sec}s for {filename}"
+                )
+                extracted = content_understanding_service.analyze(
+                    file=io.BytesIO(content),
+                    filename=filename,
+                    max_wait_sec=retry_wait_sec,
+                )
 
         if not extracted.markdown.strip():
             ingestion_service._update_file_status(file_id, "failed", error=f"No text could be extracted from {filename}")
@@ -277,8 +261,9 @@ def _process_single_document(file_id: str, filename: str, ext: str, content: byt
         }
         if cu_fields.get("topic"):
             metadata["topic"] = cu_fields["topic"]
+            metadata["topics"] = [cu_fields["topic"]]
         if cu_fields.get("key_phrases"):
-            metadata["key_phrases"] = ", ".join(cu_fields["key_phrases"])
+            metadata["key_phrases"] = cu_fields["key_phrases"]
 
         doc_data = {
             "id": file_id,
@@ -449,6 +434,14 @@ async def get_filter_schema():
             if dim.id not in existing_ids:
                 schema.dimensions.append(dim)
 
+    # Fallback for live external sources: derive extraction facets from runtime text.
+    runtime_schema = _build_runtime_extraction_filters()
+    if runtime_schema.dimensions:
+        existing_ids = {d.id for d in schema.dimensions}
+        for dim in runtime_schema.dimensions:
+            if dim.id not in existing_ids:
+                schema.dimensions.append(dim)
+
     if not schema.dimensions:
         return FilterSchema()
     return schema
@@ -513,6 +506,55 @@ def _build_sql_filters() -> FilterSchema:
                     type="multi_select",
                     values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
                 ))
+
+        # Add extraction-driven filters from JSON columns when available.
+        extraction_specs = [
+            ("topics", "Topics"),
+            ("entities", "Entities"),
+            ("key_phrases", "Key Phrases"),
+        ]
+        existing_ids = {d.id for d in dims}
+        for column_name, label in extraction_specs:
+            if column_name in existing_ids:
+                continue
+
+            cursor.execute(
+                f"SELECT TOP 500 {column_name} FROM documents "
+                f"WHERE {column_name} IS NOT NULL AND LEN({column_name}) > 2"
+            )
+            value_counts: dict[str, int] = {}
+            for row in cursor.fetchall():
+                raw = row[0]
+                if not raw:
+                    continue
+                try:
+                    parsed = _json.loads(raw)
+                except Exception:
+                    parsed = []
+
+                if isinstance(parsed, list):
+                    values = parsed
+                elif isinstance(parsed, dict):
+                    values = list(parsed.values())
+                else:
+                    values = [parsed]
+
+                for value in values:
+                    token = str(value).strip()
+                    if not token or len(token) > 60:
+                        continue
+                    value_counts[token] = value_counts.get(token, 0) + 1
+
+            if not value_counts:
+                continue
+
+            sorted_vals = sorted(value_counts.items(), key=lambda x: -x[1])[:20]
+            dims.append(FilterDimension(
+                id=column_name,
+                label=label,
+                type="multi_select",
+                values=[FilterValue(value=v, label=v, count=c) for v, c in sorted_vals],
+            ))
         conn.close()
         return FilterSchema(domain="", dimensions=dims)
     except Exception as e:
@@ -520,8 +562,39 @@ def _build_sql_filters() -> FilterSchema:
         return FilterSchema()
 
 
+def _build_runtime_extraction_filters() -> FilterSchema:
+    """Build extraction dimensions from sampled runtime text as a lightweight fallback."""
+    try:
+        from src.api.modules.runtime.registry import runtime_registry
+        facets = runtime_registry.extraction_facets(source="all", filters=None, count=120, top=20)
+        dims: list[FilterDimension] = []
+
+        for dim_id, label in (("entities", "Entities"), ("topics", "Topics"), ("key_phrases", "Key Phrases")):
+            values = facets.get(dim_id, []) if isinstance(facets, dict) else []
+            if not values:
+                continue
+            dims.append(FilterDimension(
+                id=dim_id,
+                label=label,
+                type="multi_select",
+                values=[
+                    FilterValue(
+                        value=str(v.get("label") or ""),
+                        label=str(v.get("label") or ""),
+                        count=int(v.get("value") or 0),
+                    )
+                    for v in values if str(v.get("label") or "").strip()
+                ],
+            ))
+
+        return FilterSchema(domain="", dimensions=dims)
+    except Exception as e:
+        logger.warning(f"Runtime extraction filter fallback failed: {e}")
+        return FilterSchema()
+
+
 @router.delete("/clear")
-async def clear_documents():
+async def clear_documents(include_external: bool = False):
     ingestion_service.clear()
     # Also clear the insights plan cache so it regenerates for new data
     try:
@@ -532,7 +605,23 @@ async def clear_documents():
         dashboard_service._schema_hash = None
     except Exception as e:
         logger.warning(f"Failed to clear insights cache: {e}")
-    return {"message": "All documents, files, and filters cleared"}
+
+    cleared_count = 0
+    if include_external:
+        try:
+            from src.api.modules.data_sources.registry import data_source_registry
+            cleared_count = data_source_registry.clear_all_external_sources()
+            logger.info(f"Cleared {cleared_count} external data source(s) from external_data_sources table")
+        except Exception as e:
+            logger.warning(f"Failed to clear external data sources: {e}")
+
+    return {
+        "message": (
+            f"Scenario and uploaded documents cleared; {cleared_count} external source registration(s) also cleared"
+            if include_external
+            else "Scenario and uploaded documents cleared; external source registrations preserved"
+        ),
+    }
 
 
 @router.delete("/files/{file_id}")

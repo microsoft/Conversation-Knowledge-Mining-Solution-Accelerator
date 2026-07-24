@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Iterator, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,8 @@ class DataSourceType(str, Enum):
     SYNAPSE = "synapse"
     ODBC = "odbc"
     AZURE_SEARCH = "azure_search"
+    # Inert marker for a seeded scenario (no adapter; hidden from live query and UI).
+    NATIVE = "native"
 
 
 class AuthMethod(str, Enum):
@@ -61,7 +63,7 @@ class FieldMapping(BaseModel):
     title_field: str = ""
     type_field: str = ""
     timestamp_field: str = ""
-    metadata_fields: dict[str, str] = {}  # accelerator_key -> source_column
+    metadata_fields: dict[str, str] = Field(default_factory=dict)  # accelerator_key -> source_column
 
 
 class DataSourceConfig(BaseModel):
@@ -75,7 +77,7 @@ class DataSourceConfig(BaseModel):
     database: str = ""
     table_or_query: str = ""
     auth_method: AuthMethod = AuthMethod.CONNECTION_STRING
-    field_mapping: FieldMapping = FieldMapping()
+    field_mapping: FieldMapping = Field(default_factory=FieldMapping)
     query_mode: QueryMode = QueryMode.BOTH
     status: str = "disconnected"  # connected | disconnected | error
     doc_count: int = 0

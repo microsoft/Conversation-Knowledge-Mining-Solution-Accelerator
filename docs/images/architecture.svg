@@ -1,0 +1,238 @@
+<svg width="1400" height="1000" viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .section-title { font-size: 16px; font-weight: bold; fill: #000; }
+      .box-title { font-size: 14px; font-weight: bold; fill: #fff; }
+      .box-text { font-size: 12px; fill: #333; }
+      .box-text-white { font-size: 12px; fill: #fff; }
+      .arrow { stroke: #333; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .section-line { stroke: #ddd; stroke-width: 2; fill: none; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#333" />
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="1000" fill="#f9f9f9"/>
+
+  <!-- Title -->
+  <text x="700" y="35" style="font-size: 28px; font-weight: bold; text-anchor: middle; fill: #000;">Solution Architecture</text>
+
+  <!-- SECTION 1: DATA INPUT -->
+  <text x="50" y="80" class="section-title">DATA INPUT</text>
+  
+  <g id="input-boxes">
+    <!-- Audio/Video -->
+    <rect x="50" y="100" width="140" height="80" fill="#f5f5f5" stroke="#999" stroke-width="2" rx="4"/>
+    <text x="120" y="125" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Audio/Video</text>
+    <text x="120" y="142" style="font-size: 11px; text-anchor: middle; fill: #666;">(.wav, .mp4)</text>
+    <text x="120" y="162" style="font-size: 11px; text-anchor: middle; fill: #666;">(.txt, .json)</text>
+    
+    <!-- Transcripts -->
+    <rect x="220" y="100" width="140" height="80" fill="#f5f5f5" stroke="#999" stroke-width="2" rx="4"/>
+    <text x="290" y="125" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Transcripts</text>
+    <text x="290" y="142" style="font-size: 11px; text-anchor: middle; fill: #666;">(.txt, .json)</text>
+    <text x="290" y="162" style="font-size: 11px; text-anchor: middle; fill: #666;">Text Data</text>
+    
+    <!-- Structured Data -->
+    <rect x="390" y="100" width="140" height="80" fill="#f5f5f5" stroke="#999" stroke-width="2" rx="4"/>
+    <text x="460" y="125" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Structured</text>
+    <text x="460" y="142" style="font-size: 11px; text-anchor: middle; fill: #666;">JSON, CSV</text>
+    <text x="460" y="162" style="font-size: 11px; text-anchor: middle; fill: #666;">Data</text>
+    
+    <!-- Documents -->
+    <rect x="560" y="100" width="140" height="80" fill="#f5f5f5" stroke="#999" stroke-width="2" rx="4"/>
+    <text x="630" y="125" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Documents</text>
+    <text x="630" y="142" style="font-size: 11px; text-anchor: middle; fill: #666;">(PDF, DOCX)</text>
+    <text x="630" y="162" style="font-size: 11px; text-anchor: middle; fill: #666;">Images</text>
+  </g>
+
+  <!-- Arrow down -->
+  <path d="M 350 190 L 350 220" class="arrow"/>
+  <text x="360" y="210" style="font-size: 11px; fill: #666;">Upload via Web UI or setup-data.ps1</text>
+
+  <!-- SECTION 2: PROCESSING PIPELINE -->
+  <text x="50" y="260" class="section-title">PROCESSING PIPELINE</text>
+
+  <g id="pipeline">
+    <!-- Blob Storage -->
+    <rect x="280" y="280" width="140" height="70" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+    <text x="350" y="305" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure Blob</text>
+    <text x="350" y="322" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Storage</text>
+
+    <!-- Arrow -->
+    <path d="M 350 350 L 350 380" class="arrow"/>
+
+    <!-- Content Understanding -->
+    <rect x="280" y="380" width="140" height="90" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+    <text x="350" y="403" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Content</text>
+    <text x="350" y="420" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Understanding</text>
+    <text x="350" y="438" style="font-size: 10px; text-anchor: middle; fill: #666;">• Text extraction</text>
+    <text x="350" y="452" style="font-size: 10px; text-anchor: middle; fill: #666;">• Topics, Summary</text>
+
+    <!-- Arrow -->
+    <path d="M 350 470 L 350 500" class="arrow"/>
+
+    <!-- SQL Database -->
+    <rect x="280" y="500" width="140" height="90" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+    <text x="350" y="523" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure SQL</text>
+    <text x="350" y="540" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Database</text>
+    <text x="350" y="558" style="font-size: 10px; text-anchor: middle; fill: #666;">Documents, Metadata</text>
+
+    <!-- Arrow -->
+    <path d="M 350 590 L 350 620" class="arrow"/>
+
+    <!-- OpenAI -->
+    <rect x="280" y="620" width="140" height="90" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+    <text x="350" y="643" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure OpenAI</text>
+    <text x="350" y="660" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Embeddings</text>
+    <text x="350" y="678" style="font-size: 10px; text-anchor: middle; fill: #666;">ada-002, 1536 dims</text>
+
+    <!-- Arrow -->
+    <path d="M 350 710 L 350 740" class="arrow"/>
+
+    <!-- AI Search -->
+    <rect x="280" y="740" width="140" height="90" fill="#fff3e0" stroke="#ff9800" stroke-width="2" rx="4"/>
+    <text x="350" y="763" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure AI Search</text>
+    <text x="350" y="780" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Ready</text>
+    <text x="350" y="798" style="font-size: 10px; text-anchor: middle; fill: #666;">Hybrid HNSW+BM25</text>
+  </g>
+
+  <!-- SECTION 3: USER EXPERIENCES -->
+  <text x="480" y="260" class="section-title">USER EXPERIENCES</text>
+
+  <g id="ux">
+    <!-- Home -->
+    <rect x="480" y="280" width="130" height="120" fill="#e3f2fd" stroke="#2196f3" stroke-width="2" rx="4"/>
+    <text x="545" y="305" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Home</text>
+    <text x="545" y="325" style="font-size: 10px; text-anchor: middle;">• Upload files</text>
+    <text x="545" y="340" style="font-size: 10px; text-anchor: middle;">• Load scenarios</text>
+    <text x="545" y="355" style="font-size: 10px; text-anchor: middle;">• Configure</text>
+    <text x="545" y="370" style="font-size: 10px; text-anchor: middle;">  data sources</text>
+
+    <!-- Explore -->
+    <rect x="650" y="280" width="130" height="120" fill="#e3f2fd" stroke="#2196f3" stroke-width="2" rx="4"/>
+    <text x="715" y="305" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Explore</text>
+    <text x="715" y="325" style="font-size: 10px; text-anchor: middle;">Chat with Data</text>
+    <text x="715" y="340" style="font-size: 10px; text-anchor: middle;">Tools:</text>
+    <text x="715" y="355" style="font-size: 10px; text-anchor: middle;">• AI Search</text>
+    <text x="715" y="370" style="font-size: 10px; text-anchor: middle;">• SQL Tool</text>
+
+    <!-- Insights -->
+    <rect x="820" y="280" width="130" height="120" fill="#e3f2fd" stroke="#2196f3" stroke-width="2" rx="4"/>
+    <text x="885" y="305" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Insights</text>
+    <text x="885" y="325" style="font-size: 10px; text-anchor: middle;">LLM-Generated</text>
+    <text x="885" y="340" style="font-size: 10px; text-anchor: middle;">• KPIs</text>
+    <text x="885" y="355" style="font-size: 10px; text-anchor: middle;">• Charts</text>
+    <text x="885" y="370" style="font-size: 10px; text-anchor: middle;">• Filters</text>
+  </g>
+
+  <!-- SECTION 4: MICROSOFT FOUNDRY -->
+  <text x="480" y="450" class="section-title">MICROSOFT FOUNDRY</text>
+
+  <g id="foundry">
+    <!-- Main container -->
+    <rect x="480" y="470" width="470" height="280" fill="#f3e5f5" stroke="#6b57d9" stroke-width="2" rx="4"/>
+
+    <!-- Agent Framework label -->
+    <text x="715" y="495" style="font-size: 11px; text-anchor: middle; font-weight: bold; fill: #6b57d9;">Agent Framework</text>
+
+    <!-- Chat Agent box -->
+    <rect x="500" y="510" width="430" height="100" fill="#ffffff" stroke="#6b57d9" stroke-width="2" rx="4"/>
+    <text x="715" y="535" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Chat Agent</text>
+    <text x="530" y="555" style="font-size: 11px;">• SQL Tool</text>
+    <text x="715" y="555" style="font-size: 11px;">• Azure AI Search Tool</text>
+    <text x="530" y="575" style="font-size: 11px;">• Conversation Memory</text>
+    <text x="715" y="575" style="font-size: 11px;">• Response Grounding</text>
+
+    <!-- Summary Agent box -->
+    <rect x="500" y="625" width="430" height="40" fill="#ffffff" stroke="#6b57d9" stroke-width="2" rx="4"/>
+    <text x="715" y="650" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Summary Agent</text>
+
+    <!-- Services row -->
+    <g id="services">
+      <rect x="500" y="680" width="100" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="2"/>
+      <text x="550" y="705" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Foundry IQ</text>
+
+      <rect x="615" y="680" width="100" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="2"/>
+      <text x="665" y="705" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Azure OpenAI</text>
+
+      <rect x="730" y="680" width="110" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="2"/>
+      <text x="785" y="705" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Content Understand.</text>
+
+      <rect x="855" y="680" width="75" height="60" fill="#ffffff" stroke="#ccc" stroke-width="1" rx="2"/>
+      <text x="892" y="705" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Agent Service</text>
+    </g>
+  </g>
+
+  <!-- SECTION 5: DATA LAYER -->
+  <text x="1050" y="260" class="section-title">DATA LAYER</text>
+
+  <g id="data">
+    <!-- SQL Database -->
+    <rect x="1050" y="280" width="140" height="100" fill="#f1f8e9" stroke="#4caf50" stroke-width="2" rx="4"/>
+    <text x="1120" y="305" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure SQL DB</text>
+    <text x="1120" y="325" style="font-size: 10px; text-anchor: middle;">• Documents</text>
+    <text x="1120" y="340" style="font-size: 10px; text-anchor: middle;">• Metadata</text>
+    <text x="1120" y="355" style="font-size: 10px; text-anchor: middle;">• Analytics</text>
+
+    <!-- AI Search -->
+    <rect x="1050" y="410" width="140" height="100" fill="#f1f8e9" stroke="#4caf50" stroke-width="2" rx="4"/>
+    <text x="1120" y="435" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure AI Search</text>
+    <text x="1120" y="455" style="font-size: 10px; text-anchor: middle;">• Vector Index</text>
+    <text x="1120" y="470" style="font-size: 10px; text-anchor: middle;">• Hybrid Retrieval</text>
+
+    <!-- Cosmos DB -->
+    <rect x="1050" y="540" width="140" height="100" fill="#f1f8e9" stroke="#4caf50" stroke-width="2" rx="4"/>
+    <text x="1120" y="565" style="font-size: 12px; text-anchor: middle; font-weight: bold;">Azure Cosmos DB</text>
+    <text x="1120" y="585" style="font-size: 10px; text-anchor: middle;">• Chat History</text>
+    <text x="1120" y="600" style="font-size: 10px; text-anchor: middle;">• Sessions</text>
+  </g>
+
+  <!-- SECTION 6: DEPLOYMENT -->
+  <text x="50" y="870" class="section-title">DEPLOYMENT</text>
+
+  <g id="deployment">
+    <!-- Container Registry -->
+    <rect x="50" y="890" width="130" height="80" fill="#f0f0f0" stroke="#333" stroke-width="2" rx="4"/>
+    <text x="115" y="920" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Container</text>
+    <text x="115" y="935" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Registry</text>
+
+    <!-- Arrow -->
+    <path d="M 180 930 L 210 930" class="arrow"/>
+
+    <!-- API App -->
+    <rect x="210" y="890" width="130" height="80" fill="#f0f0f0" stroke="#333" stroke-width="2" rx="4"/>
+    <text x="275" y="915" style="font-size: 11px; text-anchor: middle; font-weight: bold;">API App</text>
+    <text x="275" y="930" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Service</text>
+    <text x="275" y="945" style="font-size: 10px; text-anchor: middle; fill: #666;">FastAPI</text>
+
+    <!-- Arrow -->
+    <path d="M 340 930 L 370 930" class="arrow"/>
+
+    <!-- Frontend App -->
+    <rect x="370" y="890" width="130" height="80" fill="#f0f0f0" stroke="#333" stroke-width="2" rx="4"/>
+    <text x="435" y="915" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Frontend App</text>
+    <text x="435" y="930" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Service</text>
+    <text x="435" y="945" style="font-size: 10px; text-anchor: middle; fill: #666;">React + Fluent</text>
+
+    <!-- Arrow -->
+    <path d="M 500 930 L 530 930" class="arrow"/>
+
+    <!-- Web App -->
+    <rect x="530" y="890" width="130" height="80" fill="#f0f0f0" stroke="#333" stroke-width="2" rx="4"/>
+    <text x="595" y="920" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Web</text>
+    <text x="595" y="935" style="font-size: 11px; text-anchor: middle; font-weight: bold;">Application</text>
+  </g>
+
+  <!-- Data flow arrows from pipeline -->
+  <path d="M 420 300 L 480 300" class="arrow"/>
+  <path d="M 420 340 L 480 340" class="arrow"/>
+  <path d="M 420 380 L 480 380" class="arrow"/>
+
+  <!-- Data flow arrows from UX to Data Layer -->
+  <path d="M 610 400 L 1050 350" class="arrow" stroke-dasharray="5,5"/>
+  <path d="M 780 400 L 1050 460" class="arrow" stroke-dasharray="5,5"/>
+  <path d="M 950 400 L 1050 590" class="arrow" stroke-dasharray="5,5"/>
+</svg>
