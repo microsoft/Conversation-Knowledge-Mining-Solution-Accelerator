@@ -205,7 +205,7 @@ const ChatInterface: React.FC = () => {
               <ChatBubblesQuestion24Regular style={{ color: tokens.colorNeutralForeground3 }} />
             </div>
             <Subtitle2>Ask your data anything</Subtitle2>
-            <Caption1 style={{ color: tokens.colorNeutralForeground3, maxWidth: "240px" }}>Summaries, trends, and analysis — all through conversation.</Caption1>
+            <Caption1 style={{ color: tokens.colorNeutralForeground3, display: "block", maxWidth: "240px", textAlign: "center" }}>Summaries, trends, and analysis — all through conversation.</Caption1>
           </div>
         )}
         {messages.map((msg, i) => (
