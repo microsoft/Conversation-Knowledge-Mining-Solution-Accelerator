@@ -1,13 +1,16 @@
 FROM node:24-alpine AS build
 WORKDIR /home/node/app
 
+ENV NO_UPDATE_NOTIFIER=1
+ENV NODE_NO_WARNINGS=1
+
 COPY ./package*.json ./
 
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps --no-fund --loglevel=error
 
 COPY . .
 
-RUN npm run build
+RUN npm run build --loglevel=error
 
 FROM nginx:alpine
 
