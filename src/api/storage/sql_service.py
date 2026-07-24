@@ -108,7 +108,8 @@ class AzureSqlService:
                 keywords NVARCHAR(MAX),
                 filter_values NVARCHAR(MAX),
                 doc_ids NVARCHAR(MAX),
-                uploaded_at NVARCHAR(50)
+                uploaded_at NVARCHAR(50),
+                status NVARCHAR(50) DEFAULT 'ready'
             )
         """)
         cursor.execute("""
@@ -195,6 +196,11 @@ class AzureSqlService:
             IF EXISTS (SELECT * FROM sys.tables WHERE name = 'uploaded_files')
             AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('uploaded_files') AND name = 'source')
             ALTER TABLE uploaded_files ADD source NVARCHAR(50) DEFAULT 'uploaded'
+        """)
+        cursor.execute("""
+            IF EXISTS (SELECT * FROM sys.tables WHERE name = 'uploaded_files')
+            AND NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('uploaded_files') AND name = 'status')
+            ALTER TABLE uploaded_files ADD status NVARCHAR(50) DEFAULT 'ready'
         """)
         cursor.execute("""
             IF EXISTS (SELECT * FROM sys.tables WHERE name = 'documents')
@@ -429,10 +435,10 @@ class AzureSqlService:
                 MERGE uploaded_files AS target
                 USING (SELECT ? AS id) AS source ON target.id = source.id
                 WHEN MATCHED THEN UPDATE SET
-                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, doc_ids=?, uploaded_at=?, source=?
+                    filename=?, doc_count=?, summary=?, keywords=?, filter_values=?, doc_ids=?, uploaded_at=?, source=?, status=?
                 WHEN NOT MATCHED THEN INSERT
-                    (id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    (id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
@@ -441,6 +447,7 @@ class AzureSqlService:
                 json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
                 file_data.get("source", "uploaded"),
+                file_data.get("status", "ready"),
                 # INSERT
                 file_data["id"],
                 file_data.get("filename", ""), file_data.get("doc_count", 0),
@@ -449,6 +456,7 @@ class AzureSqlService:
                 json.dumps(file_data.get("doc_ids", [])),
                 file_data.get("uploaded_at", ""),
                 file_data.get("source", "uploaded"),
+                file_data.get("status", "ready"),
             )
             conn.commit()
             conn.close()
@@ -464,7 +472,7 @@ class AzureSqlService:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source FROM uploaded_files")
+            cursor.execute("SELECT id, filename, doc_count, summary, keywords, filter_values, doc_ids, uploaded_at, source, status FROM uploaded_files")
             rows = cursor.fetchall()
             conn.close()
             return [
@@ -476,6 +484,7 @@ class AzureSqlService:
                     "doc_ids": json.loads(r[6]) if r[6] and r[6].strip() else [],
                     "uploaded_at": r[7] or "",
                     "source": r[8] or "uploaded",
+                    "status": r[9] or "ready",
                 }
                 for r in rows
             ]

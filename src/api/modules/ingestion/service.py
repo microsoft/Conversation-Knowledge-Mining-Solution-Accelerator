@@ -116,6 +116,7 @@ class IngestionService:
                         doc_ids=item.get("doc_ids", []),
                         uploaded_at=item.get("uploaded_at", ""),
                         source=item.get("source", "uploaded"),
+                        status=item.get("status", "ready"),
                     )
                     # If doc_ids not stored in SQL, rebuild from loaded documents
                     if not uf.doc_ids:

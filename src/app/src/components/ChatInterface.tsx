@@ -46,25 +46,6 @@ const useStyles = makeStyles({
     alignItems: "center",
     justifyContent: "center",
   },
-  chips: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "6px",
-    width: "100%",
-    maxWidth: "260px",
-    marginTop: "8px",
-  },
-  chip: {
-    padding: "8px 12px",
-    borderRadius: "8px",
-    backgroundColor: "#f1f5f9",
-    fontSize: "12px",
-    color: "#475569",
-    cursor: "pointer",
-    textAlign: "left" as const,
-    border: "none",
-    transition: "background-color 0.1s",
-  },
   userMsg: {
     alignSelf: "flex-end",
     backgroundColor: "#e8ebf9",
@@ -224,19 +205,7 @@ const ChatInterface: React.FC = () => {
               <ChatBubblesQuestion24Regular style={{ color: tokens.colorNeutralForeground3 }} />
             </div>
             <Subtitle2>Ask your data anything</Subtitle2>
-            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>Try a question:</Caption1>
-            <div className={styles.chips}>
-              {[
-                "What are the top issues?",
-                "Summarize the key themes",
-                "Which products are mentioned most?",
-                "Show billing-related problems",
-              ].map((q, i) => (
-                <button key={i} className={styles.chip} onClick={() => { setInput(q); }}>
-                  {q}
-                </button>
-              ))}
-            </div>
+            <Caption1 style={{ color: tokens.colorNeutralForeground3, display: "block", maxWidth: "240px", textAlign: "center" }}>Summaries, trends, and analysis — all through conversation.</Caption1>
           </div>
         )}
         {messages.map((msg, i) => (
