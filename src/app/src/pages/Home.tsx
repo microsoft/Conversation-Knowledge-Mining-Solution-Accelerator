@@ -100,9 +100,10 @@ const Home: React.FC = () => {
   const uploadedFileCount = uploadedFiles.length;
   const totalRecords = dataSources.reduce((sum: number, ds: any) => sum + (ds.doc_count || 0), 0);
   const hasData = dataSources.length > 0 || uploadedFileCount > 0;
-  const readyCount = uploadedFiles.filter((f: any) => f.status === "ready" || !f.status).length;
+  const failedCount = uploadedFiles.filter((f: any) => f.status === "failed").length;
   const chatReadyCount = uploadedFiles.filter((f: any) => f.status === "extracted").length;
-  const processingCount = uploadedFiles.filter((f: any) => f.status === "processing").length;
+  const readyCount = uploadedFiles.filter((f: any) => f.status === "ready" && (f.doc_count || 0) > 0).length;
+  const processingCount = uploadedFileCount - readyCount - chatReadyCount - failedCount;
   const insightsAvailable = readyCount > 0 || dataSources.length > 0;
 
   const getFileStatusLabel = (status?: string) => {
