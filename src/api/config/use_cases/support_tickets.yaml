@@ -1,0 +1,24 @@
+name: support_tickets_only
+description: >
+  Support ticket analytics: ingest, filter tickets, index.
+input_types: ["support_ticket"]
+tags: ["tickets", "analytics"]
+priority: 8
+on_error:
+  strategy: fail_fast
+
+steps:
+  - name: ingest_data
+    kind: system
+    type: ingest
+
+  - name: select_tickets
+    kind: capability
+    capability: select
+    params:
+      where:
+        type: support_ticket
+
+  - name: index_documents
+    kind: system
+    type: index_filtered

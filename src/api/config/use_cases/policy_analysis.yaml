@@ -1,0 +1,38 @@
+name: policy_analysis
+description: >
+  Policy analysis: ingest, filter, index, summarize, extract entities.
+input_types: ["faq_document"]
+tags: ["policy", "analysis"]
+priority: 7
+defaults:
+  retry: 1
+on_error:
+  strategy: continue
+
+steps:
+  - name: ingest_data
+    kind: system
+    type: ingest
+
+  - name: select_policies
+    kind: capability
+    capability: select
+    params:
+      where:
+        type: faq_document
+
+  - name: index_documents
+    kind: system
+    type: index_filtered
+
+  - name: summarize_content
+    kind: capability
+    capability: summarize
+    params:
+      style: executive
+
+  - name: extract_key_entities
+    kind: capability
+    capability: extract_entities
+    params:
+      schema: ["policy", "product", "issue"]

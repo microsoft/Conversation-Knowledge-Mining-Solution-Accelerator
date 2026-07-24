@@ -1,13 +1,8 @@
-# # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
-# metadata:
-#     template: azd-init@1.11.1
-environment:
-  name: conversation-knowledge-mining
-  location: eastus
-name: conversation-knowledge-mining
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: knowledge-mining
 
 requiredVersions:
-  azd: ">= 1.18.0 != 1.23.9"
+  azd: ">= 1.18.0"
 
 metadata:
   template: conversation-knowledge-mining@1.0
@@ -15,54 +10,130 @@ metadata:
 hooks:
   preprovision:
     windows:
-      run: |
-        Write-Host ""
-        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
-        Write-Host "  Note: If deployment fails or you encounter an issue, please open an issue with the deployment logs." -ForegroundColor Yellow
-        Write-Host "  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues" -ForegroundColor Cyan
-        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
-        Write-Host ""
       shell: pwsh
-      interactive: true
-    posix:
       run: |
-        printf '\n'
-        printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
-        printf '\033[33m  Note: If deployment fails or you encounter an issue, please open an issue with the deployment logs.\033[0m\n'
-        printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
-        printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
-        printf '\n'
+        $ErrorActionPreference = "Continue"
+        $existing = azd env get-value ADMIN_API_KEY 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $existing) {
+          $key = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
+          azd env set ADMIN_API_KEY $key
+          $env:ADMIN_API_KEY = $key
+          Write-Host "Generated ADMIN_API_KEY and stored in azd env." -ForegroundColor Green
+        } else {
+          $env:ADMIN_API_KEY = $existing
+        }
+        exit 0
+    posix:
       shell: sh
-      interactive: true
+      run: |
+        existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
+        if [ -z "$existing" ]; then
+          key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
+          azd env set ADMIN_API_KEY "$key"
+          export ADMIN_API_KEY="$key"
+          echo "Generated ADMIN_API_KEY and stored in azd env."
+        else
+          export ADMIN_API_KEY="$existing"
+        fi
   postprovision:
     windows:
-      run: |
-        Write-Host "Web app URL: "
-        Write-Host "$env:WEB_APP_URL" -ForegroundColor Cyan
-
-        Write-Host "`nRun the following command in your Bash terminal to build the backend and frontend container images, push them to the provisioned Azure Container Registry, and update the App Services to use them:"
-        Write-Host "bash ./infra/scripts/build_and_push_images.sh" -ForegroundColor Cyan
-
-        Write-Host "`nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
-        Write-Host "bash ./infra/scripts/run_create_agents_scripts.sh" -ForegroundColor Cyan
-        Write-Host "`nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
-        Write-Host "bash ./infra/scripts/process_sample_data.sh" -ForegroundColor Cyan
       shell: pwsh
+      run: |
+        # ── Step 0: Build & push the app images to ACR and point the App Services
+        #    at them (apps are provisioned with a placeholder hello-world image) ──
+        Write-Host ""
+        Write-Host "Building & pushing container images..." -ForegroundColor Yellow
+        & ./infra/scripts/build/build_and_push_images.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1" -ForegroundColor Red
+          exit 1
+        }
+
+        # Write azd env values to .env so scripts can read them
+        Write-Host "Writing .env file..." -ForegroundColor Yellow
+        azd env get-values 2>$null | ForEach-Object {
+          $_ -replace '^(\w+)="(.*)"$', '$1=$2'
+        } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
+
+        # ── Step 1: Python environment ──
+        Write-Host ""
+        Write-Host "Preparing Python environment..." -ForegroundColor Yellow
+        if (-not (Test-Path ".venv")) {
+          python -m venv .venv
+        }
+        & ./.venv/Scripts/Activate.ps1
+        python -m pip install --quiet --upgrade pip
+        pip install --quiet -r infra/scripts/post-provision/requirements.txt
+
+        # ── Step 2: Grant API identity access to SQL ──
+        Write-Host ""
+        & ./infra/scripts/post-provision/setup-sql-roles.ps1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
+        }
+
+        # ── Step 3: Choose use case, load data, then create the scenario agent ──
+        Write-Host ""
+        & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
+
+        # ── Done ──
+        Write-Host ""
+        Write-Host "========================================" -ForegroundColor Green
+        Write-Host "  Deployment complete!" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        $webUrl = azd env get-value SERVICE_FRONTEND_URI 2>$null
+        if ($webUrl) {
+          Write-Host ""
+          Write-Host "  Open: $webUrl" -ForegroundColor Cyan
+        }
+        Write-Host ""
       continueOnError: false
       interactive: true
     posix:
-      run: |
-        echo "Web app URL: "
-        echo $WEB_APP_URL
-
-        echo "\nRun the following command in your Bash terminal to build the backend and frontend container images, push them to the provisioned Azure Container Registry, and update the App Services to use them:"
-        echo "bash ./infra/scripts/build_and_push_images.sh"
-
-        echo "\nCreate and activate a virtual environment if not already done, then run the following command in the bash terminal to create agents:"
-        echo "bash ./infra/scripts/run_create_agents_scripts.sh"
-        echo ""
-        echo "\nRun the following command in your Bash terminal. It will grant the necessary permissions between resources and your user account, and also process and load the sample data into the application."
-        echo "bash ./infra/scripts/process_sample_data.sh"
       shell: sh
+      run: |
+        # ── Step 0: Build & push the app images to ACR and point the App Services
+        #    at them (apps are provisioned with a placeholder hello-world image) ──
+        echo ""
+        echo "Building & pushing container images..."
+        pwsh -File ./infra/scripts/build/build_and_push_images.ps1
+        if [ $? -ne 0 ]; then
+          echo "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1"
+          exit 1
+        fi
+
+        # Write azd env values to .env so scripts can read them
+        echo "Writing .env file..."
+        azd env get-values 2>/dev/null | sed 's/^//' | sed 's/"//g' > .env
+
+        # ── Step 1: Python environment ──
+        echo ""
+        echo "Preparing Python environment..."
+        if [ ! -d .venv ]; then
+          python3 -m venv .venv
+        fi
+        . ./.venv/bin/activate
+        python -m pip install --quiet --upgrade pip
+        pip install --quiet -r infra/scripts/post-provision/requirements.txt
+
+        # ── Step 2: Grant API identity access to SQL ──
+        echo ""
+        echo "Granting API identity SQL access..."
+        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/post-provision/setup-sql-roles.ps1"
+
+        # ── Step 3: Choose use case, load data, then create the scenario agent ──
+        echo ""
+        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
+
+        echo ""
+        echo "========================================"
+        echo "  Deployment complete!"
+        echo "========================================"
+        WEB_URL=$(azd env get-value SERVICE_FRONTEND_URI 2>/dev/null)
+        if [ -n "$WEB_URL" ]; then
+          echo ""
+          echo "  Open: $WEB_URL"
+        fi
+        echo ""
       continueOnError: false
       interactive: true
