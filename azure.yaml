@@ -5,7 +5,7 @@ requiredVersions:
   azd: ">= 1.18.0"
 
 metadata:
-  template: knowledge-mining@1.0
+  template: conversation-knowledge-mining@1.0
 
 hooks:
   preprovision:
