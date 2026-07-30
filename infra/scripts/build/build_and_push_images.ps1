@@ -122,6 +122,26 @@ function Update-WebAppImage([string]$appName, [string]$image, [string]$tag) {
     Write-Host "App Service '$appName' updated." -ForegroundColor Green
 }
 
+function Wait-ForAppReady([string]$appName, [string]$healthPath = "/", [int]$timeoutSeconds = 300) {
+    $url = "https://$appName.azurewebsites.net$healthPath"
+    Write-Host "Waiting for '$appName' to become ready..." -ForegroundColor Yellow
+    $deadline = (Get-Date).AddSeconds($timeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $response = Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 10 -UseBasicParsing
+            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
+                Write-Host "'$appName' is ready." -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            # Ignore transient errors (connection refused, 503, timeouts) while cold-starting.
+        }
+        Start-Sleep -Seconds 5
+    }
+    Write-Host "WARNING: '$appName' did not become ready within ${timeoutSeconds}s — continuing anyway." -ForegroundColor Yellow
+    return $false
+}
+
 # ── Build & push both images ──
 Build-Image $backendImage  $backendTag  $backendDockerfile  $backendContext
 Build-Image $frontendImage $frontendTag $frontendDockerfile $frontendContext
@@ -129,6 +149,11 @@ Build-Image $frontendImage $frontendTag $frontendDockerfile $frontendContext
 # ── Switch App Services to the freshly pushed images ──
 Update-WebAppImage $backendApp  $backendImage  $backendTag
 Update-WebAppImage $frontendApp $frontendImage $frontendTag
+
+# ── Wait for both apps to finish cold-starting on the new image
+Write-Host ""
+Wait-ForAppReady $backendApp "/api/health" | Out-Null
+Wait-ForAppReady $frontendApp "/" | Out-Null
 
 Write-Host ""
 Write-Host "===============================================" -ForegroundColor Green
