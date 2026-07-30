@@ -73,9 +73,11 @@ var roleDefinitions = {
   cognitiveServicesUser: 'a97b65f3-24c7-4388-baec-2e87135dc908'
   cognitiveServicesOpenAIUser: '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
   searchIndexDataReader: '1407120a-92aa-4202-b7e9-c0e197c71c8f'
+  searchIndexDataContributor: '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
   searchServiceContributor: '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
   storageBlobDataContributor: 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
   storageBlobDataReader: '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1'
+  storageQueueDataContributor: '974c5e8b-45b9-4653-ba55-5f855dd0fb88'
   acrPull: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 }
 
@@ -155,6 +157,29 @@ module backendAppAiUserExisting './cross-scope-role-assignment.bicep' = if (useE
   }
 }
 
+// Backend App Service → Cognitive Services OpenAI User on AI Foundry (new project, same RG)
+resource backendAppOpenAIUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExistingAIProject && !empty(aiFoundryResourceId) && !empty(backendAppServicePrincipalId)) {
+  name: guid(solutionName, aiFoundryAccount.id, backendAppServicePrincipalId, roleDefinitions.cognitiveServicesOpenAIUser)
+  scope: aiFoundryAccount
+  properties: {
+    principalId: backendAppServicePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.cognitiveServicesOpenAIUser)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Backend App Service → Cognitive Services OpenAI User on existing AI Foundry (cross-scope)
+module backendAppOpenAIUserExisting './cross-scope-role-assignment.bicep' = if (useExistingAIProject && !empty(backendAppServicePrincipalId)) {
+  name: 'assignOpenAIUserRoleToBackendExisting'
+  scope: resourceGroup(existingAIFoundrySubscription, existingAIFoundryResourceGroup)
+  params: {
+    principalId: backendAppServicePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.cognitiveServicesOpenAIUser)
+    roleAssignmentName: guid(solutionName, existingAIFoundryName, backendAppServicePrincipalId, roleDefinitions.cognitiveServicesOpenAIUser)
+    aiFoundryName: existingAIFoundryName
+  }
+}
+
 // ============================================================================
 // 2. SEARCH SERVICE ROLE ASSIGNMENTS
 //    AI Project and Backend identities → AI Search
@@ -182,13 +207,24 @@ resource projectSearchContributor 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-// Backend App Service → Search Index Data Reader on AI Search
-resource backendAppSearchReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId) && !empty(backendAppServicePrincipalId)) {
-  name: guid(solutionName, aiSearchService.id, backendAppServicePrincipalId, roleDefinitions.searchIndexDataReader)
+// Backend App Service → Search Index Data Contributor on AI Search
+resource backendAppSearchIndexContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId) && !empty(backendAppServicePrincipalId)) {
+  name: guid(solutionName, aiSearchService.id, backendAppServicePrincipalId, roleDefinitions.searchIndexDataContributor)
   scope: aiSearchService
   properties: {
     principalId: backendAppServicePrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.searchIndexDataReader)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.searchIndexDataContributor)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Backend App Service → Search Service Contributor on AI Search
+resource backendAppSearchContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(aiSearchResourceId) && !empty(backendAppServicePrincipalId)) {
+  name: guid(solutionName, aiSearchService.id, backendAppServicePrincipalId, roleDefinitions.searchServiceContributor)
+  scope: aiSearchService
+  properties: {
+    principalId: backendAppServicePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.searchServiceContributor)
     principalType: 'ServicePrincipal'
   }
 }
@@ -227,6 +263,28 @@ resource searchStorageReader 'Microsoft.Authorization/roleAssignments@2022-04-01
   properties: {
     principalId: aiSearchPrincipalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.storageBlobDataReader)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Backend App Service → Storage Blob Data Contributor
+resource backendAppStorageBlobContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(storageAccountResourceId) && !empty(backendAppServicePrincipalId)) {
+  name: guid(solutionName, storageAccount.id, backendAppServicePrincipalId, roleDefinitions.storageBlobDataContributor)
+  scope: storageAccount
+  properties: {
+    principalId: backendAppServicePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.storageBlobDataContributor)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Backend App Service → Storage Queue Data Contributor
+resource backendAppStorageQueueContributor 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(storageAccountResourceId) && !empty(backendAppServicePrincipalId)) {
+  name: guid(solutionName, storageAccount.id, backendAppServicePrincipalId, roleDefinitions.storageQueueDataContributor)
+  scope: storageAccount
+  properties: {
+    principalId: backendAppServicePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitions.storageQueueDataContributor)
     principalType: 'ServicePrincipal'
   }
 }
