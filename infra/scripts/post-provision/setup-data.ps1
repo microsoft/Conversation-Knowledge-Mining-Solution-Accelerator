@@ -1,0 +1,529 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Post-deployment data setup for Knowledge Mining.
+.DESCRIPTION
+    Unified script to load data into the app after deployment. Supports:
+      - Load a built-in scenario pack (defined in data/config/scenarios.json)
+    - Connect an external data source (Azure AI Search, Microsoft Fabric)
+      - Upload files from a local folder via -DataPath (used internally by scenarios)
+
+    Scenario packs ship with sample data under data/<scenario_folder>/.
+    Raw files are processed through the Content Understanding pipeline.
+    Documents can also be uploaded from the web UI after deployment.
+
+.EXAMPLE
+    # Interactive — choose scenario or data source
+    ./infra/scripts/post-provision/setup-data.ps1
+
+    # Load a scenario pack
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario contact-center
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario mortgage-application
+    ./infra/scripts/post-provision/setup-data.ps1 -Scenario telecom-analysis
+
+    # Connect Azure AI Search index
+    ./infra/scripts/post-provision/setup-data.ps1 -ExternalSource azure_search -Name "My Index" -Endpoint "https://my-search.search.windows.net" -Table "my-index"
+#>
+
+param(
+    [ValidateSet("contact-center", "mortgage-application", "telecom-analysis", "insurance-claims")]
+    [string]$Scenario,
+
+    [string]$DataPath,
+    [switch]$UseSampleData,
+    [switch]$ClearExisting,
+
+    # External data source params
+    [ValidateSet("azure_search", "fabric")]
+    [string]$ExternalSource,
+    [string]$Name,
+    [string]$Endpoint,
+    [string]$Database,
+    [string]$Table,
+    [string]$ConnectionString,
+
+    [string]$BackendUrl = "http://localhost:8000",
+    [switch]$AllowDeployedFallback
+)
+
+$ErrorActionPreference = "Stop"
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Knowledge Mining — Data Setup" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
+
+# Read a deploy value from azd env, falling back to the project .env
+function Get-DeployValue {
+    param([string]$Name)
+    $val = azd env get-value $Name 2>$null
+    if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
+        return "$val".Trim()
+    }
+    $envFile = Join-Path $projectRoot ".env"
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile | Where-Object { $_ -match "^$Name=" } | Select-Object -First 1
+        if ($line) { return ($line -replace "^$Name=", '').Trim() }
+    }
+    return ""
+}
+
+# ── Load scenarios config (used by interactive menu and scenario resolution) ──
+$configPath = Join-Path $projectRoot "data" "config" "scenarios.json"
+$scenarioConfig = Get-Content $configPath -Raw | ConvertFrom-Json
+
+function Resolve-ScenarioDataPath {
+    param(
+        [string]$Root,
+        [string]$ScenarioKey,
+        [string]$ConfiguredFolder
+    )
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ($ConfiguredFolder) { $candidates.Add($ConfiguredFolder) }
+
+    switch ($ScenarioKey) {
+        "mortgage-application" {
+            $candidates.Add("MortgageApplication_usecase")
+            $candidates.Add("MorgageApplication_usecase")
+        }
+        "telecom-analysis" {
+            $candidates.Add("telecom_analysis_usecase")
+            $candidates.Add("telecom_analysis_uscase")
+        }
+        "contact-center" {
+            $candidates.Add("ContactCenter_usecase")
+            $candidates.Add("ContactCeneter_usecase")
+        }
+    }
+
+    foreach ($folder in ($candidates | Select-Object -Unique)) {
+        if (-not $folder) { continue }
+        $path = Join-Path $Root "data" $folder
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+
+    return $null
+}
+
+# ── Resolve backend URL ──
+if ($PSBoundParameters.ContainsKey("BackendUrl")) {
+    Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
+}
+elseif ($BackendUrl -eq "http://localhost:8000") {
+    $localHealthy = $false
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        $localHealthy = $true
+    } catch {
+        $localHealthy = $false
+    }
+
+    if (-not $localHealthy) {
+        $loopbackUrl = "http://127.0.0.1:8000"
+        try {
+            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+            $BackendUrl = $loopbackUrl
+            $localHealthy = $true
+        } catch {
+            $localHealthy = $false
+        }
+    }
+
+    if ($localHealthy) {
+        Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
+    } else {
+        if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
+            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+            if ($azdUrl) {
+                Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
+                $BackendUrl = $azdUrl
+            } else {
+                Write-Host "ERROR: Local backend is unavailable and no deployed backend is configured." -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "ERROR: Local backend is unavailable at $BackendUrl." -ForegroundColor Red
+            Write-Host "Start the local API first, pass -BackendUrl explicitly, or use -AllowDeployedFallback to target the deployed backend intentionally." -ForegroundColor Yellow
+            exit 1
+        }
+    }
+}
+
+# ── Auth token ──
+$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
+$headers = @{}
+if ($token) {
+    $headers["Authorization"] = "Bearer $token"
+} else {
+    $adminKey = $env:ADMIN_API_KEY
+    if (-not $adminKey) {
+        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
+    }
+    if ($adminKey) {
+        Write-Host "Using admin API key for local auth" -ForegroundColor Yellow
+        $headers["X-Admin-Api-Key"] = $adminKey
+    } else {
+        Write-Host "No auth token or admin key found — requests may be rejected in prod" -ForegroundColor Yellow
+    }
+}
+
+# ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
+function Invoke-DataCleanup {
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers
+    )
+
+    # Clear existing demo data (documents, insights cache) and any external data source
+    # registrations so every scenario starts from a clean slate.
+    Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
+        Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
+        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+# Ensure the solution search index exists
+function Invoke-EnsureSearchIndex {
+    Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
+    $searchEndpoint = Get-DeployValue "AZURE_SEARCH_ENDPOINT"
+    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
+    $openaiEndpoint = Get-DeployValue "AZURE_OPENAI_ENDPOINT"
+    $embeddingDeployment = Get-DeployValue "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
+    $idxArgs = @((Join-Path $PSScriptRoot "create_search_index.py"))
+    if ($searchEndpoint)      { $idxArgs += "--search-endpoint", $searchEndpoint }
+    if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
+    if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
+    if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
+    python @idxArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
+    }
+}
+
+# ── Interactive mode if no params ──
+if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $ExternalSource) {
+    # Build menu dynamically from scenarios.json
+    $menuItems = [System.Collections.ArrayList]::new()
+
+    # Add scenarios
+    foreach ($key in $scenarioConfig.scenarios.PSObject.Properties.Name) {
+        $s = $scenarioConfig.scenarios.$key
+        if ($s.skip) { continue }
+        $null = $menuItems.Add(@{ type = "scenario"; key = $key; name = $s.name; description = $s.description })
+    }
+
+    # Add data sources
+    if ($scenarioConfig.data_sources) {
+        foreach ($key in $scenarioConfig.data_sources.PSObject.Properties.Name) {
+            $ds = $scenarioConfig.data_sources.$key
+            $null = $menuItems.Add(@{ type = "data_source"; key = $key; name = $ds.name; description = $ds.description })
+        }
+    }
+
+    # Add fixed options
+    $null = $menuItems.Add(@{ type = "skip"; key = "skip"; name = "Skip"; description = "Set up data later (you can upload documents from the web UI)" })
+
+    Write-Host "Choose how to load data:" -ForegroundColor White
+    Write-Host ""
+
+    for ($i = 0; $i -lt $menuItems.Count; $i++) {
+        $item = $menuItems[$i]
+        $num = $i + 1
+        $label = if ($item.type -eq "data_source") { "$($item.name) (connect)" } else { $item.name }
+        Write-Host "  $num. $label" -ForegroundColor White
+        Write-Host "     $($item.description)" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+
+    $maxChoice = $menuItems.Count
+    do {
+        $choice = Read-Host "Enter choice (1-$maxChoice)"
+        $valid = $choice -match '^\d+$' -and [int]$choice -ge 1 -and [int]$choice -le $maxChoice
+        if (-not $valid) { Write-Host "Please enter a number between 1 and $maxChoice." -ForegroundColor Yellow }
+    } while (-not $valid)
+
+    $selected = $menuItems[[int]$choice - 1]
+
+    switch ($selected.type) {
+        "scenario" {
+            # BYOD scenarios: connect data source then create agents
+            if ($selected.key -in @("azure_search_byod", "fabric_byod")) {
+                $sourceType = if ($selected.key -eq "azure_search_byod") { "azure_search" } else { "fabric" }
+                Write-Host ""
+                # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+                Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+                Write-Host ""
+                $env:BACKEND_URL = $BackendUrl
+                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
+                exit $LASTEXITCODE
+            }
+            $Scenario = $selected.key
+        }
+        "data_source" {
+            Write-Host ""
+            # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+            Write-Host ""
+            $env:BACKEND_URL = $BackendUrl
+            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
+            exit $LASTEXITCODE
+        }
+        "skip" {
+            Write-Host ""
+            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+            Write-Host "Skipped data loading. You can upload documents from the web UI." -ForegroundColor Yellow
+            Write-Host ""
+            Invoke-EnsureSearchIndex
+            Write-Host ""
+            Write-Host "Creating default AI agent with SQL and Azure AI Search tools..." -ForegroundColor Yellow
+            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario skip" -ForegroundColor Yellow
+            }
+            exit $LASTEXITCODE
+        }
+    }
+}
+
+# ── Resolve scenario to data path ──
+if ($Scenario) {
+    $pack = $scenarioConfig.scenarios.$Scenario
+
+    if (-not $pack) {
+        $available = ($scenarioConfig.scenarios.PSObject.Properties.Name) -join ", "
+        Write-Host "ERROR: Unknown scenario '$Scenario'." -ForegroundColor Red
+        Write-Host "Available: $available" -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host ""
+    Write-Host "Scenario: $($pack.name)" -ForegroundColor Cyan
+    Write-Host "  $($pack.description)" -ForegroundColor White
+    Write-Host ""
+
+    $scenarioDataPath = Resolve-ScenarioDataPath -Root $projectRoot -ScenarioKey $Scenario -ConfiguredFolder $pack.data_folder
+
+    if (-not $scenarioDataPath) {
+        Write-Host "ERROR: Scenario data folder not found for '$Scenario'." -ForegroundColor Red
+        Write-Host "Checked configured and known variant folder names under data/." -ForegroundColor Yellow
+        exit 1
+    }
+
+    # Update UI config with scenario name
+    $uiConfigPath = Join-Path $projectRoot "src" "app" "src" "config" "ui-config.json"
+    if (Test-Path $uiConfigPath) {
+        $uiConfig = Get-Content $uiConfigPath -Raw | ConvertFrom-Json
+        $uiConfig.useCaseName = $pack.name
+        $uiConfig | ConvertTo-Json -Depth 10 | Set-Content $uiConfigPath -Encoding UTF8
+        Write-Host "Updated UI config: useCaseName = '$($pack.name)'" -ForegroundColor Green
+    }
+
+    # Always clear existing demo data + external sources before loading any scenario/use case
+    Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+
+    # Register the scenario as an inert 'native' data source so its use-case name
+    # surfaces in the UI at runtime without a frontend rebuild.
+    try {
+        $scenarioBody = @{ name = $pack.name; use_case = $pack.name } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/scenario" -Method POST `
+            -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
+        Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
+    } catch {
+        Write-Host "WARNING: Could not register scenario use case name: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    # Create the solution search index (seeded scenarios only)
+    Invoke-EnsureSearchIndex
+
+    # Contact Center has pre-processed data — use the direct seed path
+    if ($pack.has_preprocessed -eq $true) {
+        Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow
+        Write-Host ""
+
+        # Run seed-sample-data.py with the scenario data directory
+        $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
+        $env:BACKEND_URL = $BackendUrl
+        python (Join-Path $PSScriptRoot "seed-sample-data.py")
+
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Host "Scenario '$($pack.name)' loaded successfully!" -ForegroundColor Green
+        } else {
+            Write-Host "Scenario loading encountered errors." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        # Non-preprocessed scenarios — upload raw files through the API
+        $DataPath = $scenarioDataPath
+    }
+}
+
+# ── Clear existing data ──
+if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not $Scenario)) {
+    Write-Host ""
+    if (-not $ClearExisting) {
+        $confirm = Read-Host "Clear existing data before loading? (y/N)"
+        if ($confirm -eq "y" -or $confirm -eq "Y") { $ClearExisting = $true }
+    }
+    if ($ClearExisting) {
+        Write-Host "Clearing existing data..." -ForegroundColor Yellow
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $headers | Out-Null
+            Write-Host "Data cleared." -ForegroundColor Green
+        } catch {
+            Write-Host "Warning: Could not clear data — $_" -ForegroundColor Yellow
+        }
+    }
+}
+
+# ══════════════════════════════════════════
+# Option 1: Upload files from a folder
+# ══════════════════════════════════════════
+if ($DataPath) {
+    if (-not (Test-Path $DataPath)) {
+        Write-Host "ERROR: Path not found: $DataPath" -ForegroundColor Red
+        exit 1
+    }
+
+    $allFiles = Get-ChildItem $DataPath -File
+    $audioFiles = $allFiles | Where-Object { $_.Extension -in ".wav", ".mp3", ".mp4" }
+    $docFiles = $allFiles | Where-Object { $_.Extension -in ".pdf", ".docx", ".xlsx", ".csv", ".txt", ".json", ".png", ".jpg", ".jpeg" }
+
+    Write-Host ""
+    Write-Host "Found in $DataPath :" -ForegroundColor White
+    if ($audioFiles.Count -gt 0) { Write-Host "  $($audioFiles.Count) audio files (WAV/MP3)" -ForegroundColor Cyan }
+    if ($docFiles.Count -gt 0) { Write-Host "  $($docFiles.Count) document files (PDF/JSON/DOCX/etc.)" -ForegroundColor Cyan }
+    Write-Host ""
+
+    # ── Audio files (batch upload) ──
+    if ($audioFiles.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Uploading $($audioFiles.Count) audio files (transcription via Content Understanding)..." -ForegroundColor Yellow
+
+        # Upload in batches of 5 (API limit: max_concurrent_uploads)
+        $batchSize = 5
+        $success = 0; $failed = 0
+        for ($i = 0; $i -lt $audioFiles.Count; $i += $batchSize) {
+            $batch = $audioFiles[$i..([Math]::Min($i + $batchSize - 1, $audioFiles.Count - 1))]
+            $form = @{}
+            $fileItems = @()
+            foreach ($f in $batch) {
+                $fileItems += Get-Item $f.FullName
+                Write-Host "  $($f.Name)" -ForegroundColor White
+            }
+            try {
+                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                $success += $batch.Count
+                Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
+            } catch {
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+                $failed += $batch.Count
+            }
+        }
+        Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+        if ($success -gt 0) {
+            Write-Host "  Audio files are processing in background — check Sources page for status." -ForegroundColor Cyan
+        }
+    }
+
+    # ── Document files (batch upload) ──
+    if ($docFiles.Count -gt 0) {
+        Write-Host ""
+        Write-Host "Uploading $($docFiles.Count) document files..." -ForegroundColor Yellow
+
+        # Upload in batches of 5
+        $batchSize = 5
+        $success = 0; $failed = 0
+        for ($i = 0; $i -lt $docFiles.Count; $i += $batchSize) {
+            $batch = $docFiles[$i..([Math]::Min($i + $batchSize - 1, $docFiles.Count - 1))]
+            $fileItems = @()
+            foreach ($f in $batch) {
+                $fileItems += Get-Item $f.FullName
+                Write-Host "  $($f.Name)" -ForegroundColor White
+            }
+            try {
+                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                $success += $batch.Count
+                Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
+            } catch {
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+                $failed += $batch.Count
+            }
+        }
+        Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+    }
+
+    Write-Host ""
+    Write-Host "Data upload complete!" -ForegroundColor Green
+}
+
+# ══════════════════════════════════════════
+# Option 2: Connect external data source
+# ══════════════════════════════════════════
+if ($ExternalSource) {
+    # Clear existing data + external sources first (same as scenarios 1-3) for isolation.
+    Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+    Write-Host ""
+
+    $env:BACKEND_URL = $BackendUrl
+    $pyArgs = @("--type", $ExternalSource)
+    if ($Name)             { $pyArgs += "--name", $Name }
+    if ($Endpoint)         { $pyArgs += "--endpoint", $Endpoint }
+    if ($Database)         { $pyArgs += "--database", $Database }
+    if ($Table)            { $pyArgs += "--table", $Table }
+    if ($ConnectionString) { $pyArgs += "--connection-string", $ConnectionString }
+
+    python (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "External data source connection failed." -ForegroundColor Red
+        exit 1
+    }
+}
+
+# ══════════════════════════════════════════
+# Option 3: Load built-in sample data
+# ══════════════════════════════════════════
+if ($UseSampleData) {
+    Write-Host "Loading built-in sample dataset..." -ForegroundColor Yellow
+    try {
+        $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `
+            -Method POST -Headers $headers -ContentType "application/json"
+        Write-Host "Loaded $($result.total_loaded) documents" -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to load sample data: $_" -ForegroundColor Red
+        exit 1
+    }
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Setup complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+
+# ══════════════════════════════════════════
+# Create scenario-based AI agent
+# ══════════════════════════════════════════
+# The agent prompt is dynamic per scenario (SQL+Search vs Search-only), so the
+# agent is (re)created here once the scenario data is loaded.
+if ($Scenario) {
+    Write-Host ""
+    Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
+    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
+    }
+}
