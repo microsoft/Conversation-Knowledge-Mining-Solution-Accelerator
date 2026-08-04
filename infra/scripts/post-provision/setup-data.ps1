@@ -205,6 +205,49 @@ function Invoke-DataCleanup {
     }
 }
 
+# Poll the backend until every uploaded file reaches a terminal state (ready/failed),
+# or the timeout elapses. Content Understanding extraction/enrichment runs asynchronously
+# in the backend after upload returns, and can take several minutes per file (up to the
+# service's ~20 min cap for large/scanned documents). If the caller (postprovision hook)
+# reverts network access / recycles the app before this finishes, the in-flight background
+# processing is killed and files are left stuck — this wait prevents that.
+function Wait-ForIngestionCompletion {
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers,
+        [int]$TimeoutSec = 1500,
+        [int]$PollIntervalSec = 15
+    )
+
+    Write-Host ""
+    Write-Host "Waiting for document processing (extraction/enrichment) to finish before continuing..." -ForegroundColor Yellow
+    $elapsed = 0
+    while ($elapsed -lt $TimeoutSec) {
+        try {
+            $files = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/files" -Method GET -Headers $Headers
+        } catch {
+            Write-Host "  Could not query processing status (backend transiently unreachable): $_" -ForegroundColor Yellow
+            Start-Sleep -Seconds $PollIntervalSec
+            $elapsed += $PollIntervalSec
+            continue
+        }
+
+        $pending = @($files | Where-Object { $_.status -eq "processing" -or $_.status -eq "extracted" })
+        if ($pending.Count -eq 0) {
+            $ready = @($files | Where-Object { $_.status -eq "ready" }).Count
+            $failed = @($files | Where-Object { $_.status -eq "failed" }).Count
+            Write-Host "  Processing complete: $ready ready, $failed failed." -ForegroundColor Green
+            return
+        }
+
+        Write-Host "  $($pending.Count) file(s) still processing ($($elapsed)s elapsed)..." -ForegroundColor Cyan
+        Start-Sleep -Seconds $PollIntervalSec
+        $elapsed += $PollIntervalSec
+    }
+
+    Write-Host "  WARNING: Timed out after ${TimeoutSec}s waiting for processing to finish. Some files may still be 'processing' — check the Sources page and use retry if needed." -ForegroundColor Yellow
+}
+
 # Ensure the solution search index exists
 function Invoke-EnsureSearchIndex {
     Write-Host "Ensuring search index exists..." -ForegroundColor Yellow
@@ -476,6 +519,10 @@ if ($DataPath) {
             }
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+    }
+
+    if ($audioFiles.Count -gt 0 -or $docFiles.Count -gt 0) {
+        Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers
     }
 
     Write-Host ""

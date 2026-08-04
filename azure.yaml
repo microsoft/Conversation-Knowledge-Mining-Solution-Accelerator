@@ -53,59 +53,74 @@ hooks:
     windows:
       shell: pwsh
       run: |
-        # ── Step 0: Build & push the app images to ACR and point the App Services
-        #    at them (apps are provisioned with a placeholder hello-world image) ──
-        Write-Host ""
-        Write-Host "Building & pushing container images..." -ForegroundColor Yellow
-        & ./infra/scripts/build/build_and_push_images.ps1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1" -ForegroundColor Red
-          exit 1
-        }
-
-        # Write azd env values to .env so scripts can read them
-        Write-Host "Writing .env file..." -ForegroundColor Yellow
-        azd env get-values 2>$null | ForEach-Object {
-          $_ -replace '^(\w+)="(.*)"$', '$1=$2'
-        } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
-
-        # ── Step 1: Python environment ──
-        Write-Host ""
-        Write-Host "Preparing Python environment..." -ForegroundColor Yellow
-        if (-not (Test-Path ".venv")) {
-          python -m venv .venv
-        }
-        & ./.venv/Scripts/Activate.ps1
-        python -m pip install --quiet --upgrade pip
-        pip install --quiet -r infra/scripts/post-provision/requirements.txt
-
-        # ── Step 2: Grant API identity access to SQL ──
-        Write-Host ""
-        & ./infra/scripts/post-provision/setup-sql-roles.ps1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
-        }
-
-        # ── Step 3: Choose use case, load data, then create the scenario agent ──
-        Write-Host ""
-        & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
-
-        # ── Done ──
-        Write-Host ""
-        Write-Host "========================================" -ForegroundColor Green
-        Write-Host "  Deployment complete!" -ForegroundColor Green
-        Write-Host "========================================" -ForegroundColor Green
-        $webUrl = azd env get-value SERVICE_FRONTEND_URI 2>$null
-        if ($webUrl) {
+        # ── Step -1: If private networking is enabled, temporarily open public
+        #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
+        #    so the steps below can reach them; always revert in the finally block ──
+        & ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
+        try {
+          # ── Step 0: Build & push the app images to ACR and point the App Services
+          #    at them (apps are provisioned with a placeholder hello-world image) ──
           Write-Host ""
-          Write-Host "  Open: $webUrl" -ForegroundColor Cyan
+          Write-Host "Building & pushing container images..." -ForegroundColor Yellow
+          & ./infra/scripts/build/build_and_push_images.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1" -ForegroundColor Red
+            exit 1
+          }
+
+          # Write azd env values to .env so scripts can read them
+          Write-Host "Writing .env file..." -ForegroundColor Yellow
+          azd env get-values 2>$null | ForEach-Object {
+            $_ -replace '^(\w+)="(.*)"$', '$1=$2'
+          } | Where-Object { $_ -match '=' -and $_ -notmatch 'WARNING' } | Set-Content -Path ".env" -Encoding utf8
+
+          # ── Step 1: Python environment ──
+          Write-Host ""
+          Write-Host "Preparing Python environment..." -ForegroundColor Yellow
+          if (-not (Test-Path ".venv")) {
+            python -m venv .venv
+          }
+          & ./.venv/Scripts/Activate.ps1
+          python -m pip install --quiet --upgrade pip
+          pip install --quiet -r infra/scripts/post-provision/requirements.txt
+
+          # ── Step 2: Grant API identity access to SQL ──
+          Write-Host ""
+          & ./infra/scripts/post-provision/setup-sql-roles.ps1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
+          }
+
+          # ── Step 3: Choose use case, load data, then create the scenario agent ──
+          Write-Host ""
+          & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
+
+          # ── Done ──
+          Write-Host ""
+          Write-Host "========================================" -ForegroundColor Green
+          Write-Host "  Deployment complete!" -ForegroundColor Green
+          Write-Host "========================================" -ForegroundColor Green
+          $webUrl = azd env get-value SERVICE_FRONTEND_URI 2>$null
+          if ($webUrl) {
+            Write-Host ""
+            Write-Host "  Open: $webUrl" -ForegroundColor Cyan
+          }
+          Write-Host ""
+        } finally {
+          # ── Always revert network access back to private-only, even on failure ──
+          & ./infra/scripts/post-provision/manage-network-access.ps1 -Action Disable
         }
-        Write-Host ""
       continueOnError: false
       interactive: true
     posix:
       shell: sh
       run: |
+        # ── Step -1: If private networking is enabled, temporarily open public
+        #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
+        #    so the steps below can reach them; always revert on exit (success or failure) ──
+        pwsh -File ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
+        trap 'pwsh -File ./infra/scripts/post-provision/manage-network-access.ps1 -Action Disable' EXIT
+
         # ── Step 0: Build & push the app images to ACR and point the App Services
         #    at them (apps are provisioned with a placeholder hello-world image) ──
         echo ""
