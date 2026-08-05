@@ -299,15 +299,23 @@ This solution provisions a dedicated **Azure Container Registry (ACR)** in your 
 
 ### 5.2 Run Post Deployment Data Setup
 
-During the `azd up` postprovision hook, an interactive data setup menu is presented. You can also run it manually at any time from the project root:
+During the `azd up` postprovision hook, an interactive data setup menu is presented. The hook creates the `.venv` Python environment and installs the required packages. When running data setup manually from a new shell, activate that environment first and ensure its dependencies are installed:
 
-- **Windows (PowerShell):**
+* **Windows (PowerShell):**
+
   ```powershell
+  if (-not (Test-Path .venv)) { python -m venv .venv }
+  ./.venv/Scripts/Activate.ps1
+  python -m pip install -r infra/scripts/post-provision/requirements.txt
   ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
 * **Linux / macOS:**
+
   ```bash
+  test -d .venv || python3 -m venv .venv
+  . ./.venv/bin/activate
+  python -m pip install -r infra/scripts/post-provision/requirements.txt
   pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
