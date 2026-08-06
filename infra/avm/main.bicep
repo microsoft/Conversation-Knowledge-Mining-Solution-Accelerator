@@ -801,6 +801,9 @@ module container_registry './modules/compute/container-registry.bicep' = {
     tags: tags
     enableTelemetry: enableTelemetry
     sku: enablePrivateNetworking ? 'Premium' : 'Standard'
+    // Admin user enables credential-based image pull; managed-identity pull fails
+    // against a private-endpoint ACR (ACRTokenRetrievalFailure). Only needed for private networking.
+    adminUserEnabled: enablePrivateNetworking
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     networkRuleSetDefaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
     privateEndpoints: enablePrivateNetworking ? [

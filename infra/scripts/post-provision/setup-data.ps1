@@ -56,7 +56,10 @@ Write-Host ""
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
-# Read a deploy value from azd env, falling back to the project .env
+# Resolve the Python interpreter — prefer the project virtual environment, which
+# has the pinned SDK versions (requirements.txt). Fall back to PATH python.
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 function Get-DeployValue {
     param([string]$Name)
     $val = azd env get-value $Name 2>$null
@@ -260,7 +263,7 @@ function Invoke-EnsureSearchIndex {
     if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
     if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
     if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
-    python @idxArgs
+    & $pythonExe @idxArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
     }
@@ -409,7 +412,7 @@ if ($Scenario) {
         # Run seed-sample-data.py with the scenario data directory
         $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
         $env:BACKEND_URL = $BackendUrl
-        python (Join-Path $PSScriptRoot "seed-sample-data.py")
+        & $pythonExe (Join-Path $PSScriptRoot "seed-sample-data.py")
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
@@ -545,7 +548,7 @@ if ($ExternalSource) {
     if ($Table)            { $pyArgs += "--table", $Table }
     if ($ConnectionString) { $pyArgs += "--connection-string", $ConnectionString }
 
-    python (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
+    & $pythonExe (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "External data source connection failed." -ForegroundColor Red
         exit 1

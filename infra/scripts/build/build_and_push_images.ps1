@@ -52,6 +52,7 @@ $frontendImage   = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_NAME"
 $frontendTag     = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_TAG"
 $backendApp      = Get-AzdValue "API_APP_NAME"
 $frontendApp     = Get-AzdValue "FRONTEND_APP_NAME"
+$privateNetworking = (Get-AzdValue "ENABLE_PRIVATE_NETWORKING").ToLower() -eq "true"
 
 # ── Fallbacks / defaults ──
 if (-not $acrLoginServer -and $acrName) { $acrLoginServer = "$acrName.azurecr.io" }
@@ -80,6 +81,22 @@ $backendDockerfile = Join-Path $repoRoot "src/api/ApiApp.Dockerfile"
 $frontendContext    = Join-Path $repoRoot "src/app"
 $frontendDockerfile = Join-Path $repoRoot "src/app/WebApp.Dockerfile"
 
+# ── ACR pull credentials (private networking only) ──
+# A VNet-integrated Linux App Service cannot retrieve an ACR token via managed
+# identity when the registry is behind a private endpoint (ACRTokenRetrievalFailure
+# -> ImagePullFailure). Admin credentials are static app settings and need no token
+# retrieval over the VNet namespace. In public mode, managed identity works and is
+# kept as the default (no admin user required).
+function Resolve-AcrPullCredentials {
+    az acr update --name $acrName --admin-enabled true --only-show-errors --output none
+    $script:acrUser = (az acr credential show --name $acrName --query username -o tsv 2>$null)
+    $script:acrPass = (az acr credential show --name $acrName --query "passwords[0].value" -o tsv 2>$null)
+    if (-not $script:acrUser -or -not $script:acrPass) {
+        Write-Host "ERROR: Could not retrieve ACR admin credentials for '$acrName'." -ForegroundColor Red
+        exit 1
+    }
+}
+
 function Build-Image([string]$image, [string]$tag, [string]$dockerfile, [string]$context) {
     if (-not (Test-Path $dockerfile)) {
         Write-Host "ERROR: Dockerfile not found: $dockerfile" -ForegroundColor Red
@@ -98,24 +115,38 @@ function Update-WebAppImage([string]$appName, [string]$image, [string]$tag) {
     $fullImage = "$acrLoginServer/${image}:${tag}"
     Write-Host ""
     Write-Host "Pointing App Service '$appName' at '$fullImage'..." -ForegroundColor Yellow
-    az webapp config container set `
-        --name $appName `
-        --resource-group $resourceGroup `
-        --container-image-name $fullImage `
-        --container-registry-url "https://$acrLoginServer" `
-        --only-show-errors `
-        --output none
+    if ($privateNetworking) {
+        # Private-endpoint ACR: pull with admin credentials (managed-identity pull
+        # fails with ACRTokenRetrievalFailure over the VNet namespace).
+        az webapp config container set `
+            --name $appName `
+            --resource-group $resourceGroup `
+            --container-image-name $fullImage `
+            --container-registry-url "https://$acrLoginServer" `
+            --container-registry-user $script:acrUser `
+            --container-registry-password $script:acrPass `
+            --only-show-errors `
+            --output none
+    } else {
+        az webapp config container set `
+            --name $appName `
+            --resource-group $resourceGroup `
+            --container-image-name $fullImage `
+            --container-registry-url "https://$acrLoginServer" `
+            --only-show-errors `
+            --output none
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "ERROR: Failed to set container image on '$appName'." -ForegroundColor Red
         exit 1
     }
-    # Pull via managed identity (no admin credentials)
+    # Public mode: pull via managed identity. Private mode: use admin credentials set above.
     az resource update `
         --resource-group $resourceGroup `
         --namespace Microsoft.Web `
         --resource-type sites `
         --name $appName `
-        --set properties.siteConfig.acrUseManagedIdentityCreds=true `
+        --set properties.siteConfig.acrUseManagedIdentityCreds=$(if ($privateNetworking) { 'false' } else { 'true' }) `
         --output none 2>$null
     Write-Host "Restarting App Service '$appName'..." -ForegroundColor Yellow
     az webapp restart --name $appName --resource-group $resourceGroup --output none
@@ -145,6 +176,12 @@ function Wait-ForAppReady([string]$appName, [string]$healthPath = "/", [int]$tim
 # ── Build & push both images ──
 Build-Image $backendImage  $backendTag  $backendDockerfile  $backendContext
 Build-Image $frontendImage $frontendTag $frontendDockerfile $frontendContext
+
+# ── Resolve ACR admin credentials for the App Service image pull (private networking only) ──
+if ($privateNetworking) {
+    Write-Host "Private networking enabled — using ACR admin credentials for image pull." -ForegroundColor Yellow
+    Resolve-AcrPullCredentials
+}
 
 # ── Switch App Services to the freshly pushed images ──
 Update-WebAppImage $backendApp  $backendImage  $backendTag

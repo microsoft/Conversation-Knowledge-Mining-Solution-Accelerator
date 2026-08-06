@@ -274,8 +274,8 @@ else {
             "cosmos"      { Write-Host "  Restoring private-only access on cosmos '$cosmosName'..." -ForegroundColor Yellow;   Set-CosmosPublicAccess $cosmosName "Disabled" }
             "apiapp"      { Write-Host "  Restoring private-only access on api app '$apiAppName'..." -ForegroundColor Yellow;   Set-ApiAppPublicAccess $apiAppName "Disabled" }
             "frontendapp" { Write-Host "  Restoring private-only access on frontend app '$frontendAppName'..." -ForegroundColor Yellow; Set-ApiAppPublicAccess $frontendAppName "Disabled" }
-            "api-vnetroute" { Write-Host "  Restoring vnetRouteAllEnabled=false on api app '$apiAppName'..." -ForegroundColor Yellow; Set-VnetRouteAll $apiAppName "false" }
-            "app-vnetroute" { Write-Host "  Restoring vnetRouteAllEnabled=false on frontend app '$frontendAppName'..." -ForegroundColor Yellow; Set-VnetRouteAll $frontendAppName "false" }
+            "api-vnetroute" { Write-Host "  Keeping vnetRouteAllEnabled=true on api app '$apiAppName' (required for private-endpoint routing)." -ForegroundColor DarkGray }
+            "app-vnetroute" { Write-Host "  Keeping vnetRouteAllEnabled=true on frontend app '$frontendAppName' (required for private-endpoint routing)." -ForegroundColor DarkGray }
             "acr-rule"    { Write-Host "  Restoring firewall (default-action Deny) on acr '$acrName'..." -ForegroundColor Yellow;         Set-AcrDefaultAction $acrName "Deny" }
             "storage-rule"{ Write-Host "  Restoring firewall (default-action Deny) on storage '$storageName'..." -ForegroundColor Yellow;  Set-StorageDefaultAction $storageName "Deny" }
             "sql-firewall"{ Write-Host "  Removing temporary firewall rule on sql '$sqlServerName'..." -ForegroundColor Yellow; Remove-SqlTempFirewallRule $sqlServerName }

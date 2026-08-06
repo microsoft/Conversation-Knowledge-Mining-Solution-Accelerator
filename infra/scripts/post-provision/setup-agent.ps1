@@ -42,16 +42,16 @@ if (-not (Test-Path $envFile)) {
     }
 }
 
-# Activate venv if available
-$venvPath = Join-Path $PSScriptRoot ".." ".." ".." "venv" "Scripts" "Activate.ps1"
-if (Test-Path $venvPath) {
-    & $venvPath
-}
+# Resolve the Python interpreter — prefer the project virtual environment, which
+# has the pinned SDK versions (requirements.txt). Fall back to PATH python.
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot ".." ".." "..")).Path
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 
 Write-Host "Generating scenario-based agent prompt..." -ForegroundColor Yellow
 $genArgs = @()
 if ($Scenario) { $genArgs += @("--scenario", $Scenario) }
-python (Join-Path $PSScriptRoot "generate_agent_prompt.py") @genArgs
+& $pythonExe (Join-Path $PSScriptRoot "generate_agent_prompt.py") @genArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Prompt generation failed." -ForegroundColor Red
     exit 1
@@ -60,7 +60,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Creating agents..." -ForegroundColor Yellow
 $createArgs = @()
 if ($Scenario) { $createArgs += @("--scenario", $Scenario) }
-python (Join-Path $PSScriptRoot "create_agent.py") @createArgs
+& $pythonExe (Join-Path $PSScriptRoot "create_agent.py") @createArgs
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

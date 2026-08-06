@@ -330,3 +330,6 @@ output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Solution resource token suffix used in resource names.')
 output SOLUTION_SUFFIX string = isAvm ? avmDeployment!.outputs.SOLUTION_SUFFIX : bicepDeployment!.outputs.SOLUTION_SUFFIX
+
+@description('Whether the deployment uses private endpoints. Post-provision scripts gate ACR admin-credential image pull on this.')
+output ENABLE_PRIVATE_NETWORKING bool = enablePrivateNetworking
