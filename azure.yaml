@@ -10,8 +10,13 @@ metadata:
 hooks:
   preprovision:
     windows:
-      shell: pwsh
       run: |
+        Write-Host ""
+        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
+        Write-Host "  Note: If deployment fails or you encounter an issue, please open an issue with the deployment logs." -ForegroundColor Yellow
+        Write-Host "  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues" -ForegroundColor Cyan
+        Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
+        Write-Host ""
         $ErrorActionPreference = "Continue"
         $existing = azd env get-value ADMIN_API_KEY 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $existing) {
@@ -23,9 +28,18 @@ hooks:
           $env:ADMIN_API_KEY = $existing
         }
         exit 0
+      shell: pwsh
+      interactive: true
     posix:
       shell: sh
+      interactive: true
       run: |
+        printf '\n'
+        printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
+        printf '\033[33m  Note: If deployment fails or you encounter an issue, please open an issue with the deployment logs.\033[0m\n'
+        printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
+        printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
+        printf '\n'
         existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
         if [ -z "$existing" ]; then
           key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
