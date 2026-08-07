@@ -20,9 +20,6 @@ param tags object = {}
 @allowed(['Basic', 'Standard', 'Premium'])
 param sku string = 'Standard'
 
-@description('Enable admin user.')
-param adminUserEnabled bool = false
-
 @description('Public network access setting.')
 @allowed(['Enabled', 'Disabled'])
 param publicNetworkAccess string = 'Enabled'
@@ -48,11 +45,16 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' =
   }
   identity: identity
   properties: {
-    adminUserEnabled: adminUserEnabled
+    adminUserEnabled: false
     publicNetworkAccess: publicNetworkAccess
     dataEndpointEnabled: false
     networkRuleBypassOptions: 'AzureServices'
     policies: {
+      // Must be 'enabled' for App Service managed-identity image pulls; otherwise ACR token
+      // retrieval fails (ACRTokenRetrievalFailure) during container startup.
+      azureADAuthenticationAsArmPolicy: {
+        status: 'enabled'
+      }
       exportPolicy: {
         status: exportPolicyStatus
       }

@@ -19,15 +19,18 @@ param tags object = {}
 @allowed(['Basic', 'Standard', 'Premium'])
 param sku string = 'Standard'
 
-@description('Enable admin user for the registry.')
-param adminUserEnabled bool = false
-
 @description('Public network access setting.')
 @allowed(['Enabled', 'Disabled'])
 param publicNetworkAccess string = 'Enabled'
 
 @description('Export policy status. Must be "enabled" when publicNetworkAccess is "Enabled".')
 param exportPolicyStatus string = 'enabled'
+
+// Must be 'enabled' for App Service managed-identity image pulls; the AVM module defaults it to
+// 'disabled', which makes ACR token retrieval fail (ACRTokenRetrievalFailure) during container startup.
+@description('ARM-audience AAD token policy status. Keep "enabled" for App Service managed-identity ACR pulls.')
+@allowed(['enabled', 'disabled'])
+param azureADAuthenticationAsArmPolicyStatus string = 'enabled'
 
 @description('Principal IDs to assign AcrPull role.')
 param acrPullPrincipalIds array = []
@@ -39,6 +42,9 @@ param acrPushPrincipalIds array = []
 @description('Principal type for AcrPush assignments (User for azd user, ServicePrincipal for CI).')
 @allowed(['User', 'ServicePrincipal', 'Group'])
 param acrPushPrincipalType string = 'User'
+
+@description('Enable the ACR admin user (username/password). Used by App Service for reliable image pulls behind a private VNet.')
+param adminUserEnabled bool = false
 
 import { privateEndpointSingleServiceType } from 'br/public:avm/utl/types/avm-common-types:0.5.1'
 @description('Optional. Configuration details for private endpoints. For security reasons, it is recommended to use private endpoints whenever possible.')
@@ -91,6 +97,7 @@ module containerRegistry 'br/public:avm/res/container-registry/registry:0.12.1' 
     acrAdminUserEnabled: adminUserEnabled
     publicNetworkAccess: publicNetworkAccess
     exportPolicyStatus: exportPolicyStatus
+    azureADAuthenticationAsArmPolicyStatus: azureADAuthenticationAsArmPolicyStatus
     roleAssignments: !empty(roleAssignments) ? roleAssignments : []
     privateEndpoints: privateEndpoints
     networkRuleSetDefaultAction: networkRuleSetDefaultAction

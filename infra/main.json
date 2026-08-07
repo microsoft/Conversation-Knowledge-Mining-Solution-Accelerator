@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "18230791098323024457"
+      "templateHash": "12152885170517085109"
     }
   },
   "parameters": {
@@ -422,7 +422,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "11905932550010222549"
+              "templateHash": "18219532810993500715"
             }
           },
           "parameters": {
@@ -710,7 +710,7 @@
             "createdBy": "[if(contains(variables('deployerInfo'), 'userPrincipalName'), split(variables('deployerInfo').userPrincipalName, '@')[0], variables('deployerInfo').objectId)]",
             "useExistingAIProject": "[not(empty(parameters('existingFoundryProjectResourceId')))]",
             "existingTags": "[coalesce(resourceGroup().tags, createObject())]",
-            "resourceTags": "[union(variables('existingTags'), parameters('tags'), createObject('TemplateName', 'KM-Generic', 'CreatedBy', variables('createdBy'), 'DeploymentName', deployment().name, 'Type', if(parameters('enablePrivateNetworking'), 'WAF', 'Non-WAF')))]",
+            "resourceTags": "[union(variables('existingTags'), parameters('tags'), createObject('TemplateName', 'KM-Generic', 'CreatedBy', variables('createdBy'), 'DeploymentName', deployment().name, 'Type', if(parameters('enablePrivateNetworking'), 'WAF', 'Non-WAF'), 'SecurityControl', 'Ignore'))]",
             "replicaRegionPairs": {
               "australiaeast": "australiasoutheast",
               "centralus": "westus",
@@ -40678,10 +40678,10 @@
               },
               "dependsOn": [
                 "log_analytics",
+                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageBlob)]",
+                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageQueue)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageDfs)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageFile)]",
-                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageQueue)]",
-                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageBlob)]",
                 "virtualNetwork"
               ]
             },
@@ -55270,8 +55270,14 @@
                   },
                   "sku": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Premium'), createObject('value', 'Standard'))]",
                   "adminUserEnabled": {
-                    "value": "[parameters('enablePrivateNetworking')]"
+                    "value": false
                   },
+                  "acrPushPrincipalIds": {
+                    "value": [
+                      "[variables('deployingUserPrincipalId')]"
+                    ]
+                  },
+                  "acrPushPrincipalType": "[if(equals(parameters('deployingUserPrincipalType'), 'User'), createObject('value', 'User'), createObject('value', 'ServicePrincipal'))]",
                   "publicNetworkAccess": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
                   "networkRuleSetDefaultAction": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Deny'), createObject('value', 'Allow'))]",
                   "privateEndpoints": "[if(parameters('enablePrivateNetworking'), createObject('value', createArray(createObject('name', format('pep-{0}', parameters('containerRegistryName')), 'customNetworkInterfaceName', format('nic-{0}', parameters('containerRegistryName')), 'subnetResourceId', reference('virtualNetwork').outputs.backendSubnetResourceId.value, 'service', 'registry', 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').containerRegistry)).outputs.resourceId.value)))))), createObject('value', createArray()))]"
@@ -55284,7 +55290,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "135893906899998620"
+                      "templateHash": "3446011486445915862"
                     }
                   },
                   "definitions": {
@@ -55684,13 +55690,6 @@
                         "description": "SKU for the container registry."
                       }
                     },
-                    "adminUserEnabled": {
-                      "type": "bool",
-                      "defaultValue": false,
-                      "metadata": {
-                        "description": "Enable admin user for the registry."
-                      }
-                    },
                     "publicNetworkAccess": {
                       "type": "string",
                       "defaultValue": "Enabled",
@@ -55707,6 +55706,17 @@
                       "defaultValue": "enabled",
                       "metadata": {
                         "description": "Export policy status. Must be \"enabled\" when publicNetworkAccess is \"Enabled\"."
+                      }
+                    },
+                    "azureADAuthenticationAsArmPolicyStatus": {
+                      "type": "string",
+                      "defaultValue": "enabled",
+                      "allowedValues": [
+                        "enabled",
+                        "disabled"
+                      ],
+                      "metadata": {
+                        "description": "ARM-audience AAD token policy status. Keep \"enabled\" for App Service managed-identity ACR pulls."
                       }
                     },
                     "acrPullPrincipalIds": {
@@ -55733,6 +55743,13 @@
                       ],
                       "metadata": {
                         "description": "Principal type for AcrPush assignments (User for azd user, ServicePrincipal for CI)."
+                      }
+                    },
+                    "adminUserEnabled": {
+                      "type": "bool",
+                      "defaultValue": false,
+                      "metadata": {
+                        "description": "Enable the ACR admin user (username/password). Used by App Service for reliable image pulls behind a private VNet."
                       }
                     },
                     "privateEndpoints": {
@@ -55832,6 +55849,9 @@
                           },
                           "exportPolicyStatus": {
                             "value": "[parameters('exportPolicyStatus')]"
+                          },
+                          "azureADAuthenticationAsArmPolicyStatus": {
+                            "value": "[parameters('azureADAuthenticationAsArmPolicyStatus')]"
                           },
                           "roleAssignments": "[if(not(empty(variables('roleAssignments'))), createObject('value', variables('roleAssignments')), createObject('value', createArray()))]",
                           "privateEndpoints": {
@@ -59720,12 +59740,16 @@
                   "contentShareTraffic": "[if(parameters('enablePrivateNetworking'), createObject('value', true()), createObject('value', false()))]",
                   "privateEndpoints": "[if(parameters('enablePrivateNetworking'), createObject('value', createArray(createObject('name', format('pep-api-{0}', variables('solutionSuffix')), 'customNetworkInterfaceName', format('nic-api-{0}', variables('solutionSuffix')), 'subnetResourceId', reference('virtualNetwork').outputs.backendSubnetResourceId.value, 'service', 'sites', 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').webApp)).outputs.resourceId.value)))))), createObject('value', createArray()))]",
                   "diagnosticSettings": "[if(parameters('enableMonitoring'), createObject('value', createArray(createObject('workspaceResourceId', if(variables('useExistingLogAnalytics'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingLogAnalyticsWorkspaceId'), '/')[2], split(parameters('existingLogAnalyticsWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8]), if(parameters('enableMonitoring'), reference('log_analytics').outputs.resourceId.value, ''))))), createObject('value', createArray()))]",
+                  "managedIdentities": {
+                    "value": {
+                      "systemAssigned": true
+                    }
+                  },
                   "acrUseManagedIdentityCreds": {
                     "value": true
                   },
                   "appSettings": {
                     "value": {
-                      "DOCKER_REGISTRY_SERVER_URL": "[format('https://{0}', reference('container_registry').outputs.loginServer.value)]",
                       "WEBSITES_PORT": "8000",
                       "AZURE_OPENAI_ENDPOINT": "[if(variables('useExistingAIProject'), reference('existing_project_setup').outputs.endpoint.value, reference('ai_foundry_project').outputs.endpoint.value)]",
                       "AZURE_OPENAI_CHAT_DEPLOYMENT": "[parameters('gptModelName')]",
@@ -59759,7 +59783,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "14085712246023402406"
+                      "templateHash": "7568322456104730320"
                     }
                   },
                   "definitions": {
@@ -60257,6 +60281,13 @@
                         "description": "Optional. Whether the app pulls its container image from ACR using its managed identity."
                       }
                     },
+                    "acrUserManagedIdentityID": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional. Client ID of the user-assigned identity used for ACR image pulls (empty = system-assigned)."
+                      }
+                    },
                     "vnetRouteAllEnabled": {
                       "type": "bool",
                       "defaultValue": false,
@@ -60374,7 +60405,8 @@
                               "webSocketsEnabled": "[parameters('webSocketsEnabled')]",
                               "appCommandLine": "[parameters('appCommandLine')]",
                               "vnetRouteAllEnabled": "[parameters('vnetRouteAllEnabled')]",
-                              "acrUseManagedIdentityCreds": "[parameters('acrUseManagedIdentityCreds')]"
+                              "acrUseManagedIdentityCreds": "[parameters('acrUseManagedIdentityCreds')]",
+                              "acrUserManagedIdentityID": "[if(not(empty(parameters('acrUserManagedIdentityID'))), parameters('acrUserManagedIdentityID'), null())]"
                             }
                           },
                           "e2eEncryptionEnabled": {
@@ -75250,7 +75282,6 @@
                 "ai_foundry_project",
                 "ai_search",
                 "app_insights",
-                "container_registry",
                 "cosmosDBModule",
                 "existing_project_setup",
                 "foundry_search_connection",
@@ -75301,12 +75332,16 @@
                     "value": "Enabled"
                   },
                   "diagnosticSettings": "[if(parameters('enableMonitoring'), createObject('value', createArray(createObject('workspaceResourceId', if(variables('useExistingLogAnalytics'), extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', split(parameters('existingLogAnalyticsWorkspaceId'), '/')[2], split(parameters('existingLogAnalyticsWorkspaceId'), '/')[4]), 'Microsoft.OperationalInsights/workspaces', split(parameters('existingLogAnalyticsWorkspaceId'), '/')[8]), if(parameters('enableMonitoring'), reference('log_analytics').outputs.resourceId.value, ''))))), createObject('value', createArray()))]",
+                  "managedIdentities": {
+                    "value": {
+                      "systemAssigned": true
+                    }
+                  },
                   "acrUseManagedIdentityCreds": {
                     "value": true
                   },
                   "appSettings": {
                     "value": {
-                      "DOCKER_REGISTRY_SERVER_URL": "[format('https://{0}', reference('container_registry').outputs.loginServer.value)]",
                       "WEBSITES_PORT": "80",
                       "APPLICATIONINSIGHTS_CONNECTION_STRING": "[if(parameters('enableMonitoring'), reference('app_insights').outputs.connectionString.value, '')]",
                       "APP_API_BASE_URL": "[if(parameters('enablePrivateNetworking'), '', format('https://api-{0}.azurewebsites.net', variables('solutionSuffix')))]",
@@ -75322,7 +75357,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "14085712246023402406"
+                      "templateHash": "7568322456104730320"
                     }
                   },
                   "definitions": {
@@ -75820,6 +75855,13 @@
                         "description": "Optional. Whether the app pulls its container image from ACR using its managed identity."
                       }
                     },
+                    "acrUserManagedIdentityID": {
+                      "type": "string",
+                      "defaultValue": "",
+                      "metadata": {
+                        "description": "Optional. Client ID of the user-assigned identity used for ACR image pulls (empty = system-assigned)."
+                      }
+                    },
                     "vnetRouteAllEnabled": {
                       "type": "bool",
                       "defaultValue": false,
@@ -75937,7 +75979,8 @@
                               "webSocketsEnabled": "[parameters('webSocketsEnabled')]",
                               "appCommandLine": "[parameters('appCommandLine')]",
                               "vnetRouteAllEnabled": "[parameters('vnetRouteAllEnabled')]",
-                              "acrUseManagedIdentityCreds": "[parameters('acrUseManagedIdentityCreds')]"
+                              "acrUseManagedIdentityCreds": "[parameters('acrUseManagedIdentityCreds')]",
+                              "acrUserManagedIdentityID": "[if(not(empty(parameters('acrUserManagedIdentityID'))), parameters('acrUserManagedIdentityID'), null())]"
                             }
                           },
                           "e2eEncryptionEnabled": {
@@ -90811,7 +90854,6 @@
               },
               "dependsOn": [
                 "app_insights",
-                "container_registry",
                 "hostingplan",
                 "log_analytics",
                 "virtualNetwork"
@@ -91942,7 +91984,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "13617633628910296108"
+              "templateHash": "9443661417120991690"
             }
           },
           "parameters": {
@@ -94417,7 +94459,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "634033543361922430"
+                      "templateHash": "13845318979086194059"
                     }
                   },
                   "parameters": {
@@ -94457,13 +94499,6 @@
                       ],
                       "metadata": {
                         "description": "SKU for the container registry."
-                      }
-                    },
-                    "adminUserEnabled": {
-                      "type": "bool",
-                      "defaultValue": false,
-                      "metadata": {
-                        "description": "Enable admin user."
                       }
                     },
                     "publicNetworkAccess": {
@@ -94513,7 +94548,7 @@
                       },
                       "identity": "[parameters('identity')]",
                       "properties": {
-                        "adminUserEnabled": "[parameters('adminUserEnabled')]",
+                        "adminUserEnabled": false,
                         "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
                         "dataEndpointEnabled": false,
                         "networkRuleBypassOptions": "AzureServices",

@@ -178,6 +178,7 @@ var resourceTags = union(existingTags, tags, {
   CreatedBy: createdBy
   DeploymentName: deployment().name
   Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
+  SecurityControl: 'Ignore'
 })
 
 // ========== WAF: Region pairs for redundancy (Log Analytics replication) ========== //
@@ -801,9 +802,12 @@ module container_registry './modules/compute/container-registry.bicep' = {
     tags: tags
     enableTelemetry: enableTelemetry
     sku: enablePrivateNetworking ? 'Premium' : 'Standard'
-    // Admin user enables credential-based image pull; managed-identity pull fails
-    // against a private-endpoint ACR (ACRTokenRetrievalFailure). Only needed for private networking.
-    adminUserEnabled: enablePrivateNetworking
+    // App Services pull images with their system-assigned managed identity (AcrPull granted in
+    // the role-assignments module). Grant the deployer AcrPush so the post-provision build/push
+    // step needs no manual RBAC.
+    adminUserEnabled: false
+    acrPushPrincipalIds: [deployingUserPrincipalId]
+    acrPushPrincipalType: deployingUserPrincipalType == 'User' ? 'User' : 'ServicePrincipal'
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     networkRuleSetDefaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
     privateEndpoints: enablePrivateNetworking ? [
@@ -854,9 +858,9 @@ module backend_docker './modules/compute/app-service.bicep' = {
       }
     ] : []
     diagnosticSettings: monitoringDiagnosticSettings
+    managedIdentities: { systemAssigned: true }
     acrUseManagedIdentityCreds: true
     appSettings: {
-      DOCKER_REGISTRY_SERVER_URL: 'https://${container_registry.outputs.loginServer}'
       WEBSITES_PORT: '8000'
       AZURE_OPENAI_ENDPOINT: aiFoundryEndpoint
       AZURE_OPENAI_CHAT_DEPLOYMENT: gptModelName
@@ -900,9 +904,9 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     virtualNetworkSubnetId: enablePrivateNetworking ? virtualNetwork!.outputs.webserverfarmSubnetResourceId : ''
     publicNetworkAccess: 'Enabled'
     diagnosticSettings: monitoringDiagnosticSettings
+    managedIdentities: { systemAssigned: true }
     acrUseManagedIdentityCreds: true
     appSettings: {
-      DOCKER_REGISTRY_SERVER_URL: 'https://${container_registry.outputs.loginServer}'
       WEBSITES_PORT: '80'
       APPLICATIONINSIGHTS_CONNECTION_STRING: enableMonitoring ? app_insights!.outputs.connectionString : ''
       APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'

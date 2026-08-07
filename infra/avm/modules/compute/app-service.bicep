@@ -72,6 +72,9 @@ param publicNetworkAccess string = 'Enabled'
 @description('Optional. Whether the app pulls its container image from ACR using its managed identity.')
 param acrUseManagedIdentityCreds bool = false
 
+@description('Optional. Client ID of the user-assigned identity used for ACR image pulls (empty = system-assigned).')
+param acrUserManagedIdentityID string = ''
+
 @description('Optional. Whether to route all outbound traffic through the virtual network.')
 param vnetRouteAllEnabled bool = false
 
@@ -111,6 +114,7 @@ module appService 'br/public:avm/res/web/site:0.23.1' = {
       appCommandLine: appCommandLine
       vnetRouteAllEnabled: vnetRouteAllEnabled
       acrUseManagedIdentityCreds: acrUseManagedIdentityCreds
+      acrUserManagedIdentityID: !empty(acrUserManagedIdentityID) ? acrUserManagedIdentityID : null
     }
     e2eEncryptionEnabled: true
     configs: [
