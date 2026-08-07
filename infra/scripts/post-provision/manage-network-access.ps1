@@ -11,16 +11,17 @@
     Account, Cosmos DB (when deployed), and the backend API App Service can have
     public network access disabled.
 
-    -Action Enable:  inspects each resource's *current* publicNetworkAccess state,
-                     flips any that are Disabled to Enabled, and records which ones
-                     it changed in a state file so only those are reverted later.
-    -Action Disable: reads the state file and restores public network access to
-                     Disabled only for the resources this script actually changed,
-                     then removes the state file.
+    -Action Enable:  inspects each resource's *current* publicNetworkAccess state
+                     and flips any that are Disabled to Enabled.
+    -Action Disable: for a private-networking (WAF) deployment — detected from the
+                     ENABLE_PRIVATE_NETWORKING azd output — unconditionally restores
+                     private-only access on every data-plane resource. No state file
+                     is required, so lock-down still works even if Enable ran in a
+                     different session (or not at all).
 
-    Resources that were already public (enablePrivateNetworking = false) are left
-    untouched in both directions — this script never disables a resource it didn't
-    itself enable.
+    For a non-private deployment (enablePrivateNetworking = false) the resources are
+    meant to stay public, so Disable leaves them untouched (it only clears any
+    leftover temporary SQL firewall rule).
 
     ACR and Storage also enforce a separate network rule set (defaultAction
     Allow/Deny) on top of publicNetworkAccess — both are toggled together. SQL
@@ -150,6 +151,15 @@ Write-Host "  Network Access: $Action" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 if ($Action -eq "Enable") {
+    # Only private-networking (WAF) deployments need public access temporarily opened.
+    # For a public deployment the resources are already reachable — skip entirely.
+    $privateNetworking = Get-AzdValue "ENABLE_PRIVATE_NETWORKING"
+    if ($privateNetworking -notmatch '^(?i:true)$') {
+        Write-Host "  Skipping network configuration: this is not a private-networking (WAF) deployment. Resources are already publicly reachable." -ForegroundColor DarkGray
+        Write-Host ""
+        exit 0
+    }
+
     $toggled = @()
 
     $candidates = @(
@@ -259,35 +269,54 @@ if ($Action -eq "Enable") {
     }
 }
 else {
-    # Disable: revert only the resources this script toggled on.
-    if (-not (Test-Path $stateFile)) {
-        Write-Host "  No network-access state file found — nothing to revert." -ForegroundColor DarkGray
+    # Disable: lock down based on whether this is a private-networking (WAF) deployment,
+    # not on a state file — so revert works regardless of how/where Enable ran.
+    $privateNetworking = Get-AzdValue "ENABLE_PRIVATE_NETWORKING"
+    Remove-Item -Force $stateFile -ErrorAction SilentlyContinue
+
+    if ($privateNetworking -notmatch '^(?i:true)$') {
+        Write-Host "  Skipping network lockdown: this is not a private-networking (WAF) deployment. Resources are intended to remain public." -ForegroundColor DarkGray
+        # Best-effort: clear any leftover temporary SQL firewall rule from an Enable run.
+        if ($sqlServerName -and (Test-SqlTempFirewallRule $sqlServerName)) {
+            Write-Host "  Removing leftover temporary SQL firewall rule on SQL server '$sqlServerName'..." -ForegroundColor Yellow
+            Remove-SqlTempFirewallRule $sqlServerName
+        }
+        Write-Host ""
         exit 0
     }
 
-    $state = Get-Content -Path $stateFile -Raw | ConvertFrom-Json
-    foreach ($name in $state.toggled) {
-        switch ($name) {
-            "acr"         { Write-Host "  Restoring private-only access on acr '$acrName'..." -ForegroundColor Yellow;         Set-AcrPublicAccess $acrName "false" }
-            "storage"     { Write-Host "  Restoring private-only access on storage '$storageName'..." -ForegroundColor Yellow;  Set-StoragePublicAccess $storageName "Disabled" }
-            "sql"         { Write-Host "  Restoring private-only access on sql '$sqlServerName'..." -ForegroundColor Yellow;    Set-SqlPublicAccess $sqlServerName "false" }
-            "cosmos"      { Write-Host "  Restoring private-only access on cosmos '$cosmosName'..." -ForegroundColor Yellow;   Set-CosmosPublicAccess $cosmosName "Disabled" }
-            "apiapp"      { Write-Host "  Restoring private-only access on api app '$apiAppName'..." -ForegroundColor Yellow;   Set-ApiAppPublicAccess $apiAppName "Disabled" }
-            "frontendapp" { Write-Host "  Restoring private-only access on frontend app '$frontendAppName'..." -ForegroundColor Yellow; Set-ApiAppPublicAccess $frontendAppName "Disabled" }
-            "api-vnetroute" { Write-Host "  Keeping vnetRouteAllEnabled=true on api app '$apiAppName' (required for private-endpoint routing)." -ForegroundColor DarkGray }
-            "app-vnetroute" { Write-Host "  Keeping vnetRouteAllEnabled=true on frontend app '$frontendAppName' (required for private-endpoint routing)." -ForegroundColor DarkGray }
-            "acr-rule"    { Write-Host "  Restoring firewall (default-action Deny) on acr '$acrName'..." -ForegroundColor Yellow;         Set-AcrDefaultAction $acrName "Deny" }
-            "storage-rule"{ Write-Host "  Restoring firewall (default-action Deny) on storage '$storageName'..." -ForegroundColor Yellow;  Set-StorageDefaultAction $storageName "Deny" }
-            "sql-firewall"{ Write-Host "  Removing temporary firewall rule on sql '$sqlServerName'..." -ForegroundColor Yellow; Remove-SqlTempFirewallRule $sqlServerName }
-        }
+    Write-Host "  Private-networking (WAF) deployment detected. Enforcing private-only access on all data-plane resources." -ForegroundColor Yellow
+
+    # publicNetworkAccess → Disabled/false. vnetRouteAllEnabled is intentionally left
+    # true (required for the App Services to reach private-endpoint resources).
+    $reverts = @(
+        @{ Name = "Container Registry";      ResourceName = $acrName;         Action = { Set-AcrPublicAccess $acrName "false" } }
+        @{ Name = "Storage account";         ResourceName = $storageName;     Action = { Set-StoragePublicAccess $storageName "Disabled" } }
+        @{ Name = "SQL server";              ResourceName = $sqlServerName;    Action = { Set-SqlPublicAccess $sqlServerName "false" } }
+        @{ Name = "Cosmos DB";               ResourceName = $cosmosName;      Action = { Set-CosmosPublicAccess $cosmosName "Disabled" } }
+        @{ Name = "API app";                 ResourceName = $apiAppName;      Action = { Set-ApiAppPublicAccess $apiAppName "Disabled" } }
+        # Frontend app is intentionally left public — it's the user-facing UI and must stay reachable.
+        @{ Name = "Container Registry firewall"; ResourceName = $acrName;     Action = { Set-AcrDefaultAction $acrName "Deny" } }
+        @{ Name = "Storage account firewall";    ResourceName = $storageName; Action = { Set-StorageDefaultAction $storageName "Deny" } }
+    )
+    foreach ($r in $reverts) {
+        if (-not $r.ResourceName) { continue }
+        Write-Host "  Disabling public network access on $($r.Name) '$($r.ResourceName)'..." -ForegroundColor Yellow
+        & $r.Action
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "    [OK] Reverted." -ForegroundColor Green
+            Write-Host "    [OK] Public access disabled." -ForegroundColor Green
         } else {
-            Write-Host "    [WARN] Failed to revert '$name' — please check the Azure Portal and disable public access manually." -ForegroundColor Yellow
+            Write-Host "    [WARN] Could not disable public access on $($r.Name). Please disable it manually in the Azure portal." -ForegroundColor Yellow
         }
     }
 
-    Remove-Item -Force $stateFile -ErrorAction SilentlyContinue
+    # SQL has no defaultAction ruleset — remove the temporary broad firewall rule if present.
+    if ($sqlServerName -and (Test-SqlTempFirewallRule $sqlServerName)) {
+        Write-Host "  Removing temporary SQL firewall rule on SQL server '$sqlServerName'..." -ForegroundColor Yellow
+        Remove-SqlTempFirewallRule $sqlServerName
+        if ($LASTEXITCODE -eq 0) { Write-Host "    [OK] Temporary SQL firewall rule removed." -ForegroundColor Green }
+        else { Write-Host "    [WARN] Could not remove the temporary SQL firewall rule. Please remove it manually in the Azure portal." -ForegroundColor Yellow }
+    }
 }
 
 Write-Host ""
