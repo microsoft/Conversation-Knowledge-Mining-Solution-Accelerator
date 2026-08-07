@@ -208,47 +208,144 @@ function Invoke-DataCleanup {
     }
 }
 
-# Poll the backend until every uploaded file reaches a terminal state (ready/failed),
-# or the timeout elapses. Content Understanding extraction/enrichment runs asynchronously
-# in the backend after upload returns, and can take several minutes per file (up to the
-# service's ~20 min cap for large/scanned documents). If the caller (postprovision hook)
-# reverts network access / recycles the app before this finishes, the in-flight background
-# processing is killed and files are left stuck — this wait prevents that.
+# Wait until every uploaded file has actually been processed, by checking the DURABLE store
+# rather than the API's in-memory /files list. On WAF deployments the API runs on multiple
+# App Service instances, each with its own in-memory cache, so /files (and /stats) are not
+# coherent — a long-lived poller pins to one instance via HTTP keep-alive and sees a stale
+# view forever. The Azure AI Search index is instance-independent: a file only appears there
+# (>=1 chunk under its source_file) once extraction + enrichment + indexing have completed.
+# We key on the exact filenames we uploaded and re-submit any that never land in the index
+# (recovers Content Understanding timeouts). If the search index can't be reached we fall back
+# to the reliable SQL total exposed by POST /refresh (registration only). Reaching all-indexed
+# before the caller recycles the app (agent step / network re-lock) is what prevents data loss.
 function Wait-ForIngestionCompletion {
     param(
         [string]$BackendUrl,
         [hashtable]$Headers,
+        $ExpectedFiles = @(),
         [int]$TimeoutSec = 1500,
-        [int]$PollIntervalSec = 15
+        [int]$PollIntervalSec = 15,
+        [int]$MaxRetryRounds = 3,
+        [int]$RetryGraceSec = 180
     )
 
+    # De-duplicate expected files by name, keeping the FileInfo so we can re-upload if needed.
+    $byName = [ordered]@{}
+    foreach ($f in @($ExpectedFiles | Where-Object { $_ })) {
+        if (-not $byName.Contains($f.Name)) { $byName[$f.Name] = $f }
+    }
+    $expectedNames = @($byName.Keys)
+    if ($expectedNames.Count -eq 0) { return }
+
     Write-Host ""
-    Write-Host "Waiting for document processing (extraction/enrichment) to finish before continuing..." -ForegroundColor Yellow
-    $elapsed = 0
-    while ($elapsed -lt $TimeoutSec) {
-        try {
-            $files = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/files" -Method GET -Headers $Headers
-        } catch {
-            Write-Host "  Could not query processing status (backend transiently unreachable): $_" -ForegroundColor Yellow
+    Write-Host "Waiting for processing to finish (verifying against the search index — durable, instance-independent)..." -ForegroundColor Yellow
+
+    $searchEndpoint = (Get-DeployValue "AZURE_SEARCH_ENDPOINT").TrimEnd("/")
+    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
+    if (-not $searchIndexName) { $searchIndexName = "knowledge-mining-index" }
+    $apiVer = "2023-11-01"
+    $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
+
+    # Fallback: search index unreachable — wait on the reliable SQL total from /refresh.
+    if (-not $searchEndpoint -or -not $searchToken) {
+        Write-Host "  Search index not reachable — falling back to SQL registration count via /refresh." -ForegroundColor Yellow
+        $elapsed = 0
+        while ($elapsed -lt $TimeoutSec) {
+            $cnt = -1
+            try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
+            Write-Host "  $cnt/$($expectedNames.Count) file(s) registered in SQL ($($elapsed)s elapsed)..." -ForegroundColor Cyan
+            if ($cnt -ge $expectedNames.Count) {
+                Write-Host "  All $($expectedNames.Count) file(s) registered in SQL (readiness not verified — check the Sources page)." -ForegroundColor Yellow
+                return
+            }
             Start-Sleep -Seconds $PollIntervalSec
             $elapsed += $PollIntervalSec
-            continue
+        }
+        Write-Host "  WARNING: Timed out after ${TimeoutSec}s waiting for files to register." -ForegroundColor Yellow
+        return
+    }
+
+    $searchUri = "$searchEndpoint/indexes/$searchIndexName/docs/search?api-version=$apiVer"
+    $elapsed = 0
+    $retryRound = 0
+    $lastRetryAt = -99999
+    $pending = @($expectedNames)
+    while ($elapsed -lt $TimeoutSec) {
+        $pending = @()
+        foreach ($name in $expectedNames) {
+            $esc = $name.Replace("'", "''")
+            $body = @{ search = '*'; filter = "source_file eq '$esc'"; top = 0; count = $true } | ConvertTo-Json
+            $count = -1
+            for ($try = 0; $try -lt 2; $try++) {
+                try {
+                    $resp = Invoke-RestMethod -Uri $searchUri -Method POST -Body $body `
+                        -Headers @{ Authorization = "Bearer $searchToken"; 'Content-Type' = 'application/json' }
+                    $count = [int]$resp.'@odata.count'
+                    break
+                } catch {
+                    $code = $null; if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+                    if ($code -eq 401) {
+                        $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
+                        continue
+                    }
+                    break  # transient — treat as not-yet-indexed this round
+                }
+            }
+            if ($count -le 0) { $pending += $name }
         }
 
-        $pending = @($files | Where-Object { $_.status -eq "processing" -or $_.status -eq "extracted" })
         if ($pending.Count -eq 0) {
-            $ready = @($files | Where-Object { $_.status -eq "ready" }).Count
-            $failed = @($files | Where-Object { $_.status -eq "failed" }).Count
-            Write-Host "  Processing complete: $ready ready, $failed failed." -ForegroundColor Green
+            Write-Host "  All $($expectedNames.Count) file(s) processed and indexed." -ForegroundColor Green
             return
         }
 
-        Write-Host "  $($pending.Count) file(s) still processing ($($elapsed)s elapsed)..." -ForegroundColor Cyan
+        $done = $expectedNames.Count - $pending.Count
+        Write-Host "  $done/$($expectedNames.Count) file(s) indexed ($($elapsed)s elapsed). Waiting on: $($pending -join ', ')" -ForegroundColor Cyan
+
+        # After a grace period, re-submit still-missing files to recover CU timeouts/failures.
+        if (($elapsed - $lastRetryAt) -ge $RetryGraceSec -and $retryRound -lt $MaxRetryRounds) {
+            $retryRound++
+            $lastRetryAt = $elapsed
+            Write-Host "  Re-submitting $($pending.Count) unprocessed file(s) (round $retryRound/$MaxRetryRounds)..." -ForegroundColor Yellow
+            $retryItems = @($pending | ForEach-Object { $byName[$_] })
+            for ($i = 0; $i -lt $retryItems.Count; $i += 5) {
+                $batch = @($retryItems[$i..([Math]::Min($i + 4, $retryItems.Count - 1))])
+                $fileItems = @(); foreach ($b in $batch) { $fileItems += Get-Item $b.FullName }
+                Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $Headers -FileItems $fileItems | Out-Null
+            }
+        }
+
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
     }
 
-    Write-Host "  WARNING: Timed out after ${TimeoutSec}s waiting for processing to finish. Some files may still be 'processing' — check the Sources page and use retry if needed." -ForegroundColor Yellow
+    Write-Host "  WARNING: Timed out after ${TimeoutSec}s. Not yet indexed: $($pending -join ', '). Retry from the Sources page in the web UI." -ForegroundColor Yellow
+}
+
+# Upload a single batch of files, retrying transient upload failures a few times.
+# Returns $true if the batch was accepted by the backend, $false otherwise.
+function Invoke-UploadBatchWithRetry {
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers,
+        [array]$FileItems,
+        [int]$MaxAttempts = 3
+    )
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                -Method POST -Form @{ files = $FileItems } -Headers $Headers | Out-Null
+            return $true
+        } catch {
+            if ($attempt -lt $MaxAttempts) {
+                Write-Host "    upload attempt $attempt/$MaxAttempts failed — retrying in 10s: $_" -ForegroundColor Yellow
+                Start-Sleep -Seconds 10
+            } else {
+                Write-Host "    upload FAILED after $MaxAttempts attempts: $_" -ForegroundColor Red
+            }
+        }
+    }
+    return $false
 }
 
 # Ensure the solution search index exists
@@ -464,6 +561,9 @@ if ($DataPath) {
     if ($docFiles.Count -gt 0) { Write-Host "  $($docFiles.Count) document files (PDF/JSON/DOCX/etc.)" -ForegroundColor Cyan }
     Write-Host ""
 
+    $audioUploaded = 0
+    $docUploaded = 0
+
     # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {
         Write-Host ""
@@ -480,17 +580,15 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            try {
-                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } catch {
-                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+            } else {
                 $failed += $batch.Count
             }
         }
         Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+        $audioUploaded = $success
         if ($success -gt 0) {
             Write-Host "  Audio files are processing in background — check Sources page for status." -ForegroundColor Cyan
         }
@@ -511,21 +609,23 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            try {
-                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } catch {
-                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+            } else {
                 $failed += $batch.Count
             }
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+        $docUploaded = $success
     }
 
     if ($audioFiles.Count -gt 0 -or $docFiles.Count -gt 0) {
-        Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers
+        # Verify against the durable search index, keyed on the actual files we uploaded.
+        $expectedItems = @()
+        if ($audioFiles) { $expectedItems += $audioFiles }
+        if ($docFiles)   { $expectedItems += $docFiles }
+        Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
     }
 
     Write-Host ""
