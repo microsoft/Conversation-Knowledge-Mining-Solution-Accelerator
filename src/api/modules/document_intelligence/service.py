@@ -213,6 +213,40 @@ class ContentUnderstandingService:
             logger.info("Content Understanding defaults configured.")
             self._defaults_ensured = True
 
+    # Analyzer resource states that are safe to submit an analysis against.
+    _ANALYZER_READY_STATES = {"ready", "succeeded"}
+    _ANALYZER_FAILED_STATES = {"failed"}
+
+    def _wait_for_analyzer_ready(
+        self, client: httpx.Client, analyzer_id: str, url: str, max_wait: int = 180
+    ):
+        """Poll the analyzer resource until it reaches a ready state.
+
+        CU analyzer creation is asynchronous. On multi-instance deployments several
+        workers may create the same analyzer concurrently; the losers get a 409 while
+        the analyzer is still in a 'creating'/'Running' state. Submitting an analysis
+        against a not-ready analyzer returns 404 ModelNotFound, so callers must wait
+        for readiness before analyzing.
+        """
+        elapsed = 0
+        interval = 2
+        while elapsed < max_wait:
+            resp = client.get(url, headers=self._auth_headers())
+            if resp.status_code == 200:
+                status = (resp.json().get("status") or "").lower()
+                if status in self._ANALYZER_READY_STATES:
+                    return
+                if status in self._ANALYZER_FAILED_STATES:
+                    raise RuntimeError(
+                        f"CU analyzer '{analyzer_id}' creation failed: {resp.text}"
+                    )
+            time.sleep(interval)
+            elapsed += interval
+            interval = min(interval * 2, 15)
+        logger.warning(
+            f"CU analyzer '{analyzer_id}' still not ready after {max_wait}s; proceeding anyway."
+        )
+
     def _ensure_analyzer(self, analyzer_id: str | None = None):
         """Create the CU analyzer if it doesn't exist yet."""
         if analyzer_id is None:
@@ -236,6 +270,12 @@ class ContentUnderstandingService:
             # Check if analyzer exists
             resp = client.get(url, headers=self._auth_headers())
             if resp.status_code == 200:
+                # An analyzer resource can exist while still being provisioned
+                # (status 'creating'/'Running'). Submitting an analysis against a
+                # not-ready analyzer returns 404 ModelNotFound, so wait for it.
+                status = (resp.json().get("status") or "").lower()
+                if status not in self._ANALYZER_READY_STATES:
+                    self._wait_for_analyzer_ready(client, analyzer_id, url)
                 self._analyzers_ensured.add(analyzer_id)
                 return
 
@@ -245,9 +285,15 @@ class ContentUnderstandingService:
             # Create the analyzer
             resp = client.put(url, headers=headers, json=template)
             if resp.status_code == 409:
+                # Another instance is creating the same analyzer concurrently. The
+                # analyzer is likely still in a 'Running'/creating state, so we must
+                # wait for it to become ready before returning — otherwise the next
+                # :analyze call fails with 404 ModelNotFound.
                 logger.info(
-                    f"CU analyzer '{analyzer_id}' already exists (409 Conflict); reusing it."
+                    f"CU analyzer '{analyzer_id}' is being created concurrently (409 Conflict); "
+                    "waiting for it to become ready."
                 )
+                self._wait_for_analyzer_ready(client, analyzer_id, url)
                 self._analyzers_ensured.add(analyzer_id)
                 return
             if resp.status_code >= 400:
