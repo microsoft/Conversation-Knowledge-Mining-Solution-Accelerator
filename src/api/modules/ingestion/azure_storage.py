@@ -8,7 +8,7 @@ from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 
 from azure.core.exceptions import ResourceNotFoundError
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.storage.blob import BlobServiceClient, ContentSettings, generate_blob_sas, BlobSasPermissions
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
@@ -29,7 +29,13 @@ class AzureStorageService:
 
     def _get_credential(self):
         if self._credential is None:
-            self._credential = DefaultAzureCredential()
+            settings = get_settings()
+            if settings.app_env.lower() == "dev":
+                self._credential = DefaultAzureCredential(require_envvar=True)
+            else:
+                self._credential = ManagedIdentityCredential(
+                    client_id=settings.azure_client_id or None
+                )
         return self._credential
 
     def _get_blob_client(self) -> BlobServiceClient:
