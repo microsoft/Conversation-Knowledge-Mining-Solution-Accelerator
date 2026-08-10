@@ -64,8 +64,42 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 # has the pinned SDK versions (requirements.txt). Fall back to PATH python.
 $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
+# Cache of the deployed backend's app settings, populated once per resource group.
+$script:RgAppSettingsCache = $null
+
+# Read every app setting from the api-* App Service in the resource group (cached).
+# This is the source of truth when a resource group is targeted explicitly.
+function Get-RgAppSettings {
+    param([string]$Rg)
+    if (-not $Rg) { return @{} }
+    if ($null -ne $script:RgAppSettingsCache) { return $script:RgAppSettingsCache }
+
+    $settings = @{}
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $names) {
+        $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+        if ($apiApp) {
+            $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $json) {
+                try { foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value } } catch {}
+            }
+        }
+    }
+    $script:RgAppSettingsCache = $settings
+    return $settings
+}
+
 function Get-DeployValue {
     param([string]$Name)
+
+    # When a resource group is targeted, config MUST come from the deployed backend
+    # in that group — the local azd env may point at an unrelated deployment.
+    if ($ResourceGroupName) {
+        $rgSettings = Get-RgAppSettings $ResourceGroupName
+        if ($rgSettings.Contains($Name)) { return "$($rgSettings[$Name])".Trim() }
+        return ""
+    }
+
     $val = azd env get-value $Name 2>$null
     if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
         return "$val".Trim()
@@ -248,6 +282,7 @@ function Invoke-DataCleanup {
 # to the reliable SQL total exposed by POST /refresh (registration only). Reaching all-indexed
 # before the caller recycles the app (agent step / network re-lock) is what prevents data loss.
 function Wait-ForIngestionCompletion {
+    [CmdletBinding()]
     param(
         [string]$BackendUrl,
         [hashtable]$Headers,
@@ -264,7 +299,9 @@ function Wait-ForIngestionCompletion {
         if (-not $byName.Contains($f.Name)) { $byName[$f.Name] = $f }
     }
     $expectedNames = @($byName.Keys)
-    if ($expectedNames.Count -eq 0) { return }
+    if ($expectedNames.Count -eq 0) {
+        return [pscustomobject]@{ Completed = $true; Indexed = 0; Expected = 0; Pending = @() }
+    }
 
     Write-Host ""
     Write-Host "Waiting for processing to finish (verifying against the search index — durable, instance-independent)..." -ForegroundColor Yellow
@@ -277,21 +314,25 @@ function Wait-ForIngestionCompletion {
 
     # Fallback: search index unreachable — wait on the reliable SQL total from /refresh.
     if (-not $searchEndpoint -or -not $searchToken) {
-        Write-Host "  Search index not reachable — falling back to SQL registration count via /refresh." -ForegroundColor Yellow
+        Write-Warning "Search index not reachable — falling back to SQL registration count via /refresh."
         $elapsed = 0
+        $cnt = 0
         while ($elapsed -lt $TimeoutSec) {
             $cnt = -1
             try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
-            Write-Host "  $cnt/$($expectedNames.Count) file(s) registered in SQL ($($elapsed)s elapsed)..." -ForegroundColor Cyan
+            $pct = if ($expectedNames.Count) { [int](100 * [Math]::Max(0, $cnt) / $expectedNames.Count) } else { 100 }
+            Write-Progress -Activity "Registering files" -Status "$([Math]::Max(0, $cnt))/$($expectedNames.Count) registered in SQL (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
             if ($cnt -ge $expectedNames.Count) {
-                Write-Host "  All $($expectedNames.Count) file(s) registered in SQL (readiness not verified — check the Sources page)." -ForegroundColor Yellow
-                return
+                Write-Progress -Activity "Registering files" -Completed
+                Write-Host "  All $($expectedNames.Count) file(s) registered in SQL (readiness not verified — check the Sources page)." -ForegroundColor Green
+                return [pscustomobject]@{ Completed = $true; Indexed = $cnt; Expected = $expectedNames.Count; Pending = @() }
             }
             Start-Sleep -Seconds $PollIntervalSec
             $elapsed += $PollIntervalSec
         }
-        Write-Host "  WARNING: Timed out after ${TimeoutSec}s waiting for files to register." -ForegroundColor Yellow
-        return
+        Write-Progress -Activity "Registering files" -Completed
+        Write-Warning "Timed out after ${TimeoutSec}s waiting for files to register in SQL. Retry from the Sources page in the web UI."
+        return [pscustomobject]@{ Completed = $false; Indexed = [Math]::Max(0, $cnt); Expected = $expectedNames.Count; Pending = @($expectedNames) }
     }
 
     $searchUri = "$searchEndpoint/indexes/$searchIndexName/docs/search?api-version=$apiVer"
@@ -324,18 +365,21 @@ function Wait-ForIngestionCompletion {
         }
 
         if ($pending.Count -eq 0) {
+            Write-Progress -Activity "Processing files" -Completed
             Write-Host "  All $($expectedNames.Count) file(s) processed and indexed." -ForegroundColor Green
-            return
+            return [pscustomobject]@{ Completed = $true; Indexed = $expectedNames.Count; Expected = $expectedNames.Count; Pending = @() }
         }
 
         $done = $expectedNames.Count - $pending.Count
-        Write-Host "  $done/$($expectedNames.Count) file(s) indexed ($($elapsed)s elapsed). Waiting on: $($pending -join ', ')" -ForegroundColor Cyan
+        $pct = if ($expectedNames.Count) { [int](100 * $done / $expectedNames.Count) } else { 100 }
+        Write-Progress -Activity "Processing files" -Status "$done/$($expectedNames.Count) indexed (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
+        Write-Verbose "Waiting on: $($pending -join ', ')"
 
         # After a grace period, re-submit still-missing files to recover CU timeouts/failures.
         if (($elapsed - $lastRetryAt) -ge $RetryGraceSec -and $retryRound -lt $MaxRetryRounds) {
             $retryRound++
             $lastRetryAt = $elapsed
-            Write-Host "  Re-submitting $($pending.Count) unprocessed file(s) (round $retryRound/$MaxRetryRounds)..." -ForegroundColor Yellow
+            Write-Verbose "Re-submitting $($pending.Count) unprocessed file(s) (round $retryRound/$MaxRetryRounds)..."
             $retryItems = @($pending | ForEach-Object { $byName[$_] })
             for ($i = 0; $i -lt $retryItems.Count; $i += 5) {
                 $batch = @($retryItems[$i..([Math]::Min($i + 4, $retryItems.Count - 1))])
@@ -348,12 +392,15 @@ function Wait-ForIngestionCompletion {
         $elapsed += $PollIntervalSec
     }
 
-    Write-Host "  WARNING: Timed out after ${TimeoutSec}s. Not yet indexed: $($pending -join ', '). Retry from the Sources page in the web UI." -ForegroundColor Yellow
+    Write-Progress -Activity "Processing files" -Completed
+    Write-Warning "Timed out after ${TimeoutSec}s. Not yet indexed: $($pending -join ', '). Retry from the Sources page in the web UI."
+    return [pscustomobject]@{ Completed = $false; Indexed = ($expectedNames.Count - $pending.Count); Expected = $expectedNames.Count; Pending = @($pending) }
 }
 
 # Upload a single batch of files, retrying transient upload failures a few times.
 # Returns $true if the batch was accepted by the backend, $false otherwise.
 function Invoke-UploadBatchWithRetry {
+    [CmdletBinding()]
     param(
         [string]$BackendUrl,
         [hashtable]$Headers,
@@ -367,10 +414,10 @@ function Invoke-UploadBatchWithRetry {
             return $true
         } catch {
             if ($attempt -lt $MaxAttempts) {
-                Write-Host "    upload attempt $attempt/$MaxAttempts failed — retrying in 10s: $_" -ForegroundColor Yellow
+                Write-Warning "Upload attempt $attempt/$MaxAttempts failed — retrying in 10s: $_"
                 Start-Sleep -Seconds 10
             } else {
-                Write-Host "    upload FAILED after $MaxAttempts attempts: $_" -ForegroundColor Red
+                Write-Warning "Upload FAILED after $MaxAttempts attempts: $_"
             }
         }
     }
@@ -649,16 +696,21 @@ if ($DataPath) {
         $docUploaded = $success
     }
 
+    $ingestion = $null
     if ($audioFiles.Count -gt 0 -or $docFiles.Count -gt 0) {
         # Verify against the durable search index, keyed on the actual files we uploaded.
         $expectedItems = @()
         if ($audioFiles) { $expectedItems += $audioFiles }
         if ($docFiles)   { $expectedItems += $docFiles }
-        Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
+        $ingestion = Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
     }
 
     Write-Host ""
-    Write-Host "Data upload complete!" -ForegroundColor Green
+    if ($ingestion -and -not $ingestion.Completed) {
+        Write-Host "Data upload finished — $($ingestion.Indexed)/$($ingestion.Expected) file(s) indexed. Retry the rest from the Sources page." -ForegroundColor Yellow
+    } else {
+        Write-Host "Data upload complete!" -ForegroundColor Green
+    }
 }
 
 # ══════════════════════════════════════════
