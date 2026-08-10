@@ -6,7 +6,8 @@
     Reads the SQL server/database and the API managed identity from the azd
     environment, then creates a contained database user and assigns
     db_datareader / db_datawriter / db_ddladmin. Runs as the deployer (Azure CLI
-    credentials), who must be the SQL Azure AD admin.
+    credentials); if the caller isn't the server's Entra ID admin, it temporarily
+    elevates itself, runs the grant, then restores the original admin.
 #>
 
 param(
@@ -14,7 +15,9 @@ param(
     [string]$SqlServerName,
     [string]$SqlDatabaseName,
     [string]$ApiAppName,
-    [string]$PrincipalId
+    [string]$PrincipalId,
+    # Skip the temporary Entra-admin elevation (caller must already be the SQL admin).
+    [switch]$SkipAdminElevation
 )
 
 $ErrorActionPreference = "Stop"
@@ -108,8 +111,82 @@ Write-Host "API identity : $apiName ($principalId), account type: $accountType" 
 Write-Host "SQL target   : $server / $database" -ForegroundColor DarkGray
 
 $script = Join-Path $PSScriptRoot "add_user_scripts/assign_sql_roles.py"
-python $script --server $server --database $database --roles-file $tmp
-$exit = $LASTEXITCODE
+
+# ── SQL requires the caller to be the server's Entra ID admin to create contained users.
+#    If the caller isn't the admin, temporarily elevate self, run the grant, then restore
+#    the original admin. The app authenticates via its own contained user (not the admin
+#    slot), so this swap does not affect application runtime. Skippable with -SkipAdminElevation. ──
+$sqlServerShort = ($server -replace '\.database\.windows\.net$', '')
+$adminSwapped = $false
+$originalAdmin = $null
+
+if (-not $SkipAdminElevation -and $resourceGroup -and $sqlServerShort) {
+    # Resolve the current principal's object id (works for both users and service principals).
+    $acct = (az account show -o json 2>$null) | ConvertFrom-Json
+    $myObjectId = ""
+    $myDisplayName = ""
+    if ($acct) {
+        if ($acct.user.type -eq 'servicePrincipal') {
+            $myObjectId    = (az ad sp show --id $acct.user.name --query id -o tsv 2>$null)
+            $myDisplayName = $acct.user.name
+        } else {
+            $me = (az ad signed-in-user show -o json 2>$null) | ConvertFrom-Json
+            if ($me) { $myObjectId = $me.id; $myDisplayName = $me.userPrincipalName }
+        }
+    }
+    if ($myObjectId) { $myObjectId = $myObjectId.Trim() }
+
+    $currentAdmin = (az sql server ad-admin list --resource-group $resourceGroup --server $sqlServerShort -o json 2>$null) | ConvertFrom-Json
+    $currentAdmin = $currentAdmin | Select-Object -First 1
+    $adminSid = if ($currentAdmin) { $currentAdmin.sid } else { "" }
+
+    if ($myObjectId -and $adminSid -ne $myObjectId) {
+        Write-Host "Current principal is not the SQL Entra admin — elevating temporarily..." -ForegroundColor Yellow
+        if ($currentAdmin) {
+            az sql server ad-admin update --resource-group $resourceGroup --server $sqlServerShort --display-name $myDisplayName --object-id $myObjectId 2>$null | Out-Null
+        } else {
+            az sql server ad-admin create --resource-group $resourceGroup --server $sqlServerShort --display-name $myDisplayName --object-id $myObjectId 2>$null | Out-Null
+        }
+        if ($LASTEXITCODE -eq 0) {
+            $adminSwapped = $true
+            $originalAdmin = $currentAdmin
+            Write-Host "Elevated. Original admin will be restored after the grant." -ForegroundColor DarkGray
+        } else {
+            Write-Host "WARNING: Could not set current principal as SQL Entra admin (needs SQL Server Contributor/Owner). The grant may fail." -ForegroundColor Yellow
+        }
+    }
+}
+
+$exit = 1
+try {
+    # AAD admin changes can take up to ~60s to apply to new logins; retry the grant while it propagates.
+    $maxAttempts = if ($adminSwapped) { 5 } else { 1 }
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        python $script --server $server --database $database --roles-file $tmp
+        $exit = $LASTEXITCODE
+        if ($exit -eq 0) { break }
+        if ($attempt -lt $maxAttempts) {
+            Write-Host "Grant attempt $attempt failed; waiting for the admin change to propagate..." -ForegroundColor DarkYellow
+            Start-Sleep -Seconds 15
+        }
+    }
+}
+finally {
+    # Always restore the original admin, even if the grant threw or failed.
+    if ($adminSwapped) {
+        if ($originalAdmin) {
+            az sql server ad-admin update --resource-group $resourceGroup --server $sqlServerShort --display-name $originalAdmin.login --object-id $originalAdmin.sid 2>$null | Out-Null
+        } else {
+            az sql server ad-admin delete --resource-group $resourceGroup --server $sqlServerShort 2>$null | Out-Null
+        }
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Restored original SQL Entra admin." -ForegroundColor DarkGray
+        } else {
+            $restoreName = if ($originalAdmin) { $originalAdmin.login } else { '(none)' }
+            Write-Host "WARNING: Failed to restore original SQL Entra admin '$restoreName'. Restore it manually." -ForegroundColor Red
+        }
+    }
+}
 
 Remove-Item -Force $tmp -ErrorAction SilentlyContinue
 
