@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "3487042951318584166"
+      "templateHash": "5031683791450585396"
     }
   },
   "parameters": {
@@ -121,9 +121,9 @@
     },
     "containerRegistryName": {
       "type": "string",
-      "defaultValue": "kmcontainerreg",
+      "defaultValue": "",
       "metadata": {
-        "description": "Optional. Name of the Azure Container Registry."
+        "description": "Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>)."
       }
     },
     "backendContainerImageName": {
@@ -239,6 +239,7 @@
   },
   "variables": {
     "solutionSuffix": "[toLower(trim(replace(replace(replace(replace(replace(replace(format('{0}{1}', parameters('solutionName'), parameters('solutionUniqueText')), '-', ''), '_', ''), '.', ''), '/', ''), ' ', ''), '*', '')))]",
+    "containerRegistryResourceName": "[if(not(empty(parameters('containerRegistryName'))), parameters('containerRegistryName'), format('acrkm{0}', variables('solutionSuffix')))]",
     "deployerInfo": "[deployer()]",
     "deployingUserPrincipalId": "[variables('deployerInfo').objectId]",
     "existingTags": "[coalesce(resourceGroup().tags, createObject())]",
@@ -2092,7 +2093,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "8486037109042155028"
+              "templateHash": "3181784098775302542"
             }
           },
           "parameters": {
@@ -2224,7 +2225,7 @@
             {
               "type": "Microsoft.Sql/servers/firewallRules",
               "apiVersion": "2025-01-01",
-              "name": "[format('{0}/{1}', parameters('name'), 'AllowAllWindowsAzureIps')]",
+              "name": "[format('{0}/{1}', parameters('name'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
               "properties": {
                 "startIpAddress": "0.0.0.0",
                 "endIpAddress": "0.0.0.0"
@@ -2464,7 +2465,7 @@
             "value": "[variables('solutionSuffix')]"
           },
           "name": {
-            "value": "[parameters('containerRegistryName')]"
+            "value": "[variables('containerRegistryResourceName')]"
           },
           "location": {
             "value": "[parameters('location')]"

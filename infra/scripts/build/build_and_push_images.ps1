@@ -14,15 +14,47 @@
     bash/pwsh: ./infra/scripts/build/build_and_push_images.ps1
 #>
 
+param(
+    [string]$ResourceGroupName,
+    [string]$AcrName,
+    [string]$AcrLoginServer,
+    [string]$ApiAppName,
+    [string]$FrontendAppName,
+    [string]$BackendImageName,
+    [string]$BackendImageTag,
+    [string]$FrontendImageName,
+    [string]$FrontendImageTag
+)
+
 $ErrorActionPreference = "Stop"
 
 # Repo root is three levels up from this script (infra/scripts/build -> repo root)
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
+# azd may be unavailable in AVM / non-azd deployments; guard so callers can rely on
+# explicit parameters and resource-group auto-discovery instead.
+$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
+
 function Get-AzdValue([string]$key) {
+    if (-not $azdAvailable) { return "" }
     $val = (azd env get-value $key 2>$null)
     if ($LASTEXITCODE -ne 0 -or -not $val -or $val -match 'ERROR|not found') { return "" }
     return $val.Trim()
+}
+
+# ── Auto-discovery helpers: resolve resource names from the resource group when
+#    not supplied explicitly and not available via azd (non-azd / AVM deployments). ──
+function Get-DiscoveredAcrName([string]$rg) {
+    if (-not $rg) { return "" }
+    $names = (az acr list --resource-group $rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ } | Select-Object -First 1).Trim()
+}
+function Get-DiscoveredWebAppName([string]$rg, [string]$prefix) {
+    if (-not $rg) { return "" }
+    $names = (az webapp list --resource-group $rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ -like "$prefix*" } | Select-Object -First 1).Trim()
 }
 
 Write-Host ""
@@ -42,16 +74,24 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-# ── Resolve configuration from azd environment ──
-$resourceGroup   = Get-AzdValue "RESOURCE_GROUP_NAME"
-$acrName         = Get-AzdValue "ACR_NAME"
-$acrLoginServer  = Get-AzdValue "ACR_LOGIN_SERVER"
-$backendImage    = Get-AzdValue "BACKEND_CONTAINER_IMAGE_NAME"
-$backendTag      = Get-AzdValue "BACKEND_CONTAINER_IMAGE_TAG"
-$frontendImage   = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_NAME"
-$frontendTag     = Get-AzdValue "FRONTEND_CONTAINER_IMAGE_TAG"
-$backendApp      = Get-AzdValue "API_APP_NAME"
-$frontendApp     = Get-AzdValue "FRONTEND_APP_NAME"
+# ── Resolve configuration. When -ResourceGroupName is passed explicitly, treat it as
+#    the source of truth and do NOT read azd env: a local azd default env may point to
+#    a different deployment. Precedence: explicit param → (RG discovery | azd env). ──
+$rgProvided = [bool]$ResourceGroupName
+$resourceGroup   = if ($ResourceGroupName) { $ResourceGroupName } else { Get-AzdValue "RESOURCE_GROUP_NAME" }
+$acrName         = if ($AcrName) { $AcrName } elseif ($rgProvided) { "" } else { Get-AzdValue "ACR_NAME" }
+$acrLoginServer  = if ($AcrLoginServer) { $AcrLoginServer } elseif ($rgProvided) { "" } else { Get-AzdValue "ACR_LOGIN_SERVER" }
+$backendImage    = if ($BackendImageName) { $BackendImageName } elseif ($rgProvided) { "" } else { Get-AzdValue "BACKEND_CONTAINER_IMAGE_NAME" }
+$backendTag      = if ($BackendImageTag) { $BackendImageTag } elseif ($rgProvided) { "" } else { Get-AzdValue "BACKEND_CONTAINER_IMAGE_TAG" }
+$frontendImage   = if ($FrontendImageName) { $FrontendImageName } elseif ($rgProvided) { "" } else { Get-AzdValue "FRONTEND_CONTAINER_IMAGE_NAME" }
+$frontendTag     = if ($FrontendImageTag) { $FrontendImageTag } elseif ($rgProvided) { "" } else { Get-AzdValue "FRONTEND_CONTAINER_IMAGE_TAG" }
+$backendApp      = if ($ApiAppName) { $ApiAppName } elseif ($rgProvided) { "" } else { Get-AzdValue "API_APP_NAME" }
+$frontendApp     = if ($FrontendAppName) { $FrontendAppName } elseif ($rgProvided) { "" } else { Get-AzdValue "FRONTEND_APP_NAME" }
+
+# ── Auto-discovery from the resource group (when azd is bypassed/unavailable or didn't resolve a value) ──
+if (-not $acrName)     { $acrName     = Get-DiscoveredAcrName $resourceGroup }
+if (-not $backendApp)  { $backendApp  = Get-DiscoveredWebAppName $resourceGroup "api-" }
+if (-not $frontendApp) { $frontendApp = Get-DiscoveredWebAppName $resourceGroup "app-" }
 
 # ── Fallbacks / defaults ──
 if (-not $acrLoginServer -and $acrName) { $acrLoginServer = "$acrName.azurecr.io" }
@@ -61,9 +101,14 @@ if (-not $frontendImage) { $frontendImage = "km-app" }
 if (-not $frontendTag)   { $frontendTag   = "latest" }
 
 if (-not $acrName -or -not $backendApp -or -not $frontendApp) {
-    Write-Host "ERROR: Could not resolve ACR / App Service names from azd env." -ForegroundColor Red
-    Write-Host "       Ensure 'azd provision' (or 'azd up') has completed for this environment." -ForegroundColor Yellow
-    Write-Host "       Required azd outputs: ACR_NAME, API_APP_NAME, FRONTEND_APP_NAME." -ForegroundColor Yellow
+    Write-Host "ERROR: Could not resolve ACR / App Service names." -ForegroundColor Red
+    if ($azdAvailable) {
+        Write-Host "       Ensure 'azd provision' (or 'azd up') has completed for this environment," -ForegroundColor Yellow
+        Write-Host "       or pass -AcrName, -ApiAppName and -FrontendAppName explicitly." -ForegroundColor Yellow
+    } else {
+        Write-Host "       Auto-discovery from -ResourceGroupName '$resourceGroup' did not find them (expects a single ACR and" -ForegroundColor Yellow
+        Write-Host "       App Services named 'api-*'/'app-*'). Pass -AcrName, -ApiAppName and -FrontendAppName explicitly." -ForegroundColor Yellow
+    }
     exit 1
 }
 

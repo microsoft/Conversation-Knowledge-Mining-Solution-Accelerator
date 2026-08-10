@@ -75,8 +75,8 @@ resource firewallRule 'Microsoft.Sql/servers/firewallRules@2025-01-01' = {
   }
 }
 
-resource AllowAllWindowsAzureIps 'Microsoft.Sql/servers/firewallRules@2025-01-01' = {
-  name: 'AllowAllWindowsAzureIps'
+resource AllowAllAzureServicesAndResourcesWithinAzureIps 'Microsoft.Sql/servers/firewallRules@2025-01-01' = {
+  name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
   parent: sqlServer
   properties: {
     startIpAddress: '0.0.0.0'

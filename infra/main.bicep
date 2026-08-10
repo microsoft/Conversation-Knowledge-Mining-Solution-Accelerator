@@ -79,8 +79,8 @@ param embeddingDeploymentCapacity int = 80
 // Parameters — Compute
 // ============================================================================
 
-@description('Optional. Name of the Azure Container Registry.')
-param containerRegistryName string = 'kmcontainerreg'
+@description('Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>).')
+param containerRegistryName string = ''
 
 @description('Optional. Backend container image name.')
 param backendContainerImageName string = 'km-api'

@@ -35,35 +35,92 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("Enable", "Disable")]
-    [string]$Action
+    [string]$Action,
+
+    # Resource group to operate on. When omitted, resolved from the azd environment.
+    # Required for non-azd / AVM deployments where no local azd env exists.
+    [string]$ResourceGroupName,
+
+    # Override private-networking (WAF) detection: "true" or "false". When omitted,
+    # resolved from the azd ENABLE_PRIVATE_NETWORKING output, then from the presence
+    # of private endpoints in the resource group.
+    [string]$EnablePrivateNetworking
 )
 
 $ErrorActionPreference = "Stop"
 
+# azd may be unavailable in AVM / non-azd deployments; guard so callers can rely on
+# -ResourceGroupName / -EnablePrivateNetworking and resource-group auto-discovery instead.
+$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
+
 function Get-AzdValue([string]$key) {
+    if (-not $azdAvailable) { return "" }
     $val = (azd env get-value $key 2>$null)
     if ($LASTEXITCODE -ne 0 -or -not $val -or $val -match 'ERROR|not found') { return "" }
     return $val.Trim()
 }
 
-$resourceGroup = Get-AzdValue "RESOURCE_GROUP_NAME"
+# When -ResourceGroupName is passed explicitly, treat it as the source of truth and do
+# NOT read azd env: a local azd default env may point to a different deployment.
+$rgProvided = [bool]$ResourceGroupName
+$resourceGroup = if ($ResourceGroupName) { $ResourceGroupName } else { Get-AzdValue "RESOURCE_GROUP_NAME" }
 if (-not $resourceGroup) {
-    Write-Host "  [SKIP] RESOURCE_GROUP_NAME not found in azd env — nothing to do." -ForegroundColor Yellow
+    Write-Host "  [SKIP] Resource group not provided and RESOURCE_GROUP_NAME not found in azd env — nothing to do." -ForegroundColor Yellow
+    Write-Host "         Pass -ResourceGroupName for non-azd / AVM deployments." -ForegroundColor Yellow
     exit 0
 }
 
-$acrName       = Get-AzdValue "ACR_NAME"
-$storageName   = Get-AzdValue "AZURE_STORAGE_ACCOUNT"
-$sqlServerFqdn = Get-AzdValue "AZURE_SQL_SERVER"
+# ── Discovery helpers: resolve resource names from the resource group when azd is
+#    unavailable / didn't provide them (non-azd / AVM deployments). ──
+function Get-FirstResourceName([string]$rg, [string]$azType) {
+    $names = (az resource list --resource-group $rg --resource-type $azType --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ } | Select-Object -First 1).Trim()
+}
+function Get-DiscoveredWebAppName([string]$rg, [string]$prefix) {
+    $names = (az webapp list --resource-group $rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ -like "$prefix*" } | Select-Object -First 1).Trim()
+}
+
+$acrName       = if ($rgProvided) { "" } else { Get-AzdValue "ACR_NAME" }
+$storageName   = if ($rgProvided) { "" } else { Get-AzdValue "AZURE_STORAGE_ACCOUNT" }
+$sqlServerFqdn = if ($rgProvided) { "" } else { Get-AzdValue "AZURE_SQL_SERVER" }
 $sqlServerName = if ($sqlServerFqdn) { $sqlServerFqdn.Split('.')[0] } else { "" }
-$cosmosEndpoint = Get-AzdValue "AZURE_COSMOS_ENDPOINT"
+$cosmosEndpoint = if ($rgProvided) { "" } else { Get-AzdValue "AZURE_COSMOS_ENDPOINT" }
 $cosmosName    = ""
 if ($cosmosEndpoint -match 'https://([^.]+)\.') { $cosmosName = $Matches[1] }
-$apiAppName    = Get-AzdValue "API_APP_NAME"
-$frontendAppName = Get-AzdValue "FRONTEND_APP_NAME"
+$apiAppName    = if ($rgProvided) { "" } else { Get-AzdValue "API_APP_NAME" }
+$frontendAppName = if ($rgProvided) { "" } else { Get-AzdValue "FRONTEND_APP_NAME" }
 
-$envName   = Get-AzdValue "AZURE_ENV_NAME"
+# ── Auto-discover any names azd didn't provide (non-azd / AVM deployments) ──
+if (-not $acrName)         { $acrName         = Get-FirstResourceName $resourceGroup "Microsoft.ContainerRegistry/registries" }
+if (-not $storageName)     { $storageName     = Get-FirstResourceName $resourceGroup "Microsoft.Storage/storageAccounts" }
+if (-not $sqlServerName)   { $sqlServerName   = Get-FirstResourceName $resourceGroup "Microsoft.Sql/servers" }
+if (-not $cosmosName)      { $cosmosName      = Get-FirstResourceName $resourceGroup "Microsoft.DocumentDB/databaseAccounts" }
+if (-not $apiAppName)      { $apiAppName      = Get-DiscoveredWebAppName $resourceGroup "api-" }
+if (-not $frontendAppName) { $frontendAppName = Get-DiscoveredWebAppName $resourceGroup "app-" }
+
+$envName   = if ($rgProvided) { "" } else { Get-AzdValue "AZURE_ENV_NAME" }
 $stateFile = Join-Path ([System.IO.Path]::GetTempPath()) "km-network-access-state-$envName-$resourceGroup.json"
+
+# ── Resolve the private-networking (WAF) flag once: explicit param → azd env →
+#    presence of private endpoints in the resource group. ──
+function Test-PrivateEndpointsPresent([string]$rg) {
+    $pe = (az network private-endpoint list --resource-group $rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return [bool]($pe -and $pe.Trim())
+}
+if ($EnablePrivateNetworking) {
+    $isPrivateNetworking = ($EnablePrivateNetworking -match '^(?i:true)$')
+} else {
+    $azdFlag = if ($rgProvided) { "" } else { Get-AzdValue "ENABLE_PRIVATE_NETWORKING" }
+    if ($azdFlag) {
+        $isPrivateNetworking = ($azdFlag -match '^(?i:true)$')
+    } else {
+        $isPrivateNetworking = Test-PrivateEndpointsPresent $resourceGroup
+    }
+}
 
 # ── Resource-specific helpers: get / set publicNetworkAccess ──
 function Get-AcrPublicAccess([string]$name) {
@@ -153,8 +210,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 if ($Action -eq "Enable") {
     # Only private-networking (WAF) deployments need public access temporarily opened.
     # For a public deployment the resources are already reachable — skip entirely.
-    $privateNetworking = Get-AzdValue "ENABLE_PRIVATE_NETWORKING"
-    if ($privateNetworking -notmatch '^(?i:true)$') {
+    if (-not $isPrivateNetworking) {
         Write-Host "  Skipping network configuration: this is not a private-networking (WAF) deployment. Resources are already publicly reachable." -ForegroundColor DarkGray
         Write-Host ""
         exit 0
@@ -271,10 +327,9 @@ if ($Action -eq "Enable") {
 else {
     # Disable: lock down based on whether this is a private-networking (WAF) deployment,
     # not on a state file — so revert works regardless of how/where Enable ran.
-    $privateNetworking = Get-AzdValue "ENABLE_PRIVATE_NETWORKING"
     Remove-Item -Force $stateFile -ErrorAction SilentlyContinue
 
-    if ($privateNetworking -notmatch '^(?i:true)$') {
+    if (-not $isPrivateNetworking) {
         Write-Host "  Skipping network lockdown: this is not a private-networking (WAF) deployment. Resources are intended to remain public." -ForegroundColor DarkGray
         # Best-effort: clear any leftover temporary SQL firewall rule from an Enable run.
         if ($sqlServerName -and (Test-SqlTempFirewallRule $sqlServerName)) {

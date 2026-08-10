@@ -43,7 +43,11 @@ param(
     [string]$ConnectionString,
 
     [string]$BackendUrl = "http://localhost:8000",
-    [switch]$AllowDeployedFallback
+    [switch]$AllowDeployedFallback,
+
+    # Resource group for non-azd / AVM deployments; used to auto-discover the
+    # deployed backend and threaded down to child scripts (setup-agent/connect-data).
+    [string]$ResourceGroupName
 )
 
 $ErrorActionPreference = "Stop"
@@ -72,6 +76,20 @@ function Get-DeployValue {
         if ($line) { return ($line -replace "^$Name=", '').Trim() }
     }
     return ""
+}
+
+# Discover the deployed backend URL from an api-* App Service in the resource group.
+# Used for non-azd / AVM deployments where no local backend is running.
+function Get-DiscoveredBackendUrl {
+    param([string]$Rg)
+    if (-not $Rg) { return "" }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+    if (-not $apiApp) { return "" }
+    $hostName = (az webapp show --name $apiApp.Trim() --resource-group $Rg --query defaultHostName -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $hostName) { return "" }
+    return "https://$($hostName.Trim())"
 }
 
 # ── Load scenarios config (used by interactive menu and scenario resolution) ──
@@ -117,6 +135,17 @@ function Resolve-ScenarioDataPath {
 # ── Resolve backend URL ──
 if ($PSBoundParameters.ContainsKey("BackendUrl")) {
     Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
+}
+elseif ($ResourceGroupName) {
+    # Non-azd / AVM deployment: target the deployed backend discovered from the resource group.
+    $discovered = Get-DiscoveredBackendUrl $ResourceGroupName
+    if ($discovered) {
+        $BackendUrl = $discovered
+        Write-Host "Using deployed backend discovered from resource group '$ResourceGroupName': $BackendUrl" -ForegroundColor Yellow
+    } else {
+        Write-Host "ERROR: Could not discover the backend App Service (api-*) in resource group '$ResourceGroupName'." -ForegroundColor Red
+        exit 1
+    }
 }
 elseif ($BackendUrl -eq "http://localhost:8000") {
     $localHealthy = $false
@@ -420,7 +449,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
                 Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
                 Write-Host ""
                 $env:BACKEND_URL = $BackendUrl
-                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
+                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType -ResourceGroupName $ResourceGroupName
                 exit $LASTEXITCODE
             }
             $Scenario = $selected.key
@@ -431,7 +460,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host ""
             $env:BACKEND_URL = $BackendUrl
-            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
+            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key -ResourceGroupName $ResourceGroupName
             exit $LASTEXITCODE
         }
         "skip" {
@@ -442,7 +471,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             Invoke-EnsureSearchIndex
             Write-Host ""
             Write-Host "Creating default AI agent with SQL and Azure AI Search tools..." -ForegroundColor Yellow
-            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip"
+            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip" -ResourceGroupName $ResourceGroupName
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario skip" -ForegroundColor Yellow
             }
@@ -684,7 +713,7 @@ Write-Host ""
 if ($Scenario) {
     Write-Host ""
     Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
-    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario
+    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario -ResourceGroupName $ResourceGroupName
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
     }

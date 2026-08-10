@@ -99,7 +99,7 @@ module sqlServer 'br/public:avm/res/sql/server:0.21.1' = {
         endIpAddress: '255.255.255.255'
       }
       {
-        name: 'AllowAllWindowsAzureIps'
+        name: 'AllowAllAzureServicesAndResourcesWithinAzureIps'
         startIpAddress: '0.0.0.0'
         endIpAddress: '0.0.0.0'
       }

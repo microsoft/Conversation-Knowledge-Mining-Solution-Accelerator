@@ -75,8 +75,8 @@ param embeddingDeploymentCapacity int = 80
 // Parameters — Compute
 // ============================================================================
 
-@description('Optional. Name of the Azure Container Registry.')
-param containerRegistryName string = 'kmcontainerreg'
+@description('Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>).')
+param containerRegistryName string = ''
 
 @description('Optional. Backend container image name.')
 param backendContainerImageName string = 'km-api'
@@ -145,6 +145,9 @@ var solutionSuffix = toLower(trim(replace(
   '*',
   ''
 )))
+
+// ACR names are globally unique — default to a suffixed name so multiple deployments don't collide.
+var containerRegistryResourceName = !empty(containerRegistryName) ? containerRegistryName : 'acrkm${solutionSuffix}'
 
 var deployerInfo = deployer()
 var deployingUserPrincipalId = deployerInfo.objectId
@@ -362,7 +365,7 @@ module container_registry './modules/compute/container-registry.bicep' = {
   name: take('module.container-registry.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    name: containerRegistryName
+    name: containerRegistryResourceName
     location: location
     tags: resourceTags
   }

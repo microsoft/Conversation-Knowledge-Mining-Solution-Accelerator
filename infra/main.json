@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "12152885170517085109"
+      "templateHash": "3883942481304499832"
     }
   },
   "parameters": {
@@ -126,9 +126,9 @@
     },
     "containerRegistryName": {
       "type": "string",
-      "defaultValue": "kmcontainerreg",
+      "defaultValue": "",
       "metadata": {
-        "description": "Optional. Name of the Azure Container Registry."
+        "description": "Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>)."
       }
     },
     "backendContainerImageName": {
@@ -422,7 +422,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "18219532810993500715"
+              "templateHash": "587881267097336644"
             }
           },
           "parameters": {
@@ -594,9 +594,9 @@
             },
             "containerRegistryName": {
               "type": "string",
-              "defaultValue": "kmcontainerreg",
+              "defaultValue": "",
               "metadata": {
-                "description": "Optional. Name of the Azure Container Registry."
+                "description": "Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>)."
               }
             },
             "backendContainerImageName": {
@@ -705,6 +705,7 @@
           },
           "variables": {
             "solutionSuffix": "[toLower(trim(replace(replace(replace(replace(replace(replace(format('{0}{1}', parameters('solutionName'), parameters('solutionUniqueText')), '-', ''), '_', ''), '.', ''), '/', ''), ' ', ''), '*', '')))]",
+            "containerRegistryResourceName": "[if(not(empty(parameters('containerRegistryName'))), parameters('containerRegistryName'), format('acrkm{0}', variables('solutionSuffix')))]",
             "deployerInfo": "[deployer()]",
             "deployingUserPrincipalId": "[variables('deployerInfo').objectId]",
             "createdBy": "[if(contains(variables('deployerInfo'), 'userPrincipalName'), split(variables('deployerInfo').userPrincipalName, '@')[0], variables('deployerInfo').objectId)]",
@@ -40678,9 +40679,9 @@
               },
               "dependsOn": [
                 "log_analytics",
+                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageDfs)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageBlob)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageQueue)]",
-                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageDfs)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageFile)]",
                 "virtualNetwork"
               ]
@@ -47288,7 +47289,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "11604844247511583541"
+                      "templateHash": "10556725117062336326"
                     }
                   },
                   "definitions": {
@@ -47827,7 +47828,7 @@
                               }
                             ]
                           },
-                          "firewallRules": "[if(equals(parameters('publicNetworkAccess'), 'Enabled'), createObject('value', createArray(createObject('name', 'AllowSpecificRange', 'startIpAddress', '0.0.0.0', 'endIpAddress', '255.255.255.255'), createObject('name', 'AllowAllWindowsAzureIps', 'startIpAddress', '0.0.0.0', 'endIpAddress', '0.0.0.0'))), createObject('value', createArray()))]",
+                          "firewallRules": "[if(equals(parameters('publicNetworkAccess'), 'Enabled'), createObject('value', createArray(createObject('name', 'AllowSpecificRange', 'startIpAddress', '0.0.0.0', 'endIpAddress', '255.255.255.255'), createObject('name', 'AllowAllAzureServicesAndResourcesWithinAzureIps', 'startIpAddress', '0.0.0.0', 'endIpAddress', '0.0.0.0'))), createObject('value', createArray()))]",
                           "privateEndpoints": {
                             "value": "[parameters('privateEndpoints')]"
                           }
@@ -55257,7 +55258,7 @@
                     "value": "[variables('solutionSuffix')]"
                   },
                   "name": {
-                    "value": "[parameters('containerRegistryName')]"
+                    "value": "[variables('containerRegistryResourceName')]"
                   },
                   "location": {
                     "value": "[parameters('location')]"
@@ -55280,7 +55281,7 @@
                   "acrPushPrincipalType": "[if(equals(parameters('deployingUserPrincipalType'), 'User'), createObject('value', 'User'), createObject('value', 'ServicePrincipal'))]",
                   "publicNetworkAccess": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
                   "networkRuleSetDefaultAction": "[if(parameters('enablePrivateNetworking'), createObject('value', 'Deny'), createObject('value', 'Allow'))]",
-                  "privateEndpoints": "[if(parameters('enablePrivateNetworking'), createObject('value', createArray(createObject('name', format('pep-{0}', parameters('containerRegistryName')), 'customNetworkInterfaceName', format('nic-{0}', parameters('containerRegistryName')), 'subnetResourceId', reference('virtualNetwork').outputs.backendSubnetResourceId.value, 'service', 'registry', 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').containerRegistry)).outputs.resourceId.value)))))), createObject('value', createArray()))]"
+                  "privateEndpoints": "[if(parameters('enablePrivateNetworking'), createObject('value', createArray(createObject('name', format('pep-{0}', variables('containerRegistryResourceName')), 'customNetworkInterfaceName', format('nic-{0}', variables('containerRegistryResourceName')), 'subnetResourceId', reference('virtualNetwork').outputs.backendSubnetResourceId.value, 'service', 'registry', 'privateDnsZoneGroup', createObject('privateDnsZoneGroupConfigs', createArray(createObject('privateDnsZoneResourceId', reference(format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').containerRegistry)).outputs.resourceId.value)))))), createObject('value', createArray()))]"
                 },
                 "template": {
                   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
@@ -91984,7 +91985,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.45.15.27210",
-              "templateHash": "9443661417120991690"
+              "templateHash": "5031683791450585396"
             }
           },
           "parameters": {
@@ -92100,9 +92101,9 @@
             },
             "containerRegistryName": {
               "type": "string",
-              "defaultValue": "kmcontainerreg",
+              "defaultValue": "",
               "metadata": {
-                "description": "Optional. Name of the Azure Container Registry."
+                "description": "Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>)."
               }
             },
             "backendContainerImageName": {
@@ -92218,6 +92219,7 @@
           },
           "variables": {
             "solutionSuffix": "[toLower(trim(replace(replace(replace(replace(replace(replace(format('{0}{1}', parameters('solutionName'), parameters('solutionUniqueText')), '-', ''), '_', ''), '.', ''), '/', ''), ' ', ''), '*', '')))]",
+            "containerRegistryResourceName": "[if(not(empty(parameters('containerRegistryName'))), parameters('containerRegistryName'), format('acrkm{0}', variables('solutionSuffix')))]",
             "deployerInfo": "[deployer()]",
             "deployingUserPrincipalId": "[variables('deployerInfo').objectId]",
             "existingTags": "[coalesce(resourceGroup().tags, createObject())]",
@@ -94071,7 +94073,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "8486037109042155028"
+                      "templateHash": "3181784098775302542"
                     }
                   },
                   "parameters": {
@@ -94203,7 +94205,7 @@
                     {
                       "type": "Microsoft.Sql/servers/firewallRules",
                       "apiVersion": "2025-01-01",
-                      "name": "[format('{0}/{1}', parameters('name'), 'AllowAllWindowsAzureIps')]",
+                      "name": "[format('{0}/{1}', parameters('name'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
                       "properties": {
                         "startIpAddress": "0.0.0.0",
                         "endIpAddress": "0.0.0.0"
@@ -94443,7 +94445,7 @@
                     "value": "[variables('solutionSuffix')]"
                   },
                   "name": {
-                    "value": "[parameters('containerRegistryName')]"
+                    "value": "[variables('containerRegistryResourceName')]"
                   },
                   "location": {
                     "value": "[parameters('location')]"
@@ -94459,7 +94461,7 @@
                     "_generator": {
                       "name": "bicep",
                       "version": "0.45.15.27210",
-                      "templateHash": "13845318979086194059"
+                      "templateHash": "11708500044116482511"
                     }
                   },
                   "parameters": {
@@ -94553,6 +94555,9 @@
                         "dataEndpointEnabled": false,
                         "networkRuleBypassOptions": "AzureServices",
                         "policies": {
+                          "azureADAuthenticationAsArmPolicy": {
+                            "status": "enabled"
+                          },
                           "exportPolicy": {
                             "status": "[parameters('exportPolicyStatus')]"
                           },

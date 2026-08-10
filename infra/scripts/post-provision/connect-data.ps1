@@ -19,27 +19,45 @@ param(
     [string]$Database,
     [string]$Table,
     [string]$ConnectionString,
-    [string]$WorkspaceId
+    [string]$WorkspaceId,
+    # Resource group for non-azd / AVM deployments; inherited from the parent script.
+    [string]$ResourceGroupName
 )
 
 $ErrorActionPreference = "Stop"
 
+# azd may be unavailable in AVM / non-azd deployments; guard so callers can rely on
+# the -ResourceGroupName parameter and resource-group auto-discovery instead.
+$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
+
 function Get-AzdEnvValue {
     param([string]$Name)
+    if (-not $azdAvailable) { return "" }
     $value = azd env get-value $Name 2>$null
     if (-not $value) { return "" }
     if ($value -is [string] -and $value.StartsWith("ERROR:")) { return "" }
     return "$value".Trim()
 }
 
+function Get-DiscoveredWebAppName {
+    param([string]$Rg, [string]$Prefix)
+    if (-not $Rg) { return "" }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ -like "$Prefix*" } | Select-Object -First 1).Trim()
+}
+
 function Sync-AgentSettingsToApi {
     param([string]$ProjectRoot)
 
-    $apiAppName = Get-AzdEnvValue -Name "API_APP_NAME"
-    $resourceGroup = Get-AzdEnvValue -Name "RESOURCE_GROUP_NAME"
+    # Explicit RG is authoritative — skip azd env (may point to a different deployment).
+    $rgProvided = [bool]$ResourceGroupName
+    $resourceGroup = if ($ResourceGroupName) { $ResourceGroupName } else { Get-AzdEnvValue -Name "RESOURCE_GROUP_NAME" }
     if (-not $resourceGroup) {
         $resourceGroup = Get-AzdEnvValue -Name "AZURE_RESOURCE_GROUP"
     }
+    $apiAppName = if ($rgProvided) { Get-DiscoveredWebAppName $resourceGroup "api-" } else { Get-AzdEnvValue -Name "API_APP_NAME" }
+    if (-not $apiAppName) { $apiAppName = Get-DiscoveredWebAppName $resourceGroup "api-" }
 
     $agentNameChat = Get-AzdEnvValue -Name "AGENT_NAME_CHAT"
     $agentNameTitle = Get-AzdEnvValue -Name "AGENT_NAME_TITLE"
@@ -108,7 +126,7 @@ if (-not (Test-Path $pipExe)) {
 
 # Ensure .env exists
 $envFile = Join-Path $projectRoot ".env"
-if (-not (Test-Path $envFile)) {
+if (-not (Test-Path $envFile) -and $azdAvailable) {
     Write-Host "No .env file found. Generating from azd..." -ForegroundColor Yellow
     Push-Location $projectRoot
     azd env get-values 2>$null | ForEach-Object {

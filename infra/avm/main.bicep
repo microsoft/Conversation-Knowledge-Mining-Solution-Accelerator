@@ -107,8 +107,8 @@ param embeddingDeploymentCapacity int = 80
 // Parameters — Compute
 // ============================================================================
 
-@description('Optional. Name of the Azure Container Registry.')
-param containerRegistryName string = 'kmcontainerreg'
+@description('Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>).')
+param containerRegistryName string = ''
 
 @description('Optional. Backend container image name.')
 param backendContainerImageName string = 'km-api'
@@ -166,6 +166,8 @@ param deployingUserPrincipalType string = 'User'
 // ============================================================================
 
 var solutionSuffix = toLower(trim(replace(replace(replace(replace(replace(replace('${solutionName}${solutionUniqueText}', '-', ''), '_', ''), '.', ''), '/', ''), ' ', ''), '*', '')))
+// ACR names are globally unique — default to a suffixed name so multiple deployments don't collide.
+var containerRegistryResourceName = !empty(containerRegistryName) ? containerRegistryName : 'acrkm${solutionSuffix}'
 var deployerInfo = deployer()
 var deployingUserPrincipalId = deployerInfo.objectId
 var createdBy = contains(deployerInfo, 'userPrincipalName') ? split(deployerInfo.userPrincipalName, '@')[0] : deployerInfo.objectId
@@ -797,7 +799,7 @@ module container_registry './modules/compute/container-registry.bicep' = {
   name: take('module.container-registry.${solutionName}', 64)
   params: {
     solutionName: solutionSuffix
-    name: containerRegistryName
+    name: containerRegistryResourceName
     location: location
     tags: tags
     enableTelemetry: enableTelemetry
@@ -812,8 +814,8 @@ module container_registry './modules/compute/container-registry.bicep' = {
     networkRuleSetDefaultAction: enablePrivateNetworking ? 'Deny' : 'Allow'
     privateEndpoints: enablePrivateNetworking ? [
       {
-        name: 'pep-${containerRegistryName}'
-        customNetworkInterfaceName: 'nic-${containerRegistryName}'
+        name: 'pep-${containerRegistryResourceName}'
+        customNetworkInterfaceName: 'nic-${containerRegistryResourceName}'
         subnetResourceId: virtualNetwork!.outputs.backendSubnetResourceId
         service: 'registry'
         privateDnsZoneGroup: {
