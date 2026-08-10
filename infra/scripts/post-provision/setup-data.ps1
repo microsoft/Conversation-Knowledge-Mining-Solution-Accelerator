@@ -582,6 +582,19 @@ if ($Scenario) {
         Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow
         Write-Host ""
 
+        # Export deploy-resolved config so the seed subprocess targets THIS deployment.
+        # Overwrites any stale session/.env values (e.g. leftovers from a prior run
+        # against a different environment) that seed-sample-data.py would otherwise use.
+        foreach ($name in @(
+            "AZURE_SEARCH_ENDPOINT", "AZURE_SEARCH_INDEX_NAME",
+            "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+            "AZURE_COSMOS_ENDPOINT", "AZURE_COSMOS_DATABASE",
+            "AZURE_SQL_SERVER", "AZURE_SQL_DATABASE"
+        )) {
+            $val = Get-DeployValue $name
+            if ($val) { Set-Item -Path "Env:$name" -Value $val }
+        }
+
         # Run seed-sample-data.py with the scenario data directory
         $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
         $env:BACKEND_URL = $BackendUrl

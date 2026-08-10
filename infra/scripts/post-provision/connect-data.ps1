@@ -47,6 +47,22 @@ function Get-DiscoveredWebAppName {
     return (($names -split "`n") | Where-Object { $_ -like "$Prefix*" } | Select-Object -First 1).Trim()
 }
 
+# Hydrate this process's environment from the deployed API App Service settings so
+# create_agent.py reads that deployment's config. -Overwrite makes the RG the source of
+# truth, replacing stale session/.env values from a different environment.
+function Import-AppSettingsToEnv {
+    param([string]$AppName, [string]$Rg, [switch]$Overwrite)
+    if (-not $AppName -or -not $Rg) { return }
+    $json = (az webapp config appsettings list --name $AppName --resource-group $Rg -o json 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return }
+    try { $settings = $json | ConvertFrom-Json } catch { return }
+    foreach ($s in $settings) {
+        if ($s.name -and ($Overwrite -or -not (Test-Path "Env:$($s.name)"))) {
+            Set-Item -Path "Env:$($s.name)" -Value $s.value
+        }
+    }
+}
+
 function Sync-AgentSettingsToApi {
     param([string]$ProjectRoot)
 
@@ -135,6 +151,15 @@ if (-not (Test-Path $envFile) -and $azdAvailable) {
     Pop-Location
 }
 
+# When an explicit resource group is provided it is the source of truth: hydrate this
+# process's environment from the deployed API app (overwrite) so create_agent.py targets
+# that deployment's Foundry project instead of a stale azd env / .env.
+$rgProvided = [bool]$ResourceGroupName
+if ($rgProvided) {
+    $rgApiAppName = Get-DiscoveredWebAppName $ResourceGroupName "api-"
+    Import-AppSettingsToEnv -AppName $rgApiAppName -Rg $ResourceGroupName -Overwrite
+}
+
 # Check Python dependencies
 $deps = @("azure-identity", "pyodbc")
 foreach ($dep in $deps) {
@@ -194,8 +219,9 @@ if ($resolvedSourceType -eq "azure_search") {
     $agentName = $agentName -replace '-{2,}', '-'   # collapse consecutive hyphens
     $agentName = $agentName.Substring(0, [Math]::Min($agentName.Length, 63)).TrimEnd('-')
 
-    # Read AZURE_AI_AGENT_ENDPOINT
-    $agentEndpoint = azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null
+    # Read AZURE_AI_AGENT_ENDPOINT. Explicit RG is authoritative — read from the hydrated
+    # environment (populated from the deployed API app) rather than a stale azd env / .env.
+    $agentEndpoint = if ($rgProvided) { $env:AZURE_AI_AGENT_ENDPOINT } else { azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null }
     if (-not $agentEndpoint) {
         $envFile = Join-Path $projectRoot ".env"
         if (Test-Path $envFile) {
@@ -276,8 +302,9 @@ elseif ($resolvedSourceType -eq "fabric") {
     $agentName = $agentName -replace '-{2,}', '-'   # collapse consecutive hyphens
     $agentName = $agentName.Substring(0, [Math]::Min($agentName.Length, 63)).TrimEnd('-')
 
-    # Read AZURE_AI_AGENT_ENDPOINT
-    $agentEndpoint = azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null
+    # Read AZURE_AI_AGENT_ENDPOINT. Explicit RG is authoritative — read from the hydrated
+    # environment (populated from the deployed API app) rather than a stale azd env / .env.
+    $agentEndpoint = if ($rgProvided) { $env:AZURE_AI_AGENT_ENDPOINT } else { azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null }
     if (-not $agentEndpoint) {
         $envFile = Join-Path $projectRoot ".env"
         if (Test-Path $envFile) {

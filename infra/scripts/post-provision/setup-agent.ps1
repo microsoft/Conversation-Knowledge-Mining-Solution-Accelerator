@@ -40,14 +40,16 @@ function Get-DiscoveredWebAppName {
 
 # For non-azd / AVM deployments (no local .env), hydrate this process's environment
 # from the deployed API App Service settings so create_agent.py can read them.
+# -Overwrite makes the RG the source of truth: it replaces stale session/.env values
+# (e.g. leftovers from a previous run against a different environment).
 function Import-AppSettingsToEnv {
-    param([string]$AppName, [string]$Rg)
+    param([string]$AppName, [string]$Rg, [switch]$Overwrite)
     if (-not $AppName -or -not $Rg) { return }
     $json = (az webapp config appsettings list --name $AppName --resource-group $Rg -o json 2>$null)
     if ($LASTEXITCODE -ne 0 -or -not $json) { return }
     try { $settings = $json | ConvertFrom-Json } catch { return }
     foreach ($s in $settings) {
-        if ($s.name -and -not (Test-Path "Env:$($s.name)")) {
+        if ($s.name -and ($Overwrite -or -not (Test-Path "Env:$($s.name)"))) {
             Set-Item -Path "Env:$($s.name)" -Value $s.value
         }
     }
@@ -62,8 +64,9 @@ $apiAppName = if ($ApiAppName) { $ApiAppName } elseif ($rgProvided) { Get-Discov
 if (-not $apiAppName) { $apiAppName = Get-DiscoveredWebAppName $resourceGroup "api-" }
 
 # Explicit RG: hydrate config from that deployment's API app so a stale local .env
-# (from a different azd environment) cannot leak into agent creation.
-if ($rgProvided) { Import-AppSettingsToEnv -AppName $apiAppName -Rg $resourceGroup }
+# (from a different azd environment) cannot leak into agent creation. Overwrite so the
+# RG wins over any pre-existing session env var or stale .env value.
+if ($rgProvided) { Import-AppSettingsToEnv -AppName $apiAppName -Rg $resourceGroup -Overwrite }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan

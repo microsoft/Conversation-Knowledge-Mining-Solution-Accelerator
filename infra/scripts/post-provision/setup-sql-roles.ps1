@@ -86,28 +86,49 @@ if (-not $principalId -and $apiName -and $resourceGroup) {
     $principalId = (az webapp identity show --name $apiName --resource-group $resourceGroup --query principalId -o tsv 2>$null)
 }
 
-if (-not $server -or -not $database -or -not $apiName -or -not $principalId) {
-    Write-Host "Skipping SQL role assignment — missing SQL server / database / API app name / principal ID." -ForegroundColor Yellow
+# The backend authenticates to SQL with its USER-ASSIGNED managed identity, whose client id
+# is exposed as the AZURE_CLIENT_ID app setting. A SQL contained user for a managed identity
+# must be created with a SID derived from that identity's CLIENT (application) id — not its
+# object/principal id — so resolve the client id (and the identity's name) here.
+$appClientId = ""
+$appMiName = ""
+if ($apiName -and $resourceGroup) {
+    $appClientId = (az webapp config appsettings list --name $apiName --resource-group $resourceGroup --query "[?name=='AZURE_CLIENT_ID'].value | [0]" -o tsv 2>$null)
+    if ($appClientId) { $appClientId = $appClientId.Trim() }
+}
+if ($appClientId -and $resourceGroup) {
+    $appMiName = (az identity list --resource-group $resourceGroup --query "[?clientId=='$appClientId'].name | [0]" -o tsv 2>$null)
+    if ($appMiName) { $appMiName = $appMiName.Trim() }
+}
+# Fallback (system-assigned identity): derive the client (app) id from the principal id.
+if (-not $appClientId -and $principalId) {
+    $appClientId = (az ad sp show --id $principalId --query appId -o tsv 2>$null)
+    if ($appClientId) { $appClientId = $appClientId.Trim() }
+}
+$sqlIdentityClientId = if ($appClientId) { $appClientId } else { $principalId }
+$sqlIdentityName     = if ($appMiName) { $appMiName } else { $apiName }
+
+if (-not $server -or -not $database -or -not $apiName -or -not $sqlIdentityClientId) {
+    Write-Host "Skipping SQL role assignment — missing SQL server / database / API app name / managed identity client id." -ForegroundColor Yellow
     if (-not $azdAvailable -or -not $resourceGroup) {
         Write-Host "       For non-azd/AVM deployments, pass -ResourceGroupName (and optionally -SqlServerName, -SqlDatabaseName, -ApiAppName, -PrincipalId)." -ForegroundColor Yellow
     }
     exit 0
 }
 
-$accountType = (az account show --query user.type -o tsv 2>$null)
-$isServicePrincipal = ($accountType -eq 'servicePrincipal')
-
+# A managed identity is always created via the SID path (WITH SID = <clientId>, TYPE = E),
+# which needs no Microsoft Graph permission on the SQL server.
 $roles = @(
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datareader";  isServicePrincipal = $isServicePrincipal },
-    @{ principalId = $principalId; displayName = $apiName; role = "db_datawriter";  isServicePrincipal = $isServicePrincipal },
-    @{ principalId = $principalId; displayName = $apiName; role = "db_ddladmin";    isServicePrincipal = $isServicePrincipal }
+    @{ principalId = $sqlIdentityClientId; displayName = $sqlIdentityName; role = "db_datareader"; isServicePrincipal = $true },
+    @{ principalId = $sqlIdentityClientId; displayName = $sqlIdentityName; role = "db_datawriter"; isServicePrincipal = $true },
+    @{ principalId = $sqlIdentityClientId; displayName = $sqlIdentityName; role = "db_ddladmin";   isServicePrincipal = $true }
 )
 
 # Write to a temp file to avoid CLI JSON quoting issues across shells
 $tmp = [System.IO.Path]::GetTempFileName()
 ConvertTo-Json -InputObject $roles -Depth 5 | Set-Content -Path $tmp -Encoding utf8
 
-Write-Host "API identity : $apiName ($principalId), account type: $accountType" -ForegroundColor DarkGray
+Write-Host "API identity : $sqlIdentityName (client id $sqlIdentityClientId)" -ForegroundColor DarkGray
 Write-Host "SQL target   : $server / $database" -ForegroundColor DarkGray
 
 $script = Join-Path $PSScriptRoot "add_user_scripts/assign_sql_roles.py"
