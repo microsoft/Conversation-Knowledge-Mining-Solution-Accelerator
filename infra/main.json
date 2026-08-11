@@ -711,7 +711,7 @@
             "createdBy": "[if(contains(variables('deployerInfo'), 'userPrincipalName'), split(variables('deployerInfo').userPrincipalName, '@')[0], variables('deployerInfo').objectId)]",
             "useExistingAIProject": "[not(empty(parameters('existingFoundryProjectResourceId')))]",
             "existingTags": "[coalesce(resourceGroup().tags, createObject())]",
-            "resourceTags": "[union(variables('existingTags'), parameters('tags'), createObject('TemplateName', 'KM-Generic', 'CreatedBy', variables('createdBy'), 'DeploymentName', deployment().name, 'Type', if(parameters('enablePrivateNetworking'), 'WAF', 'Non-WAF'), 'SecurityControl', 'Ignore'))]",
+            "resourceTags": "[union(variables('existingTags'), parameters('tags'), createObject('TemplateName', 'KM-Generic', 'CreatedBy', variables('createdBy'), 'DeploymentName', deployment().name, 'Type', if(parameters('enablePrivateNetworking'), 'WAF', 'Non-WAF')))]",
             "replicaRegionPairs": {
               "australiaeast": "australiasoutheast",
               "centralus": "westus",

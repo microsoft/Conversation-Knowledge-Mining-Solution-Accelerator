@@ -180,7 +180,6 @@ var resourceTags = union(existingTags, tags, {
   CreatedBy: createdBy
   DeploymentName: deployment().name
   Type: enablePrivateNetworking ? 'WAF' : 'Non-WAF'
-  SecurityControl: 'Ignore'
 })
 
 // ========== WAF: Region pairs for redundancy (Log Analytics replication) ========== //
