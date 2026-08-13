@@ -57,15 +57,15 @@ hooks:
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert in the finally block ──
         try {
-          & ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
+          pwsh -File ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
           # ── Step 0: Build & push the app images to ACR and point the App Services
           #    at them (apps are provisioned with a placeholder hello-world image) ──
           Write-Host ""
           Write-Host "Building & pushing container images..." -ForegroundColor Yellow
-          & ./infra/scripts/build/build_and_push_images.ps1
+          pwsh -File ./infra/scripts/build/build_and_push_images.ps1
           if ($LASTEXITCODE -ne 0) {
             Write-Host "ERROR: Image build/push failed. Fix the issue and re-run: ./infra/scripts/build/build_and_push_images.ps1" -ForegroundColor Red
-            exit 1
+            throw "Image build/push failed."
           }
 
           # Write azd env values to .env so scripts can read them
