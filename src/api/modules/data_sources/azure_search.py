@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Iterator, Optional
 
-from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
+from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.search.documents import SearchClient
 
 from src.api.modules.data_sources.base import (
@@ -23,7 +23,7 @@ class AzureSearchDataSource(BaseExternalDataSource):
     def _get_client(self, config: DataSourceConfig) -> SearchClient:
         settings = get_settings()
         if settings.app_env.lower() == "dev":
-            credential = DefaultAzureCredential(require_envvar=True)
+            credential = AzureCliCredential()
         else:
             credential = ManagedIdentityCredential(
                 client_id=settings.azure_client_id or None
