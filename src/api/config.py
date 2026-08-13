@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     azure_ad_tenant_id: str = ""
     azure_ad_client_id: str = ""
 
+    # Optional user-assigned managed identity. Empty uses the system-assigned identity.
+    azure_client_id: str = ""
+
     # RAG Configuration
     rag_top_k: int = 5
     rag_enable_reranking: bool = False

@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from azure.core.exceptions import ResourceNotFoundError
-from azure.identity import DefaultAzureCredential
+from azure.identity import AzureCliCredential, ManagedIdentityCredential
 from azure.storage.queue import QueueClient
 
 from src.api.config import get_settings
@@ -27,7 +27,13 @@ class QueueService:
 
     def _get_credential(self):
         if self._credential is None:
-            self._credential = DefaultAzureCredential()
+            settings = get_settings()
+            if settings.app_env.lower() == "dev":
+                self._credential = AzureCliCredential()
+            else:
+                self._credential = ManagedIdentityCredential(
+                    client_id=settings.azure_client_id or None
+                )
         return self._credential
 
     @staticmethod
