@@ -56,8 +56,8 @@ hooks:
         # ── Step -1: If private networking is enabled, temporarily open public
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert in the finally block ──
-        & ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
         try {
+          & ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
           # ── Step 0: Build & push the app images to ACR and point the App Services
           #    at them (apps are provisioned with a placeholder hello-world image) ──
           Write-Host ""
