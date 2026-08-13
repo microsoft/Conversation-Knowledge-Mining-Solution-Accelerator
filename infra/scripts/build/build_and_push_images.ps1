@@ -171,7 +171,7 @@ function Wait-ForAppReady([string]$appName, [string]$healthPath = "/", [int]$tim
     $deadline = (Get-Date).AddSeconds($timeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         try {
-            $response = Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 10 -UseBasicParsing
+            $response = Invoke-WebRequest -Uri $url -Method GET -TimeoutSec 10 -SkipHttpErrorCheck
             if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500) {
                 Write-Host "'$appName' is ready." -ForegroundColor Green
                 return $true
