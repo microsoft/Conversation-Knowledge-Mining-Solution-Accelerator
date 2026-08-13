@@ -94,6 +94,8 @@ Follow the quick deploy steps on the deployment guide to deploy this solution to
 
 > **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause.
 
+> **Production deployments:** This accelerator includes a Well-Architected Framework (WAF) aligned configuration (deployment flavor `avm-waf`) that enables private networking, VNet integration, private endpoints, a Bastion-accessed jumpbox, and optional zone redundancy. See [Choose Deployment Type](./docs/DeploymentGuide.md#33-choose-deployment-type-standard-vs-production).
+
 > ⚠️ **Important: Check Azure OpenAI Quota Availability**
  <br/>To ensure sufficient quota is available in your subscription, please follow the [quota check instructions guide](./docs/quota_check.md) before you deploy the solution.
 
@@ -200,6 +202,8 @@ You may want to consider additional security measures, such as:
 * Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).
 * Protecting the Azure App Service instance with a [Virtual Network](https://learn.microsoft.com/azure/app-service/overview-vnet-integration).
 * Configuring [App Service authentication](./docs/AppAuthentication.md) to require users to sign in.
+
+For production, deploy the **Well-Architected Framework (WAF)** aligned configuration (deployment flavor `avm-waf`), which enables private networking, VNet integration, private endpoints, a Bastion-accessed jumpbox, and optional zone redundancy. See [Choose Deployment Type](./docs/DeploymentGuide.md#33-choose-deployment-type-standard-vs-production).
 
 <br/>
 

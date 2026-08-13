@@ -489,18 +489,59 @@ with open(agent_ids_path, "w") as f:
 logger.info(f"Agent config saved to: {agent_ids_path}")
 
 # Persist agent names so the API and test scripts can find them.
-def set_azd_env(key, value):
-    """Set a key in the azd environment."""
-    import subprocess
-    subprocess.run(["azd", "env", "set", key, value], check=False,
-                   capture_output=True)
-    os.environ[key] = value
+# The azd write-back only applies to azd-based deployments. Pure Bicep/AVM
+# deployments have no azd environment: writing would otherwise hang on an
+# interactive prompt (azd installed, no env) or raise FileNotFoundError (azd
+# absent). setup-agent.ps1 syncs the API App Service from agent_ids.json, so
+# skipping the azd write-back is safe in the non-azd path.
+import shutil
+import subprocess
 
-set_azd_env("AGENT_NAME_CHAT", CHAT_AGENT_NAME)
-set_azd_env("AGENT_NAME_TITLE", TITLE_AGENT_NAME)
-set_azd_env("USE_SQL", str(USE_SQL))
-set_azd_env("DATA_SOURCE_TYPE", DATA_SOURCE_TYPE)
-logger.info(f"azd env set: AGENT_NAME_CHAT={CHAT_AGENT_NAME}, AGENT_NAME_TITLE={TITLE_AGENT_NAME}, USE_SQL={USE_SQL}, DATA_SOURCE_TYPE={DATA_SOURCE_TYPE}")
+
+def _azd_env_selected():
+    """True when azd is installed and a default environment is selected."""
+    if not shutil.which("azd"):
+        return False
+    try:
+        result = subprocess.run(
+            ["azd", "env", "get-value", "AZURE_ENV_NAME"],
+            check=False, capture_output=True, text=True,
+            stdin=subprocess.DEVNULL, timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    out = (result.stdout or "").strip()
+    return result.returncode == 0 and bool(out) and not out.upper().startswith("ERROR")
+
+
+def set_azd_env(key, value, write_azd=True):
+    """Mirror a key into the process env, and into the azd env when available."""
+    os.environ[key] = value
+    if not write_azd:
+        return
+    # stdin=DEVNULL + timeout guard against a hang if azd ever prompts.
+    try:
+        subprocess.run(
+            ["azd", "env", "set", key, value], check=False,
+            capture_output=True, stdin=subprocess.DEVNULL, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+_azd_available = _azd_env_selected()
+_agent_env = {
+    "AGENT_NAME_CHAT": CHAT_AGENT_NAME,
+    "AGENT_NAME_TITLE": TITLE_AGENT_NAME,
+    "USE_SQL": str(USE_SQL),
+    "DATA_SOURCE_TYPE": DATA_SOURCE_TYPE,
+}
+for _k, _v in _agent_env.items():
+    set_azd_env(_k, _v, write_azd=_azd_available)
+if _azd_available:
+    logger.info("azd env set: " + ", ".join(f"{k}={v}" for k, v in _agent_env.items()))
+else:
+    logger.info("azd environment not detected — skipping azd env write-back (App Service settings are synced separately).")
 
 # Write the agent values back into .env so the local backend picks them up
 # without needing azd. Existing keys are updated in-place; missing keys are appended.

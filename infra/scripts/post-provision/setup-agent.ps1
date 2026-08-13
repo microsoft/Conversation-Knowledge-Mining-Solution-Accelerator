@@ -12,16 +12,61 @@
 #>
 
 param(
-    [string]$Scenario
+    [string]$Scenario,
+    [string]$ResourceGroupName,
+    [string]$ApiAppName
 )
+
+# azd may be unavailable in AVM / non-azd deployments; guard so callers can rely on
+# explicit parameters and resource-group auto-discovery instead.
+$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
 
 function Get-AzdEnvValue {
     param([string]$Name)
+    if (-not $azdAvailable) { return "" }
     $value = azd env get-value $Name 2>$null
     if (-not $value) { return "" }
     if ($value -is [string] -and $value.StartsWith("ERROR:")) { return "" }
     return "$value".Trim()
 }
+
+function Get-DiscoveredWebAppName {
+    param([string]$Rg, [string]$Prefix)
+    if (-not $Rg) { return "" }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    return (($names -split "`n") | Where-Object { $_ -like "$Prefix*" } | Select-Object -First 1).Trim()
+}
+
+# For non-azd / AVM deployments (no local .env), hydrate this process's environment
+# from the deployed API App Service settings so create_agent.py can read them.
+# -Overwrite makes the RG the source of truth: it replaces stale session/.env values
+# (e.g. leftovers from a previous run against a different environment).
+function Import-AppSettingsToEnv {
+    param([string]$AppName, [string]$Rg, [switch]$Overwrite)
+    if (-not $AppName -or -not $Rg) { return }
+    $json = (az webapp config appsettings list --name $AppName --resource-group $Rg -o json 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $json) { return }
+    try { $settings = $json | ConvertFrom-Json } catch { return }
+    foreach ($s in $settings) {
+        if ($s.name -and ($Overwrite -or -not (Test-Path "Env:$($s.name)"))) {
+            Set-Item -Path "Env:$($s.name)" -Value $s.value
+        }
+    }
+}
+
+# ── Resolve resource group / API app. When -ResourceGroupName is passed explicitly, treat
+#    it as the source of truth and do NOT read azd env (which may point to a different env). ──
+$rgProvided = [bool]$ResourceGroupName
+$resourceGroup = if ($ResourceGroupName) { $ResourceGroupName } else { Get-AzdEnvValue -Name "RESOURCE_GROUP_NAME" }
+if (-not $resourceGroup) { $resourceGroup = Get-AzdEnvValue -Name "AZURE_RESOURCE_GROUP" }
+$apiAppName = if ($ApiAppName) { $ApiAppName } elseif ($rgProvided) { Get-DiscoveredWebAppName $resourceGroup "api-" } else { Get-AzdEnvValue -Name "API_APP_NAME" }
+if (-not $apiAppName) { $apiAppName = Get-DiscoveredWebAppName $resourceGroup "api-" }
+
+# Explicit RG: hydrate config from that deployment's API app so a stale local .env
+# (from a different azd environment) cannot leak into agent creation. Overwrite so the
+# RG wins over any pre-existing session env var or stale .env value.
+if ($rgProvided) { Import-AppSettingsToEnv -AppName $apiAppName -Rg $resourceGroup -Overwrite }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -31,27 +76,31 @@ Write-Host ""
 
 $envFile = Join-Path $PSScriptRoot ".." ".." ".." ".env"
 if (-not (Test-Path $envFile)) {
-    Write-Host "WARNING: .env file not found. Trying azd env values..." -ForegroundColor Yellow
+    Write-Host "WARNING: .env file not found. Resolving configuration from the deployment..." -ForegroundColor Yellow
 
-    # Try to get values from azd
-    $endpoint = azd env get-value AZURE_AI_AGENT_ENDPOINT 2>$null
+    $endpoint = Get-AzdEnvValue -Name "AZURE_AI_AGENT_ENDPOINT"
+    if (-not $endpoint) {
+        # Non-azd / AVM deployment: hydrate from the deployed API App Service settings.
+        Import-AppSettingsToEnv -AppName $apiAppName -Rg $resourceGroup
+        $endpoint = $env:AZURE_AI_AGENT_ENDPOINT
+    }
     if (-not $endpoint) {
         Write-Host "ERROR: AZURE_AI_AGENT_ENDPOINT not set." -ForegroundColor Red
-        Write-Host "Set it in .env or run: azd env set AZURE_AI_AGENT_ENDPOINT <value>" -ForegroundColor Yellow
+        Write-Host "Set it in .env, run 'azd env set AZURE_AI_AGENT_ENDPOINT <value>', or pass -ResourceGroupName so it can be read from the deployed API app." -ForegroundColor Yellow
         exit 1
     }
 }
 
-# Activate venv if available
-$venvPath = Join-Path $PSScriptRoot ".." ".." ".." "venv" "Scripts" "Activate.ps1"
-if (Test-Path $venvPath) {
-    & $venvPath
-}
+# Resolve the Python interpreter — prefer the project virtual environment, which
+# has the pinned SDK versions (requirements.txt). Fall back to PATH python.
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot ".." ".." "..")).Path
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 
 Write-Host "Generating scenario-based agent prompt..." -ForegroundColor Yellow
 $genArgs = @()
 if ($Scenario) { $genArgs += @("--scenario", $Scenario) }
-python (Join-Path $PSScriptRoot "generate_agent_prompt.py") @genArgs
+& $pythonExe (Join-Path $PSScriptRoot "generate_agent_prompt.py") @genArgs
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Prompt generation failed." -ForegroundColor Red
     exit 1
@@ -60,7 +109,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Creating agents..." -ForegroundColor Yellow
 $createArgs = @()
 if ($Scenario) { $createArgs += @("--scenario", $Scenario) }
-python (Join-Path $PSScriptRoot "create_agent.py") @createArgs
+& $pythonExe (Join-Path $PSScriptRoot "create_agent.py") @createArgs
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
@@ -69,15 +118,25 @@ if ($LASTEXITCODE -eq 0) {
 
     # Push the freshly created agent settings to the API App Service so the
     # running backend picks up AGENT_NAME_CHAT / AGENT_NAME_TITLE / USE_SQL.
-    $apiAppName    = Get-AzdEnvValue -Name "API_APP_NAME"
-    $resourceGroup = Get-AzdEnvValue -Name "RESOURCE_GROUP_NAME"
-    if (-not $resourceGroup) {
-        $resourceGroup = Get-AzdEnvValue -Name "AZURE_RESOURCE_GROUP"
+    # $resourceGroup and $apiAppName were resolved above (param → azd env → RG discovery).
+    $agentNameChat  = if ($rgProvided) { "" } else { Get-AzdEnvValue -Name "AGENT_NAME_CHAT" }
+    $agentNameTitle = if ($rgProvided) { "" } else { Get-AzdEnvValue -Name "AGENT_NAME_TITLE" }
+    $useSql         = if ($rgProvided) { "" } else { Get-AzdEnvValue -Name "USE_SQL" }
+    $dataSourceType = if ($rgProvided) { "" } else { Get-AzdEnvValue -Name "DATA_SOURCE_TYPE" }
+
+    # Fallback (non-azd / AVM): read what create_agent.py just wrote to agent_ids.json.
+    if (-not $agentNameChat -or -not $agentNameTitle) {
+        $agentIdsPath = Join-Path $projectRoot "data" "config" "agent_ids.json"
+        if (Test-Path $agentIdsPath) {
+            try {
+                $agentIds = Get-Content $agentIdsPath -Raw | ConvertFrom-Json
+                if (-not $agentNameChat)  { $agentNameChat  = $agentIds.chat_agent_name }
+                if (-not $agentNameTitle) { $agentNameTitle = $agentIds.title_agent_name }
+                if (-not $useSql)         { $useSql         = [string]$agentIds.use_sql }
+                if (-not $dataSourceType) { $dataSourceType = $agentIds.data_source_type }
+            } catch {}
+        }
     }
-    $agentNameChat  = Get-AzdEnvValue -Name "AGENT_NAME_CHAT"
-    $agentNameTitle = Get-AzdEnvValue -Name "AGENT_NAME_TITLE"
-    $useSql         = Get-AzdEnvValue -Name "USE_SQL"
-    $dataSourceType = Get-AzdEnvValue -Name "DATA_SOURCE_TYPE"
 
     if ($apiAppName -and $resourceGroup) {
         Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
@@ -93,7 +152,7 @@ if ($LASTEXITCODE -eq 0) {
             $global:LASTEXITCODE = 0
         }
     } else {
-        Write-Host "  [SKIP] API_APP_NAME / RESOURCE_GROUP_NAME not found in azd env" -ForegroundColor Yellow
+        Write-Host "  [SKIP] Could not resolve API app / resource group; skipping App Service settings sync" -ForegroundColor Yellow
     }
 
     Write-Host ""

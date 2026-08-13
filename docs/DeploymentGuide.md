@@ -8,6 +8,8 @@ This guide walks you through deploying the Conversation Knowledge Mining Solutio
 
 > **Note**: Some tenants may have additional security restrictions that run periodically and could impact the application (e.g., blocking public network access). If you experience issues or the application stops working, check if these restrictions are the cause.
 
+> **Deploying to production?** This accelerator includes a **Well-Architected Framework (WAF)** aligned configuration (deployment flavor `avm-waf`) that adds private networking, VNet integration, private endpoints, a Bastion-accessed jumpbox, and optional zone redundancy. Review [Step 3.3: Choose Deployment Type](#33-choose-deployment-type-standard-vs-production) before deploying.
+
 ## Step 1: Prerequisites & Setup
 
 ### 1.1 Azure Account Requirements
@@ -170,11 +172,13 @@ By default, `azd up` provisions the following resources:
 |----------|--------------------|
 | Azure AI Services (OpenAI) | gpt-5.2 (2025-12-11), text-embedding-3-small |
 | Azure AI Search | Standard (S1) |
-| Azure App Service Plan | B2 (backend), B2 (frontend) |
+| Azure App Service Plan | B3 (backend), B3 (frontend) |
 | Azure SQL Database | Basic (5 DTU) |
 | Azure Container Registry | Basic |
 | Azure Storage Account | LRS |
 | Azure AI Foundry Hub + Project | Standard |
+
+> These defaults correspond to the **Development / Testing** deployment (default `bicep` flavor). For a hardened, network-isolated deployment, see [3.3 Choose Deployment Type](#33-choose-deployment-type-standard-vs-production).
 
 ### 3.2 Advanced Configuration (Optional)
 
@@ -197,6 +201,70 @@ To adjust quota settings, follow the [Quota Check Instructions](./quota_check.md
 **⚠️ Warning:** Insufficient quota can cause deployment errors. Please ensure you have the recommended capacity or request additional capacity before deploying this solution.
 
 </details>
+
+### 3.3 Choose Deployment Type (Standard vs Production)
+
+This accelerator ships two configurations. The default is optimized for development and testing; a **Well-Architected Framework (WAF)** aligned configuration adds network isolation and resiliency for production.
+
+| Aspect | Development / Testing (Default) | Production (WAF-aligned) |
+|--------|---------------------------------|--------------------------|
+| Deployment flavor | `bicep` | `avm-waf` |
+| Configuration file | `infra/main.parameters.json` (used as-is) | Copy `infra/main.waf.parameters.json` over `infra/main.parameters.json` |
+| Private networking (VNet + private endpoints) | Disabled | Enabled |
+| Jumpbox VM + Azure Bastion | No | Yes (login via Microsoft Entra ID through Bastion) |
+| Scalability (higher SKUs / autoscale) | Disabled | Enabled |
+| Zone redundancy | Disabled | Configurable (`enableRedundancy`) |
+| Monitoring (App Insights + Log Analytics) | Enabled | Enabled |
+| Relative cost | Lower | Higher |
+| Well-Architected Framework | Partial | Aligned |
+
+> A third, intermediate flavor — `avm` — uses the Azure Verified Modules **without** private networking. To use it, set `deploymentFlavor` to `avm` in the copied parameters file.
+
+**To deploy the Production (WAF) configuration:**
+
+1. **Copy the WAF parameters file over the default.** This is how the deployment flavor is selected — `azd` always reads `infra/main.parameters.json`.
+
+   - **Windows (PowerShell):**
+     ```powershell
+     Copy-Item ./infra/main.waf.parameters.json ./infra/main.parameters.json -Force
+     ```
+   - **Linux / macOS:**
+     ```bash
+     cp ./infra/main.waf.parameters.json ./infra/main.parameters.json
+     ```
+
+   > This overwrites your local `infra/main.parameters.json`. To switch back to the default (Development / Testing) deployment later, restore it with `git checkout infra/main.parameters.json`.
+
+2. **Register the `EncryptionAtHost` feature.** This is required because the WAF jumpbox VM enables host encryption. Run once per subscription and wait until the state is `Registered`:
+
+   ```shell
+   az feature register --namespace Microsoft.Compute --name EncryptionAtHost
+   az feature show --namespace Microsoft.Compute --name EncryptionAtHost --query "properties.state" -o tsv
+   az provider register --namespace Microsoft.Compute
+   ```
+
+3. **Set the jumpbox VM credentials** — see [3.4 Set VM Credentials](#34-set-vm-credentials-production-only).
+
+4. Continue with [Step 4: Deploy the Solution](#step-4-deploy-the-solution). During post-provisioning, public network access on data-plane resources is opened temporarily and then re-locked automatically (see [Step 5.1](#51-build-and-push-container-images)).
+
+### 3.4 Set VM Credentials (Production Only)
+
+The Production (WAF) configuration deploys a jumpbox virtual machine for administrative access to the private network. Sign-in to the VM is via **Microsoft Entra ID through Azure Bastion**; the admin credentials below are a required fallback for the template.
+
+```shell
+azd env set AZURE_ENV_VM_ADMIN_USERNAME <admin-username>
+azd env set AZURE_ENV_VM_ADMIN_PASSWORD <admin-password>
+```
+
+> **Password requirements:** the password must meet [Azure VM complexity rules](https://learn.microsoft.com/azure/virtual-machines/windows/faq#what-are-the-password-requirements-when-creating-a-vm-) (12–123 characters, with at least three of: lowercase, uppercase, number, special character). These values are stored in your local `azd` environment (`.azure/`) — do not commit them to source control.
+
+Optionally override the VM size (default `Standard_D2s_v5`):
+
+```shell
+azd env set AZURE_ENV_VM_SIZE Standard_D2s_v5
+```
+
+> **Note:** If you do not set these values, the template generates a non-interactive fallback username and password. Because login is through Entra ID + Bastion, you normally never use them directly.
 
 ## Step 4: Deploy the Solution
 
@@ -241,6 +309,8 @@ azd up
 3. **Azure region** - Select a region with available model quota for AI operations
 4. **Resource group** selection (create new or use existing)
 
+> **Production (WAF) deployments:** if you copied `main.waf.parameters.json` and did not pre-set the VM credentials in [Step 3.4](#34-set-vm-credentials-production-only), `azd` will additionally prompt for the jumpbox VM admin username and password during provisioning.
+
 **Expected Duration:** 10-20 minutes for default configuration
 
 `azd up` runs the hooks defined in [azure.yaml](../azure.yaml) and performs the following steps automatically — no separate manual deploy step is required:
@@ -249,7 +319,7 @@ azd up
 2. **Provision** — Creates all Azure resources using the Bicep templates in `infra/`. The backend and frontend App Services start with a temporary placeholder image.
 3. **Post-provision** — Runs automatically after provisioning:
    - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build_and_push_images.ps1](../infra/scripts/build/build_and_push_images.ps1))
-   - Writes the `azd` environment values to a local `.env` file
+   - Writes the `azd` environment values to a local `.env` file (already gitignored; it may contain secrets — do not commit it)
    - Creates a Python virtual environment and installs [infra/scripts/post-provision/requirements.txt](../infra/scripts/post-provision/requirements.txt)
    - Grants the API managed identity access to Azure SQL ([setup-sql-roles.ps1](../infra/scripts/post-provision/setup-sql-roles.ps1))
    - Presents the interactive data setup menu ([setup-data.ps1](../infra/scripts/post-provision/setup-data.ps1)), which prompts you to **select a scenario**. Based on your choice it uploads the sample dataset, **creates the Azure AI Foundry agents**, and wires up the search index and SQL connections. See [Step 5.2](#52-run-post-deployment-data-setup) for details.
@@ -296,6 +366,8 @@ This solution provisions a dedicated **Azure Container Registry (ACR)** in your 
 - Updates the backend and frontend App Services to run the new images and restarts them
 
 **Expected Processing Time:** 5-10 minutes depending on network speed.
+
+> **Production (WAF) deployments:** When private networking is enabled, the Azure Container Registry and other data-plane resources have public network access disabled. The `azd up` post-provision hook runs [manage-network-access.ps1](../infra/scripts/post-provision/manage-network-access.ps1) to temporarily enable public access so images can be built/pushed and data can be loaded, then restores the private-only setting when it finishes (even if a step fails). If you re-run the build or data-setup scripts manually against a WAF deployment, run that script first with `-Action Enable` and afterwards with `-Action Disable`.
 
 ### 5.2 Run Post Deployment Data Setup
 
@@ -393,6 +465,8 @@ azd down --purge
 ```
 
 > **Note:** `azd down` permanently deletes all resource groups, data, and deployed agents. This action cannot be undone. Export any data you need before running this command.
+
+> **⚠️ WAF deployments with redundancy enabled:** If you deployed the Production (WAF) configuration with `enableRedundancy=true`, Log Analytics workspace replication is enabled. Disable workspace replication (in the Azure Portal or via the Azure CLI) **before** running `azd down`, otherwise deletion of the resource group can fail.
 
 ## Managing Multiple Environments
 

@@ -1,392 +1,335 @@
+// ============================================================================
+// main.bicep — Deployment Router
+// Description: Routes deployment to the appropriate infrastructure flavor.
+//   - 'bicep'   → Vanilla Bicep modules (Docker deployment)
+//   - 'avm'     → AVM-based modules (non-WAF)
+//   - 'avm-waf' → AVM-based modules with WAF-aligned features
+//              (monitoring, private networking, scalability, redundancy)
+// ============================================================================
 targetScope = 'resourceGroup'
 
-@minLength(1)
-@maxLength(64)
-@description('Name of the environment (e.g., dev, prod)')
-param environmentName string
+// ============================================================================
+// Routing Parameter
+// ============================================================================
 
-@minLength(1)
-@description('Primary location for all resources')
-param location string
+@allowed(['bicep', 'avm', 'avm-waf'])
+@description('Required. Deployment flavor: bicep (vanilla Docker), avm (AVM non-WAF), or avm-waf (AVM WAF-aligned).')
+param deploymentFlavor string
 
-@description('Name of the Azure OpenAI chat deployment')
-param chatDeploymentName string = 'gpt-5.2'
+// ============================================================================
+// Parameters — Core (shared across all flavors)
+// ============================================================================
 
-@description('Name of the Azure OpenAI embedding deployment')
-param embeddingDeploymentName string = 'text-embedding-3-small'
+@minLength(3)
+@maxLength(16)
+@description('Optional. A unique application/solution name used as base for all resource naming.')
+param solutionName string = 'kmgen'
 
-@description('GPT model version')
-param gptModelVersion string = '2025-12-11'
+@maxLength(5)
+@description('Optional. A unique text suffix appended to resource names for uniqueness.')
+param solutionUniqueText string = substring(uniqueString(subscription().id, resourceGroup().name, solutionName), 0, 5)
 
-@description('Azure AD tenant ID for authentication')
-param azureAdTenantId string = ''
+@metadata({ azd: { type: 'location' } })
+@description('Optional. Primary Azure region for resource deployment.')
+param location string = resourceGroup().location
 
-@description('Azure AD client ID for authentication')
-param azureAdClientId string = ''
+@allowed(['australiaeast', 'swedencentral', 'southeastasia'])
+@metadata({
+  azd:{
+    type: 'location'
+    usageName: [
+      'OpenAI.GlobalStandard.gpt-5.2,150'
+      'OpenAI.GlobalStandard.text-embedding-3-small,80'
+    ]
+  }
+})
+@description('Required. Location for AI Foundry and model deployments.')
+param azureAiServiceLocation string
 
-@description('Optional. The tags to apply to all deployed Azure resources.')
-param tags resourceInput<'Microsoft.Resources/resourceGroups@2025-04-01'>.tags = {}
-
-// ── Existing AI Foundry Project (optional) ──
-@description('Set to true to reuse an existing Azure AI Foundry project instead of creating new AI resources')
-param useExistingAiProject bool = false
-
-@description('Name of the existing AI Services account (parent of the project)')
-param existingAiFoundryServiceName string = ''
-
-@description('Name of the existing AI Foundry project')
-param existingAiFoundryProjectName string = ''
-
-@description('Endpoint of the existing AI Foundry AI Services (for OpenAI + CU)')
-param existingAiFoundryEndpoint string = ''
-
-@description('Name of the AI Search connection in the existing AI Foundry project')
-param existingAiSearchConnectionName string = ''
-
-@description('Set to true to also deploy Cosmos DB (not required — SQL is the primary database)')
+@description('Optional. Set to true to also deploy Cosmos DB (not required — SQL is the primary database).')
 param deployCosmos bool = false
 
-@description('Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable.')
+// ============================================================================
+// Parameters — AI Configuration
+// ============================================================================
+
+@allowed(['Standard', 'GlobalStandard'])
+@description('Optional. GPT model deployment type.')
+param deploymentType string = 'GlobalStandard'
+
+@description('Optional. Name of the GPT model to deploy.')
+param gptModelName string = 'gpt-5.2'
+
+@description('Optional. Version of the GPT model to deploy.')
+param gptModelVersion string = '2025-12-11'
+
+@minValue(10)
+@description('Optional. Capacity of the GPT deployment (TPM in thousands).')
+param gptDeploymentCapacity int = 150
+
+@allowed(['text-embedding-3-small'])
+@description('Optional. Name of the Text Embedding model to deploy.')
+param embeddingModel string = 'text-embedding-3-small'
+
+@minValue(10)
+@description('Optional. Capacity of the Embedding Model deployment.')
+param embeddingDeploymentCapacity int = 80
+
+// ============================================================================
+// Parameters — Compute
+// ============================================================================
+
+@description('Optional. Name of the Azure Container Registry. Leave empty to auto-generate a globally unique name (cr<suffix>).')
+param containerRegistryName string = ''
+
+@description('Optional. Backend container image name.')
+param backendContainerImageName string = 'km-api'
+
+@description('Optional. Backend container image tag.')
+param backendContainerImageTag string = 'latest'
+
+@description('Optional. Frontend container image name.')
+param frontendContainerImageName string = 'km-app'
+
+@description('Optional. Frontend container image tag.')
+param frontendContainerImageTag string = 'latest'
+
+@allowed(['F1', 'D1', 'B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P1', 'P2', 'P3', 'P1v3', 'P1v4'])
+@description('Optional. App Service Plan SKU.')
+param appServicePlanSku string = 'B3'
+
+@description('Kind of web app.')
+param kind string = 'app,linux,container'
+
+// ============================================================================
+// Parameters — Authentication (matches infra_old/main.bicep)
+// ============================================================================
+
+@description('Optional. Azure AD tenant ID for authentication.')
+param azureAdTenantId string = ''
+
+@description('Optional. Azure AD client ID for authentication.')
+param azureAdClientId string = ''
+
+@description('Optional. Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable.')
 @secure()
 param adminApiKey string = ''
 
-// ── Container Image Configuration ──
-// Images are built and pushed to the dedicated ACR provisioned below by the
-// post-deployment script (infra/scripts/build/build_and_push_images.ps1). App Services boot on
-// a public hello-world image and are switched to these images by that script.
-@description('Backend container image name (repository) to build and push to the provisioned ACR')
-param backendContainerImageName string = 'km-api'
+// ============================================================================
+// Parameters — Existing Resources
+// ============================================================================
 
-@description('Backend container image tag')
-param backendContainerImageTag string = 'latest'
+@description('Optional. Resource ID of an existing Log Analytics workspace. Empty creates a new one.')
+param existingLogAnalyticsWorkspaceId string = ''
 
-@description('Frontend container image name (repository) to build and push to the provisioned ACR')
-param frontendContainerImageName string = 'km-app'
+@description('Optional. Resource ID of an existing AI Foundry project. Empty creates a new one.')
+param existingFoundryProjectResourceId string = ''
 
-@description('Frontend container image tag')
-param frontendContainerImageTag string = 'latest'
+// ============================================================================
+// Parameters — Identity
+// ============================================================================
 
-var abbrs = loadJsonContent('abbreviations.json')
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+@allowed(['User', 'ServicePrincipal'])
+@description('Optional. Principal type of the deploying user. Use ServicePrincipal for CI/CD pipelines with OIDC.')
+param deployingUserPrincipalType string = 'User'
 
-var existingTags = resourceGroup().tags ?? {}
+// ============================================================================
+// Parameters — AVM-specific (ignored when deploymentFlavor = 'bicep')
+// ============================================================================
 
-// ========== Resource Group Tag ========== //
-resource resourceGroupTags 'Microsoft.Resources/tags@2025-04-01' = {
-  name: 'default'
-  properties: {
-    tags: union(
-      existingTags,
-      tags,
-      {
-        TemplateName: 'KM-Generic'
-        DeploymentName: deployment().name
-      }
-    )
-  }
-}
+@description('Optional. Tags to apply to all resources (AVM only).')
+param tags object = {}
 
-// ========== AI Foundry: AI Services ========== //
-module aiServices 'modules/ai-services.bicep' = if (!useExistingAiProject) {
-  name: 'ai-services'
+@description('Optional. Enable/Disable usage telemetry for AVM modules.')
+param enableTelemetry bool = true
+
+@description('Optional. Enable monitoring (Log Analytics, App Insights, diagnostic settings).')
+param enableMonitoring bool = false
+
+@description('Optional. Enable private networking (VNet, private endpoints, DNS zones).')
+param enablePrivateNetworking bool = false
+
+@description('Optional. Enable scalability features (zone redundant App Service Plan).')
+param enableScalability bool = false
+
+@description('Optional. Enable redundancy (zone redundant Cosmos DB, multi-region failover).')
+param enableRedundancy bool = false
+
+@secure()
+@description('Optional. VM admin username (AVM-WAF only, when private networking is enabled).')
+param vmAdminUsername string?
+
+@secure()
+@description('Optional. VM admin password (AVM-WAF only, when private networking is enabled).')
+param vmAdminPassword string?
+
+@description('Optional. VM size for jumpbox (AVM-WAF only). Defaults to Standard_D2s_v5.')
+param vmSize string = 'Standard_D2s_v5'
+
+// ============================================================================
+// Derived Variables
+// ============================================================================
+
+var isAvm = deploymentFlavor == 'avm' || deploymentFlavor == 'avm-waf'
+var isBicep = deploymentFlavor == 'bicep'
+
+// ============================================================================
+// Module: AVM Deployment (non-WAF and WAF)
+// Activated when deploymentFlavor = 'avm' or 'avm-waf'
+// WAF features (monitoring, private networking, scalability, redundancy)
+// are enabled automatically for 'avm-waf'.
+// ============================================================================
+
+module avmDeployment './avm/main.bicep' = if (isAvm) {
+  name: take('module.avm.${solutionName}', 64)
   params: {
-    name: '${abbrs.ai.aiFoundry}${resourceToken}'
+    solutionName: solutionName
+    solutionUniqueText: solutionUniqueText
     location: location
-    kind: 'AIServices'
-    sku: 'S0'
-    customSubDomainName: '${abbrs.ai.aiFoundry}${resourceToken}'
-    projectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
-    projectDescription: 'Knowledge Mining AI Foundry Project'
-    publicNetworkAccess: 'Enabled'
-    restrictOutboundNetworkAccess: false
-    disableLocalAuth: false
-    restore: false
-    deployments: [
-      {
-        name: chatDeploymentName
-        model: {
-          format: 'OpenAI'
-          name: chatDeploymentName
-          version: gptModelVersion
-        }
-        sku: {
-          name: 'GlobalStandard'
-          capacity: 150
-        }
-      }
-      {
-        name: embeddingDeploymentName
-        model: {
-          format: 'OpenAI'
-          name: embeddingDeploymentName
-          version: '1'
-        }
-        sku: {
-          name: 'GlobalStandard'
-          capacity: 80
-        }
-      }
-    ]
-  }
-}
-
-// use existing or newly created
-var aiServicesEndpoint = useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.endpoint
-var aiServicesName = useExistingAiProject ? existingAiFoundryServiceName : aiServices!.outputs.name
-
-// ========== AI Search ========== //
-var aiSearchName = '${abbrs.ai.aiSearch}${resourceToken}'
-var aiSearchConnectionName = 'search-connection-${resourceToken}'
-
-module search 'modules/search.bicep' = {
-  name: 'search'
-  params: {
-    name: aiSearchName
-    location: location
+    azureAiServiceLocation: azureAiServiceLocation
     tags: tags
+    enableTelemetry: enableTelemetry
+    enableMonitoring: enableMonitoring
+    enablePrivateNetworking: enablePrivateNetworking
+    enableScalability: enableScalability
+    enableRedundancy: enableRedundancy
+    vmAdminUsername: vmAdminUsername
+    vmAdminPassword: vmAdminPassword
+    vmSize: vmSize
+    deployCosmos: deployCosmos
+    deploymentType: deploymentType
+    gptModelName: gptModelName
+    gptModelVersion: gptModelVersion
+    gptDeploymentCapacity: gptDeploymentCapacity
+    embeddingModel: embeddingModel
+    embeddingDeploymentCapacity: embeddingDeploymentCapacity
+    kind: kind
+    containerRegistryName: containerRegistryName
+    appServicePlanSku: appServicePlanSku
+    backendContainerImageName: backendContainerImageName
+    backendContainerImageTag: backendContainerImageTag
+    frontendContainerImageName: frontendContainerImageName
+    frontendContainerImageTag: frontendContainerImageTag
+    azureAdTenantId: azureAdTenantId
+    azureAdClientId: azureAdClientId
+    adminApiKey: adminApiKey
+    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+    existingFoundryProjectResourceId: existingFoundryProjectResourceId
+    deployingUserPrincipalType: deployingUserPrincipalType
   }
 }
 
-// ========== AI Search → AI Foundry Connection ========== //
-module searchConnection 'modules/deploy_aifp_aisearch_connection.bicep' = if (!useExistingAiProject) {
-  name: 'ai-search-connection'
-  params: {
-    existingAIProjectName: '${abbrs.ai.aiFoundryProject}${resourceToken}'
-    existingAIFoundryName: '${abbrs.ai.aiFoundry}${resourceToken}'
-    aiSearchName: aiSearchName
-    aiSearchResourceId: search.outputs.id
-    aiSearchLocation: location
-    aiSearchConnectionName: aiSearchConnectionName
-  }
-  dependsOn: [
-    aiServices
-  ]
-}
+// ============================================================================
+// Module: Vanilla Bicep Deployment (Docker)
+// Activated when deploymentFlavor = 'bicep'
+// ============================================================================
 
-// ========== Storage Account ========== //
-module storage 'modules/storage.bicep' = {
-  name: 'storage'
+module bicepDeployment './bicep/main.bicep' = if (isBicep) {
+  name: take('module.bicep.${solutionName}', 64)
   params: {
-    name: '${abbrs.storage.storageAccount}${resourceToken}'
+    solutionName: solutionName
+    solutionUniqueText: solutionUniqueText
     location: location
+    azureAiServiceLocation: azureAiServiceLocation
     tags: tags
+    deployCosmos: deployCosmos
+    deploymentType: deploymentType  
+    gptModelName: gptModelName
+    gptModelVersion: gptModelVersion
+    gptDeploymentCapacity: gptDeploymentCapacity
+    embeddingModel: embeddingModel
+    embeddingDeploymentCapacity: embeddingDeploymentCapacity
+    kind: kind
+    containerRegistryName: containerRegistryName
+    appServicePlanSku: appServicePlanSku
+    backendContainerImageName: backendContainerImageName
+    backendContainerImageTag: backendContainerImageTag
+    frontendContainerImageName: frontendContainerImageName
+    frontendContainerImageTag: frontendContainerImageTag
+    azureAdTenantId: azureAdTenantId
+    azureAdClientId: azureAdClientId
+    adminApiKey: adminApiKey
+    existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
+    existingFoundryProjectResourceId: existingFoundryProjectResourceId
+    deployingUserPrincipalType: deployingUserPrincipalType
   }
 }
 
-// ========== SQL Database ========== //
-module sql 'modules/sql.bicep' = {
-  name: 'sql'
-  params: {
-    serverName: '${abbrs.databases.sqlDatabaseServer}${resourceToken}'
-    databaseName: '${abbrs.databases.sqlDatabase}${resourceToken}'
-    location: location
-    tags: tags
-    adminObjectId: deployer().objectId
-  }
-}
+// ============================================================================
+// Outputs — Coalesced from whichever flavor was deployed (matches infra_old/main.bicep)
+// ============================================================================
 
-// ========== Cosmos DB (optional) ========== //
-module cosmos 'modules/cosmos.bicep' = if (deployCosmos) {
-  name: 'cosmos'
-  params: {
-    name: '${abbrs.databases.cosmosDBDatabase}${resourceToken}'
-    location: location
-    tags: tags
-    databaseName: 'km-db'
-  }
-}
-
-// ========== Azure Container Registry ========== //
-var acrName = 'cr${resourceToken}'
-module containerRegistry 'modules/container-registry.bicep' = {
-  name: 'container-registry'
-  params: {
-    name: acrName
-    location: location
-    tags: tags
-  }
-}
-var acrLoginServer = containerRegistry.outputs.loginServer
-
-// ========== App Service Plan ========== //
-var webServerFarmResourceName = '${abbrs.compute.appServicePlan}${resourceToken}'
-module webServerFarm 'modules/app-service-plan.bicep' = {
-  name: 'deploy_app_service_plan_serverfarm'
-  params: {
-    name: webServerFarmResourceName
-    location: location
-    tags: tags
-  }
-}
-
-// ========== Backend Web App ========== //
-var backendWebSiteResourceName = 'api-${resourceToken}'
-module webSiteBackend 'modules/web-sites.bicep' = {
-  name: take('module.web-sites.${backendWebSiteResourceName}', 64)
-  params: {
-    name: backendWebSiteResourceName
-    tags: union(tags, { 'azd-service-name': 'backend' })
-    location: location
-    kind: 'app,linux'
-    serverFarmResourceId: webServerFarm.outputs.id
-    managedIdentities: {
-      systemAssigned: true
-    }
-    siteConfig: {
-      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-      acrUseManagedIdentityCreds: true
-      appCommandLine: ''
-      minTlsVersion: '1.2'
-    }
-    configs: [
-      {
-        name: 'appsettings'
-        properties: {
-          DOCKER_REGISTRY_SERVER_URL: 'https://${acrLoginServer}'
-          WEBSITES_PORT: '8000'
-          AZURE_OPENAI_ENDPOINT: aiServicesEndpoint
-          AZURE_OPENAI_CHAT_DEPLOYMENT: chatDeploymentName
-          AZURE_OPENAI_EMBEDDING_DEPLOYMENT: embeddingDeploymentName
-          AZURE_SEARCH_ENDPOINT: search.outputs.endpoint
-          AZURE_SEARCH_INDEX_NAME: 'knowledge-mining-index'
-          AZURE_CONTENT_UNDERSTANDING_ENDPOINT: aiServices!.outputs.endpoints['Content Understanding']
-          AZURE_STORAGE_ACCOUNT: storage.outputs.accountName
-          AZURE_SQL_SERVER: sql.outputs.serverFqdn
-          AZURE_SQL_DATABASE: '${abbrs.databases.sqlDatabase}${resourceToken}'
-          AZURE_COSMOS_ENDPOINT: deployCosmos ? cosmos!.outputs.endpoint : ''
-          AZURE_COSMOS_DATABASE: deployCosmos ? 'km-db' : ''
-          AZURE_AD_TENANT_ID: azureAdTenantId
-          AZURE_AD_CLIENT_ID: azureAdClientId
-          AZURE_AI_AGENT_ENDPOINT: useExistingAiProject ? existingAiFoundryEndpoint : aiServices!.outputs.aiProjectInfo.apiEndpoint
-          AZURE_AI_SEARCH_CONNECTION_NAME: useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
-          API_APP_NAME: backendWebSiteResourceName
-          APP_FRONTEND_HOSTNAME: 'https://${frontendWebSiteResourceName}.azurewebsites.net'
-          APP_ENV: 'Prod'
-          ADMIN_API_KEY: adminApiKey
-          SOLUTION_SUFFIX: resourceToken
-        }
-      }
-    ]
-  }
-}
-
-// ========== Frontend Web App ========== //
-var frontendWebSiteResourceName = 'app-${resourceToken}'
-module webSiteFrontend 'modules/web-sites.bicep' = {
-  name: take('module.web-sites.${frontendWebSiteResourceName}', 64)
-  params: {
-    name: frontendWebSiteResourceName
-    tags: union(tags, { 'azd-service-name': 'frontend' })
-    location: location
-    kind: 'app,linux'
-    serverFarmResourceId: webServerFarm.outputs.id
-    managedIdentities: {
-      systemAssigned: true
-    }
-    siteConfig: {
-      linuxFxVersion: 'DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-      acrUseManagedIdentityCreds: true
-      appCommandLine: ''
-      minTlsVersion: '1.2'
-    }
-    configs: [
-      {
-        name: 'appsettings'
-        properties: {
-          DOCKER_REGISTRY_SERVER_URL: 'https://${acrLoginServer}'
-          APP_API_BASE_URL: 'https://${webSiteBackend.outputs.defaultHostname}'
-          WEBSITES_PORT: '80'
-        }
-      }
-    ]
-  }
-}
-
-// ========== Role Assignments ========== //
-module roles 'modules/roles.bicep' = {
-  name: 'roles'
-  params: {
-    openaiName: aiServicesName
-    searchName: search.outputs.name
-    storageName: storage.outputs.accountName
-    cosmosName: deployCosmos ? cosmos!.outputs.name : ''
-    backendPrincipalId: webSiteBackend.outputs.systemAssignedMIPrincipalId!
-    frontendPrincipalId: webSiteFrontend.outputs.systemAssignedMIPrincipalId!
-    acrName: containerRegistry.outputs.name
-    deployerPrincipalId: deployer().objectId
-    aiProjectPrincipalId: useExistingAiProject ? '' : aiServices!.outputs.aiProjectInfo.aiprojectSystemAssignedMIPrincipalId
-  }
-}
-
-// ========== Outputs ========== //
 @description('Azure OpenAI endpoint URL.')
-output AZURE_OPENAI_ENDPOINT string = aiServicesEndpoint
+output AZURE_OPENAI_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_OPENAI_ENDPOINT : bicepDeployment!.outputs.AZURE_OPENAI_ENDPOINT
 
 @description('Azure AI Search endpoint URL.')
-output AZURE_SEARCH_ENDPOINT string = search.outputs.endpoint
+output AZURE_SEARCH_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_SEARCH_ENDPOINT : bicepDeployment!.outputs.AZURE_SEARCH_ENDPOINT
 
 @description('Azure Content Understanding endpoint URL.')
-output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = aiServices!.outputs.endpoints['Content Understanding']
+output AZURE_CONTENT_UNDERSTANDING_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_CONTENT_UNDERSTANDING_ENDPOINT : bicepDeployment!.outputs.AZURE_CONTENT_UNDERSTANDING_ENDPOINT
 
 @description('Azure Storage account name.')
-output AZURE_STORAGE_ACCOUNT string = storage.outputs.accountName
+output AZURE_STORAGE_ACCOUNT string = isAvm ? avmDeployment!.outputs.AZURE_STORAGE_ACCOUNT : bicepDeployment!.outputs.AZURE_STORAGE_ACCOUNT
 
 @description('Azure SQL Server FQDN.')
-output AZURE_SQL_SERVER string = sql.outputs.serverFqdn
+output AZURE_SQL_SERVER string = isAvm ? avmDeployment!.outputs.AZURE_SQL_SERVER : bicepDeployment!.outputs.AZURE_SQL_SERVER
 
 @description('Azure SQL Database name.')
-output AZURE_SQL_DATABASE string = '${abbrs.databases.sqlDatabase}${resourceToken}'
+output AZURE_SQL_DATABASE string = isAvm ? avmDeployment!.outputs.AZURE_SQL_DATABASE : bicepDeployment!.outputs.AZURE_SQL_DATABASE
 
 @description('Backend API application (and SQL contained user) name.')
-output API_APP_NAME string = backendWebSiteResourceName
+output API_APP_NAME string = isAvm ? avmDeployment!.outputs.API_APP_NAME : bicepDeployment!.outputs.API_APP_NAME
 
 @description('Backend API system-assigned managed identity principal ID.')
-output AZURE_API_PRINCIPAL_ID string = webSiteBackend.outputs.systemAssignedMIPrincipalId!
+output AZURE_API_PRINCIPAL_ID string = isAvm ? avmDeployment!.outputs.AZURE_API_PRINCIPAL_ID : bicepDeployment!.outputs.AZURE_API_PRINCIPAL_ID
 
-@description('Azure Cosmos DB endpoint (empty if not deployed).')
-output AZURE_COSMOS_ENDPOINT string = deployCosmos ? cosmos!.outputs.endpoint : ''
+@description('Azure Cosmos DB endpoint.')
+output AZURE_COSMOS_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_COSMOS_ENDPOINT : bicepDeployment!.outputs.AZURE_COSMOS_ENDPOINT
 
 @description('Azure AI Agent endpoint URL.')
-output AZURE_AI_AGENT_ENDPOINT string = useExistingAiProject ? '${existingAiFoundryEndpoint}/projects/${existingAiFoundryProjectName}' : aiServices!.outputs.aiProjectInfo.apiEndpoint
+output AZURE_AI_AGENT_ENDPOINT string = isAvm ? avmDeployment!.outputs.AZURE_AI_AGENT_ENDPOINT : bicepDeployment!.outputs.AZURE_AI_AGENT_ENDPOINT
 
 @description('Backend API application URL.')
-output API_APP_URL string = 'https://${webSiteBackend.outputs.defaultHostname}'
+output API_APP_URL string = isAvm ? avmDeployment!.outputs.API_APP_URL : bicepDeployment!.outputs.API_APP_URL
 
 @description('Frontend web application URL.')
-output WEB_APP_URL string = 'https://${webSiteFrontend.outputs.defaultHostname}'
+output WEB_APP_URL string = isAvm ? avmDeployment!.outputs.WEB_APP_URL : bicepDeployment!.outputs.WEB_APP_URL
 
 @description('Backend service URI (used by azd).')
-output SERVICE_BACKEND_URI string = 'https://${webSiteBackend.outputs.defaultHostname}'
+output SERVICE_BACKEND_URI string = isAvm ? avmDeployment!.outputs.SERVICE_BACKEND_URI : bicepDeployment!.outputs.SERVICE_BACKEND_URI
 
 @description('Frontend service URI (used by azd).')
-output SERVICE_FRONTEND_URI string = 'https://${webSiteFrontend.outputs.defaultHostname}'
+output SERVICE_FRONTEND_URI string = isAvm ? avmDeployment!.outputs.SERVICE_FRONTEND_URI : bicepDeployment!.outputs.SERVICE_FRONTEND_URI
 
 @description('AI Search connection name in AI Foundry.')
-output AZURE_AI_SEARCH_CONNECTION_NAME string = useExistingAiProject ? existingAiSearchConnectionName : aiSearchConnectionName
+output AZURE_AI_SEARCH_CONNECTION_NAME string = isAvm ? avmDeployment!.outputs.AZURE_AI_SEARCH_CONNECTION_NAME : bicepDeployment!.outputs.AZURE_AI_SEARCH_CONNECTION_NAME
 
 @description('Azure Container Registry name.')
-output ACR_NAME string = containerRegistry.outputs.name
+output ACR_NAME string = isAvm ? avmDeployment!.outputs.ACR_NAME : bicepDeployment!.outputs.ACR_NAME
 
 @description('Azure Container Registry login server URL.')
-output ACR_LOGIN_SERVER string = containerRegistry.outputs.loginServer
+output ACR_LOGIN_SERVER string = isAvm ? avmDeployment!.outputs.ACR_LOGIN_SERVER : bicepDeployment!.outputs.ACR_LOGIN_SERVER
 
 @description('Backend container image repository name to build and push to ACR.')
-output BACKEND_CONTAINER_IMAGE_NAME string = backendContainerImageName
+output BACKEND_CONTAINER_IMAGE_NAME string = isAvm ? avmDeployment!.outputs.BACKEND_CONTAINER_IMAGE_NAME : bicepDeployment!.outputs.BACKEND_CONTAINER_IMAGE_NAME
 
 @description('Backend container image tag to build and push to ACR.')
-output BACKEND_CONTAINER_IMAGE_TAG string = backendContainerImageTag
+output BACKEND_CONTAINER_IMAGE_TAG string = isAvm ? avmDeployment!.outputs.BACKEND_CONTAINER_IMAGE_TAG : bicepDeployment!.outputs.BACKEND_CONTAINER_IMAGE_TAG
 
 @description('Frontend container image repository name to build and push to ACR.')
-output FRONTEND_CONTAINER_IMAGE_NAME string = frontendContainerImageName
+output FRONTEND_CONTAINER_IMAGE_NAME string = isAvm ? avmDeployment!.outputs.FRONTEND_CONTAINER_IMAGE_NAME : bicepDeployment!.outputs.FRONTEND_CONTAINER_IMAGE_NAME
 
 @description('Frontend container image tag to build and push to ACR.')
-output FRONTEND_CONTAINER_IMAGE_TAG string = frontendContainerImageTag
+output FRONTEND_CONTAINER_IMAGE_TAG string = isAvm ? avmDeployment!.outputs.FRONTEND_CONTAINER_IMAGE_TAG : bicepDeployment!.outputs.FRONTEND_CONTAINER_IMAGE_TAG
 
 @description('Frontend web application (App Service) name.')
-output FRONTEND_APP_NAME string = frontendWebSiteResourceName
+output FRONTEND_APP_NAME string = isAvm ? avmDeployment!.outputs.FRONTEND_APP_NAME : bicepDeployment!.outputs.FRONTEND_APP_NAME
 
 @description('Resource group name.')
 output RESOURCE_GROUP_NAME string = resourceGroup().name
 
 @description('Solution resource token suffix used in resource names.')
-output SOLUTION_SUFFIX string = resourceToken
+output SOLUTION_SUFFIX string = isAvm ? avmDeployment!.outputs.SOLUTION_SUFFIX : bicepDeployment!.outputs.SOLUTION_SUFFIX
+
+@description('Whether the deployment uses private endpoints. Post-provision scripts gate ACR admin-credential image pull on this.')
+output ENABLE_PRIVATE_NETWORKING bool = enablePrivateNetworking
