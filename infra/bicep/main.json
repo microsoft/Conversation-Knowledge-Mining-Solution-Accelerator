@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "5374752386066789895"
+      "templateHash": "7213137512787294477"
     }
   },
   "parameters": {
@@ -1890,7 +1890,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.46.1.21595",
-              "templateHash": "6242014898061728245"
+              "templateHash": "7776062422456459323"
             }
           },
           "parameters": {
@@ -1951,29 +1951,6 @@
           },
           "resources": [
             {
-              "copy": {
-                "name": "database::list",
-                "count": "[length(parameters('containers'))]"
-              },
-              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2025-10-15",
-              "name": "[format('{0}/{1}/{2}', parameters('name'), parameters('databaseName'), parameters('containers')[copyIndex()].name)]",
-              "properties": {
-                "resource": {
-                  "id": "[parameters('containers')[copyIndex()].name]",
-                  "partitionKey": {
-                    "paths": [
-                      "[parameters('containers')[copyIndex()].partitionKeyPath]"
-                    ]
-                  }
-                },
-                "options": {}
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('name'), parameters('databaseName'))]"
-              ]
-            },
-            {
               "type": "Microsoft.DocumentDB/databaseAccounts",
               "apiVersion": "2025-10-15",
               "name": "[parameters('name')]",
@@ -2014,6 +1991,29 @@
               },
               "dependsOn": [
                 "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('name'))]"
+              ]
+            },
+            {
+              "copy": {
+                "name": "containersRes",
+                "count": "[length(parameters('containers'))]"
+              },
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2025-10-15",
+              "name": "[format('{0}/{1}/{2}', parameters('name'), parameters('databaseName'), parameters('containers')[copyIndex()].name)]",
+              "properties": {
+                "resource": {
+                  "id": "[parameters('containers')[copyIndex()].name]",
+                  "partitionKey": {
+                    "paths": [
+                      "[parameters('containers')[copyIndex()].partitionKeyPath]"
+                    ],
+                    "kind": "Hash"
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('name'), parameters('databaseName'))]"
               ]
             }
           ],
