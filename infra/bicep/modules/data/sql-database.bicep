@@ -22,6 +22,9 @@ param tags object = {}
 @description('Principal ID of the deployer for admin access.')
 param deployerPrincipalId string
 
+@description('Principal name of the deployer for admin access.')
+param deployerPrincipalName string
+
 @description('SKU name for the database.')
 param skuName string = 'GP_S_Gen5'
 
@@ -57,7 +60,7 @@ resource sqlServer 'Microsoft.Sql/servers@2025-01-01' = {
     restrictOutboundNetworkAccess: 'Disabled'
     minimalTlsVersion: '1.2'
     administrators: {
-      login: deployerPrincipalId
+      login: deployerPrincipalName
       sid: deployerPrincipalId
       tenantId: subscription().tenantId
       administratorType: 'ActiveDirectory'

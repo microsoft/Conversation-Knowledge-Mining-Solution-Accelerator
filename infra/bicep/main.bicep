@@ -151,6 +151,7 @@ var containerRegistryResourceName = !empty(containerRegistryName) ? containerReg
 
 var deployerInfo = deployer()
 var deployingUserPrincipalId = deployerInfo.objectId
+var deployingUserPrincipalName = deployerInfo.?userPrincipalName ?? deployerInfo.objectId
 var existingTags = resourceGroup().tags ?? {}
 
 
@@ -346,6 +347,7 @@ module sqlDBModule './modules/data/sql-database.bicep' = {
     location: location
     tags: resourceTags
     deployerPrincipalId: deployingUserPrincipalId
+    deployerPrincipalName: deployingUserPrincipalName
   }
   scope: resourceGroup(resourceGroup().name)
 }

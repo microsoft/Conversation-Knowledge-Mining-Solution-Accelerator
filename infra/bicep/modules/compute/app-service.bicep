@@ -83,7 +83,7 @@ resource appService 'Microsoft.Web/sites@2025-05-01' = {
       healthCheckPath: !empty(healthCheckPath) ? healthCheckPath : null
       webSocketsEnabled: webSocketsEnabled
       appCommandLine: appCommandLine
-      acrUseManagedIdentityCreds : acrUseManagedIdentityCreds
+      acrUseManagedIdentityCreds: acrUseManagedIdentityCreds
     }
     endToEndEncryptionEnabled: true
   }

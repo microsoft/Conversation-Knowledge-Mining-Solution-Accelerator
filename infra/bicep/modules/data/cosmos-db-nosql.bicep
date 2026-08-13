@@ -62,18 +62,21 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2025-10-15
   properties: {
     resource: { id: databaseName }
   }
-
-  resource list 'containers' = [for container in containers: {
-    name: container.name
-    properties: {
-      resource: {
-        id: container.name
-        partitionKey: { paths: [ container.partitionKeyPath ] }
-      }
-      options: {}
-    }
-  }]
 }
+
+resource containersRes 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2025-10-15' = [for container in containers: {
+  parent: database
+  name: container.name
+  properties: {
+    resource: {
+      id: container.name
+      partitionKey: {
+        paths: [container.partitionKeyPath]
+        kind: 'Hash'
+      }
+    }
+  }
+}]
 
 // ============================================================================
 // Outputs

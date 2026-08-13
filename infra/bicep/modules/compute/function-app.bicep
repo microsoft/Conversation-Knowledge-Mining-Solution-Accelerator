@@ -40,7 +40,8 @@ param runtimeVersion string = '3.11'
 // ============================================================================
 // Variables
 // ===========================================================================
-var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${listKeys(storageAccountResourceId, '2023-05-01').keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+var storageKeys = listKeys(storageAccountResourceId, '2023-05-01')
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${storageKeys.keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 var linuxFxVersion = '${toUpper(runtimeStack)}|${runtimeVersion}'
 
 var baseSettings = [

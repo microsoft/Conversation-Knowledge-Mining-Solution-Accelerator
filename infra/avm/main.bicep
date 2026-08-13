@@ -170,6 +170,7 @@ var solutionSuffix = toLower(trim(replace(replace(replace(replace(replace(replac
 var containerRegistryResourceName = !empty(containerRegistryName) ? containerRegistryName : 'acrkm${solutionSuffix}'
 var deployerInfo = deployer()
 var deployingUserPrincipalId = deployerInfo.objectId
+var deployingUserPrincipalName = deployerInfo.?userPrincipalName ?? deployerInfo.objectId
 var createdBy = contains(deployerInfo, 'userPrincipalName') ? split(deployerInfo.userPrincipalName, '@')[0] : deployerInfo.objectId
 var useExistingAIProject = !empty(existingFoundryProjectResourceId)
 
@@ -758,6 +759,7 @@ module sqlDBModule './modules/data/sql-database.bicep' = {
     tags: tags
     enableTelemetry: enableTelemetry
     deployerPrincipalId: deployingUserPrincipalId
+    deployerPrincipalName: deployingUserPrincipalName
     publicNetworkAccess: enablePrivateNetworking ? 'Disabled' : 'Enabled'
     privateEndpoints: enablePrivateNetworking ? [
       {
