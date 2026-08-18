@@ -855,7 +855,15 @@ class RAGService:
             )
 
         if filters:
-            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            # 'source'/'source_type'/'source_name' select the active data source, not a
+            # content facet, so exclude them here — filtering an external BYOD index by a
+            # field it lacks returns 0 hits. analytics_engine/retrieval_engine drop them too.
+            source_keys = {"source", "source_type", "source_name"}
+            filt_lines = "\n".join(
+                f"- {dim}: {val}"
+                for dim, val in filters.items()
+                if val and dim not in source_keys
+            )
             if filt_lines:
                 lines.append(
                     "Only consider content matching these filters:\n" + filt_lines
