@@ -428,6 +428,8 @@ class ByodEnrichmentService:
                         )
                     except Exception:
                         topics_list = [topic] if topic else []
+                    # Persist topics as a JSON array so SqlService.load_all_documents' json.loads succeeds.
+                    topics_json = json.dumps(topics_list)
                     # topics/entities/key_phrases stay as arrays for the app's facet UI;
                     # add scalar aliases (JSON_VALUE can't read arrays) so the agent's SQL
                     # tool can GROUP BY a category the same way seeded scenarios do.
@@ -476,7 +478,7 @@ class ByodEnrichmentService:
                                     source.key_phrases, source.topics, source.source_file, 
                                     source.text_content, source.doc_type, source.metadata);
                     """, (
-                        doc_id, source_type, summary, entities, key_phrases, topic,
+                        doc_id, source_type, summary, entities, key_phrases, topics_json,
                         source_file, doc.get("text", ""), "byod", metadata
                     ))
                     
