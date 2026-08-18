@@ -27,18 +27,3 @@ class QAResponse(BaseModel):
     answer: str
     sources: list[Source] = []
     model: str
-
-
-class ConversationMessage(BaseModel):
-    role: str  # "user" or "assistant"
-    content: str
-
-
-class ConversationRequest(BaseModel):
-    messages: list[ConversationMessage]
-    top_k: int = 5
-    filters: Optional[dict] = None
-    chat_scope: Literal["all", "documents", "external"] = "all"
-    document_ids: Optional[list[str]] = None
-    external_index_id: Optional[str] = None
-    conversation_id: Optional[str] = None
