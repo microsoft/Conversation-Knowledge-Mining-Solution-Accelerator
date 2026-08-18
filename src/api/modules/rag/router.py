@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 from src.api.modules.rag.service import rag_service
-from src.api.modules.rag.models import QARequest, QAResponse, ConversationRequest
+from src.api.modules.rag.models import QARequest, QAResponse
 from src.api.auth.auth_utils import get_authenticated_user_details
 
 logger = logging.getLogger(__name__)
@@ -133,19 +133,3 @@ async def ask_question(request: QARequest):
     except Exception as e:
         logger.error(f"RAG query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An error occurred while processing your question. Please try again.")
-
-
-@router.post("/conversation", response_model=QAResponse)
-async def conversation(request: ConversationRequest):
-    """Multi-turn conversation with RAG retrieval."""
-    messages = [{"role": m.role, "content": m.content} for m in request.messages]
-    try:
-        doc_ids = request.document_ids if request.chat_scope == "documents" else None
-        return await asyncio.to_thread(
-            rag_service.answer_conversation,
-            messages=messages, top_k=request.top_k, filters=request.filters, document_ids=doc_ids,
-            conversation_id=request.conversation_id,
-        )
-    except Exception as e:
-        logger.error(f"Conversation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An error occurred during the conversation. Please try again.")
