@@ -133,4 +133,3 @@ async def ask_question(request: QARequest):
     except Exception as e:
         logger.error(f"RAG query failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An error occurred while processing your question. Please try again.")
-
