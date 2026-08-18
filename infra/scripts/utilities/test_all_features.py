@@ -153,15 +153,14 @@ def test_rag_chat():
 test("RAG Chat (Ask)", test_rag_chat)
 
 
-# ── 9. Conversation ──
+# ── 9. Conversation (multi-turn via /ask with conversation_id) ──
 def test_conversation():
     payload = {
-        "messages": [
-            {"role": "user", "content": "What products do you have data about?"}
-        ],
+        "question": "What products do you have data about?",
         "top_k": 3,
+        "conversation_id": "test-conv-001",
     }
-    r = requests.post(f"{BASE}/api/rag/conversation", json=payload, headers=HEADERS, timeout=60)
+    r = requests.post(f"{BASE}/api/rag/ask", json=payload, headers=HEADERS, timeout=60)
     assert r.status_code == 200, f"Conversation returned {r.status_code}: {r.text[:300]}"
     data = r.json()
     answer = data.get("answer", "")
