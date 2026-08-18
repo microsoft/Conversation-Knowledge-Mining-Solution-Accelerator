@@ -92,7 +92,7 @@ else:
     print(f"Tools: {'SQL + Azure AI Search' if USE_SQL else 'Azure AI Search only'}")
 
 
-def build_prompt(name, description, use_sql, table, columns):
+def build_prompt(name, description, use_sql, table, columns, byod_search=False):
     sql_section = f"""        - Always use the **SQL tool** first for quantified, numerical, or metric-based queries.
             - **Always** use the **get_sql_response** function to execute queries.
             - Generate valid T-SQL queries using:
@@ -106,6 +106,21 @@ def build_prompt(name, description, use_sql, table, columns):
                 "**combined response** including all results in one structured answer.\n"
                 ) if use_sql else ""
 
+    # Azure AI Search keyword search returns nothing for analytical/meta questions; the
+    # enriched SQL table always resolves them. For azure_search BYOD the external index
+    # may lack the filter field entirely, so Search returns 0 for everything — make the
+    # SQL fallback mandatory there. Seeded scenarios keep the softer, additive fallback.
+    if not use_sql:
+        sql_fallback = ""
+    elif byod_search:
+        sql_fallback = """            - **IMPORTANT (this data source):** The Azure AI Search index may not contain the metadata fields used by the document filter, so the Azure AI Search tool can return **zero results even when the data exists**. A zero-result or \"no documents match the filter\" response from Azure AI Search is **NOT** a valid final answer.
+            - When Azure AI Search returns no results for a summary, topic, category, sentiment, content, or insight question, you **MUST** call **get_sql_response** and answer from the enriched `documents` table instead. Call **get_schema_and_sample_values** first to discover the exact field names, then use the `summary` column for content and a scalar `JSON_VALUE(metadata, '$.<field>')` for grouping/counts (the `topics`, `entities`, and `key_phrases` columns are JSON arrays and cannot be read with JSON_VALUE — use their scalar metadata equivalents).
+            - **Never** tell the user you could not find matching documents without first answering from **get_sql_response**.
+"""
+    else:
+        sql_fallback = """            - If the Azure AI Search tool returns no results for a summary, topic, category, sentiment, or aggregate question, fall back to **get_sql_response** and answer from the enriched `documents` table. Call **get_schema_and_sample_values** first to discover the exact metadata field names, then use the `summary` column for content and a scalar `JSON_VALUE(metadata, '$.<field>')` for grouping and counts. Note: the `topics`, `entities`, and `key_phrases` columns hold JSON arrays and cannot be read with JSON_VALUE — use their scalar metadata equivalents when grouping.
+"""
+
     return f"""You are a helpful assistant for the {name} scenario.
 
     {description}
@@ -118,7 +133,7 @@ def build_prompt(name, description, use_sql, table, columns):
             - Include citations inline using the exact format provided by the search tool (e.g., 【4:0†source】, 【4:1†source】).
             - **DO NOT** remove, modify, or omit any citation markers from your response - they must appear exactly as the search tool provides them.
             - Every fact, quote, or piece of information derived from search results must be immediately followed by its citation marker.
-
+{sql_fallback}
 {combined}
     Greeting Handling:
     - If the question is a greeting or polite phrase (e.g., "Hello", "Hi", "Good morning", "How are you?"), respond naturally and politely. You may greet and ask how you can assist.
@@ -177,7 +192,8 @@ if IS_FABRIC:
     prompt_text = build_fabric_prompt(data_source_name, data_source_table)
 else:
     prompt_text = build_prompt(
-        scenario_name, scenario_desc, USE_SQL, SQL_TABLE, SQL_COLUMNS)
+        scenario_name, scenario_desc, USE_SQL, SQL_TABLE, SQL_COLUMNS,
+        byod_search=is_byod and data_source_type == "azure_search")
 
 os.makedirs(config_dir, exist_ok=True)
 with open(prompt_path, "w", encoding="utf-8") as f:

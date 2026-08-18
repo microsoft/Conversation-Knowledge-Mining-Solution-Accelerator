@@ -855,7 +855,17 @@ class RAGService:
             )
 
         if filters:
-            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            # 'source'/'source_type'/'source_name' select the active data source, not a
+            # content facet — the agent's tools/index are already scoped to it. Passing it
+            # as a content filter yields 0 hits on a BYOD index that lacks the field, which
+            # (with the 'say so explicitly' line below) blocks the SQL fallback. Other code
+            # paths (analytics_engine, retrieval_engine) drop it the same way.
+            source_keys = {"source", "source_type", "source_name"}
+            filt_lines = "\n".join(
+                f"- {dim}: {val}"
+                for dim, val in filters.items()
+                if val and dim not in source_keys
+            )
             if filt_lines:
                 lines.append(
                     "Only consider content matching these filters:\n" + filt_lines

@@ -403,17 +403,62 @@ class ByodEnrichmentService:
                 try:
                     doc_id = doc.get("id", "")
                     summary = doc.get("summary", "")
-                    entities = json.dumps(doc.get("entities", []))
-                    key_phrases = json.dumps(doc.get("key_phrases", []))
+                    raw_entities = doc.get("entities", [])
+                    raw_key_phrases = doc.get("key_phrases", [])
+                    entities = json.dumps(raw_entities)
+                    key_phrases = json.dumps(raw_key_phrases)
                     topic = doc.get("topic", "")
                     source_file = doc.get("title", "")
-                    
+
+                    # Runtime queries (agent SQL tool, insights facets, scope filters) read
+                    # JSON_VALUE(metadata, '$.field'); build the same metadata shape seeded
+                    # ingestion writes so BYOD rows are filterable the same way.
+                    entity_names = [
+                        e.get("name", "").strip()
+                        for e in raw_entities
+                        if isinstance(e, dict) and e.get("name")
+                    ]
+                    if not entity_names and isinstance(raw_entities, list):
+                        entity_names = [str(e).strip() for e in raw_entities if e]
+                    try:
+                        topics_list = (
+                            json.loads(topic)
+                            if isinstance(topic, str) and topic.strip().startswith("[")
+                            else ([topic] if topic else [])
+                        )
+                    except Exception:
+                        topics_list = [topic] if topic else []
+                    # topics/entities/key_phrases stay as arrays for the app's facet UI;
+                    # add scalar aliases (JSON_VALUE can't read arrays) so the agent's SQL
+                    # tool can GROUP BY a category the same way seeded scenarios do.
+                    primary_topic = topics_list[0] if topics_list else ""
+                    metadata_obj = {
+                        "source_type": source_type,
+                        "source": source_type,
+                        "source_file": source_file,
+                        "summary": summary,
+                        "topics": topics_list,
+                        "key_phrases": raw_key_phrases,
+                        "entities": entity_names,
+                    }
+                    # Carry over scalar source fields (e.g. sentiment, category) for facets.
+                    for meta_key, meta_value in doc.items():
+                        if meta_key in ("id", "text", "title", "summary", "entities", "key_phrases", "topic"):
+                            continue
+                        if isinstance(meta_value, (str, int, float, bool)) and meta_key not in metadata_obj:
+                            metadata_obj[meta_key] = meta_value
+                    # Only add scalar topic/category aliases when the source didn't already
+                    # supply them, so a real source category is never overwritten.
+                    metadata_obj.setdefault("topic", primary_topic)
+                    metadata_obj.setdefault("category", primary_topic)
+                    metadata = json.dumps(metadata_obj)
+
                     # Insert or update document with enrichment
                     cursor.execute("""
                         MERGE INTO documents AS target
-                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source (
+                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source (
                             id, source_type, summary, entities, key_phrases, topics, 
-                            source_file, text_content, doc_type
+                            source_file, text_content, doc_type, metadata
                         )
                         ON target.id = source.id
                         WHEN MATCHED THEN
@@ -422,16 +467,17 @@ class ByodEnrichmentService:
                                 entities = source.entities,
                                 key_phrases = source.key_phrases,
                                 topics = source.topics,
-                                source_file = source.source_file
+                                source_file = source.source_file,
+                                metadata = source.metadata
                         WHEN NOT MATCHED THEN
                             INSERT (id, source_type, summary, entities, key_phrases, topics, 
-                                    source_file, text_content, doc_type)
+                                    source_file, text_content, doc_type, metadata)
                             VALUES (source.id, source.source_type, source.summary, source.entities, 
                                     source.key_phrases, source.topics, source.source_file, 
-                                    source.text_content, source.doc_type);
+                                    source.text_content, source.doc_type, source.metadata);
                     """, (
                         doc_id, source_type, summary, entities, key_phrases, topic,
-                        source_file, doc.get("text", ""), "byod"
+                        source_file, doc.get("text", ""), "byod", metadata
                     ))
                     
                 except Exception as e:

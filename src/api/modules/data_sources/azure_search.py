@@ -4,7 +4,11 @@ import logging
 import uuid
 from typing import Iterator, Optional
 
-from azure.identity import AzureCliCredential, ManagedIdentityCredential
+from azure.identity import (
+    AzureCliCredential,
+    ChainedTokenCredential,
+    ManagedIdentityCredential,
+)
 from azure.search.documents import SearchClient
 
 from src.api.modules.data_sources.base import (
@@ -22,12 +26,11 @@ class AzureSearchDataSource(BaseExternalDataSource):
 
     def _get_client(self, config: DataSourceConfig) -> SearchClient:
         settings = get_settings()
-        if settings.app_env.lower() == "dev":
-            credential = AzureCliCredential()
-        else:
-            credential = ManagedIdentityCredential(
-                client_id=settings.azure_client_id or None
-            )
+        # Managed identity in Azure, Azure CLI fallback for local runs (e.g. post-provision enrichment).
+        credential = ChainedTokenCredential(
+            ManagedIdentityCredential(client_id=settings.azure_client_id or None),
+            AzureCliCredential(),
+        )
         return SearchClient(
             endpoint=config.endpoint,
             index_name=config.table_or_query,  # index name stored in table_or_query
