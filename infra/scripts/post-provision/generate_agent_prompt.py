@@ -106,20 +106,16 @@ def build_prompt(name, description, use_sql, table, columns, byod_search=False):
                 "**combined response** including all results in one structured answer.\n"
                 ) if use_sql else ""
 
-    # Azure AI Search keyword search returns nothing for analytical/meta questions; the
-    # enriched SQL table always resolves them. For azure_search BYOD the external index
-    # may lack the filter field entirely, so Search returns 0 for everything — make the
-    # SQL fallback mandatory there. Seeded scenarios keep the softer, additive fallback.
-    if not use_sql:
-        sql_fallback = ""
-    elif byod_search:
+    # For azure_search BYOD the external index may lack the filter field entirely, so the
+    # Azure AI Search tool can return 0 results even when the data exists — make the SQL
+    # fallback mandatory there only. Seeded/other scenarios are left unchanged.
+    if byod_search and use_sql:
         sql_fallback = """            - **IMPORTANT (this data source):** The Azure AI Search index may not contain the metadata fields used by the document filter, so the Azure AI Search tool can return **zero results even when the data exists**. A zero-result or \"no documents match the filter\" response from Azure AI Search is **NOT** a valid final answer.
             - When Azure AI Search returns no results for a summary, topic, category, sentiment, content, or insight question, you **MUST** call **get_sql_response** and answer from the enriched `documents` table instead. Call **get_schema_and_sample_values** first to discover the exact field names, then use the `summary` column for content and a scalar `JSON_VALUE(metadata, '$.<field>')` for grouping/counts (the `topics`, `entities`, and `key_phrases` columns are JSON arrays and cannot be read with JSON_VALUE — use their scalar metadata equivalents).
             - **Never** tell the user you could not find matching documents without first answering from **get_sql_response**.
 """
     else:
-        sql_fallback = """            - If the Azure AI Search tool returns no results for a summary, topic, category, sentiment, or aggregate question, fall back to **get_sql_response** and answer from the enriched `documents` table. Call **get_schema_and_sample_values** first to discover the exact metadata field names, then use the `summary` column for content and a scalar `JSON_VALUE(metadata, '$.<field>')` for grouping and counts. Note: the `topics`, `entities`, and `key_phrases` columns hold JSON arrays and cannot be read with JSON_VALUE — use their scalar metadata equivalents when grouping.
-"""
+        sql_fallback = ""
 
     return f"""You are a helpful assistant for the {name} scenario.
 
