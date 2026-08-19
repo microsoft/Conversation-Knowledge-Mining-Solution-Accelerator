@@ -29,7 +29,7 @@ jobs:
       IMAGE_TAG: ${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Generate Unique Docker Image Tag
         id: generate_docker_tag
@@ -46,10 +46,10 @@ jobs:
           echo "Generated unique Docker tag: $UNIQUE_TAG"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2.3.1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -61,7 +61,7 @@ jobs:
           az acr login --name "$ACR_NAME"
 
       - name: Build and Push Docker Image for WebApp
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         env:
           DOCKER_BUILD_SUMMARY: false
         with:
@@ -73,7 +73,7 @@ jobs:
             ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}_${{ github.run_number }}
 
       - name: Build and Push Docker Image for API
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         env:
           DOCKER_BUILD_SUMMARY: false
         with:
