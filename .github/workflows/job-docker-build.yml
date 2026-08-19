@@ -65,8 +65,8 @@ jobs:
         env:
           DOCKER_BUILD_SUMMARY: false
         with:
-          context: ./src/App
-          file: ./src/App/WebApp.Dockerfile
+          context: ./src/app
+          file: ./src/app/WebApp.Dockerfile
           push: True
           tags: |
             ${{ secrets.ACR_TEST_LOGIN_SERVER }}/km-app:${{ steps.generate_docker_tag.outputs.IMAGE_TAG }}
