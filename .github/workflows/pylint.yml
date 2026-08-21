@@ -12,6 +12,9 @@ permissions:
   contents: read
   actions: read
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   build:
     runs-on: ubuntu-latest
