@@ -56,14 +56,23 @@ class EnrichmentAgentManager:
                                 return False
                         except Exception:
                             pass  # Not found — create below
-                        await pc.agents.create_version(
-                            agent_name=ENRICHMENT_AGENT_NAME,
-                            definition=PromptAgentDefinition(
-                                model=settings.azure_openai_chat_deployment,
-                                instructions=_INSTRUCTIONS,
-                            ),
-                        )
-                        return True
+                        try:
+                            await pc.agents.create_version(
+                                agent_name=ENRICHMENT_AGENT_NAME,
+                                definition=PromptAgentDefinition(
+                                    model=settings.azure_openai_chat_deployment,
+                                    instructions=_INSTRUCTIONS,
+                                ),
+                            )
+                            return True
+                        except Exception as ce:
+                            # On multi-instance deploys another worker may create the same
+                            # agent concurrently -> 409 conflict. The agent now exists, so
+                            # reuse it instead of failing enrichment for this file.
+                            msg = str(ce).lower()
+                            if "conflict" in msg or "already exists" in msg or "modified concurrently" in msg:
+                                return False
+                            raise
                 created = asyncio.run(_create())
                 self._name = ENRICHMENT_AGENT_NAME
                 logger.info(

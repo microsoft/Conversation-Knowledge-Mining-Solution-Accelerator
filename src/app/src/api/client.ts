@@ -165,22 +165,6 @@ export const askQuestion = (
     document_ids: documentIds,
     conversation_id: conversationId,
   });
-export const sendConversation = (
-  messages: { role: string; content: string }[],
-  topK = 5,
-  filters?: Record<string, string>,
-  chatScope: "all" | "documents" = "all",
-  documentIds?: string[],
-  conversationId?: string
-) =>
-  apiClient.post("/rag/conversation", {
-    messages,
-    top_k: topK,
-    filters,
-    chat_scope: chatScope,
-    document_ids: documentIds,
-    conversation_id: conversationId,
-  });
 
 // Fetch the full content of a cited document (lazy, on citation click).
 // Matches the backend /rag/fetch-azure-search-content endpoint.

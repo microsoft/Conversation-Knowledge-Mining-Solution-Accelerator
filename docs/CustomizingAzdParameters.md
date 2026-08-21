@@ -25,6 +25,15 @@ After setting parameters, run `azd up` (or `azd provision`) to apply them.
 | `existingAiFoundryEndpoint` | `EXISTING_AI_FOUNDRY_ENDPOINT` | *(empty)* | Endpoint of an existing AI Foundry project to reuse. |
 | `existingAiSearchConnectionName` | `EXISTING_AI_SEARCH_CONNECTION_NAME` | *(empty)* | Name of an existing Azure AI Search connection to reuse. |
 | `adminApiKey` | `ADMIN_API_KEY` | *(empty)* | Optional admin API key for privileged operations. |
+| `deploymentFlavor` | `DEPLOYMENT_FLAVOR` | `bicep` | Infrastructure variant: `bicep`, `avm`, or `avm-waf`. See [Deployment Flavor & Production (WAF) Parameters](#deployment-flavor--production-waf-parameters). |
+| `azureAiServiceLocation` | `AZURE_ENV_AI_SERVICE_LOCATION` | *(location)* | Region for the Azure AI (OpenAI) service. |
+| `appServicePlanSku` | `AZURE_ENV_APP_SERVICE_PLAN_SKU` | `B3` | App Service Plan SKU for the backend and frontend web apps. |
+| `containerRegistryName` | `AZURE_ENV_CONTAINER_REGISTRY_NAME` | *(generated)* | Name of an existing Azure Container Registry to reuse (leave empty to create one). |
+| `backendContainerImageTag` / `frontendContainerImageTag` | `AZURE_ENV_IMAGE_TAG` | `latest` | Container image tag to deploy. |
+| `deployCosmos` | `AZURE_ENV_DEPLOY_COSMOS` | `false` | Deploy Cosmos DB alongside SQL (SQL is the primary database; not required). |
+| `existingLogAnalyticsWorkspaceId` | `AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID` | *(empty)* | Resource ID of an existing Log Analytics workspace to reuse. |
+| `existingFoundryProjectResourceId` | `AZURE_EXISTING_AIPROJECT_RESOURCE_ID` | *(empty)* | Resource ID of an existing Azure AI Foundry project to reuse. |
+| `deployingUserPrincipalType` | `DEPLOYING_USER_PRINCIPAL_TYPE` | `User` | Principal type of the deployer (`User` or `ServicePrincipal`); used for data-plane RBAC assignments. |
 
 ## Model Configuration
 
@@ -36,6 +45,42 @@ The AI model deployments are defined as parameters in [infra/main.bicep](../infr
 | `embeddingDeploymentName` | `text-embedding-3-small` | Azure OpenAI embedding deployment for hybrid search. Deployed at 80k capacity on `GlobalStandard`. |
 | `gptModelVersion` | `2025-12-11` | Version of the chat model. |
 | `deployCosmos` | `false` | Set to `true` to also deploy Cosmos DB (SQL is the primary database; not required). |
+
+## Deployment Flavor & Production (WAF) Parameters
+
+The infrastructure supports three deployment flavors, selected by the `deploymentFlavor` value in [infra/main.parameters.json](../infra/main.parameters.json):
+
+| Flavor | Description |
+|--------|-------------|
+| `bicep` | **Default.** Development / testing deployment without private networking. |
+| `avm` | Azure Verified Modules without private networking. |
+| `avm-waf` | Well-Architected Framework aligned: private networking, VNet, private endpoints, jumpbox VM + Bastion, and optional redundancy. |
+
+**How to select a flavor:** the deployment flavor is chosen by which parameters file is active — `azd` always reads `infra/main.parameters.json`. To deploy the Production (WAF) flavor, copy the WAF parameters file over the default:
+
+```powershell
+Copy-Item ./infra/main.waf.parameters.json ./infra/main.parameters.json -Force
+```
+
+```bash
+cp ./infra/main.waf.parameters.json ./infra/main.parameters.json
+```
+
+The WAF parameters file sets the following additional values. Flags without an `azd` environment variable are hard-coded in the file — edit the file directly to change them.
+
+| Parameter | azd Environment Variable | Default (WAF file) | Description |
+|-----------|--------------------------|--------------------|-------------|
+| `deploymentFlavor` | `DEPLOYMENT_FLAVOR` | `avm-waf` | Selects the WAF infrastructure variant. |
+| `enableMonitoring` | *(hard-coded)* | `true` | Application Insights + Log Analytics. |
+| `enablePrivateNetworking` | *(hard-coded)* | `true` | VNet, private endpoints, jumpbox VM, and Azure Bastion. |
+| `enableScalability` | *(hard-coded)* | `true` | Higher SKUs and autoscale settings. |
+| `enableRedundancy` | *(hard-coded)* | `false` | Zone redundancy and Log Analytics workspace replication. |
+| `enableTelemetry` | `AZURE_ENV_ENABLE_TELEMETRY` | `true` | Anonymous deployment telemetry. |
+| `vmAdminUsername` | `AZURE_ENV_VM_ADMIN_USERNAME` | *(empty)* | Jumpbox admin username (fallback; login is via Entra ID + Bastion). |
+| `vmAdminPassword` | `AZURE_ENV_VM_ADMIN_PASSWORD` | *(empty)* | Jumpbox admin password. |
+| `vmSize` | `AZURE_ENV_VM_SIZE` | `Standard_D2s_v5` | Jumpbox VM size. |
+
+> **Production prerequisite:** the WAF jumpbox VM enables host encryption, so the `EncryptionAtHost` feature must be registered on the subscription before deploying. See [Choose Deployment Type](./DeploymentGuide.md#33-choose-deployment-type-standard-vs-production) for the registration commands and VM credential setup.
 
 ## Examples
 
@@ -61,6 +106,15 @@ azd up
 
 ```shell
 azd env set AZURE_CU_LOCATION swedencentral
+azd up
+```
+
+**Deploy the Production (WAF) configuration with VM credentials:**
+
+```shell
+Copy-Item ./infra/main.waf.parameters.json ./infra/main.parameters.json -Force
+azd env set AZURE_ENV_VM_ADMIN_USERNAME azureadmin
+azd env set AZURE_ENV_VM_ADMIN_PASSWORD <strong-password>
 azd up
 ```
 

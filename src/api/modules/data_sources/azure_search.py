@@ -4,7 +4,11 @@ import logging
 import uuid
 from typing import Iterator, Optional
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import (
+    AzureCliCredential,
+    ChainedTokenCredential,
+    ManagedIdentityCredential,
+)
 from azure.search.documents import SearchClient
 
 from src.api.modules.data_sources.base import (
@@ -12,6 +16,7 @@ from src.api.modules.data_sources.base import (
     ColumnInfo,
     DataSourceConfig,
 )
+from src.api.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +25,12 @@ class AzureSearchDataSource(BaseExternalDataSource):
     """Adapter for Azure AI Search — enables BYOI (bring your own index)."""
 
     def _get_client(self, config: DataSourceConfig) -> SearchClient:
-        credential = DefaultAzureCredential()
+        settings = get_settings()
+        # Managed identity in Azure, Azure CLI fallback for local runs (e.g. post-provision enrichment).
+        credential = ChainedTokenCredential(
+            ManagedIdentityCredential(client_id=settings.azure_client_id or None),
+            AzureCliCredential(),
+        )
         return SearchClient(
             endpoint=config.endpoint,
             index_name=config.table_or_query,  # index name stored in table_or_query

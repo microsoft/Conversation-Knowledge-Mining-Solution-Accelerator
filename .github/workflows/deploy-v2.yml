@@ -4,14 +4,14 @@ on:
     branches:
       - main
     paths:
-      - 'src/App/**/*.js'
-      - 'src/App/**/*.jsx'
-      - 'src/App/**/*.ts'
-      - 'src/App/**/*.tsx'
-      - 'src/App/**/*.html'
-      - 'src/App/**/*.css'
-      - 'src/App/**/*.scss'
-      - 'src/App/**/*.json'
+      - 'src/app/**/*.js'
+      - 'src/app/**/*.jsx'
+      - 'src/app/**/*.ts'
+      - 'src/app/**/*.tsx'
+      - 'src/app/**/*.html'
+      - 'src/app/**/*.css'
+      - 'src/app/**/*.scss'
+      - 'src/app/**/*.json'
       - 'src/**/*.py'
       - 'src/api/requirements.txt'
       - 'src/**/*.Dockerfile'

@@ -855,7 +855,15 @@ class RAGService:
             )
 
         if filters:
-            filt_lines = "\n".join(f"- {dim}: {val}" for dim, val in filters.items() if val)
+            # 'source'/'source_type'/'source_name' select the active data source, not a
+            # content facet, so exclude them here — filtering an external BYOD index by a
+            # field it lacks returns 0 hits. analytics_engine/retrieval_engine drop them too.
+            source_keys = {"source", "source_type", "source_name"}
+            filt_lines = "\n".join(
+                f"- {dim}: {val}"
+                for dim, val in filters.items()
+                if val and dim not in source_keys
+            )
             if filt_lines:
                 lines.append(
                     "Only consider content matching these filters:\n" + filt_lines
@@ -900,93 +908,6 @@ class RAGService:
             question=question,
             answer=_strip_links_from_answer(answer),
             sources=sources if include_sources else [],
-            model=settings.azure_openai_chat_deployment,
-        )
-
-    def answer_conversation(
-        self,
-        messages: list[dict],
-        top_k: int = 5,
-        filters: Optional[dict] = None,
-        document_ids: Optional[list[str]] = None,
-        conversation_id: Optional[str] = None,
-    ) -> QAResponse:
-        """Multi-turn conversation with RAG context."""
-        settings = get_settings()
-
-        last_user_message = ""
-        for msg in reversed(messages):
-            if msg["role"] == "user":
-                last_user_message = msg["content"]
-                break
-
-        if not last_user_message:
-            return QAResponse(
-                question="", answer="No user message found.", sources=[], model=settings.azure_openai_chat_deployment
-            )
-
-        # Filter scoping
-        if filters and not document_ids:
-            from src.api.modules.ingestion.service import ingestion_service
-            matching_ids = self._filter_document_ids(filters, ingestion_service)
-            if matching_ids is not None:
-                document_ids = matching_ids
-
-        from src.api.modules.runtime.retrieval_engine import retrieval_engine
-        search_docs = retrieval_engine.retrieve(
-            query=last_user_message,
-            top_k=top_k,
-            filters=filters,
-            document_ids=document_ids,
-            source="all",
-        )
-
-        # Also inject blob text for 'extracted'-status files not yet in AI Search
-        if document_ids:
-            extracted_docs = self._build_extracted_context(document_ids, last_user_message)
-            indexed_ids = {d["doc_id"] for d in search_docs}
-            for doc in extracted_docs:
-                if doc["doc_id"] not in indexed_ids:
-                    search_docs.append(doc)
-        else:
-            from src.api.modules.ingestion.service import ingestion_service
-            ingestion_service._ensure_loaded()
-            extracted_ids = [
-                f.id for f in ingestion_service._uploaded_files.values()
-                if f.status == "extracted"
-            ]
-            if extracted_ids:
-                search_docs.extend(self._build_extracted_context(extracted_ids, last_user_message))
-
-        search_docs = self._filter_noise_docs(search_docs, "answer-conversation-post-merge")
-
-        sources = []
-        for i, doc in enumerate(search_docs):
-            text = doc["text"][:4000]
-            sources.append(Source(
-                doc_id=doc["doc_id"], score=round(doc.get("score", 0), 4),
-                text=text[:500],
-                source_file=doc.get("source_file", ""),
-            ))
-
-        all_messages = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
-        try:
-            answer, agent_sources = self._run_agent(all_messages, conversation_id)
-        except Exception as e:
-            logger.warning(f"Agent call failed in answer_conversation, using fallback answer: {e}")
-            answer = self._build_fallback_answer(last_user_message, search_docs)
-            agent_sources = []
-
-        if not (answer or "").strip() or _is_unhelpful_answer(answer):
-            logger.warning("Agent answer was empty/unhelpful in answer_conversation, using grounded fallback")
-            answer = self._build_grounded_answer(last_user_message, search_docs)
-
-        combined_sources = self._merge_sources(agent_sources, sources)
-        combined_sources = self._filter_noise_sources(combined_sources, "answer-conversation-response")
-        return QAResponse(
-            question=last_user_message,
-            answer=_strip_links_from_answer(answer),
-            sources=combined_sources,
             model=settings.azure_openai_chat_deployment,
         )
 

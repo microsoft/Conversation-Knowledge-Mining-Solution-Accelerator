@@ -43,7 +43,11 @@ param(
     [string]$ConnectionString,
 
     [string]$BackendUrl = "http://localhost:8000",
-    [switch]$AllowDeployedFallback
+    [switch]$AllowDeployedFallback,
+
+    # Resource group for non-azd / AVM deployments; used to auto-discover the
+    # deployed backend and threaded down to child scripts (setup-agent/connect-data).
+    [string]$ResourceGroupName
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,9 +60,46 @@ Write-Host ""
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
-# Read a deploy value from azd env, falling back to the project .env
+# Resolve the Python interpreter — prefer the project virtual environment, which
+# has the pinned SDK versions (requirements.txt). Fall back to PATH python.
+$pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
+if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
+# Cache of the deployed backend's app settings, populated once per resource group.
+$script:RgAppSettingsCache = $null
+
+# Read every app setting from the api-* App Service in the resource group (cached).
+# This is the source of truth when a resource group is targeted explicitly.
+function Get-RgAppSettings {
+    param([string]$Rg)
+    if (-not $Rg) { return @{} }
+    if ($null -ne $script:RgAppSettingsCache) { return $script:RgAppSettingsCache }
+
+    $settings = @{}
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $names) {
+        $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+        if ($apiApp) {
+            $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $json) {
+                try { foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value } } catch {}
+            }
+        }
+    }
+    $script:RgAppSettingsCache = $settings
+    return $settings
+}
+
 function Get-DeployValue {
     param([string]$Name)
+
+    # When a resource group is targeted, config MUST come from the deployed backend
+    # in that group — the local azd env may point at an unrelated deployment.
+    if ($ResourceGroupName) {
+        $rgSettings = Get-RgAppSettings $ResourceGroupName
+        if ($rgSettings.Contains($Name)) { return "$($rgSettings[$Name])".Trim() }
+        return ""
+    }
+
     $val = azd env get-value $Name 2>$null
     if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
         return "$val".Trim()
@@ -69,6 +110,20 @@ function Get-DeployValue {
         if ($line) { return ($line -replace "^$Name=", '').Trim() }
     }
     return ""
+}
+
+# Discover the deployed backend URL from an api-* App Service in the resource group.
+# Used for non-azd / AVM deployments where no local backend is running.
+function Get-DiscoveredBackendUrl {
+    param([string]$Rg)
+    if (-not $Rg) { return "" }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+    if (-not $apiApp) { return "" }
+    $hostName = (az webapp show --name $apiApp.Trim() --resource-group $Rg --query defaultHostName -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $hostName) { return "" }
+    return "https://$($hostName.Trim())"
 }
 
 # ── Load scenarios config (used by interactive menu and scenario resolution) ──
@@ -114,6 +169,17 @@ function Resolve-ScenarioDataPath {
 # ── Resolve backend URL ──
 if ($PSBoundParameters.ContainsKey("BackendUrl")) {
     Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
+}
+elseif ($ResourceGroupName) {
+    # Non-azd / AVM deployment: target the deployed backend discovered from the resource group.
+    $discovered = Get-DiscoveredBackendUrl $ResourceGroupName
+    if ($discovered) {
+        $BackendUrl = $discovered
+        Write-Host "Using deployed backend discovered from resource group '$ResourceGroupName': $BackendUrl" -ForegroundColor Yellow
+    } else {
+        Write-Host "ERROR: Could not discover the backend App Service (api-*) in resource group '$ResourceGroupName'." -ForegroundColor Red
+        exit 1
+    }
 }
 elseif ($BackendUrl -eq "http://localhost:8000") {
     $localHealthy = $false
@@ -183,14 +249,179 @@ function Invoke-DataCleanup {
     # Clear existing demo data (documents, insights cache) and any external data source
     # registrations so every scenario starts from a clean slate.
     Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
-    try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
-        Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
-    } catch {
-        Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
-        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
-        exit 1
+    $maxAttempts = 5
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
+            Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
+            return
+        } catch {
+            $statusCode = $null
+            if ($_.Exception.Response) { $statusCode = [int]$_.Exception.Response.StatusCode }
+            $isTransient = ($statusCode -eq 503 -or $statusCode -eq 502 -or $statusCode -eq 504 -or -not $statusCode)
+            if ($isTransient -and $attempt -lt $maxAttempts) {
+                Write-Host "Backend not ready yet (attempt $attempt/$maxAttempts) — retrying in 10s..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 10
+                continue
+            }
+            Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
+            Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
+            exit 1
+        }
     }
+}
+
+# Wait until every uploaded file has actually been processed, by checking the DURABLE store
+# rather than the API's in-memory /files list. On WAF deployments the API runs on multiple
+# App Service instances, each with its own in-memory cache, so /files (and /stats) are not
+# coherent — a long-lived poller pins to one instance via HTTP keep-alive and sees a stale
+# view forever. The Azure AI Search index is instance-independent: a file only appears there
+# (>=1 chunk under its source_file) once extraction + enrichment + indexing have completed.
+# We key on the exact filenames we uploaded and re-submit any that never land in the index
+# (recovers Content Understanding timeouts). If the search index can't be reached we fall back
+# to the reliable SQL total exposed by POST /refresh (registration only). Reaching all-indexed
+# before the caller recycles the app (agent step / network re-lock) is what prevents data loss.
+function Wait-ForIngestionCompletion {
+    [CmdletBinding()]
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers,
+        $ExpectedFiles = @(),
+        [int]$TimeoutSec = 1500,
+        [int]$PollIntervalSec = 15,
+        [int]$MaxRetryRounds = 3,
+        [int]$RetryGraceSec = 180
+    )
+
+    # De-duplicate expected files by name, keeping the FileInfo so we can re-upload if needed.
+    $byName = [ordered]@{}
+    foreach ($f in @($ExpectedFiles | Where-Object { $_ })) {
+        if (-not $byName.Contains($f.Name)) { $byName[$f.Name] = $f }
+    }
+    $expectedNames = @($byName.Keys)
+    if ($expectedNames.Count -eq 0) {
+        return [pscustomobject]@{ Completed = $true; Indexed = 0; Expected = 0; Pending = @() }
+    }
+
+    Write-Host ""
+    Write-Host "Waiting for processing to finish (verifying against the search index — durable, instance-independent)..." -ForegroundColor Yellow
+
+    $searchEndpoint = (Get-DeployValue "AZURE_SEARCH_ENDPOINT").TrimEnd("/")
+    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
+    if (-not $searchIndexName) { $searchIndexName = "knowledge-mining-index" }
+    $apiVer = "2023-11-01"
+    $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
+
+    # Fallback: search index unreachable — wait on the reliable SQL total from /refresh.
+    if (-not $searchEndpoint -or -not $searchToken) {
+        Write-Warning "Search index not reachable — falling back to SQL registration count via /refresh."
+        $elapsed = 0
+        $cnt = 0
+        while ($elapsed -lt $TimeoutSec) {
+            $cnt = -1
+            try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
+            $pct = if ($expectedNames.Count) { [int](100 * [Math]::Max(0, $cnt) / $expectedNames.Count) } else { 100 }
+            Write-Progress -Activity "Registering files" -Status "$([Math]::Max(0, $cnt))/$($expectedNames.Count) registered in SQL (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
+            if ($cnt -ge $expectedNames.Count) {
+                Write-Progress -Activity "Registering files" -Completed
+                Write-Host "  All $($expectedNames.Count) file(s) registered in SQL (readiness not verified — check the Sources page)." -ForegroundColor Green
+                return [pscustomobject]@{ Completed = $true; Indexed = $cnt; Expected = $expectedNames.Count; Pending = @() }
+            }
+            Start-Sleep -Seconds $PollIntervalSec
+            $elapsed += $PollIntervalSec
+        }
+        Write-Progress -Activity "Registering files" -Completed
+        Write-Warning "Timed out after ${TimeoutSec}s waiting for files to register in SQL. Retry from the Sources page in the web UI."
+        return [pscustomobject]@{ Completed = $false; Indexed = [Math]::Max(0, $cnt); Expected = $expectedNames.Count; Pending = @($expectedNames) }
+    }
+
+    $searchUri = "$searchEndpoint/indexes/$searchIndexName/docs/search?api-version=$apiVer"
+    $elapsed = 0
+    $retryRound = 0
+    $lastRetryAt = -99999
+    $pending = @($expectedNames)
+    while ($elapsed -lt $TimeoutSec) {
+        $pending = @()
+        foreach ($name in $expectedNames) {
+            $esc = $name.Replace("'", "''")
+            $body = @{ search = '*'; filter = "source_file eq '$esc'"; top = 0; count = $true } | ConvertTo-Json
+            $count = -1
+            for ($try = 0; $try -lt 2; $try++) {
+                try {
+                    $resp = Invoke-RestMethod -Uri $searchUri -Method POST -Body $body `
+                        -Headers @{ Authorization = "Bearer $searchToken"; 'Content-Type' = 'application/json' }
+                    $count = [int]$resp.'@odata.count'
+                    break
+                } catch {
+                    $code = $null; if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
+                    if ($code -eq 401) {
+                        $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
+                        continue
+                    }
+                    break  # transient — treat as not-yet-indexed this round
+                }
+            }
+            if ($count -le 0) { $pending += $name }
+        }
+
+        if ($pending.Count -eq 0) {
+            Write-Progress -Activity "Processing files" -Completed
+            Write-Host "  All $($expectedNames.Count) file(s) processed and indexed." -ForegroundColor Green
+            return [pscustomobject]@{ Completed = $true; Indexed = $expectedNames.Count; Expected = $expectedNames.Count; Pending = @() }
+        }
+
+        $done = $expectedNames.Count - $pending.Count
+        $pct = if ($expectedNames.Count) { [int](100 * $done / $expectedNames.Count) } else { 100 }
+        Write-Progress -Activity "Processing files" -Status "$done/$($expectedNames.Count) indexed (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
+        Write-Verbose "Waiting on: $($pending -join ', ')"
+
+        # After a grace period, re-submit still-missing files to recover CU timeouts/failures.
+        if (($elapsed - $lastRetryAt) -ge $RetryGraceSec -and $retryRound -lt $MaxRetryRounds) {
+            $retryRound++
+            $lastRetryAt = $elapsed
+            Write-Verbose "Re-submitting $($pending.Count) unprocessed file(s) (round $retryRound/$MaxRetryRounds)..."
+            $retryItems = @($pending | ForEach-Object { $byName[$_] })
+            for ($i = 0; $i -lt $retryItems.Count; $i += 5) {
+                $batch = @($retryItems[$i..([Math]::Min($i + 4, $retryItems.Count - 1))])
+                $fileItems = @(); foreach ($b in $batch) { $fileItems += Get-Item $b.FullName }
+                Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $Headers -FileItems $fileItems | Out-Null
+            }
+        }
+
+        Start-Sleep -Seconds $PollIntervalSec
+        $elapsed += $PollIntervalSec
+    }
+
+    Write-Progress -Activity "Processing files" -Completed
+    Write-Warning "Timed out after ${TimeoutSec}s. Not yet indexed: $($pending -join ', '). Retry from the Sources page in the web UI."
+    return [pscustomobject]@{ Completed = $false; Indexed = ($expectedNames.Count - $pending.Count); Expected = $expectedNames.Count; Pending = @($pending) }
+}
+
+# Upload a single batch of files, retrying transient upload failures a few times.
+# Returns $true if the batch was accepted by the backend, $false otherwise.
+function Invoke-UploadBatchWithRetry {
+    [CmdletBinding()]
+    param(
+        [string]$BackendUrl,
+        [hashtable]$Headers,
+        [array]$FileItems,
+        [int]$MaxAttempts = 3
+    )
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                -Method POST -Form @{ files = $FileItems } -Headers $Headers | Out-Null
+            return $true
+        } catch {
+            if ($attempt -lt $MaxAttempts) {
+                Write-Warning "Upload attempt $attempt/$MaxAttempts failed — retrying in 10s: $_"
+                Start-Sleep -Seconds 10
+            } else {
+                Write-Warning "Upload FAILED after $MaxAttempts attempts: $_"
+            }
+        }
+    }
+    return $false
 }
 
 # Ensure the solution search index exists
@@ -205,7 +436,7 @@ function Invoke-EnsureSearchIndex {
     if ($searchIndexName)     { $idxArgs += "--index-name", $searchIndexName }
     if ($openaiEndpoint)      { $idxArgs += "--openai-endpoint", $openaiEndpoint }
     if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
-    python @idxArgs
+    & $pythonExe @idxArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
     }
@@ -265,7 +496,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
                 Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
                 Write-Host ""
                 $env:BACKEND_URL = $BackendUrl
-                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType
+                & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $sourceType -ResourceGroupName $ResourceGroupName
                 exit $LASTEXITCODE
             }
             $Scenario = $selected.key
@@ -276,7 +507,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host ""
             $env:BACKEND_URL = $BackendUrl
-            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key
+            & (Join-Path $PSScriptRoot "connect-data.ps1") -Type $selected.key -ResourceGroupName $ResourceGroupName
             exit $LASTEXITCODE
         }
         "skip" {
@@ -287,7 +518,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
             Invoke-EnsureSearchIndex
             Write-Host ""
             Write-Host "Creating default AI agent with SQL and Azure AI Search tools..." -ForegroundColor Yellow
-            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip"
+            & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario "skip" -ResourceGroupName $ResourceGroupName
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario skip" -ForegroundColor Yellow
             }
@@ -351,10 +582,23 @@ if ($Scenario) {
         Write-Host "This scenario has pre-processed data. Loading via seed script..." -ForegroundColor Yellow
         Write-Host ""
 
+        # Export deploy-resolved config so the seed subprocess targets THIS deployment.
+        # Overwrites any stale session/.env values (e.g. leftovers from a prior run
+        # against a different environment) that seed-sample-data.py would otherwise use.
+        foreach ($name in @(
+            "AZURE_SEARCH_ENDPOINT", "AZURE_SEARCH_INDEX_NAME",
+            "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+            "AZURE_COSMOS_ENDPOINT", "AZURE_COSMOS_DATABASE",
+            "AZURE_SQL_SERVER", "AZURE_SQL_DATABASE"
+        )) {
+            $val = Get-DeployValue $name
+            if ($val) { Set-Item -Path "Env:$name" -Value $val }
+        }
+
         # Run seed-sample-data.py with the scenario data directory
         $env:KM_SCENARIO_DATA_DIR = $scenarioDataPath
         $env:BACKEND_URL = $BackendUrl
-        python (Join-Path $PSScriptRoot "seed-sample-data.py")
+        & $pythonExe (Join-Path $PSScriptRoot "seed-sample-data.py")
 
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""
@@ -406,6 +650,9 @@ if ($DataPath) {
     if ($docFiles.Count -gt 0) { Write-Host "  $($docFiles.Count) document files (PDF/JSON/DOCX/etc.)" -ForegroundColor Cyan }
     Write-Host ""
 
+    $audioUploaded = 0
+    $docUploaded = 0
+
     # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {
         Write-Host ""
@@ -422,17 +669,15 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            try {
-                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } catch {
-                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+            } else {
                 $failed += $batch.Count
             }
         }
         Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+        $audioUploaded = $success
         if ($success -gt 0) {
             Write-Host "  Audio files are processing in background — check Sources page for status." -ForegroundColor Cyan
         }
@@ -453,21 +698,32 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            try {
-                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } catch {
-                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
+            } else {
                 $failed += $batch.Count
             }
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
+        $docUploaded = $success
+    }
+
+    $ingestion = $null
+    if ($audioFiles.Count -gt 0 -or $docFiles.Count -gt 0) {
+        # Verify against the durable search index, keyed on the actual files we uploaded.
+        $expectedItems = @()
+        if ($audioFiles) { $expectedItems += $audioFiles }
+        if ($docFiles)   { $expectedItems += $docFiles }
+        $ingestion = Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
     }
 
     Write-Host ""
-    Write-Host "Data upload complete!" -ForegroundColor Green
+    if ($ingestion -and -not $ingestion.Completed) {
+        Write-Host "Data upload finished — $($ingestion.Indexed)/$($ingestion.Expected) file(s) indexed. Retry the rest from the Sources page." -ForegroundColor Yellow
+    } else {
+        Write-Host "Data upload complete!" -ForegroundColor Green
+    }
 }
 
 # ══════════════════════════════════════════
@@ -486,7 +742,7 @@ if ($ExternalSource) {
     if ($Table)            { $pyArgs += "--table", $Table }
     if ($ConnectionString) { $pyArgs += "--connection-string", $ConnectionString }
 
-    python (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
+    & $pythonExe (Join-Path $PSScriptRoot "connect-data.py") @pyArgs
     if ($LASTEXITCODE -ne 0) {
         Write-Host "External data source connection failed." -ForegroundColor Red
         exit 1
@@ -522,7 +778,7 @@ Write-Host ""
 if ($Scenario) {
     Write-Host ""
     Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
-    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario
+    & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario -ResourceGroupName $ResourceGroupName
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
     }
