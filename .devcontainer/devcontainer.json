@@ -3,6 +3,9 @@
     "build": {
         "dockerfile": "Dockerfile"
     },
+    "containerEnv": {
+        "NPM_CONFIG_REGISTRY": "https://packagefeedproxy.microsoft.io/npm/"
+    },
     "forwardPorts": [50505],
     "features": {
         "ghcr.io/azure/azure-dev/azd:latest": {},
