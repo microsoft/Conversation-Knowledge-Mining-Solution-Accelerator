@@ -417,6 +417,12 @@ async def list_uploaded_files():
 async def refresh_cache():
     """Force reload data from database. Use after external seeding."""
     ingestion_service.reload()
+    # reload data-source registry.
+    try:
+        from src.api.modules.data_sources.registry import data_source_registry
+        data_source_registry.reload()
+    except Exception as e:
+        logger.warning(f"Failed to reload data source registry on refresh: {e}")
     return {"status": "refreshed", "files": len(ingestion_service.uploaded_files)}
 
 

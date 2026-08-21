@@ -286,6 +286,11 @@ class DataSourceRegistry:
         self._ensure_loaded()
         return self._cache.get(source_id)
 
+    def reload(self):
+        """Drop the cache so a newly registered scenario/use-case source is picked up on next read."""
+        self._cache = {}
+        self._loaded = False
+
     def list_all(self) -> list[DataSourceConfig]:
         self._ensure_loaded()
         return list(self._cache.values())
