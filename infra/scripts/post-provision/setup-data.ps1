@@ -564,14 +564,29 @@ if ($Scenario) {
     Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
 
     # Register the scenario as an inert 'native' data source so its use-case name
-    # surfaces in the UI at runtime without a frontend rebuild.
-    try {
-        $scenarioBody = @{ name = $pack.name; use_case = $pack.name } | ConvertTo-Json -Compress
-        Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/scenario" -Method POST `
-            -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
-        Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
-    } catch {
-        Write-Host "WARNING: Could not register scenario use case name: $($_.Exception.Message)" -ForegroundColor Yellow
+    # surfaces in the UI at runtime without a frontend rebuild. Retry and verify the
+    # marker actually persisted to SQL — a bare POST can return 200 from the in-memory
+    # object while the SQL write silently fails (e.g. RBAC not yet propagated), leaving
+    # the UI to fall back to a generic dataset title.
+    $scenarioBody = @{ name = $pack.name; use_case = $pack.name } | ConvertTo-Json -Compress
+    $registered = $false
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/scenario" -Method POST `
+                -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
+            $sources = Invoke-RestMethod -Uri "$BackendUrl/api/data-sources/" -Method GET -Headers $headers
+            if ($sources | Where-Object { $_.use_case -eq $pack.name }) {
+                Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
+                $registered = $true
+                break
+            }
+        } catch {
+            Write-Host "Scenario registration not ready (attempt $attempt/5): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        Start-Sleep -Seconds 10
+    }
+    if (-not $registered) {
+        Write-Host "WARNING: Could not confirm scenario use case '$($pack.name)' persisted — the dataset title may show a generic name." -ForegroundColor Yellow
     }
 
     # Create the solution search index (seeded scenarios only)
