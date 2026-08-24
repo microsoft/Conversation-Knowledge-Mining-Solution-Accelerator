@@ -33,6 +33,9 @@ permissions:
   actions: read
   pull-requests: write
 
+env:
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
+
 jobs:
   #   frontend_tests:
   #     runs-on: ubuntu-latest

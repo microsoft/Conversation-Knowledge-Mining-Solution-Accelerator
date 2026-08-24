@@ -4,7 +4,7 @@ WORKDIR /home/node/app
 ENV NO_UPDATE_NOTIFIER=1
 ENV NODE_NO_WARNINGS=1
 
-COPY ./package*.json ./
+COPY ./package*.json ./.npmrc ./
 
 RUN npm install --legacy-peer-deps --no-fund --loglevel=error
 

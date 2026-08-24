@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "10337152692073035355"
+      "templateHash": "1318414140954658490"
     }
   },
   "parameters": {
@@ -422,7 +422,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.46.1.21595",
-              "templateHash": "2674927175993199895"
+              "templateHash": "14276438460949499850"
             }
           },
           "parameters": {
@@ -790,7 +790,7 @@
               }
             ],
             "useExistingLogAnalytics": "[not(empty(parameters('existingLogAnalyticsWorkspaceId')))]",
-            "virtualMachineAvailabilityZone": 1,
+            "virtualMachineAvailabilityZone": -1,
             "aiFoundryResourceGroupName": "[if(variables('useExistingAIProject'), split(parameters('existingFoundryProjectResourceId'), '/')[4], resourceGroup().name)]",
             "aiFoundrySubscriptionId": "[if(variables('useExistingAIProject'), split(parameters('existingFoundryProjectResourceId'), '/')[2], subscription().subscriptionId)]",
             "placeholderImageName": "DOCKER|mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
@@ -40681,8 +40681,8 @@
               "dependsOn": [
                 "log_analytics",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageDfs)]",
-                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageBlob)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageFile)]",
+                "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageBlob)]",
                 "[format('privateDnsZoneDeployments[{0}]', variables('dnsZoneIndex').storageQueue)]",
                 "virtualNetwork"
               ]
