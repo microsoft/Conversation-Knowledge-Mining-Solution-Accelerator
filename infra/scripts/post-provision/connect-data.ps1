@@ -34,9 +34,10 @@ function Get-AzdEnvValue {
     param([string]$Name)
     if (-not $azdAvailable) { return "" }
     $value = azd env get-value $Name 2>$null
-    if (-not $value) { return "" }
-    if ($value -is [string] -and $value.StartsWith("ERROR:")) { return "" }
-    return "$value".Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $value) { return "" }
+    $text = ($value | Out-String).Trim()
+    if ($text -match '^ERROR:') { return "" }
+    return $text
 }
 
 function Get-DiscoveredWebAppName {
@@ -62,6 +63,7 @@ function Import-AppSettingsToEnv {
         }
     }
 }
+
 
 function Sync-AgentSettingsToApi {
     param([string]$ProjectRoot)
@@ -366,4 +368,3 @@ elseif ($resolvedSourceType -eq "fabric") {
         }
     }
 }
-
