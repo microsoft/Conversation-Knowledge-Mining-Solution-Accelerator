@@ -271,130 +271,52 @@ function Invoke-DataCleanup {
     }
 }
 
-# Wait until every uploaded file has actually been processed, by checking the DURABLE store
-# rather than the API's in-memory /files list. On WAF deployments the API runs on multiple
-# App Service instances, each with its own in-memory cache, so /files (and /stats) are not
-# coherent — a long-lived poller pins to one instance via HTTP keep-alive and sees a stale
-# view forever. The Azure AI Search index is instance-independent: a file only appears there
-# (>=1 chunk under its source_file) once extraction + enrichment + indexing have completed.
-# We key on the exact filenames we uploaded and re-submit any that never land in the index
-# (recovers Content Understanding timeouts). If the search index can't be reached we fall back
-# to the reliable SQL total exposed by POST /refresh (registration only). Reaching all-indexed
-# before the caller recycles the app (agent step / network re-lock) is what prevents data loss.
-function Wait-ForIngestionCompletion {
+# Confirm the backend accepted and registered the uploaded files, WITHOUT waiting for
+# extraction/chunking/embedding/indexing to finish. Full ingestion (Content Understanding
+# -> chunk -> embed -> Azure AI Search) runs asynchronously inside the API App Service's own
+# background queue worker (src/api/main.py starts it at process startup and it runs for the
+# life of the app) using that App Service's private-endpoint/VNet-integrated connectivity to
+# Storage/Search/OpenAI/Cosmos/SQL - connectivity that does NOT depend on the temporary
+# public network access this script's caller opened. So there is nothing to wait for here:
+# once /refresh confirms the files are registered, it is safe to lock the network back down
+# (manage-network-access.ps1 -Action Disable) immediately; processing keeps running in the
+# background on the deployed App Service regardless. This keeps the temporary public-access
+# window (and overall deployment time) as short as possible - check the Sources page in the
+# web UI a few minutes later to confirm files have finished processing.
+function Confirm-UploadRegistered {
     [CmdletBinding()]
     param(
         [string]$BackendUrl,
         [hashtable]$Headers,
         $ExpectedFiles = @(),
-        [int]$TimeoutSec = 1500,
-        [int]$PollIntervalSec = 15,
-        [int]$MaxRetryRounds = 3,
-        [int]$RetryGraceSec = 180
+        [int]$TimeoutSec = 90,
+        [int]$PollIntervalSec = 10
     )
 
-    # De-duplicate expected files by name, keeping the FileInfo so we can re-upload if needed.
-    $byName = [ordered]@{}
-    foreach ($f in @($ExpectedFiles | Where-Object { $_ })) {
-        if (-not $byName.Contains($f.Name)) { $byName[$f.Name] = $f }
-    }
-    $expectedNames = @($byName.Keys)
-    if ($expectedNames.Count -eq 0) {
-        return [pscustomobject]@{ Completed = $true; Indexed = 0; Expected = 0; Pending = @() }
+    $expectedCount = @($ExpectedFiles | Where-Object { $_ }).Count
+    if ($expectedCount -eq 0) {
+        return [pscustomobject]@{ Registered = 0; Expected = 0 }
     }
 
     Write-Host ""
-    Write-Host "Waiting for processing to finish (verifying against the search index — durable, instance-independent)..." -ForegroundColor Yellow
+    Write-Host "Confirming upload registration (not waiting for background processing)..." -ForegroundColor Yellow
 
-    $searchEndpoint = (Get-DeployValue "AZURE_SEARCH_ENDPOINT").TrimEnd("/")
-    $searchIndexName = Get-DeployValue "AZURE_SEARCH_INDEX_NAME"
-    if (-not $searchIndexName) { $searchIndexName = "knowledge-mining-index" }
-    $apiVer = "2023-11-01"
-    $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
-
-    # Fallback: search index unreachable — wait on the reliable SQL total from /refresh.
-    if (-not $searchEndpoint -or -not $searchToken) {
-        Write-Warning "Search index not reachable — falling back to SQL registration count via /refresh."
-        $elapsed = 0
-        $cnt = 0
-        while ($elapsed -lt $TimeoutSec) {
-            $cnt = -1
-            try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
-            $pct = if ($expectedNames.Count) { [int](100 * [Math]::Max(0, $cnt) / $expectedNames.Count) } else { 100 }
-            Write-Progress -Activity "Registering files" -Status "$([Math]::Max(0, $cnt))/$($expectedNames.Count) registered in SQL (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
-            if ($cnt -ge $expectedNames.Count) {
-                Write-Progress -Activity "Registering files" -Completed
-                Write-Host "  All $($expectedNames.Count) file(s) registered in SQL (readiness not verified — check the Sources page)." -ForegroundColor Green
-                return [pscustomobject]@{ Completed = $true; Indexed = $cnt; Expected = $expectedNames.Count; Pending = @() }
-            }
-            Start-Sleep -Seconds $PollIntervalSec
-            $elapsed += $PollIntervalSec
-        }
-        Write-Progress -Activity "Registering files" -Completed
-        Write-Warning "Timed out after ${TimeoutSec}s waiting for files to register in SQL. Retry from the Sources page in the web UI."
-        return [pscustomobject]@{ Completed = $false; Indexed = [Math]::Max(0, $cnt); Expected = $expectedNames.Count; Pending = @($expectedNames) }
-    }
-
-    $searchUri = "$searchEndpoint/indexes/$searchIndexName/docs/search?api-version=$apiVer"
     $elapsed = 0
-    $retryRound = 0
-    $lastRetryAt = -99999
-    $pending = @($expectedNames)
+    $cnt = 0
     while ($elapsed -lt $TimeoutSec) {
-        $pending = @()
-        foreach ($name in $expectedNames) {
-            $esc = $name.Replace("'", "''")
-            $body = @{ search = '*'; filter = "source_file eq '$esc'"; top = 0; count = $true } | ConvertTo-Json
-            $count = -1
-            for ($try = 0; $try -lt 2; $try++) {
-                try {
-                    $resp = Invoke-RestMethod -Uri $searchUri -Method POST -Body $body `
-                        -Headers @{ Authorization = "Bearer $searchToken"; 'Content-Type' = 'application/json' }
-                    $count = [int]$resp.'@odata.count'
-                    break
-                } catch {
-                    $code = $null; if ($_.Exception.Response) { $code = [int]$_.Exception.Response.StatusCode }
-                    if ($code -eq 401) {
-                        $searchToken = az account get-access-token --resource https://search.azure.com --query accessToken -o tsv 2>$null
-                        continue
-                    }
-                    break  # transient — treat as not-yet-indexed this round
-                }
-            }
-            if ($count -le 0) { $pending += $name }
-        }
-
-        if ($pending.Count -eq 0) {
-            Write-Progress -Activity "Processing files" -Completed
-            Write-Host "  All $($expectedNames.Count) file(s) processed and indexed." -ForegroundColor Green
-            return [pscustomobject]@{ Completed = $true; Indexed = $expectedNames.Count; Expected = $expectedNames.Count; Pending = @() }
-        }
-
-        $done = $expectedNames.Count - $pending.Count
-        $pct = if ($expectedNames.Count) { [int](100 * $done / $expectedNames.Count) } else { 100 }
-        Write-Progress -Activity "Processing files" -Status "$done/$($expectedNames.Count) indexed (${elapsed}s elapsed)" -PercentComplete ([Math]::Min(100, $pct))
-        Write-Verbose "Waiting on: $($pending -join ', ')"
-
-        # After a grace period, re-submit still-missing files to recover CU timeouts/failures.
-        if (($elapsed - $lastRetryAt) -ge $RetryGraceSec -and $retryRound -lt $MaxRetryRounds) {
-            $retryRound++
-            $lastRetryAt = $elapsed
-            Write-Verbose "Re-submitting $($pending.Count) unprocessed file(s) (round $retryRound/$MaxRetryRounds)..."
-            $retryItems = @($pending | ForEach-Object { $byName[$_] })
-            for ($i = 0; $i -lt $retryItems.Count; $i += 5) {
-                $batch = @($retryItems[$i..([Math]::Min($i + 4, $retryItems.Count - 1))])
-                $fileItems = @(); foreach ($b in $batch) { $fileItems += Get-Item $b.FullName }
-                Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $Headers -FileItems $fileItems | Out-Null
-            }
-        }
-
+        $cnt = -1
+        try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
+        if ($cnt -ge $expectedCount) { break }
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
     }
 
-    Write-Progress -Activity "Processing files" -Completed
-    Write-Warning "Timed out after ${TimeoutSec}s. Not yet indexed: $($pending -join ', '). Retry from the Sources page in the web UI."
-    return [pscustomobject]@{ Completed = $false; Indexed = ($expectedNames.Count - $pending.Count); Expected = $expectedNames.Count; Pending = @($pending) }
+    if ($cnt -ge $expectedCount) {
+        Write-Host "  $expectedCount file(s) registered - processing continues in the background." -ForegroundColor Green
+    } else {
+        Write-Warning "  Only $([Math]::Max(0, $cnt))/$expectedCount file(s) registered after ${elapsed}s. Check the Sources page; re-upload any missing files from the web UI."
+    }
+    return [pscustomobject]@{ Registered = [Math]::Max(0, $cnt); Expected = $expectedCount }
 }
 
 # Upload a single batch of files, retrying transient upload failures a few times.
@@ -709,20 +631,22 @@ if ($DataPath) {
         $docUploaded = $success
     }
 
-    $ingestion = $null
+    $registration = $null
     if ($audioFiles.Count -gt 0 -or $docFiles.Count -gt 0) {
-        # Verify against the durable search index, keyed on the actual files we uploaded.
+        # Confirm registration only — do NOT wait for extraction/chunking/embedding/indexing.
+        # See Confirm-UploadRegistered for why: that work continues in the background on the
+        # deployed App Service regardless of what this deployer-side script does next.
         $expectedItems = @()
         if ($audioFiles) { $expectedItems += $audioFiles }
         if ($docFiles)   { $expectedItems += $docFiles }
-        $ingestion = Wait-ForIngestionCompletion -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
+        $registration = Confirm-UploadRegistered -BackendUrl $BackendUrl -Headers $headers -ExpectedFiles $expectedItems
     }
 
     Write-Host ""
-    if ($ingestion -and -not $ingestion.Completed) {
-        Write-Host "Data upload finished — $($ingestion.Indexed)/$($ingestion.Expected) file(s) indexed. Retry the rest from the Sources page." -ForegroundColor Yellow
+    if ($registration -and $registration.Registered -lt $registration.Expected) {
+        Write-Host "Data upload finished — $($registration.Registered)/$($registration.Expected) file(s) registered. Processing continues in the background; check the Sources page." -ForegroundColor Yellow
     } else {
-        Write-Host "Data upload complete!" -ForegroundColor Green
+        Write-Host "Data upload complete! Files are processing in the background — check the Sources page for status." -ForegroundColor Green
     }
 }
 
