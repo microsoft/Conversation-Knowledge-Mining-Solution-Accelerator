@@ -34,6 +34,7 @@ on:
         value: ${{ jobs.test.outputs.TEST_REPORT_URL }}
 env:
   # Use input URL if provided (from deploy pipeline), otherwise fall back to vars
+  PIP_INDEX_URL: https://packagefeedproxy.microsoft.io/pypi/simple/
   url: ${{ inputs.KMGENERIC_URL  }}
   api_url: ${{ inputs.KMGENERIC_URL_API}}
   accelerator_name: "KMGeneric"

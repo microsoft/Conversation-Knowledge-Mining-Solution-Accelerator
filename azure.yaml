@@ -81,7 +81,7 @@ hooks:
             python -m venv .venv
           }
           & ./.venv/Scripts/Activate.ps1
-          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet --upgrade pip --index-url https://packagefeedproxy.microsoft.io/pypi/simple/
           pip install --quiet -r infra/scripts/post-provision/requirements.txt
 
           # ── Step 2: Grant API identity access to SQL ──
@@ -142,7 +142,7 @@ hooks:
           python3 -m venv .venv
         fi
         . ./.venv/bin/activate
-        python -m pip install --quiet --upgrade pip
+        python -m pip install --quiet --upgrade pip --index-url https://packagefeedproxy.microsoft.io/pypi/simple/
         pip install --quiet -r infra/scripts/post-provision/requirements.txt
 
         # ── Step 2: Grant API identity access to SQL ──

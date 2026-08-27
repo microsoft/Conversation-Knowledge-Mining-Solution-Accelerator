@@ -56,8 +56,7 @@ class AzureSqlService:
             self._initialized = True
             logger.info(f"Azure SQL initialized: {server}/{database}")
         except Exception as e:
-            self._init_failed = True
-            logger.warning(f"Azure SQL init failed (will not retry): {e}")
+            logger.warning(f"Azure SQL init failed (will retry on next use): {e}")
 
     def _get_connection(self):
         import pyodbc
