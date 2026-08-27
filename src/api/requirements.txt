@@ -1,10 +1,12 @@
+--index-url https://packagefeedproxy.microsoft.io/pypi/simple/
+
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.30
 pydantic==2.13.4
 pydantic-settings==2.14.2
 python-jose[cryptography]==3.4.0
-PyYAML==6.0.2
+PyYAML==6.0.3
 httpx==0.28.1
 openai==2.32.0
 azure-ai-projects==2.2.0

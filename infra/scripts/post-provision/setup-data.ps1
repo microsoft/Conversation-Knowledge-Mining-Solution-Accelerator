@@ -239,6 +239,45 @@ if ($token) {
     }
 }
 
+# ── Wait for the backend's SQL connection to actually be ready ──
+# Right after a fresh deploy/restart, the container can come up and answer HTTP
+# requests before its managed identity's SQL role has finished propagating. Any
+# SQL-backed write attempted in that window (e.g. scenario registration below)
+# silently fails while still returning 200 OK to the caller. Poll the deep health
+# endpoint here — before any registration/cleanup call — so we only proceed once
+# the backend reports SQL as actually reachable, closing the race at its source.
+function Wait-ForBackendSqlHealthy {
+    param(
+        [string]$BackendUrl,
+        [int]$TimeoutSec = 300,
+        [int]$PollIntervalSec = 10
+    )
+
+    Write-Host "Waiting for backend SQL connectivity to be ready..." -ForegroundColor Yellow
+    $healthUrl = "$($BackendUrl.TrimEnd('/'))/api/health"
+    $elapsed = 0
+    while ($elapsed -lt $TimeoutSec) {
+        try {
+            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -TimeoutSec 10
+            if ($resp.checks.sql -eq "ok") {
+                Write-Host "Backend SQL is ready." -ForegroundColor Green
+                return $true
+            }
+            Write-Host "  SQL not ready yet (checks.sql=$($resp.checks.sql)) — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
+        } catch {
+            Write-Host "  Backend not reachable yet — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
+        }
+        Start-Sleep -Seconds $PollIntervalSec
+        $elapsed += $PollIntervalSec
+    }
+    Write-Host "WARNING: Timed out after ${TimeoutSec}s waiting for backend SQL to become ready. Proceeding anyway — scenario registration may need a manual retry (see Sources page) if data source persistence fails." -ForegroundColor Yellow
+    return $false
+}
+
+if ($BackendUrl -notmatch '^https?://localhost' -and $BackendUrl -notmatch '^https?://127\.0\.0\.1') {
+    Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl | Out-Null
+}
+
 # ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
 function Invoke-DataCleanup {
     param(
