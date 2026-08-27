@@ -249,25 +249,13 @@ function Invoke-DataCleanup {
     # Clear existing demo data (documents, insights cache) and any external data source
     # registrations so every scenario starts from a clean slate.
     Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
-    $maxAttempts = 5
-    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-        try {
-            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
-            Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
-            return
-        } catch {
-            $statusCode = $null
-            if ($_.Exception.Response) { $statusCode = [int]$_.Exception.Response.StatusCode }
-            $isTransient = ($statusCode -eq 503 -or $statusCode -eq 502 -or $statusCode -eq 504 -or -not $statusCode)
-            if ($isTransient -and $attempt -lt $maxAttempts) {
-                Write-Host "Backend not ready yet (attempt $attempt/$maxAttempts) — retrying in 10s..." -ForegroundColor Yellow
-                Start-Sleep -Seconds 10
-                continue
-            }
-            Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
-            Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
-            exit 1
-        }
+    try {
+        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $Headers | Out-Null
+        Write-Host "Previous data and external source registrations cleared." -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
+        Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
+        exit 1
     }
 }
 
@@ -319,32 +307,6 @@ function Confirm-UploadRegistered {
     return [pscustomobject]@{ Registered = [Math]::Max(0, $cnt); Expected = $expectedCount }
 }
 
-# Upload a single batch of files, retrying transient upload failures a few times.
-# Returns $true if the batch was accepted by the backend, $false otherwise.
-function Invoke-UploadBatchWithRetry {
-    [CmdletBinding()]
-    param(
-        [string]$BackendUrl,
-        [hashtable]$Headers,
-        [array]$FileItems,
-        [int]$MaxAttempts = 3
-    )
-    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        try {
-            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                -Method POST -Form @{ files = $FileItems } -Headers $Headers | Out-Null
-            return $true
-        } catch {
-            if ($attempt -lt $MaxAttempts) {
-                Write-Warning "Upload attempt $attempt/$MaxAttempts failed — retrying in 10s: $_"
-                Start-Sleep -Seconds 10
-            } else {
-                Write-Warning "Upload FAILED after $MaxAttempts attempts: $_"
-            }
-        }
-    }
-    return $false
-}
 
 # Ensure the solution search index exists
 function Invoke-EnsureSearchIndex {
@@ -591,10 +553,13 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
+            try {
+                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } else {
+            } catch {
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
                 $failed += $batch.Count
             }
         }
@@ -620,10 +585,13 @@ if ($DataPath) {
                 $fileItems += Get-Item $f.FullName
                 Write-Host "  $($f.Name)" -ForegroundColor White
             }
-            if (Invoke-UploadBatchWithRetry -BackendUrl $BackendUrl -Headers $headers -FileItems $fileItems) {
+            try {
+                Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
-            } else {
+            } catch {
+                Write-Host "  Batch FAILED: $_" -ForegroundColor Red
                 $failed += $batch.Count
             }
         }

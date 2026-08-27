@@ -34,9 +34,10 @@ function Get-AzdEnvValue {
     param([string]$Name)
     if (-not $azdAvailable) { return "" }
     $value = azd env get-value $Name 2>$null
-    if (-not $value) { return "" }
-    if ($value -is [string] -and $value.StartsWith("ERROR:")) { return "" }
-    return "$value".Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $value) { return "" }
+    $text = ($value | Out-String).Trim()
+    if ($text -match '^ERROR:') { return "" }
+    return $text
 }
 
 function Get-DiscoveredWebAppName {
@@ -108,11 +109,19 @@ function Sync-AgentSettingsToApi {
         return
     }
 
+    # Only include settings that actually have a value. USE_SQL in particular is parsed as a
+    # Pydantic bool by the API (src/api/config.py) — pushing "USE_SQL=" (empty) still fails
+    # validation at startup just like the literal "ERROR: ..." text this function now filters
+    # out, so an empty/invalid value must be omitted from --settings entirely rather than sent.
+    $settingsArgs = @("AGENT_NAME_CHAT=$agentNameChat", "AGENT_NAME_TITLE=$agentNameTitle")
+    if ($useSql -match '^(?i:true|false)$') { $settingsArgs += "USE_SQL=$useSql" }
+    if ($dataSourceType) { $settingsArgs += "DATA_SOURCE_TYPE=$dataSourceType" }
+
     Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
     az webapp config appsettings set `
         --name $apiAppName `
         --resource-group $resourceGroup `
-        --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" "DATA_SOURCE_TYPE=$dataSourceType" `
+        --settings $settingsArgs `
         --output none
 
     if ($LASTEXITCODE -eq 0) {
