@@ -141,16 +141,30 @@ if ($LASTEXITCODE -eq 0) {
 
     if ($apiAppName -and $resourceGroup) {
         Write-Host "Updating API App Service '$apiAppName' agent settings..." -ForegroundColor Yellow
-        az webapp config appsettings set `
-            --name $apiAppName `
-            --resource-group $resourceGroup `
-            --settings "AGENT_NAME_CHAT=$agentNameChat" "AGENT_NAME_TITLE=$agentNameTitle" "USE_SQL=$useSql" "DATA_SOURCE_TYPE=$dataSourceType" `
-            --output none
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  [OK] App Service settings updated" -ForegroundColor Green
+        # Only include settings that actually have a value. USE_SQL in particular is parsed as
+        # a Pydantic bool by the API (src/api/config.py) — pushing "USE_SQL=" (empty) still
+        # fails validation at startup just like the literal "ERROR: ..." text Get-AzdEnvValue
+        # now filters out, so an empty/invalid value must be omitted entirely rather than sent.
+        $settingsArgs = @()
+        if ($agentNameChat)  { $settingsArgs += "AGENT_NAME_CHAT=$agentNameChat" }
+        if ($agentNameTitle) { $settingsArgs += "AGENT_NAME_TITLE=$agentNameTitle" }
+        if ($useSql -match '^(?i:true|false)$') { $settingsArgs += "USE_SQL=$useSql" }
+        if ($dataSourceType) { $settingsArgs += "DATA_SOURCE_TYPE=$dataSourceType" }
+
+        if ($settingsArgs.Count -eq 0) {
+            Write-Host "  [SKIP] No agent settings resolved; nothing to sync" -ForegroundColor Yellow
         } else {
-            Write-Host "  [WARN] Failed to update App Service settings" -ForegroundColor Yellow
-            $global:LASTEXITCODE = 0
+            az webapp config appsettings set `
+                --name $apiAppName `
+                --resource-group $resourceGroup `
+                --settings $settingsArgs `
+                --output none
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "  [OK] App Service settings updated" -ForegroundColor Green
+            } else {
+                Write-Host "  [WARN] Failed to update App Service settings" -ForegroundColor Yellow
+                $global:LASTEXITCODE = 0
+            }
         }
     } else {
         Write-Host "  [SKIP] Could not resolve API app / resource group; skipping App Service settings sync" -ForegroundColor Yellow
