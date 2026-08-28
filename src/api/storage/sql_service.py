@@ -474,16 +474,19 @@ class AzureSqlService:
         """
         if not self.available:
             return None
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT status FROM uploaded_files WHERE id = ?", file_id)
             row = cursor.fetchone()
-            conn.close()
             return row[0] if row else None
         except Exception as e:
             logger.warning(f"Failed to read file status for {file_id}: {e}")
             return None
+        finally:
+            if conn is not None:
+                conn.close()
 
     def load_all_uploaded_files(self) -> list[dict]:
         if not self.available:
