@@ -64,6 +64,7 @@ function Import-AppSettingsToEnv {
     }
 }
 
+
 function Sync-AgentSettingsToApi {
     param([string]$ProjectRoot)
 
@@ -375,4 +376,3 @@ elseif ($resolvedSourceType -eq "fabric") {
         }
     }
 }
-
