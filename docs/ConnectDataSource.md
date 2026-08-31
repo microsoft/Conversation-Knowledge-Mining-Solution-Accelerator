@@ -12,6 +12,8 @@ No data is copied — the app queries your source directly at runtime using Micr
 
 You need two values: the **Search endpoint** and (optionally) the **Index name**.
 
+**Prerequisite:** The BYOD Azure AI Search service must have public network access enabled; private endpoint-only services are not supported.
+
 ### 1. Go to Azure Portal
 Go to https://portal.azure.com
 
