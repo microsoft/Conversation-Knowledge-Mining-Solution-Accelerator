@@ -1,0 +1,31 @@
+{
+  "name": "conversation-knowledge-mining-solution-accelerator",
+  "version": "1.0.0",
+  "description": "Welcome to the *Conversation Knowledge Mining* solution accelerator, designed to help organizations derive actionable insights from large volumes of conversational data using generative AI. This accelerator provides a foundation for building AI-driven analysis systems that extract key phrases, model topics, and enable interactive natural language exploration across conversations, documents, and recordings.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1",
+    "playwright-core": "^1.62.1",
+    "undici-types": "^8.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues"
+  },
+  "homepage": "https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator#readme"
+}
