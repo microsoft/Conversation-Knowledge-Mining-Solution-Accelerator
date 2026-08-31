@@ -48,7 +48,7 @@ The Knowledge Mining Platform is a web app that turns an Azure AI Search index i
 
 ### 2. navigation
 
-**Seed:** `tests/seed.spec.tsz`
+**Seed:** `tests/seed.spec.ts`
 
 #### 2.1. top navigation switches between Home, Insights, and Explore
 
