@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -404,6 +405,20 @@ async def list_uploaded_files():
             try:
                 started = datetime.fromisoformat(f.uploaded_at.replace("Z", "+00:00"))
                 if datetime.now(timezone.utc) - started > timedelta(minutes=stale_minutes):
+                    # Multi-instance guard: this worker's in-memory copy may be stale —
+                    # another instance could have already finished the file and persisted
+                    # 'ready'/'extracted' to SQL. Re-check the source of truth before
+                    # force-failing, so we don't clobber a real success with a false alarm.
+                    # Run the SQL point-read in a thread so this blocking pyodbc call
+                    # doesn't stall the event loop for other concurrent requests.
+                    from src.api.storage.sql_service import sql_service
+                    current_status = await asyncio.to_thread(sql_service.get_file_status, f.id)
+                    if current_status in ("ready", "extracted"):
+                        # Sync this instance's stale cache to the true SQL status so the
+                        # UI stops showing "processing" and future polls don't need to
+                        # re-check SQL for the same file.
+                        ingestion_service._update_file_status(f.id, current_status)
+                        continue
                     ingestion_service._update_file_status(
                         f.id, "failed",
                         error=f"Processing timed out after {stale_minutes} minutes. Use retry to re-process."
