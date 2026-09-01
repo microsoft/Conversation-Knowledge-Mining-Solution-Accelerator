@@ -2,7 +2,7 @@
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-python-multipart==0.0.30
+python-multipart==0.0.31
 pydantic==2.13.4
 pydantic-settings==2.14.2
 python-jose[cryptography]==3.4.0
