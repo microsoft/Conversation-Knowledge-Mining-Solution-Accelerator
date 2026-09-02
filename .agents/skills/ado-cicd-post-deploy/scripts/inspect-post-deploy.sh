@@ -158,7 +158,9 @@ extract_section() {
 clean_exist() {
   sed -E 's#^\.[/\\]##; s#\\#/#g' \
   | { grep -vE '://|www\.|^//|(^|/)\.?venv/|[Aa]ctivate\.(ps1|sh)|(^|/)pre-?provision/' || true; } \
-  | while IFS= read -r p; do [ -n "$p" ] && [ -e "$p" ] && printf '%s\n' "$p"; done
+  | while IFS= read -r p; do
+      if [ -n "$p" ] && [ -e "$p" ]; then printf '%s\n' "$p"; fi
+    done
 }
 GUIDE_SCRIPTS=""
 for g in $(printf '%s' "$GUIDES" | { grep -v '^[[:space:]]*$' || true; }); do
@@ -166,7 +168,7 @@ for g in $(printf '%s' "$GUIDES" | { grep -v '^[[:space:]]*$' || true; }); do
   gdir="$(dirname "$g")"
   # (a) scripts referenced directly in the deployment / post-deployment section(s)
   refs="$( { printf '%s\n' "$sec" | grep -oE "$SCRIPT_RE" || true; } | clean_exist)"
-  [ -n "$refs" ] && GUIDE_SCRIPTS="$GUIDE_SCRIPTS$refs"$'\n'
+  [ -n "$refs" ] && GUIDE_SCRIPTS="$GUIDE_SCRIPTS$refs"$'\n' || true
   # (b) follow relative markdown links from those sections into sibling docs (one level) and
   #     extract the scripts they name — e.g. a step documented in a separate linked guide.
   links="$( { printf '%s\n' "$sec" | grep -oE '\]\([^)]+\.md[^)]*\)' || true; } \
@@ -176,7 +178,7 @@ for g in $(printf '%s' "$GUIDES" | { grep -v '^[[:space:]]*$' || true; }); do
     cand="$gdir/$lp"; [ -f "$cand" ] || cand="$lp"
     [ -f "$cand" ] || continue
     lrefs="$( { grep -oE "$SCRIPT_RE" "$cand" || true; } | clean_exist)"
-    [ -n "$lrefs" ] && GUIDE_SCRIPTS="$GUIDE_SCRIPTS$lrefs"$'\n'
+    [ -n "$lrefs" ] && GUIDE_SCRIPTS="$GUIDE_SCRIPTS$lrefs"$'\n' || true
   done
 done
 guide_scripts_json() {
