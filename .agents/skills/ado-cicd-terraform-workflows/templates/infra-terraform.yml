@@ -1,0 +1,138 @@
+# Azure DevOps — reusable step template: apply Terraform infrastructure (ephemeral).
+#
+# Runs `terraform apply` against a runtime LOCAL backend so no remote state backend needs to be
+# provisioned or bootstrapped: the state lives on the agent and is discarded when the job ends
+# (the resource group is deleted by the deploy pipeline's Cleanup stage regardless). The repo's
+# committed backend (e.g. azurerm) is overridden at runtime by writing backend_override.tf — the
+# standard Terraform override mechanism, and already git-ignored by these repos.
+#
+# Runs inside a single AzureCLI@2 task so the service connection's credentials are exposed. It
+# supports both service-connection styles: service principal + secret, and workload identity
+# federation (OIDC). Terraform authenticates to azurerm via the ARM_* environment variables.
+#
+# The resource-group name the pipeline generates is passed in as a hint, but the group that is
+# actually created is captured from Terraform state after apply (some solutions generate their own
+# resource-group name, e.g. with a random suffix). That captured name travels in the outputs
+# artifact so the post-deploy stage hydrates the real group and Cleanup deletes exactly it.
+
+parameters:
+  - name: serviceConnection
+    type: string
+  - name: workingDirectory
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: solutionName
+    type: string
+  - name: location
+    type: string
+  - name: subscriptionId
+    type: string
+  - name: terraformVersion
+    type: string
+    default: "1.9.8"
+
+steps:
+  - task: AzureCLI@2
+    displayName: Apply infrastructure (terraform apply)
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      addSpnToEnvironment: true
+      workingDirectory: ${{ parameters.workingDirectory }}
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+
+        TF_VERSION='${{ parameters.terraformVersion }}'
+        if ! command -v terraform >/dev/null 2>&1; then
+          echo "Installing Terraform $TF_VERSION..."
+          curl -fsSL -o /tmp/tf.zip "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+          unzip -o /tmp/tf.zip -d /tmp/tfbin >/dev/null
+          sudo mv /tmp/tfbin/terraform /usr/local/bin/terraform
+        fi
+        terraform version | head -n 1
+
+        # Authenticate Terraform's azurerm provider from the service connection principal.
+        export ARM_CLIENT_ID="$servicePrincipalId"
+        export ARM_TENANT_ID="$tenantId"
+        export ARM_SUBSCRIPTION_ID='${{ parameters.subscriptionId }}'
+        if [ -n "${servicePrincipalKey:-}" ]; then
+          # Service principal + secret service connection.
+          export ARM_CLIENT_SECRET="$servicePrincipalKey"
+        else
+          # Workload identity federation (OIDC) service connection.
+          export ARM_USE_OIDC="true"
+          export ARM_OIDC_TOKEN="${idToken:-}"
+        fi
+        export TF_VAR_subscription_id="$ARM_SUBSCRIPTION_ID"
+
+        # Override the committed backend with a local one for this ephemeral run.
+        cat > backend_override.tf <<'EOF'
+        terraform {
+          backend "local" {}
+        }
+        EOF
+
+        echo "Initializing Terraform (local backend)..."
+        terraform init -input=false
+
+        # Inject the per-run generated values ONLY for the variables this root module actually
+        # declares. Solutions differ: some expose `resource_group_name`/`solution_name` (and let the
+        # pipeline name the group), while others self-manage naming (e.g. a `project_name` var + a
+        # random suffix) and never declare those. Passing an undeclared `-var` is wrong, so we
+        # detect each variable by its root `variable "<name>"` block and skip what isn't there. The
+        # group that is truly created is captured from Terraform state below, so cleanup is correct
+        # either way. No repo/variable names are hardcoded into behaviour — this adapts per repo.
+        declares_var() { grep -qsE "^[[:space:]]*variable[[:space:]]+\"$1\"" ./*.tf; }
+        VAR_ARGS=()
+        declares_var resource_group_name && VAR_ARGS+=(-var "resource_group_name=${{ parameters.resourceGroup }}")
+        declares_var solution_name       && VAR_ARGS+=(-var "solution_name=${{ parameters.solutionName }}")
+        declares_var location            && VAR_ARGS+=(-var "location=${{ parameters.location }}")
+
+        echo "Applying (creates the resource group and all resources)..."
+        [ "${#VAR_ARGS[@]}" -gt 0 ] && printf 'Injecting per-run vars:%s\n' "$(printf ' %s' "${VAR_ARGS[@]}")" || echo "No injectable vars declared; the solution supplies its own naming."
+        terraform apply -input=false -auto-approve ${VAR_ARGS[@]+"${VAR_ARGS[@]}"}
+
+        echo "Applied."
+
+        # Capture the outputs so the (separate-agent) post-deploy stage can hydrate the solution's
+        # config from them. `terraform output -json` emits {name:{value,type,sensitive}}, the same
+        # shape as ARM deployment outputs, so the post-deploy hydration is identical. (A raw
+        # `terraform apply` leaves no ARM deployment in the resource group, so the outputs must
+        # travel as a pipeline artifact rather than being read back from the group.)
+        terraform output -json > "$(pwd)/infra-outputs.json" 2>/dev/null || echo '{}' > "$(pwd)/infra-outputs.json"
+        echo "Wrote infra-outputs.json ($(wc -c < infra-outputs.json) bytes)."
+
+  # Capture the resource group that was ACTUALLY created, straight from Terraform state — do not
+  # assume the generated name, because a solution may build its own resource-group name (e.g.
+  # rg-<project>-<random_suffix>) and ignore the injected `resource_group_name` var. Reading it from
+  # state is repo-agnostic. Runs on success or failure so a partially-created group is still
+  # captured for Cleanup. The real name is merged into infra-outputs.json under AZURE_RESOURCE_GROUP,
+  # which the post-deploy hydration fans out (so scripts target the real group) and Cleanup reads.
+  - task: Bash@3
+    displayName: Capture created resource group (from Terraform state)
+    condition: succeededOrFailed()
+    inputs:
+      workingDirectory: ${{ parameters.workingDirectory }}
+      targetType: inline
+      script: |
+        set -uo pipefail
+        [ -f infra-outputs.json ] || echo '{}' > infra-outputs.json
+        ACTUAL_RG=""
+        if command -v terraform >/dev/null 2>&1; then
+          ACTUAL_RG="$(terraform show -json 2>/dev/null \
+            | jq -r '[.. | objects | select(.type? == "azurerm_resource_group") | .values.name]
+                     | map(select(. != null)) | first // empty' 2>/dev/null || true)"
+        fi
+        [ -n "$ACTUAL_RG" ] || ACTUAL_RG='${{ parameters.resourceGroup }}'
+        echo "Resource group actually created: $ACTUAL_RG"
+        jq --arg rg "$ACTUAL_RG" '. + {AZURE_RESOURCE_GROUP: {value: $rg}}' infra-outputs.json \
+          > infra-outputs.tmp && mv infra-outputs.tmp infra-outputs.json
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish Terraform outputs
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: ${{ parameters.workingDirectory }}/infra-outputs.json
+      artifact: infra-outputs

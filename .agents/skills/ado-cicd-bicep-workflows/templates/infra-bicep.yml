@@ -1,0 +1,114 @@
+# Azure DevOps — reusable step template: provision Bicep infrastructure with the Azure CLI.
+#
+# Deploys the Bicep entrypoint directly with `az deployment` — it does NOT require or use
+# `azure.yaml`/azd. For resource-group-scoped templates the pipeline creates a fresh,
+# uniquely-named resource group first (replacing what `azd provision` used to do); for
+# subscription-scoped templates the deployment runs at subscription scope and the template creates
+# its own group(s). Cleanup is handled by the deploy pipeline's Cleanup stage (always runs). This
+# template only provisions.
+#
+# Parameter tokens: `main.parameters.json` may use azd-style `${VAR}` / `${VAR=default}` tokens.
+# They are resolved here from the environment (the linked variable group), identical to how azd
+# substituted them, so every required variable must be provided by the variable group. If the repo
+# ships a `.bicepparam` instead, it is passed to `az deployment` as-is.
+#
+# Runs inside a single AzureCLI@2 task so the service connection's credentials are available.
+
+parameters:
+  - name: serviceConnection
+    type: string
+  - name: azureEnvName
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: location
+    type: string
+  - name: subscriptionId
+    type: string
+  - name: scope
+    type: string
+    default: resourceGroup # resourceGroup | subscription
+  - name: templateFile
+    type: string
+    default: infra/main.bicep
+  - name: parametersFile
+    type: string
+    default: "" # e.g. infra/main.parameters.json or infra/main.bicepparam; empty = none
+
+steps:
+  - task: AzureCLI@2
+    displayName: Provision infrastructure (az deployment)
+    inputs:
+      azureSubscription: ${{ parameters.serviceConnection }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+
+        SUB='${{ parameters.subscriptionId }}'
+        RG='${{ parameters.resourceGroup }}'
+        LOC='${{ parameters.location }}'
+        SCOPE='${{ parameters.scope }}'
+        TEMPLATE='${{ parameters.templateFile }}'
+        PARAMS_FILE='${{ parameters.parametersFile }}'
+        # Exported so the token resolver (below) can read it as azd did.
+        export AZURE_ENV_NAME='${{ parameters.azureEnvName }}'
+        export AZURE_SUBSCRIPTION_ID="$SUB"
+        export AZURE_LOCATION="$LOC"
+        export AZURE_RESOURCE_GROUP="$RG"
+
+        az account set --subscription "$SUB"
+
+        # Resolve azd-style ${VAR} / ${VAR=default} tokens in a JSON parameters file exactly as azd
+        # would (plain textual substitution), so behaviour is identical without needing azd. A
+        # .bicepparam file is passed through untouched. No parameters file => deploy with none.
+        PARAM_ARG=""
+        if [ -n "$PARAMS_FILE" ] && [ -f "$PARAMS_FILE" ]; then
+          case "$PARAMS_FILE" in
+            *.json)
+              CONTENT="$(cat "$PARAMS_FILE")"
+              TOKENS="$(grep -oE '\$\{[A-Za-z0-9_]+(=[^}]*)?\}' "$PARAMS_FILE" | sort -u || true)"
+              while IFS= read -r TOK; do
+                [ -n "$TOK" ] || continue
+                INNER="${TOK#\$\{}"; INNER="${INNER%\}}"
+                if [ "${INNER%%=*}" != "$INNER" ]; then
+                  NAME="${INNER%%=*}"; DEF="${INNER#*=}"
+                else
+                  NAME="$INNER"; DEF=""
+                fi
+                set +u; VAL="${!NAME}"; set -u
+                [ -n "$VAL" ] || VAL="$DEF"
+                CONTENT="${CONTENT//"$TOK"/$VAL}"
+              done <<< "$TOKENS"
+              printf '%s' "$CONTENT" > main.parameters.resolved.json
+              # Fail fast if substitution produced invalid JSON.
+              python3 -c "import json,sys; json.load(open('main.parameters.resolved.json'))" 2>/dev/null \
+                || { echo "Resolved parameters are not valid JSON:"; cat main.parameters.resolved.json; exit 1; }
+              echo "Resolved parameters written to main.parameters.resolved.json"
+              PARAM_ARG="--parameters @main.parameters.resolved.json"
+              ;;
+            *)
+              PARAM_ARG="--parameters $PARAMS_FILE"
+              ;;
+          esac
+        fi
+
+        if [ "$SCOPE" = "subscription" ]; then
+          echo "Deploying at subscription scope (template creates its own resource group)..."
+          az deployment sub create \
+            --name "$AZURE_ENV_NAME" \
+            --location "$LOC" \
+            --template-file "$TEMPLATE" \
+            $PARAM_ARG
+        else
+          echo "Creating resource group: $RG"
+          az group create --name "$RG" --location "$LOC" --output none
+          echo "Deploying at resource-group scope into: $RG"
+          az deployment group create \
+            --name "$AZURE_ENV_NAME" \
+            --resource-group "$RG" \
+            --template-file "$TEMPLATE" \
+            $PARAM_ARG
+        fi
+
+        echo "Provisioned. Resource group: $RG"

@@ -1,0 +1,123 @@
+# Azure DevOps — Terraform deploy (apply -> post-deploy + test -> cleanup)
+#
+# Runs on push to the default branch, on a daily schedule, and on manual trigger. It generates a unique resource-group / solution
+# name, applies the Terraform with an ephemeral local backend, runs the post-deploy scripts and
+# tests, and ALWAYS deletes the resource group afterwards (even if apply or tests fail). Nothing is
+# kept running between validations.
+#
+# Placeholders rendered by the skill:
+#   __DEFAULT_BRANCH__  e.g. main
+#   __INFRA_TF_DIR__    e.g. infra_tf
+#   __TF_VERSION__      e.g. 1.9.8
+#
+# Prerequisites (see references/service-connection-setup.md):
+#   - Service connection:  set in the SERVICE_CONNECTION variable (Azure Resource Manager).
+#   - Variable group 'terraform-deploy' linked below, containing AZURE_SUBSCRIPTION_ID,
+#     AZURE_LOCATION, ENV_PREFIX, and every required TF variable as TF_VAR_<name> (from discovery).
+
+trigger:
+  branches:
+    include:
+      - __DEFAULT_BRANCH__ # deploy also runs on push to the default branch, plus the daily schedule and manual runs
+
+pr: none
+
+schedules:
+  # 00:00 IST daily (18:30 UTC the previous day). Adjust the cron to change the run time.
+  - cron: "30 18 * * *"
+    displayName: Daily validation (00:00 IST)
+    branches:
+      include:
+        - __DEFAULT_BRANCH__
+    always: true
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: terraform-deploy # AZURE_SUBSCRIPTION_ID, AZURE_LOCATION, ENV_PREFIX + required TF_VAR_*s
+  - name: SERVICE_CONNECTION
+    value: azure-service-connection # rename to your ARM service connection
+  - name: INFRA_TF_DIR
+    value: __INFRA_TF_DIR__
+  - name: TF_VERSION
+    value: __TF_VERSION__
+  # Unique per run. Passed to Terraform as a hint and used as the cleanup fallback; the resource
+  # group actually created is captured from state after apply (see infra-terraform.yml) so
+  # solutions that name their own group are still cleaned up.
+  - name: SOLUTION_NAME
+    value: $(ENV_PREFIX)$(Build.BuildId)
+  - name: AZURE_RESOURCE_GROUP
+    value: rg-$(SOLUTION_NAME)
+
+stages:
+  - stage: Provision
+    displayName: Apply infrastructure
+    jobs:
+      - job: apply
+        displayName: terraform apply
+        steps:
+          - checkout: self
+          - template: infra-terraform.yml
+            parameters:
+              serviceConnection: $(SERVICE_CONNECTION)
+              workingDirectory: $(INFRA_TF_DIR)
+              resourceGroup: $(AZURE_RESOURCE_GROUP)
+              solutionName: $(SOLUTION_NAME)
+              location: $(AZURE_LOCATION)
+              subscriptionId: $(AZURE_SUBSCRIPTION_ID)
+              terraformVersion: $(TF_VERSION)
+
+  # >>> POST-DEPLOY + TEST STAGE <<<
+  # Rendered by the ado-cicd-post-deploy skill into azure-pipelines-post-deploy.yml (same folder).
+  # It reads live values from the provisioned resource group, runs the discovered post-deploy
+  # scripts, then runs unit/Playwright tests when present. Remove this reference only if you truly
+  # want infra-only validation.
+  - template: azure-pipelines-post-deploy.yml
+    parameters:
+      serviceConnection: $(SERVICE_CONNECTION)
+      resourceGroup: $(AZURE_RESOURCE_GROUP)
+      azureEnvName: $(SOLUTION_NAME)
+      subscriptionId: $(AZURE_SUBSCRIPTION_ID)
+      dependsOn: Provision
+
+  - stage: Cleanup
+    displayName: Delete resource group
+    dependsOn:
+      - Provision
+      - PostDeployTest
+    condition: always() # ALWAYS clean up, even if apply or tests failed
+    jobs:
+      - job: cleanup
+        displayName: az group delete
+        steps:
+          # The apply stage published the resource group that was actually created (captured from
+          # Terraform state) inside the infra-outputs artifact. Read it so we delete the real group
+          # even when the solution generated its own name; fall back to the generated name.
+          - task: DownloadPipelineArtifact@2
+            displayName: Download infra outputs (for the real RG name)
+            continueOnError: true
+            inputs:
+              artifact: infra-outputs
+              path: $(Pipeline.Workspace)/infra-outputs
+          - task: AzureCLI@2
+            displayName: Delete the resource group
+            inputs:
+              azureSubscription: $(SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                RG='$(AZURE_RESOURCE_GROUP)'
+                ART="$(Pipeline.Workspace)/infra-outputs/infra-outputs.json"
+                if [ -f "$ART" ]; then
+                  REAL="$(jq -r '.AZURE_RESOURCE_GROUP.value // empty' "$ART" 2>/dev/null || true)"
+                  [ -n "$REAL" ] && RG="$REAL"
+                fi
+                if az group exists --name "$RG" | grep -qi true; then
+                  echo "Deleting resource group: $RG"
+                  az group delete --name "$RG" --yes
+                  echo "Deleted: $RG"
+                else
+                  echo "Resource group $RG does not exist; nothing to delete."
+                fi

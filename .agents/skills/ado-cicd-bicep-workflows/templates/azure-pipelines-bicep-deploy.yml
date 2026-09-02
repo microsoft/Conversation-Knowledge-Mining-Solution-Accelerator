@@ -1,0 +1,108 @@
+# Azure DevOps — Bicep deploy (provision -> post-deploy + test -> cleanup)
+#
+# Runs on push to the default branch, on a daily schedule, and on manual trigger. It creates a fresh, uniquely-named resource
+# group, deploys the solution with `az deployment` (no azd/azure.yaml dependency), runs the
+# post-deploy scripts and tests, and ALWAYS deletes the resource group afterwards (even if
+# provisioning or tests fail). Nothing is kept running between validations.
+#
+# Placeholders rendered by the skill:
+#   __DEFAULT_BRANCH__     e.g. main
+#   __INFRA_DIR__          e.g. infra
+#   __BICEP_ENTRYPOINT__   e.g. infra/main.bicep
+#   __BICEP_PARAMS__       e.g. infra/main.parameters.json (or empty if none)
+#   __BICEP_SCOPE__        resourceGroup | subscription
+#
+# Prerequisites (see references/service-connection-setup.md):
+#   - Service connection:  set in the SERVICE_CONNECTION variable (Azure Resource Manager, SP).
+#   - Variable group 'bicep-deploy' linked below, containing AZURE_SUBSCRIPTION_ID, AZURE_LOCATION,
+#     ENV_PREFIX, and every required ${VAR} from main.parameters.json (names from discovery).
+
+trigger:
+  branches:
+    include:
+      - __DEFAULT_BRANCH__ # deploy also runs on push to the default branch, plus the daily schedule and manual runs
+
+pr: none
+
+schedules:
+  # 00:00 IST daily (18:30 UTC the previous day). Adjust the cron to change the run time.
+  - cron: "30 18 * * *"
+    displayName: Daily validation (00:00 IST)
+    branches:
+      include:
+        - __DEFAULT_BRANCH__
+    always: true
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: bicep-deploy # AZURE_SUBSCRIPTION_ID, AZURE_LOCATION, ENV_PREFIX + required ${VAR}s
+  - name: SERVICE_CONNECTION
+    value: azure-service-connection # rename to your ARM service connection
+  - name: INFRA_DIR
+    value: __INFRA_DIR__
+  # Unique per run so resource names never collide and cleanup targets exactly this group.
+  - name: AZURE_ENV_NAME
+    value: $(ENV_PREFIX)$(Build.BuildId)
+  - name: AZURE_RESOURCE_GROUP
+    value: rg-$(AZURE_ENV_NAME)
+
+stages:
+  - stage: Provision
+    displayName: Provision infrastructure
+    jobs:
+      - job: provision
+        displayName: az deployment
+        steps:
+          - checkout: self
+          - template: infra-bicep.yml
+            parameters:
+              serviceConnection: $(SERVICE_CONNECTION)
+              azureEnvName: $(AZURE_ENV_NAME)
+              resourceGroup: $(AZURE_RESOURCE_GROUP)
+              location: $(AZURE_LOCATION)
+              subscriptionId: $(AZURE_SUBSCRIPTION_ID)
+              scope: __BICEP_SCOPE__
+              templateFile: __BICEP_ENTRYPOINT__
+              parametersFile: __BICEP_PARAMS__
+
+  # >>> POST-DEPLOY + TEST STAGE <<<
+  # Rendered by the ado-cicd-post-deploy skill into azure-pipelines-post-deploy.yml (same folder).
+  # It reads live values from the provisioned resource group (the ARM deployment outputs), hydrates
+  # the environment, runs the discovered post-deploy scripts, then runs unit/Playwright tests when
+  # present. Remove this reference only if you truly want infra-only validation.
+  - template: azure-pipelines-post-deploy.yml
+    parameters:
+      serviceConnection: $(SERVICE_CONNECTION)
+      resourceGroup: $(AZURE_RESOURCE_GROUP)
+      azureEnvName: $(AZURE_ENV_NAME)
+      subscriptionId: $(AZURE_SUBSCRIPTION_ID)
+      dependsOn: Provision
+
+  - stage: Cleanup
+    displayName: Delete resource group
+    dependsOn:
+      - Provision
+      - PostDeployTest
+    condition: always() # ALWAYS clean up, even if provisioning or tests failed
+    jobs:
+      - job: cleanup
+        displayName: az group delete
+        steps:
+          - task: AzureCLI@2
+            displayName: Delete the resource group
+            inputs:
+              azureSubscription: $(SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                RG='$(AZURE_RESOURCE_GROUP)'
+                if az group exists --name "$RG" | grep -qi true; then
+                  echo "Deleting resource group: $RG"
+                  az group delete --name "$RG" --yes
+                  echo "Deleted: $RG"
+                else
+                  echo "Resource group $RG does not exist; nothing to delete."
+                fi

@@ -1,0 +1,160 @@
+# Azure DevOps — Bicep CI (static validation + unit tests)
+#
+# Runs on every PR to the default branch (no path filter): fast, credential-free static Bicep
+# checks (lint / build / format / build-params) PLUS the repo's unit tests, so a PR gets full
+# code-and-infra feedback without provisioning anything. Unit tests are hermetic (no live Azure),
+# so they belong here, not in the deploy pipeline. The full create -> provision -> post-deploy ->
+# e2e -> cleanup cycle (including Playwright/e2e, which needs a live app) still runs in the deploy
+# pipeline (push to the default branch, schedule, or manual), never on a PR.
+#
+# Placeholders rendered by the skill:
+#   __DEFAULT_BRANCH__  e.g. main
+#   __INFRA_DIR__       e.g. infra
+# Unit-test placeholders (from ado-cicd-post-deploy/scripts/discover-tests.sh) — the unit-test jobs
+# below are kept only for the categories that discovery reports present; delete the others:
+#   __PY_VERSION__ __FE_DIR__ __FE_INSTALL__ __FE_TEST__ __PYTEST_DIR__ __PYTEST_REQS__ __DOTNET_DIR__
+
+trigger: none # CI runs on PRs only (see pr:)
+
+pr:
+  branches:
+    include:
+      - __DEFAULT_BRANCH__
+  # No path filter: unit tests must run on any PR, whatever changed (infra or app code).
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # Static Bicep validation — lint / build / format / parameter checks. Credential-free.
+  # ---------------------------------------------------------------------------------------
+  - job: infra_validation
+    displayName: Bicep static validation
+    variables:
+      INFRA_DIR: __INFRA_DIR__
+    steps:
+      - checkout: self
+
+      - task: Bash@3
+        displayName: Install Bicep CLI
+        inputs:
+          targetType: inline
+          script: |
+            set -euo pipefail
+            az bicep install
+            az bicep version
+
+      - task: Bash@3
+        displayName: Lint and build
+        inputs:
+          targetType: inline
+          script: |
+            set -euo pipefail
+            shopt -s nullglob globstar
+            found=0
+            for t in "$INFRA_DIR"/**/*.bicep; do
+              found=1
+              echo "----- lint $t";  az bicep lint  --file "$t"
+              echo "----- build $t"; az bicep build --file "$t" --stdout >/dev/null
+            done
+            for p in "$INFRA_DIR"/**/*.bicepparam; do
+              echo "----- build-params $p"; az bicep build-params --file "$p" --stdout >/dev/null
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "##vso[task.logissue type=error]No .bicep files found under $INFRA_DIR/"
+              exit 1
+            fi
+
+      - task: Bash@3
+        displayName: Validate JSON parameters
+        inputs:
+          targetType: inline
+          script: |
+            set -euo pipefail
+            shopt -s nullglob globstar
+            for p in "$INFRA_DIR"/**/main.parameters.json "$INFRA_DIR"/*.parameters.json; do
+              echo "----- json check $p"
+              # azd/Bicep parameter files use ${VAR} tokens, so validate structure with a tolerant parser.
+              python3 - "$p" <<'PY'
+            import json, re, sys
+            path = sys.argv[1]
+            raw = open(path, encoding="utf-8").read()
+            # Blank out ${...} tokens so the file parses as plain JSON for a structural check.
+            cleaned = re.sub(r"\$\{[^}]*\}", "", raw)
+            json.loads(cleaned)
+            print("ok", path)
+            PY
+            done
+
+      - task: Bash@3
+        displayName: Format check
+        inputs:
+          targetType: inline
+          script: |
+            set -euo pipefail
+            shopt -s nullglob globstar
+            rc=0
+            for t in "$INFRA_DIR"/**/*.bicep "$INFRA_DIR"/**/*.bicepparam; do
+              az bicep format --file "$t" --stdout > /tmp/formatted 2>/dev/null || continue
+              if ! diff -q "$t" /tmp/formatted >/dev/null; then
+                echo "##vso[task.logissue type=error;sourcepath=$t]Not formatted. Run: az bicep format --file $t"
+                diff -u "$t" /tmp/formatted || true
+                rc=1
+              fi
+            done
+            exit $rc
+
+  # ---------------------------------------------------------------------------------------
+  # Unit tests — run on every PR (hermetic, no live Azure). The ado-cicd-post-deploy skill's
+  # discover-tests.sh reports which categories exist; keep only the jobs whose category is
+  # present and delete the rest. These jobs are independent (no dependsOn) so all feedback
+  # surfaces in parallel with the static validation above.
+  # ---------------------------------------------------------------------------------------
+  # --- unit_frontend: keep only when discover-tests.sh reports unit_frontend.present ---
+  - job: unit_frontend
+    displayName: Unit tests (frontend)
+    steps:
+      - checkout: self
+      - task: Bash@3
+        displayName: Install and test (frontend)
+        inputs:
+          targetType: inline
+          workingDirectory: __FE_DIR__
+          script: |
+            set -euo pipefail
+            __FE_INSTALL__
+            CI=true __FE_TEST__
+
+  # --- unit_backend_pytest: keep only when unit_backend.pytest.present ---
+  - job: unit_backend_pytest
+    displayName: Unit tests (backend, pytest)
+    steps:
+      - checkout: self
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "__PY_VERSION__"
+      - task: Bash@3
+        displayName: Install and run pytest
+        inputs:
+          targetType: inline
+          workingDirectory: __PYTEST_DIR__
+          script: |
+            set -euo pipefail
+            python -m pip install uv pytest
+            [ -f "__PYTEST_REQS__" ] && uv pip install --system -r "__PYTEST_REQS__" || true
+            pytest
+
+  # --- unit_backend_dotnet: keep only when unit_backend.dotnet.present ---
+  - job: unit_backend_dotnet
+    displayName: Unit tests (backend, dotnet)
+    steps:
+      - checkout: self
+      - task: Bash@3
+        displayName: dotnet test
+        inputs:
+          targetType: inline
+          workingDirectory: __DOTNET_DIR__
+          script: |
+            set -euo pipefail
+            dotnet test --nologo

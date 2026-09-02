@@ -1,0 +1,129 @@
+# Azure DevOps — Terraform CI (static validation + unit tests)
+#
+# Runs on every PR to the default branch (no path filter): fast, credential-free Terraform static
+# checks (`terraform fmt`, `terraform init -backend=false`, `terraform validate`) PLUS the repo's
+# unit tests, so a PR gets full code-and-infra feedback without applying anything. Unit tests are
+# hermetic (no live Azure), so they belong here, not in the deploy pipeline. The full create ->
+# apply -> post-deploy -> e2e -> cleanup cycle (including Playwright/e2e, which needs a live app)
+# still runs in the deploy pipeline (push to the default branch, schedule, or manual), never on a PR.
+#
+# Placeholders rendered by the skill:
+#   __DEFAULT_BRANCH__  e.g. main
+#   __INFRA_TF_DIR__    e.g. infra_tf
+#   __TF_VERSION__      e.g. 1.9.8
+# Unit-test placeholders (from ado-cicd-post-deploy/scripts/discover-tests.sh) — the unit-test jobs
+# below are kept only for the categories that discovery reports present; delete the others:
+#   __PY_VERSION__ __FE_DIR__ __FE_INSTALL__ __FE_TEST__ __PYTEST_DIR__ __PYTEST_REQS__ __DOTNET_DIR__
+
+trigger: none # CI runs on PRs only (see pr:)
+
+pr:
+  branches:
+    include:
+      - __DEFAULT_BRANCH__
+  # No path filter: unit tests must run on any PR, whatever changed (infra or app code).
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  # ---------------------------------------------------------------------------------------
+  # Static Terraform validation — fmt / init -backend=false / validate. Credential-free.
+  # ---------------------------------------------------------------------------------------
+  - job: infra_validation
+    displayName: Terraform static validation
+    variables:
+      INFRA_TF_DIR: __INFRA_TF_DIR__
+      TF_VERSION: __TF_VERSION__
+    steps:
+      - checkout: self
+
+      - task: Bash@3
+        displayName: Install Terraform (if not preinstalled)
+        inputs:
+          targetType: inline
+          script: |
+            set -euo pipefail
+            if command -v terraform >/dev/null 2>&1; then
+              echo "terraform present: $(terraform version | head -n 1)"
+            else
+              echo "Installing Terraform $TF_VERSION..."
+              curl -fsSL -o /tmp/tf.zip "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+              unzip -o /tmp/tf.zip -d /tmp/tfbin >/dev/null
+              sudo mv /tmp/tfbin/terraform /usr/local/bin/terraform
+              terraform version
+            fi
+
+      - task: Bash@3
+        displayName: terraform fmt (check)
+        inputs:
+          targetType: inline
+          workingDirectory: $(INFRA_TF_DIR)
+          script: |
+            set -euo pipefail
+            terraform fmt -check -recursive -diff
+
+      - task: Bash@3
+        displayName: terraform validate
+        inputs:
+          targetType: inline
+          workingDirectory: $(INFRA_TF_DIR)
+          script: |
+            set -euo pipefail
+            # Init without a backend and without provider network calls, then validate the config.
+            terraform init -backend=false -input=false
+            terraform validate
+
+  # ---------------------------------------------------------------------------------------
+  # Unit tests — run on every PR (hermetic, no live Azure). The ado-cicd-post-deploy skill's
+  # discover-tests.sh reports which categories exist; keep only the jobs whose category is
+  # present and delete the rest. Independent jobs (no dependsOn) so feedback surfaces in
+  # parallel with the static validation above.
+  # ---------------------------------------------------------------------------------------
+  # --- unit_frontend: keep only when discover-tests.sh reports unit_frontend.present ---
+  - job: unit_frontend
+    displayName: Unit tests (frontend)
+    steps:
+      - checkout: self
+      - task: Bash@3
+        displayName: Install and test (frontend)
+        inputs:
+          targetType: inline
+          workingDirectory: __FE_DIR__
+          script: |
+            set -euo pipefail
+            __FE_INSTALL__
+            CI=true __FE_TEST__
+
+  # --- unit_backend_pytest: keep only when unit_backend.pytest.present ---
+  - job: unit_backend_pytest
+    displayName: Unit tests (backend, pytest)
+    steps:
+      - checkout: self
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "__PY_VERSION__"
+      - task: Bash@3
+        displayName: Install and run pytest
+        inputs:
+          targetType: inline
+          workingDirectory: __PYTEST_DIR__
+          script: |
+            set -euo pipefail
+            python -m pip install uv pytest
+            [ -f "__PYTEST_REQS__" ] && uv pip install --system -r "__PYTEST_REQS__" || true
+            pytest
+
+  # --- unit_backend_dotnet: keep only when unit_backend.dotnet.present ---
+  - job: unit_backend_dotnet
+    displayName: Unit tests (backend, dotnet)
+    steps:
+      - checkout: self
+      - task: Bash@3
+        displayName: dotnet test
+        inputs:
+          targetType: inline
+          workingDirectory: __DOTNET_DIR__
+          script: |
+            set -euo pipefail
+            dotnet test --nologo
