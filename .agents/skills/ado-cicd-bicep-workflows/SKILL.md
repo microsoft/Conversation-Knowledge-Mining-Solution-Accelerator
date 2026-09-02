@@ -117,7 +117,10 @@ infrastructure.
      fill `__FE_DIR__`/`__FE_INSTALL__`/`__FE_TEST__` (e.g. `npm ci` / `npm test`),
      `__PYTEST_DIR__`/`__PYTEST_REQS__`, `__DOTNET_DIR__`, and `__PY_VERSION__`. If no unit category
      is present, delete all three and keep just `infra_validation`. (A "unit" suite that actually
-     hits live endpoints is integration — leave it to the post-deploy e2e stage instead.)
+     hits live endpoints is integration — leave it to the post-deploy e2e stage instead.) Render a
+     `unit_*` job **only** for a category `discover-tests.sh` reports `present: true`; never infer a
+     suite from compiled artifacts (`__pycache__`/`*.pyc`), coverage caches, or test paths named in
+     a pre-existing CI workflow — those may reference sources absent from the checkout.
    - `infra-bicep.yml` — copy verbatim (reusable deploy step template).
    - The deploy pipeline references `azure-pipelines-post-deploy.yml` (rendered by the
      **ado-cicd-post-deploy** skill) for the post-deploy + e2e stage. Render that skill too, or

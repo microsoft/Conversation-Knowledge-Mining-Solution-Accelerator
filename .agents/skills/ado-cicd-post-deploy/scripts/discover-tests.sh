@@ -10,8 +10,10 @@
 # is only rendered when its category is actually present.
 #
 # Categories:
-#   unit_frontend  — a package.json exposing a `test` script (Jest/Vitest/CRA).
-#   unit_backend   — pytest (pytest.ini/pyproject/conftest) and/or dotnet test
+#   unit_frontend  — a package.json exposing a `test` script (Jest/Vitest/CRA)
+#                    with at least one *.test.* / *.spec.* file or __tests__ dir.
+#   unit_backend   — pytest (pytest.ini/pyproject/conftest) with at least one
+#                    real test_*.py/*_test.py source, and/or dotnet test
 #                    projects (*Tests*.csproj / *.Tests.csproj).
 #   playwright     — a Playwright config (JS/TS) or Python Playwright usage
 #                    (`from playwright...`) under a tests directory.
@@ -27,12 +29,12 @@ command -v jq >/dev/null 2>&1 || { echo "ERROR: jq is required." >&2; exit 1; }
 
 find_files() {
   find . \
-    \( -name .git -o -name .github -o -name .devcontainer -o -name .agents -o -name node_modules -o -name .terraform -o -name .venv -o -name dist -o -name build -o -name bin -o -name obj \) -prune \
+    \( -name .git -o -name .github -o -name .devcontainer -o -name .agents -o -name node_modules -o -name .terraform -o -name .venv -o -name venv -o -name env -o -name .tox -o -name .pytest_cache -o -name .mypy_cache -o -name site-packages -o -name dist -o -name build -o -name bin -o -name obj -o -name __pycache__ \) -prune \
     -o -type f "$@" -print 2>/dev/null | sed 's|^\./||'
 }
 find_dirs() {
   find . \
-    \( -name .git -o -name node_modules -o -name .venv -o -name .terraform \) -prune \
+    \( -name .git -o -name node_modules -o -name .venv -o -name venv -o -name env -o -name .tox -o -name site-packages -o -name .terraform -o -name __pycache__ \) -prune \
     -o -type d "$@" -print 2>/dev/null | sed 's|^\./||'
 }
 
@@ -45,8 +47,17 @@ for pj in $(find_files -name 'package.json'); do
     case "$testscript" in
       *"no test specified"*) continue ;;
     esac
+    pkgdir="$(dirname "$pj")"
+    # A `test` script alone is not a runnable suite: require at least one real
+    # test file (or a __tests__ dir) under the package, so a script pointing at
+    # absent tests doesn't yield a phantom job.
+    has_fe_tests="$(find "$pkgdir" -name node_modules -prune -o -type f \( -name '*.test.*' -o -name '*.spec.*' \) -print 2>/dev/null | head -n 1 || true)"
+    if [ -z "$has_fe_tests" ]; then
+      has_fe_tests="$(find "$pkgdir" -name node_modules -prune -o -type d -name '__tests__' -print 2>/dev/null | head -n 1 || true)"
+    fi
+    [ -n "$has_fe_tests" ] || continue
     fe_present=true
-    fe_dir="$(dirname "$pj")"
+    fe_dir="$pkgdir"
     # Prefer the package manager implied by a lockfile in the same dir.
     if [ -f "$fe_dir/pnpm-lock.yaml" ]; then fe_manager="pnpm";
     elif [ -f "$fe_dir/yarn.lock" ]; then fe_manager="yarn";
@@ -66,10 +77,17 @@ if [ -z "$py_marker" ]; then
   done
 fi
 if [ -n "$py_marker" ]; then
-  py_present=true
-  py_dir="$(dirname "$py_marker")"
-  # Nearest requirements.txt for installing test deps.
-  py_reqs="$(find_files -name 'requirements.txt' | head -n 1 || true)"
+  # A marker (pytest.ini/conftest.py/pyproject) alone is not a runnable suite:
+  # require at least one real pytest source file. This prevents a phantom suite
+  # from a stale marker or leftover __pycache__/*.pyc when the test sources are
+  # not actually in the checkout.
+  py_src="$(find_files \( -name 'test_*.py' -o -name '*_test.py' \) | head -n 1 || true)"
+  if [ -n "$py_src" ]; then
+    py_present=true
+    py_dir="$(dirname "$py_marker")"
+    # Nearest requirements.txt for installing test deps.
+    py_reqs="$(find_files -name 'requirements.txt' | head -n 1 || true)"
+  fi
 fi
 
 dotnet_present=false; dotnet_dir=""
@@ -88,7 +106,10 @@ if [ -n "$pw_config" ]; then
   pw_lang="node"
 else
   # Python Playwright: `from playwright...` import inside a tests tree.
-  pw_py="$(grep -rlsE '^[[:space:]]*from[[:space:]]+playwright' --include='*.py' . 2>/dev/null | grep -vE 'node_modules|\.venv' | sed 's|^\./||' | head -n 1 || true)"
+  pw_py="$(grep -rlsE '^[[:space:]]*from[[:space:]]+playwright' --include='*.py' \
+    --exclude-dir=node_modules --exclude-dir=.venv --exclude-dir=venv --exclude-dir=env \
+    --exclude-dir=.tox --exclude-dir=site-packages --exclude-dir=__pycache__ \
+    . 2>/dev/null | sed 's|^\./||' | head -n 1 || true)"
   if [ -n "$pw_py" ]; then
     pw_present=true
     pw_lang="python"
