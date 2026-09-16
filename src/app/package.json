@@ -31,7 +31,7 @@
     "shell-quote": "1.9.0",
     "websocket-driver": "0.7.5",
     "postcss": "8.5.25",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.6",
     "svgo": "2.8.3",
     "js-yaml@^3": "3.15.1",
     "js-yaml@^4": "4.3.1",
