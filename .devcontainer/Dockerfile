@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/python:3.11-bullseye
+FROM mcr.microsoft.com/devcontainers/python:3.11-bookworm
 
 ENV NPM_CONFIG_REGISTRY=https://packagefeedproxy.microsoft.io/npm/
 
