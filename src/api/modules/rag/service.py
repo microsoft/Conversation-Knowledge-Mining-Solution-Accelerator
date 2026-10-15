@@ -44,17 +44,32 @@ def _extract_get_urls(response: Any) -> list:
     return get_urls
 
 
-def _collect_citations(response: Any, get_urls: list) -> list:
-    """Build a citation list from the final response, enriching doc_N citations
-    with the per-document get_urls extracted from the raw Azure AI Search stream.
+_RAW_MARKER_RE = re.compile(r"【[^】]*】")
 
-    Mirrors scripts/test_agent.py::collect_citations.
+
+def _number_citations(text: str, response: Any, get_urls: list) -> tuple[str, list]:
+    """Replace the agent's raw citation markers (e.g. 【4:0†source】) with [N] markers that
+    index the returned citation list.
+
+    Each citation annotation records the text span of its marker, so markers are linked to
+    their document by position. Numbers are assigned per unique document in order of first
+    appearance, so different markers for the same document share one number and every [N]
+    resolves to citations[N-1]. Markers without an annotation are dropped.
+
+    doc_N url fallback mirrors scripts/test_agent.py::collect_citations.
     """
-    citations: list = []
-    seen: set = set()
+    spans: list = []  # (start, end, key), offsets into the joined response text
+    keys: list = []  # every annotation key, in annotation order
+    labels: dict = {}
+    full_text = ""
     url_iter = iter(get_urls)
     for message in getattr(response, "messages", None) or []:
         for content in getattr(message, "contents", None) or []:
+            # Annotation offsets are relative to their own content's text.
+            base = len(full_text)
+            content_text = getattr(content, "text", None)
+            if isinstance(content_text, str):
+                full_text += content_text
             for ann in getattr(content, "annotations", None) or []:
                 if not isinstance(ann, dict) or ann.get("type") != "citation":
                     continue
@@ -65,19 +80,49 @@ def _collect_citations(response: Any, get_urls: list) -> list:
                 # so fall back to the next per-document get_url from the raw stream.
                 if isinstance(title, str) and title.startswith("doc_"):
                     url = add_props.get("get_url") or next(url_iter, url)
-                    # Derive the real document id from the get_url so the citation
-                    # label shows the actual doc id instead of the ordinal doc_N.
-                    # get_url format: .../indexes/{index}/docs/{document_id}?api-version=...
+                    # Show the real document id (from .../docs/{document_id}?...) instead of doc_N.
                     if isinstance(url, str):
                         m = re.search(r"/docs/([^?]+)", url)
                         if m:
                             title = unquote(m.group(1))
-                key = (title, url)
-                if key in seen:
-                    continue
-                seen.add(key)
-                citations.append({"title": title, "url": url or "N/A"})
-    return citations
+                key = (title, url or "N/A")
+                labels[key] = title
+                keys.append(key)
+                for region in ann.get("annotated_regions") or []:
+                    start, end = region.get("start_index"), region.get("end_index")
+                    if isinstance(start, int) and isinstance(end, int):
+                        spans.append((base + start, base + end, key))
+
+    numbers: dict = {}
+    citations: list = []
+
+    def _number(key) -> int:
+        if key not in numbers:
+            numbers[key] = len(numbers) + 1
+            citations.append({"title": labels[key], "url": key[1]})
+        return numbers[key]
+
+    # Offsets refer to the final response text. If the streamed text differs, pair the
+    # markers with the annotations in order instead.
+    by_position = text == full_text
+    ordered = iter(sorted(spans, key=lambda s: s[0]))
+
+    def _replace(match) -> str:
+        if not by_position:
+            span = next(ordered, None)
+            return f"[{_number(span[2])}]" if span else ""
+        for start, end, key in spans:
+            if start < match.end() and match.start() < end:
+                return f"[{_number(key)}]"
+        return ""
+
+    out = _RAW_MARKER_RE.sub(_replace, text)
+    # Collapse repeats such as "[2][2]" left where several markers cite one document.
+    out = re.sub(r"(\[\d+\])(?:[ \t]*\1)+", r"\1", out)
+    # Keep cited documents whose marker was not found in the text (listed after numbered ones).
+    for key in keys:
+        _number(key)
+    return out, citations
 
 
 def _strip_links_from_answer(text: str) -> str:
@@ -134,14 +179,6 @@ class RAGService:
             if not agent_endpoint:
                 raise ValueError("AZURE_AI_AGENT_ENDPOINT is not configured. Set AZURE_AI_AGENT_ENDPOINT in .env or environment.")
 
-            marker_map: dict[str, int] = {}
-
-            def _replace_marker(match):
-                marker = match.group(0)
-                if marker not in marker_map:
-                    marker_map[marker] = len(marker_map) + 1
-                return f"[{marker_map[marker]}]"
-
             async with (
                 AsyncDefaultAzureCredential() as credential,
                 AIProjectClient(
@@ -186,19 +223,12 @@ class RAGService:
                 async for chunk in stream:
                     out += str(chunk.text) if chunk.text else ""
 
-                # Convert the agent's raw AI Search citation markers (e.g. 【4:0†source】)
-                # into sequential [N] markers on the FULL text — doing it per-chunk lets
-                # markers split across stream boundaries leak through as raw text.
-                out = re.sub(r"【\d+(?::\d+)?†?[^】]*】", _replace_marker, out)
-                # Drop any residual raw markers that didn't match the expected form so no
-                # search citation artifacts remain in the answer (only [N] markers stay).
-                out = re.sub(r"【[^】]*】", "", out)
-
-                # Citations come from the final response, matching test_agent.py:
-                # collect annotations + recover per-document get_urls from the raw stream.
+                # Number citation markers on the FULL text (per-chunk replacement lets markers
+                # split across stream boundaries leak through), using the final response's
+                # annotations so each [N] maps to the matching entry in the sources list.
                 response = await stream.get_final_response()
                 get_urls = _extract_get_urls(response)
-                citation_dicts = _collect_citations(response, get_urls)
+                out, citation_dicts = _number_citations(out, response, get_urls)
 
             sources: list[Source] = []
             for c in citation_dicts:

@@ -198,21 +198,25 @@ class CosmosService:
             return None
 
     def get_messages(self, session_id: str) -> list[dict]:
-        """Get all messages in a session, ordered by timestamp."""
+        """Get all messages in a session, in saved order."""
         if not self.available:
             return []
         try:
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
             query = (
-                "SELECT c.id, c.role, c.content, c.sources, c.timestamp "
-                "FROM c WHERE c.session_id = @sid "
-                "ORDER BY c.timestamp ASC"
+                "SELECT c.id, c.role, c.content, c.sources, c.timestamp, c[\"order\"] AS position "
+                "FROM c WHERE c.session_id = @sid"
             )
             items = list(container.query_items(
                 query,
                 parameters=[{"name": "@sid", "value": session_id}],
                 partition_key=session_id,
             ))
+            # Sort by the saved position (timestamps can tie or come from the client), then timestamp.
+            items.sort(key=lambda m: (m.get("position") if isinstance(m.get("position"), int) else 0,
+                                      str(m.get("timestamp") or "")))
+            for m in items:
+                m.pop("position", None)
             return items
         except Exception as e:
             logger.warning(f"Failed to get messages: {e}")
