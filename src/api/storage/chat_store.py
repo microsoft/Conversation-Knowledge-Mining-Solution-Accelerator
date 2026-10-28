@@ -142,7 +142,8 @@ class ChatStore:
             conn = sql._get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, role, content, sources, timestamp FROM chat_messages WHERE session_id = ? ORDER BY timestamp ASC",
+                # save_messages_bulk writes a whole session at once, so timestamps can tie; sort_order keeps the order.
+                "SELECT id, role, content, sources, timestamp FROM chat_messages WHERE session_id = ? ORDER BY sort_order ASC, timestamp ASC",
                 session_id,
             )
             rows = cursor.fetchall()

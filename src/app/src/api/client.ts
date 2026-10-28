@@ -81,6 +81,7 @@ export const clearSessionCache = () => {
     sessionStorage.removeItem("km_insights");
     sessionStorage.removeItem("km_chat");
     sessionStorage.removeItem("km_explore_chat");
+    sessionStorage.removeItem("km_explore_session");
     return true;
   } catch {
     return false;

@@ -90,11 +90,17 @@ const dedupeDataSources = (sources: any[]): any[] => {
 
 /* ── Component ── */
 const Explore: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
   // Data context
-  const { exploreChatMessages, setExploreChatMessages, exploreData, setExploreData, ingestionSnapshot } = useAppState();
+  const {
+    exploreChatMessages, setExploreChatMessages, exploreData, setExploreData, ingestionSnapshot,
+    // Chat state kept in app state so it survives leaving Explore.
+    exploreSessionId: sessionId, setExploreSessionId: setSessionId, exploreSessionRef: currentSessionRef,
+    explorePendingSessions: pendingSessions, setExplorePendingSessions: setPendingSessions,
+    exploreLoadSeqRef: loadSeqRef, exploreChatCacheRef: chatCacheRef,
+  } = useAppState();
   const [files, setFiles] = useState<any[]>(exploreData?.files ?? []);
   const [dataSources, setDataSources] = useState<any[]>(exploreData?.dataSources ?? []);
   const [schema, setSchema] = useState<any>(exploreData?.schema ?? null);
@@ -111,13 +117,13 @@ const Explore: React.FC = () => {
   const messages = exploreChatMessages;
   const setMessages = setExploreChatMessages;
   const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [expandedSources, setExpandedSources] = useState<Set<number>>(new Set());
   const processedAutoQueryRef = useRef<string>("");
 
   // Sessions
-  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
+  // The typing indicator and Send lock apply only to the chat on screen.
+  const chatLoading = pendingSessions.has(sessionId);
   const [sessions, setSessions] = useState<any[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [activeCitation, setActiveCitation] = useState<{ title: string; content: string } | null>(null);
@@ -190,16 +196,23 @@ const Explore: React.FC = () => {
   useEffect(() => {
     const rawQ = searchParams.get("q") || "";
     const q = rawQ.trim();
-    if (!q || chatLoading) return;
+    if (!q) return;
 
     const source = (searchParams.get("source") || "").toLowerCase();
     const fromInsights = source === "insights";
+    // Insights questions start a new chat, so they needn't wait for the current one's answer.
+    if (chatLoading && !fromInsights) return;
     const autoKey = `${source}|${q}`;
 
     if (processedAutoQueryRef.current === autoKey) return;
     if (!fromInsights && messages.length > 0) return;
 
     processedAutoQueryRef.current = autoKey;
+    // Drop q/source so a refresh or back/forward doesn't re-ask the question.
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    next.delete("source");
+    setSearchParams(next, { replace: true });
     void handleChat(q, { resetConversation: fromInsights });
   }, [searchParams, messages.length, chatLoading]);
 
@@ -227,13 +240,14 @@ const Explore: React.FC = () => {
 
   const handleChat = async (text?: string, options?: { resetConversation?: boolean }) => {
     const q = text || chatInput;
-    if (!q.trim() || chatLoading) return;
     const resetConversation = !!options?.resetConversation;
+    if (!q.trim() || (chatLoading && !resetConversation)) return;
 
     let activeSessionId = sessionId;
     let existingMessages = messages;
 
     if (resetConversation) {
+      loadSeqRef.current++;
       activeSessionId = crypto.randomUUID();
       existingMessages = [];
       setSessionId(activeSessionId);
@@ -248,7 +262,8 @@ const Explore: React.FC = () => {
       setMessages((prev: any[]) => [...prev, userMsg]);
     }
     setChatInput("");
-    setChatLoading(true);
+    chatCacheRef.current.set(activeSessionId, [...existingMessages, userMsg]);
+    setPendingSessions((prev: Set<string>) => new Set(prev).add(activeSessionId));
     try {
       const selectableFiles = files.filter((f: any) => isFileSelectable(f.status));
       const allSelected =
@@ -269,13 +284,19 @@ const Explore: React.FC = () => {
       const filters = Object.keys(activeFilters).length > 0 ? activeFilters : undefined;
       const res = await askQuestion(q, 5, filters, scope, docIds, activeSessionId);
       const asstMsg = { role: "assistant" as const, content: res.data.answer, sources: res.data.sources };
-      setMessages((prev: any[]) => [...prev, asstMsg]);
       const allMsgs = [...existingMessages, userMsg, asstMsg];
+      chatCacheRef.current.set(activeSessionId, allMsgs);
+      // The answer is always saved to its own chat, but shown only if that chat is still on screen.
+      if (currentSessionRef.current === activeSessionId) setMessages(allMsgs);
       const title = existingMessages.length === 0 ? q.slice(0, 60) : undefined;
       saveChatHistory(activeSessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
     } catch (err: unknown) {
-      setMessages((prev: any[]) => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }]);
-    } finally { setChatLoading(false); }
+      const errMsgs = [...existingMessages, userMsg, { role: "assistant" as const, content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }];
+      chatCacheRef.current.set(activeSessionId, errMsgs);
+      if (currentSessionRef.current === activeSessionId) setMessages(errMsgs);
+    } finally {
+      setPendingSessions((prev: Set<string>) => { const n = new Set(prev); n.delete(activeSessionId); return n; });
+    }
   };
 
   const toggleDoc = (id: string) => {
@@ -290,7 +311,7 @@ const Explore: React.FC = () => {
   const toggleSource = (idx: number) => {
     setExpandedSources((prev: Set<number>) => { const n = new Set(prev); n.has(idx) ? n.delete(idx) : n.add(idx); return n; });
   };
-  const startNew = () => { setSessionId(crypto.randomUUID()); setMessages([]); setExpandedSources(new Set()); };
+  const startNew = () => { loadSeqRef.current++; const sid = crypto.randomUUID(); setSessionId(sid); setMessages([]); setExpandedSources(new Set()); };
   const openCitation = async (src: any) => {
     const url = src?.url || src?.metadata?.url;
     const label = src?.source_file || src?.doc_id || "Citation";
@@ -314,11 +335,16 @@ const Explore: React.FC = () => {
     }
   };
   const loadSession = async (sid: string) => {
+    const seq = ++loadSeqRef.current;
     try {
       const r = await loadChatHistory(sid);
+      if (seq !== loadSeqRef.current) return;
       setSessionId(sid);
       const rawMsgs = r.data?.messages || r.data;
-      setMessages(Array.isArray(rawMsgs) ? rawMsgs.map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })) : []);
+      const loaded = Array.isArray(rawMsgs) ? rawMsgs.map((m: any) => ({ role: m.role, content: m.content, sources: m.sources })) : [];
+      // History only grows: a longer cached copy means saved history lags this tab's pending or just-finished answer.
+      const cached = chatCacheRef.current.get(sid);
+      setMessages(cached && cached.length > loaded.length ? cached : loaded);
       setShowHistory(false);
     } catch (e) { /* silently ignore */ }
   };
