@@ -42,7 +42,8 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: production
+    # Pull request runs (including forks) never use the production environment or Azure credentials.
+    environment: ${{ github.event_name != 'pull_request' && 'production' || '' }}
 
     steps:
       - name: Checkout repository
