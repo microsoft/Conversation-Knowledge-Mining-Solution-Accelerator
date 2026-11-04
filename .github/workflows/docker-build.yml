@@ -94,7 +94,7 @@ jobs:
         with:
           context: ./src/app
           file: ./src/app/WebApp.Dockerfile
-          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges'  }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo' || github.ref_name == 'dependabotchanges') }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}
             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-app:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
@@ -104,7 +104,7 @@ jobs:
         with:
           context: ./src/api
           file: ./src/api/ApiApp.Dockerfile
-          push: ${{ github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo'  || github.ref_name == 'dependabotchanges' }}
+          push: ${{ github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'dev' || github.ref_name == 'demo' || github.ref_name == 'dependabotchanges') }}
           tags: |
             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}
             ${{ secrets.ACR_LOGIN_SERVER || 'acrlogin.azurecr.io' }}/km-api:${{ steps.determine_tag.outputs.tagname }}_${{ steps.date.outputs.date }}_${{ github.run_number }}
