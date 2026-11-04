@@ -139,7 +139,9 @@ Select one of the following options to deploy the Conversation Knowledge Mining 
 - [PowerShell 7.0+](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell)
 - [Azure Developer CLI (azd) 1.18.0+](https://aka.ms/install-azd)
 - [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
-- [Python 3.9+](https://www.python.org/downloads/)
+- [Python 3.11+](https://www.python.org/downloads/)
+- [Bicep CLI 0.33.0+](https://learn.microsoft.com/azure/azure-resource-manager/bicep/install)
+- [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) (Driver 18 recommended, the SQL role setup also supports Driver 17)
 - [Git](https://git-scm.com/downloads)
 
 **Setup Steps:**
