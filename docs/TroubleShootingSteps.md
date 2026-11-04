@@ -65,7 +65,7 @@ Then restart the App Services from the Azure Portal if needed.
  
 **Symptom:** SQL role setup reports `Unable to connect using ODBC Driver 18 or 17`.
  
-**Solution:** For the Local Environment only, install [Microsoft ODBC Driver for SQL Server](Download ODBC Driver for SQL Server - ODBC Driver for SQL Server | Microsoft Learn) (Driver 18 or 17) on your local machine, then rerun:
+**Solution:** For the Local Environment only, install [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) (Driver 18 or 17) on your local machine, then rerun:
 ```
 ./infra/scripts/post-provision/setup-sql-roles.ps1
 ```
