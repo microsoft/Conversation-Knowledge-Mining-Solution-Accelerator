@@ -61,6 +61,15 @@ Then restart the App Services from the Azure Portal if needed.
 
 **Solution:** Run the script from the repository root. The Dockerfiles are located at [src/api/ApiApp.Dockerfile](../src/api/ApiApp.Dockerfile) and [src/app/WebApp.Dockerfile](../src/app/WebApp.Dockerfile).
 
+### `Local Environment: SQL role assignment fails with an ODBC driver error`
+ 
+**Symptom:** SQL role setup reports `Unable to connect using ODBC Driver 18 or 17`.
+ 
+**Solution:** For the Local Environment only, install [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) (Driver 18 or 17) on your local machine, then rerun:
+```
+./infra/scripts/post-provision/setup-sql-roles.ps1
+```
+
 ### `scenarios.json` or config file not found
 
 **Symptom:** A post-provision script reports it cannot find `data/config/scenarios.json`.
