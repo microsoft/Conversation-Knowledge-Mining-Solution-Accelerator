@@ -65,24 +65,23 @@ Then restart the App Services from the Azure Portal if needed.
 
 **Symptom:** SQL role setup reports `Unable to connect using ODBC Driver 18 or 17`.
 
-This message can indicate a missing ODBC driver or a SQL connection failure, including network or authentication errors. Check the underlying error before retrying.
+**Solution:** For the Local Environment, install [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) (Driver 18 or 17) on your local machine.
 
-**Solution:**
-1. For the Local Environment, install [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) if missing (SQL role setup supports Driver 18 or 17).
-2. Confirm that the retry host can reach the SQL server. For WAF/private-networking deployments, the post-provision hook restores private-only SQL access even when role assignment fails. Installing a driver alone will not restore connectivity. Prefer retrying from a host with network access to the SQL private endpoint and DNS configured to resolve the SQL server hostname to its private IP. If temporary public access is necessary and permitted, record the SQL server's current networking settings, enable public access for selected networks, and add only the retry host's public IP to the SQL firewall. After the retry, even if it fails, remove the temporary firewall rule and restore the original networking settings, including disabling public access for a private-only deployment.
-3. From the repository root, with the correct `azd` environment selected and Azure CLI signed in, activate the deployment's `.venv` before rerunning the script. The post-provision hook installs `pyodbc` and `azure-identity` into `.venv`, but its activation does not persist in your terminal. The retry script uses `python` from `PATH`, so skipping activation can cause `ModuleNotFoundError`.
+For WAF/private-networking deployments, `azure.yaml` restores private-only SQL access even if role assignment fails. Retry from a host with access to the SQL private endpoint, or temporarily enable network access and restore the previous settings after the retry.
 
-   **Windows (PowerShell 7+):**
-   ```powershell
-   .\.venv\Scripts\Activate.ps1
-   ./infra/scripts/post-provision/setup-sql-roles.ps1
-   ```
+Before retrying, activate the deployment's `.venv` from the repository root. The post-provision hook installs the required Python packages into this environment, but activation does not persist in your terminal.
 
-   **Linux/macOS (bash/zsh, with PowerShell 7+ installed):**
-   ```shell
-   source .venv/bin/activate
-   pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1
-   ```
+**Windows (PowerShell):**
+```powershell
+.\.venv\Scripts\Activate.ps1
+./infra/scripts/post-provision/setup-sql-roles.ps1
+```
+
+**Linux/macOS (bash/zsh, with PowerShell 7+ installed):**
+```shell
+source .venv/bin/activate
+pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1
+```
 
 ### `scenarios.json` or config file not found
 
