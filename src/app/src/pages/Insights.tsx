@@ -128,7 +128,7 @@ const useStyles = makeStyles({
   },
   filterGroups: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))",
     gap: "10px",
   },
   refreshHint: {
@@ -145,6 +145,7 @@ const useStyles = makeStyles({
     display: "flex",
     flexDirection: "column",
     gap: "6px",
+    minWidth: 0,
   },
   filterValues: {
     display: "flex",
@@ -1262,13 +1263,14 @@ const Insights: React.FC = () => {
                 <div className={styles.filterGroups}>
                   {availableFilters.map((filter) => (
                     <div key={filter.field} className={styles.filterGroup}>
-                      <Field size="small" label={filter.label || filter.field}>
+                      <Field size="small" label={filter.label || filter.field} style={{ width: "100%", minWidth: 0 }}>
                         <Dropdown
                           disabled={refreshing}
                           size="small"
                           value={filters[filter.field] || "All"}
                           selectedOptions={filters[filter.field] ? [filters[filter.field]] : [""]}
                           onOptionSelect={(_, data) => setFilterValue(filter.field, String(data.optionValue || ""))}
+                          style={{ width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}
                         >
                           <Option value="">All</Option>
                           {(filter.values || []).map((value) => (

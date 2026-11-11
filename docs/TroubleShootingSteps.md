@@ -61,6 +61,28 @@ Then restart the App Services from the Azure Portal if needed.
 
 **Solution:** Run the script from the repository root. The Dockerfiles are located at [src/api/ApiApp.Dockerfile](../src/api/ApiApp.Dockerfile) and [src/app/WebApp.Dockerfile](../src/app/WebApp.Dockerfile).
 
+### `Local Environment: SQL role assignment fails with an ODBC driver error`
+
+**Symptom:** SQL role setup reports `Unable to connect using ODBC Driver 18 or 17`.
+
+**Solution:** For the Local Environment, install [Microsoft ODBC Driver for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16) (Driver 18 or 17) on your local machine.
+
+For WAF/private-networking deployments, `azure.yaml` restores private-only SQL access even if role assignment fails. Retry from a host with access to the SQL private endpoint, or temporarily enable network access and restore the previous settings after the retry.
+
+Before retrying, activate the deployment's `.venv` from the repository root. The post-provision hook installs the required Python packages into this environment, but activation does not persist in your terminal.
+
+**Windows (PowerShell):**
+```powershell
+.\.venv\Scripts\Activate.ps1
+./infra/scripts/post-provision/setup-sql-roles.ps1
+```
+
+**Linux/macOS (bash/zsh, with PowerShell 7+ installed):**
+```shell
+source .venv/bin/activate
+pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1
+```
+
 ### `scenarios.json` or config file not found
 
 **Symptom:** A post-provision script reports it cannot find `data/config/scenarios.json`.
