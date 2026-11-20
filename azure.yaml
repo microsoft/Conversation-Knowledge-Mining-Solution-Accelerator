@@ -8,6 +8,10 @@ metadata:
   template: conversation-knowledge-mining@1.0
 
 hooks:
+  preup:
+    shell: pwsh
+    run: ./infra/scripts/pre-provision/setup-authentication.ps1
+    interactive: false
   preprovision:
     windows:
       run: |
@@ -18,6 +22,7 @@ hooks:
         Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
         Write-Host ""
         $ErrorActionPreference = "Stop"
+        & ./infra/scripts/pre-provision/setup-authentication.ps1
         foreach ($name in @("AZURE_AD_TENANT_ID", "AZURE_AD_CLIENT_ID")) {
           $value = azd env get-value $name 2>$null
           if ($LASTEXITCODE -ne 0 -or "$value" -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -or "$value" -eq [guid]::Empty.ToString()) {
@@ -26,10 +31,10 @@ hooks:
         }
         exit 0
       shell: pwsh
-      interactive: true
+      interactive: false
     posix:
       shell: sh
-      interactive: true
+      interactive: false
       run: |
         printf '\n'
         printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
@@ -37,6 +42,7 @@ hooks:
         printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
         printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
         printf '\n'
+        pwsh -File ./infra/scripts/pre-provision/setup-authentication.ps1 || exit $?
         for name in AZURE_AD_TENANT_ID AZURE_AD_CLIENT_ID; do
           value=$(azd env get-value "$name" 2>/dev/null) || value=
           if ! printf '%s' "$value" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' || [ "$value" = "00000000-0000-0000-0000-000000000000" ]; then

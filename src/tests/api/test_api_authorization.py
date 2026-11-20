@@ -156,3 +156,59 @@ def test_rag_uses_verified_identity_not_headers(application, monkeypatch):
     })
     assert response.status_code == 200
     sessions.assert_called_once_with("verified-user")
+
+
+@pytest.mark.parametrize("method", ["GET", "POST", "DELETE"])
+def test_foreign_chat_session_does_not_disclose_or_modify_history(application, monkeypatch, method):
+    from src.api.storage.db_service import DbService, db_service
+
+    monkeypatch.setattr(DbService, "available", property(lambda self: True))
+    monkeypatch.setattr(db_service, "get_session", Mock(return_value=None))
+    create = Mock(return_value=None)
+    save = Mock()
+    load = Mock()
+    delete = Mock(return_value=False)
+    monkeypatch.setattr(db_service, "create_session", create)
+    monkeypatch.setattr(db_service, "save_messages_bulk", save)
+    monkeypatch.setattr(db_service, "get_messages", load)
+    monkeypatch.setattr(db_service, "delete_session", delete)
+    application.dependency_overrides[auth.get_current_user] = lambda: User(
+        user_id="attacker", roles=["Reader"],
+    )
+    api = TestClient(application)
+    if method == "POST":
+        response = api.post("/api/rag/chat/save", json={
+            "session_id": "victim", "messages": [], "user_id": "victim-owner",
+        })
+        assert response.status_code == 409
+        create.assert_called_once_with(session_id="victim", user_id="attacker", title="Chat session")
+    elif method == "GET":
+        assert api.get("/api/rag/chat/load/victim").status_code == 404
+    else:
+        assert api.delete("/api/rag/chat/session/victim").status_code == 404
+        delete.assert_called_once_with("victim", "attacker")
+    save.assert_not_called()
+    load.assert_not_called()
+
+
+def test_existing_chat_save_uses_owner_lookup_not_capped_session_list(application, monkeypatch):
+    from src.api.storage.db_service import DbService, db_service
+
+    monkeypatch.setattr(DbService, "available", property(lambda self: True))
+    monkeypatch.setattr(db_service, "get_session", Mock(return_value={"id": "owned"}))
+    listing = Mock()
+    create = Mock()
+    save = Mock(return_value=True)
+    monkeypatch.setattr(db_service, "list_sessions", listing)
+    monkeypatch.setattr(db_service, "create_session", create)
+    monkeypatch.setattr(db_service, "save_messages_bulk", save)
+    application.dependency_overrides[auth.get_current_user] = lambda: User(
+        user_id="owner", roles=["Reader"],
+    )
+    response = TestClient(application).post("/api/rag/chat/save", json={
+        "session_id": "owned", "messages": [{"content": "Updated"}], "user_id": "forged",
+    })
+    assert response.json() == {"saved": True}
+    save.assert_called_once_with("owned", [{"content": "Updated"}], "owner", title=None)
+    listing.assert_not_called()
+    create.assert_not_called()

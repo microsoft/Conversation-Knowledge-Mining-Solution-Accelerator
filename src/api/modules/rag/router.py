@@ -8,6 +8,7 @@ from src.api.modules.rag.service import rag_service
 from src.api.modules.rag.models import QARequest, QAResponse
 from src.api.modules.security.auth import get_current_user
 from src.api.modules.security.models import User
+from src.api.storage.db_service import ChatHistoryMigrationRequired, db_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,7 +37,6 @@ async def fetch_azure_search_content(body: CitationContentRequest):
 class SaveChatRequest(BaseModel):
     session_id: str
     messages: list[dict]
-    user_id: str = "default"
     title: Optional[str] = None
 
 
@@ -45,9 +45,9 @@ async def save_chat(body: SaveChatRequest, user: User = Depends(get_current_user
     """Save chat messages."""
     user_id = user.user_id
     try:
-        from src.api.storage.db_service import db_service
-        sessions = db_service.list_sessions(user_id)
-        session_exists = any(s["id"] == body.session_id for s in sessions)
+        if not db_service.available:
+            raise HTTPException(503, "Chat storage is unavailable")
+        session_exists = db_service.get_session(body.session_id, user_id) is not None
 
         resolved_title = None
         if not session_exists:
@@ -58,34 +58,47 @@ async def save_chat(body: SaveChatRequest, user: User = Depends(get_current_user
                     resolved_title = agent_title
 
         if not session_exists:
-            db_service.create_session(
+            created = db_service.create_session(
                 session_id=body.session_id,
                 user_id=user_id,
                 title=resolved_title or "Chat session",
             )
-        success = db_service.save_messages_bulk(body.session_id, body.messages)
-        if success:
-            db_service.update_session(
-                body.session_id, user_id,
-                title=resolved_title,
-                message_count=len(body.messages),
-            )
-        return {"saved": success}
+            if created is None:
+                raise HTTPException(409, "Chat session could not be created")
+        success = db_service.save_messages_bulk(
+            body.session_id, body.messages, user_id, title=resolved_title,
+        )
+        if not success:
+            raise HTTPException(409, "Chat session could not be saved")
+        return {"saved": True}
+    except ChatHistoryMigrationRequired as e:
+        logger.warning("Blocked unmigrated chat history: %s", body.session_id)
+        raise HTTPException(409, str(e)) from e
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save chat session '{body.session_id}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save chat session. Please try again.")
 
 
 @router.get("/chat/load/{session_id}")
-async def load_chat(session_id: str):
+async def load_chat(session_id: str, user: User = Depends(get_current_user)):
     """Load chat messages."""
     try:
-        from src.api.storage.db_service import db_service
-        messages = db_service.get_messages(session_id)
+        if not db_service.available:
+            raise HTTPException(503, "Chat storage is unavailable")
+        if db_service.get_session(session_id, user.user_id) is None:
+            raise HTTPException(404, "Chat session not found")
+        messages = db_service.get_messages(session_id, user.user_id)
         return {"messages": messages}
+    except ChatHistoryMigrationRequired as e:
+        logger.warning("Blocked unmigrated chat history: %s", session_id)
+        raise HTTPException(409, str(e)) from e
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Failed to load chat session '{session_id}': {e}")
-        return {"messages": []}
+        logger.error(f"Failed to load chat session '{session_id}': {e}", exc_info=True)
+        raise HTTPException(500, "Failed to load chat session") from e
 
 
 @router.get("/chat/sessions")
@@ -93,7 +106,6 @@ async def list_chat_sessions(user: User = Depends(get_current_user)):
     """List all chat sessions for the current user."""
     user_id = user.user_id
     try:
-        from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
         return {"sessions": sessions}
     except Exception as e:
@@ -106,12 +118,17 @@ async def delete_chat_session(session_id: str, user: User = Depends(get_current_
     """Delete a chat session and all its messages."""
     user_id = user.user_id
     try:
-        from src.api.storage.db_service import db_service
+        if not db_service.available:
+            raise HTTPException(503, "Chat storage is unavailable")
         success = db_service.delete_session(session_id, user_id)
-        return {"deleted": success}
+        if not success:
+            raise HTTPException(404, "Chat session not found")
+        return {"deleted": True}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Failed to delete chat session '{session_id}': {e}")
-        return {"deleted": False}
+        logger.error(f"Failed to delete chat session '{session_id}': {e}", exc_info=True)
+        raise HTTPException(500, "Failed to delete chat session") from e
 
 
 @router.post("/ask", response_model=QAResponse)

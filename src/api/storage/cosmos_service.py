@@ -6,6 +6,8 @@ Containers:
   - insights:      generated insights per dataset (dataset_id, insights, generated_at)
 """
 
+import hashlib
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -13,8 +15,11 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosResourceNotFoundError
+from azure.core import MatchConditions
 
 from src.api.config import get_settings
+from src.api.storage.db_service import ChatHistoryMigrationRequired
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +93,33 @@ class CosmosService:
 
     # --- Chat Sessions ---
 
+    @staticmethod
+    def _history_prefix(session_id: str, user_id: str) -> str:
+        identity = json.dumps([user_id, session_id], separators=(",", ":")).encode()
+        return "owner-" + hashlib.sha256(identity).hexdigest() + "-"
+
+    def _message_partition(self, session: dict, user_id: str) -> str:
+        partition = session.get("message_partition")
+        if not isinstance(partition, str) or not partition.startswith(
+            self._history_prefix(session["id"], user_id)
+        ):
+            raise ChatHistoryMigrationRequired(
+                "Legacy Cosmos chat history requires an administrator-approved ownership migration."
+            )
+        return partition
+
+    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
+        if not self.available:
+            return None
+        try:
+            container = self._db.get_container_client(self.SESSIONS_CONTAINER)
+            return container.read_item(item=session_id, partition_key=user_id)
+        except CosmosResourceNotFoundError:
+            return None
+        except CosmosHttpResponseError:
+            logger.exception("Failed to read chat session")
+            raise
+
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         """Create a new chat session. Returns session metadata."""
         if not self.available:
@@ -102,6 +134,7 @@ class CosmosService:
                 "created_at": datetime.utcnow().isoformat() + "Z",
                 "updated_at": datetime.utcnow().isoformat() + "Z",
             }
+            session["message_partition"] = self._history_prefix(session["id"], user_id) + str(uuid.uuid4())
             container.create_item(session)
             return session
         except Exception as e:
@@ -145,62 +178,77 @@ class CosmosService:
             if message_count is not None:
                 item["message_count"] = message_count
             item["updated_at"] = datetime.utcnow().isoformat() + "Z"
-            container.replace_item(item=session_id, body=item)
+            container.replace_item(
+                item=session_id, body=item, etag=item["_etag"],
+                match_condition=MatchConditions.IfNotModified,
+            )
             return True
-        except Exception as e:
-            logger.warning(f"Failed to update session: {e}")
+        except CosmosResourceNotFoundError:
             return False
+        except CosmosHttpResponseError:
+            logger.exception("Failed to update chat session")
+            raise
 
     def delete_session(self, session_id: str, user_id: str) -> bool:
         """Delete a session and all its messages."""
         if not self.available:
             return False
-        try:
-            # Delete session
-            sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
-            sessions.delete_item(item=session_id, partition_key=user_id)
-
-            # Delete all messages in session
-            messages = self._db.get_container_client(self.MESSAGES_CONTAINER)
-            query = "SELECT c.id FROM c WHERE c.session_id = @sid"
-            items = list(messages.query_items(
-                query, parameters=[{"name": "@sid", "value": session_id}],
-                partition_key=session_id,
-            ))
-            for item in items:
-                messages.delete_item(item=item["id"], partition_key=session_id)
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to delete session: {e}")
+        session = self.get_session(session_id, user_id)
+        if session is None:
             return False
+        partition = self._message_partition(session, user_id) if "message_partition" in session else None
+        try:
+            sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
+            sessions.delete_item(
+                item=session_id, partition_key=user_id, etag=session["_etag"],
+                match_condition=MatchConditions.IfNotModified,
+            )
+            # Legacy message partitions may be shared by multiple owners; never delete them.
+            if partition is not None:
+                self._delete_message_partition(partition)
+            return True
+        except CosmosResourceNotFoundError:
+            return False
+        except CosmosHttpResponseError:
+            logger.exception("Failed to delete chat session")
+            raise
 
     # --- Chat Messages ---
 
-    def add_message(self, session_id: str, role: str, content: str,
+    def _delete_message_partition(self, partition: str):
+        container = self._db.get_container_client(self.MESSAGES_CONTAINER)
+        items = list(container.query_items(
+            "SELECT c.id FROM c WHERE c.session_id = @sid",
+            parameters=[{"name": "@sid", "value": partition}],
+            partition_key=partition,
+        ))
+        for item in items:
+            container.delete_item(item=item["id"], partition_key=partition)
+
+    def add_message(self, session_id: str, user_id: str, role: str, content: str,
                     sources: Optional[list[dict]] = None) -> Optional[dict]:
         """Add a single message to a session."""
         if not self.available:
             return None
-        try:
-            container = self._db.get_container_client(self.MESSAGES_CONTAINER)
-            msg = {
-                "id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "role": role,
-                "content": content,
-                "sources": sources or [],
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            }
-            container.create_item(msg)
-            return msg
-        except Exception as e:
-            logger.warning(f"Failed to add message: {e}")
+        if self.get_session(session_id, user_id) is None:
             return None
+        messages = self.get_messages(session_id, user_id)
+        msg = {
+            "id": str(uuid.uuid4()), "role": role, "content": content,
+            "sources": sources or [], "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+        if self.save_messages_bulk(session_id, messages + [msg], user_id):
+            return msg
+        return None
 
-    def get_messages(self, session_id: str) -> list[dict]:
+    def get_messages(self, session_id: str, user_id: str) -> list[dict]:
         """Get all messages in a session, in saved order."""
         if not self.available:
             return []
+        session = self.get_session(session_id, user_id)
+        if session is None:
+            return []
+        partition = self._message_partition(session, user_id)
         try:
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
             query = (
@@ -209,8 +257,8 @@ class CosmosService:
             )
             items = list(container.query_items(
                 query,
-                parameters=[{"name": "@sid", "value": session_id}],
-                partition_key=session_id,
+                parameters=[{"name": "@sid", "value": partition}],
+                partition_key=partition,
             ))
             # Sort by the saved position (timestamps can tie or come from the client), then timestamp.
             items.sort(key=lambda m: (m.get("position") if isinstance(m.get("position"), int) else 0,
@@ -218,44 +266,57 @@ class CosmosService:
             for m in items:
                 m.pop("position", None)
             return items
-        except Exception as e:
-            logger.warning(f"Failed to get messages: {e}")
-            return []
+        except CosmosHttpResponseError:
+            logger.exception("Failed to get chat messages")
+            raise
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict], user_id: str,
+                           title: Optional[str] = None) -> bool:
         """Save multiple messages at once (for batch save from frontend)."""
         if not self.available:
             return False
+        session = self.get_session(session_id, user_id)
+        if session is None:
+            return False
+        old_partition = self._message_partition(session, user_id)
+        partition = self._history_prefix(session_id, user_id) + str(uuid.uuid4())
+        publishing = False
         try:
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
-
-            # Clear existing messages for this session
-            existing = "SELECT c.id FROM c WHERE c.session_id = @sid"
-            old = list(container.query_items(
-                existing, parameters=[{"name": "@sid", "value": session_id}],
-                partition_key=session_id,
-            ))
-            for item in old:
-                try:
-                    container.delete_item(item=item["id"], partition_key=session_id)
-                except Exception as e:
-                    logger.warning(f"Failed to delete message {item.get('id', '?')}: {e}")
-
-            # Insert new messages
+            # Publish a complete snapshot with an ETag check; never expose partial replacement.
             for i, msg in enumerate(messages):
                 container.create_item({
                     "id": str(uuid.uuid4()),
-                    "session_id": session_id,
+                    "session_id": partition,
                     "role": msg.get("role", "user"),
                     "content": msg.get("content", ""),
                     "sources": msg.get("sources", []),
                     "timestamp": msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
                     "order": i,
                 })
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to save messages bulk: {e}")
-            return False
+            session["message_partition"] = partition
+            session["message_count"] = len(messages)
+            session["updated_at"] = datetime.utcnow().isoformat() + "Z"
+            if title is not None:
+                session["title"] = title
+            publishing = True
+            self._db.get_container_client(self.SESSIONS_CONTAINER).replace_item(
+                item=session_id, body=session, etag=session["_etag"],
+                match_condition=MatchConditions.IfNotModified,
+            )
+        except CosmosHttpResponseError as exc:
+            logger.exception("Failed to save chat messages")
+            # A timeout may occur after publication committed; preserve that snapshot.
+            if not publishing or exc.status_code in (400, 401, 403, 404, 409, 412, 413):
+                self._delete_message_partition(partition)
+            else:
+                logger.warning("Chat publication outcome is uncertain; snapshot retained: %s", partition)
+            raise
+        try:
+            self._delete_message_partition(old_partition)
+        except CosmosHttpResponseError:
+            logger.exception("Chat saved, but obsolete history cleanup failed")
+        return True
 
     # --- Document Insights ---
 

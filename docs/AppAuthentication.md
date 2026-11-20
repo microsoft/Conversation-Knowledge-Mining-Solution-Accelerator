@@ -106,7 +106,34 @@ header. Network isolation, CORS, or EasyAuth headers never bypass JWT validation
 
 ## 3. Required deployment inputs
 
-Before **any** deployment flavor:
+For `azd up` / `azd provision`, `infra/scripts/pre-provision/setup-authentication.ps1`
+runs automatically before provisioning. It reads the selected subscription's tenant
+from Azure, reuses a configured backend client ID, or looks for the exact registration
+name `CKM-<azd-environment-name>-backend`. If none exists, it creates a single-tenant
+backend registration with v2 access tokens, `access_as_user`, Reader/Contributor/Admin
+role definitions and the `idtyp` optional claim, then saves both IDs in the azd
+environment. The Azure CLI client is preauthorized for the API scope.
+
+**A new registration is not created on every deployment.** Subsequent runs reuse the
+saved client ID; an interrupted bootstrap can reuse its named registration. Duplicate
+names, incompatible registrations or insufficient directory permissions fail clearly
+without deploying an unauthenticated backend. The hook creates the backend enterprise
+application if needed, but does not grant user/group roles or create frontend credentials.
+Assign the deployment operator Admin before post-provision data setup and complete
+frontend consent/EasyAuth configuration in Section 2. Azure subscription permissions
+alone do not grant permission to create Entra registrations.
+
+For manual setup or direct ARM/Bicep deployments, open the Azure portal and go to
+**Microsoft Entra ID > App registrations > your backend API registration > Overview**.
+Copy **Application (client) ID** for `AZURE_AD_CLIENT_ID` and
+**Directory (tenant) ID** for `AZURE_AD_TENANT_ID`. Use the backend registration
+configured in Section 1, not the separate frontend registration.
+
+If configuring a registration manually, create a single-tenant registration
+and complete its API scope, token-version and role setup in Section 1 first.
+These IDs are
+identifiers, not client secrets; do not use an object ID or subscription ID.
+Replace the placeholders below with the copied GUIDs:
 
 ```powershell
 azd env set AZURE_AD_TENANT_ID <tenant-guid>
@@ -202,3 +229,18 @@ The backend API is at `http://127.0.0.1:8000`. Set `APP_ENV=production` to exerc
 mandatory production JWT configuration and leave `ADMIN_API_KEY` empty.
 Compose does **not** emulate App Service EasyAuth: its frontend requires an actual
 EasyAuth-capable hosting/sign-in setup; use bearer-authenticated API tools locally.
+
+## 5. Chat-session ownership and existing Cosmos history
+
+Chat load, save, metadata updates and deletion use the verified caller's identity.
+SQL mutations hold an ownership lock in the same transaction as message changes.
+Cosmos stores new histories in owner-isolated, versioned message partitions and
+publishes complete snapshots through an ETag-conditional session update.
+
+Existing Cosmos sessions without `message_partition` require an administrator-approved
+ownership migration before load/save; the API returns 409 instead of trusting the old
+shared session-ID message partition. No automatic migration is performed. Deleting
+legacy session metadata deliberately leaves shared legacy messages untouched.
+Before enabling existing Cosmos deployments, back up the data, resolve duplicate
+session IDs across users, and migrate histories to their verified owners. New staging
+environments start with the safe format. SQL history needs no schema migration.

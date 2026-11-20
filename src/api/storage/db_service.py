@@ -10,6 +10,10 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+class ChatHistoryMigrationRequired(RuntimeError):
+    """Legacy Cosmos history must be migrated before it can be accessed safely."""
+
+
 class DbService:
     """Thin wrapper routing to the configured database backend."""
 
@@ -52,6 +56,10 @@ class DbService:
         self._ensure_init()
         return self._chat.list_sessions(user_id, limit)
 
+    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
+        self._ensure_init()
+        return self._chat.get_session(session_id, user_id)
+
     def update_session(self, session_id: str, user_id: str,
                        title: Optional[str] = None, message_count: Optional[int] = None) -> bool:
         self._ensure_init()
@@ -63,18 +71,19 @@ class DbService:
 
     # ── Chat Messages ──
 
-    def add_message(self, session_id: str, role: str, content: str,
+    def add_message(self, session_id: str, user_id: str, role: str, content: str,
                     sources: Optional[list] = None) -> Optional[dict]:
         self._ensure_init()
-        return self._chat.add_message(session_id, role, content, sources)
+        return self._chat.add_message(session_id, user_id, role, content, sources)
 
-    def get_messages(self, session_id: str) -> list[dict]:
+    def get_messages(self, session_id: str, user_id: str) -> list[dict]:
         self._ensure_init()
-        return self._chat.get_messages(session_id)
+        return self._chat.get_messages(session_id, user_id)
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict], user_id: str,
+                           title: Optional[str] = None) -> bool:
         self._ensure_init()
-        return self._chat.save_messages_bulk(session_id, messages)
+        return self._chat.save_messages_bulk(session_id, messages, user_id, title)
 
     # ── Insights Cache ──
 

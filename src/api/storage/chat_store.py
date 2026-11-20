@@ -34,6 +34,7 @@ class ChatStore:
         sql = self._get_sql()
         if not sql.available:
             return None
+        conn = None
         try:
             sid = session_id or str(uuid.uuid4())
             now = datetime.utcnow().isoformat() + "Z"
@@ -44,12 +45,34 @@ class ChatStore:
                 sid, user_id, title,
             )
             conn.commit()
-            conn.close()
             return {"id": sid, "user_id": user_id, "title": title, "message_count": 0, "created_at": now, "updated_at": now}
         except Exception as e:
+            if conn is not None:
+                conn.rollback()
             logger.warning(f"Failed to create session: {e}")
-            sql._refresh_token()
             return None
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
+        sql = self._get_sql()
+        if not sql.available:
+            return None
+        conn = None
+        try:
+            conn = sql._get_connection()
+            row = conn.cursor().execute(
+                "SELECT id, title, message_count FROM chat_sessions WHERE id = ? AND user_id = ?",
+                session_id, user_id,
+            ).fetchone()
+            return {"id": row[0], "title": row[1], "message_count": row[2]} if row else None
+        except Exception:
+            logger.exception("Failed to read chat session")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
     def list_sessions(self, user_id: str, limit: int = 50) -> list[dict]:
         sql = self._get_sql()
@@ -74,6 +97,7 @@ class ChatStore:
         sql = self._get_sql()
         if not sql.available:
             return False
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
@@ -85,86 +109,123 @@ class ChatStore:
             if message_count is not None:
                 sets.append("message_count = ?")
                 params.append(message_count)
-            params.append(session_id)
-            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ?", *params)
+            params.extend([session_id, user_id])
+            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ? AND user_id = ?", *params)
+            updated = cursor.rowcount > 0
             conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            logger.warning(f"Failed to update session: {e}")
-            sql._refresh_token()
-            return False
+            return updated
+        except Exception:
+            if conn is not None:
+                conn.rollback()
+            logger.exception("Failed to update chat session")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
     def delete_session(self, session_id: str, user_id: str) -> bool:
         sql = self._get_sql()
         if not sql.available:
             return False
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
+            # Hold ownership through the message mutation and commit.
+            if not cursor.execute(
+                "SELECT id FROM chat_sessions WITH (UPDLOCK, HOLDLOCK) WHERE id = ? AND user_id = ?",
+                session_id, user_id,
+            ).fetchone():
+                conn.rollback()
+                return False
             cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", session_id)
             cursor.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", session_id, user_id)
             conn.commit()
-            conn.close()
             return True
-        except Exception as e:
-            logger.warning(f"Failed to delete session: {e}")
-            sql._refresh_token()
-            return False
+        except Exception:
+            if conn is not None:
+                conn.rollback()
+            logger.exception("Failed to delete chat session")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
     # --- Messages ---
 
-    def add_message(self, session_id: str, role: str, content: str, sources: Optional[list] = None) -> Optional[dict]:
+    def add_message(self, session_id: str, user_id: str, role: str, content: str, sources: Optional[list] = None) -> Optional[dict]:
         sql = self._get_sql()
         if not sql.available:
             return None
+        conn = None
         try:
             msg_id = str(uuid.uuid4())
             conn = sql._get_connection()
             cursor = conn.cursor()
+            if not cursor.execute(
+                "SELECT id FROM chat_sessions WITH (UPDLOCK, HOLDLOCK) WHERE id = ? AND user_id = ?",
+                session_id, user_id,
+            ).fetchone():
+                conn.rollback()
+                return None
             cursor.execute(
                 "INSERT INTO chat_messages (id, session_id, role, content, sources) VALUES (?,?,?,?,?)",
                 msg_id, session_id, role, content, json.dumps(sources or []),
             )
             conn.commit()
-            conn.close()
             return {"id": msg_id, "session_id": session_id, "role": role, "content": content}
-        except Exception as e:
-            logger.warning(f"Failed to add message: {e}")
-            sql._refresh_token()
-            return None
+        except Exception:
+            if conn is not None:
+                conn.rollback()
+            logger.exception("Failed to add chat message")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
-    def get_messages(self, session_id: str) -> list[dict]:
+    def get_messages(self, session_id: str, user_id: str) -> list[dict]:
         sql = self._get_sql()
         if not sql.available:
             return []
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
             cursor.execute(
                 # save_messages_bulk writes a whole session at once, so timestamps can tie; sort_order keeps the order.
-                "SELECT id, role, content, sources, timestamp FROM chat_messages WHERE session_id = ? ORDER BY sort_order ASC, timestamp ASC",
-                session_id,
+                "SELECT m.id, m.role, m.content, m.sources, m.timestamp "
+                "FROM chat_messages m INNER JOIN chat_sessions s ON s.id = m.session_id "
+                "WHERE s.id = ? AND s.user_id = ? ORDER BY m.sort_order ASC, m.timestamp ASC",
+                session_id, user_id,
             )
             rows = cursor.fetchall()
-            conn.close()
             return [{
                 "id": r[0], "role": r[1], "content": r[2],
                 "sources": json.loads(r[3]) if r[3] else [],
                 "timestamp": str(r[4]),
             } for r in rows]
-        except Exception as e:
-            logger.warning(f"Failed to get messages: {e}")
-            sql._refresh_token()
-            return []
+        except Exception:
+            logger.exception("Failed to get chat messages")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict], user_id: str,
+                           title: Optional[str] = None) -> bool:
         sql = self._get_sql()
         if not sql.available:
             return False
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
+            if not cursor.execute(
+                "SELECT id FROM chat_sessions WITH (UPDLOCK, HOLDLOCK) WHERE id = ? AND user_id = ?",
+                session_id, user_id,
+            ).fetchone():
+                conn.rollback()
+                return False
             cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", session_id)
             for i, msg in enumerate(messages):
                 cursor.execute(
@@ -172,13 +233,21 @@ class ChatStore:
                     str(uuid.uuid4()), session_id, msg.get("role", "user"),
                     msg.get("content", ""), json.dumps(msg.get("sources", [])), i,
                 )
+            cursor.execute(
+                "UPDATE chat_sessions SET title = COALESCE(?, title), message_count = ?, "
+                "updated_at = GETUTCDATE() WHERE id = ? AND user_id = ?",
+                title, len(messages), session_id, user_id,
+            )
             conn.commit()
-            conn.close()
             return True
-        except Exception as e:
-            logger.warning(f"Failed to save messages bulk: {e}")
-            sql._refresh_token()
-            return False
+        except Exception:
+            if conn is not None:
+                conn.rollback()
+            logger.exception("Failed to save chat messages")
+            raise
+        finally:
+            if conn is not None:
+                conn.close()
 
 
 chat_store = ChatStore()
