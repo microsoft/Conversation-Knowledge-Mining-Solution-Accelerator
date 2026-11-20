@@ -105,15 +105,22 @@ param kind string = 'app,linux,container'
 // Parameters — Authentication (matches infra_old/main.bicep)
 // ============================================================================
 
-@description('Optional. Azure AD tenant ID for authentication.')
-param azureAdTenantId string = ''
+@description('Required. Microsoft Entra tenant GUID used to validate backend v2 access tokens.')
+@minLength(36)
+@maxLength(36)
+param azureAdTenantId string
 
-@description('Optional. Azure AD client ID for authentication.')
-param azureAdClientId string = ''
+@description('Required. Backend API application (client) GUID and access-token audience.')
+@minLength(36)
+@maxLength(36)
+param azureAdClientId string
 
-@description('Optional. Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable.')
+@description('Optional. Separate frontend web app registration client GUID. Set with frontendClientSecret to configure EasyAuth.')
+param frontendClientId string = ''
+
+@description('Frontend app registration client secret. Required when frontendClientId is set; never use the backend app ID here.')
 @secure()
-param adminApiKey string = ''
+param frontendClientSecret string = ''
 
 // ============================================================================
 // Parameters — Existing Resources
@@ -212,7 +219,8 @@ module avmDeployment './avm/main.bicep' = if (isAvm) {
     frontendContainerImageTag: frontendContainerImageTag
     azureAdTenantId: azureAdTenantId
     azureAdClientId: azureAdClientId
-    adminApiKey: adminApiKey
+    frontendClientId: frontendClientId
+    frontendClientSecret: frontendClientSecret
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
     existingFoundryProjectResourceId: existingFoundryProjectResourceId
     deployingUserPrincipalType: deployingUserPrincipalType
@@ -248,7 +256,8 @@ module bicepDeployment './bicep/main.bicep' = if (isBicep) {
     frontendContainerImageTag: frontendContainerImageTag
     azureAdTenantId: azureAdTenantId
     azureAdClientId: azureAdClientId
-    adminApiKey: adminApiKey
+    frontendClientId: frontendClientId
+    frontendClientSecret: frontendClientSecret
     existingLogAnalyticsWorkspaceId: existingLogAnalyticsWorkspaceId
     existingFoundryProjectResourceId: existingFoundryProjectResourceId
     deployingUserPrincipalType: deployingUserPrincipalType

@@ -20,7 +20,7 @@ You can view the permissions for your account and subscription by following the 
 | **Contributor** | Subscription level | Create and manage Azure resources |
 | **User Access Administrator** | Subscription level | Manage user access and role assignments |
 | **Role Based Access Control Admin** | Subscription/Resource Group level | Configure RBAC permissions |
-| **App Registration Creation** | Microsoft Entra ID | Create and configure authentication (optional) |
+| **App Registration Creation** | Microsoft Entra ID | Required backend/frontend registrations, consent and application role assignments; see [Authentication](./AppAuthentication.md) |
 
 ## Next Steps
 

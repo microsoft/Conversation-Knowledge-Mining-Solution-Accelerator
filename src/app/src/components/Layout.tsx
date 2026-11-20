@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Button,
   Text,
@@ -18,30 +18,23 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
 import styles from "./Layout.module.css";
+import { useSession } from "../auth/SessionBoundary";
+import { invalidateSession } from "../auth/session";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
-  const [userName, setUserName] = useState("");
-
-  useEffect(() => {
-    // Fetch user info from EasyAuth
-    fetch(`${window.location.origin}/.auth/me`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => {
-        const claims = data?.[0]?.user_claims || [];
-        const name = claims.find((c: any) => c.typ === "name")?.val || "";
-        setUserName(name);
-      })
-      .catch(() => {});
-  }, []);
-
-  const isAuthenticated = !!userName;
+  const session = useSession();
+  const userName = session?.name || "";
+  const isAuthenticated = !!session;
   const showChatAvailable = location.pathname === "/insights";
 
   const handleLogin = () => { window.location.href = "/.auth/login/aad"; };
-  const handleLogout = () => { window.location.href = "/.auth/logout"; };
+  const handleLogout = () => {
+    invalidateSession();
+    window.location.href = "/.auth/logout";
+  };
 
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 

@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.46.1.21595",
-      "templateHash": "7213137512787294477"
+      "version": "0.45.15.27210",
+      "templateHash": "11657167907452052319"
     }
   },
   "parameters": {
@@ -185,23 +185,32 @@
     },
     "azureAdTenantId": {
       "type": "string",
-      "defaultValue": "",
+      "minLength": 36,
+      "maxLength": 36,
       "metadata": {
-        "description": "Optional. Azure AD tenant ID for authentication."
+        "description": "Required. Microsoft Entra tenant GUID used to validate backend v2 access tokens."
       }
     },
     "azureAdClientId": {
       "type": "string",
-      "defaultValue": "",
+      "minLength": 36,
+      "maxLength": 36,
       "metadata": {
-        "description": "Optional. Azure AD client ID for authentication."
+        "description": "Required. Backend API application (client) GUID and access-token audience."
       }
     },
-    "adminApiKey": {
+    "frontendClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional. Separate frontend web app registration client GUID. Configure manually if omitted."
+      }
+    },
+    "frontendClientSecret": {
       "type": "securestring",
       "defaultValue": "",
       "metadata": {
-        "description": "Optional. Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable."
+        "description": "Frontend app registration secret, required when frontendClientId is set."
       }
     },
     "existingLogAnalyticsWorkspaceId": {
@@ -307,8 +316,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "3561501102733674034"
+              "version": "0.45.15.27210",
+              "templateHash": "1562511690153284384"
             }
           },
           "parameters": {
@@ -436,8 +445,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "2461614014827306322"
+              "version": "0.45.15.27210",
+              "templateHash": "1396979465821863055"
             }
           },
           "parameters": {
@@ -596,8 +605,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "7677890268465434115"
+              "version": "0.45.15.27210",
+              "templateHash": "9158340857418869969"
             }
           },
           "parameters": {
@@ -817,8 +826,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "8348022486141626008"
+              "version": "0.45.15.27210",
+              "templateHash": "2061702784288856091"
             }
           },
           "parameters": {
@@ -953,8 +962,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "14116608463414189185"
+              "version": "0.45.15.27210",
+              "templateHash": "3215519417659672748"
             }
           },
           "parameters": {
@@ -1124,8 +1133,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "5315493943580072668"
+              "version": "0.45.15.27210",
+              "templateHash": "3303748358923315881"
             }
           },
           "parameters": {
@@ -1249,8 +1258,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "10009140357497945010"
+              "version": "0.45.15.27210",
+              "templateHash": "17915224445383853819"
             }
           },
           "parameters": {
@@ -1438,8 +1447,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.46.1.21595",
-                      "templateHash": "490514611876211300"
+                      "version": "0.45.15.27210",
+                      "templateHash": "3599592075727945573"
                     }
                   },
                   "parameters": {
@@ -1649,8 +1658,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "4421785903472529399"
+              "version": "0.45.15.27210",
+              "templateHash": "6188951243540273822"
             }
           },
           "parameters": {
@@ -1889,8 +1898,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "7776062422456459323"
+              "version": "0.45.15.27210",
+              "templateHash": "15571777420183597562"
             }
           },
           "parameters": {
@@ -2096,8 +2105,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "1308147711399284018"
+              "version": "0.45.15.27210",
+              "templateHash": "4081441945173065936"
             }
           },
           "parameters": {
@@ -2326,8 +2335,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "17503458259299065073"
+              "version": "0.45.15.27210",
+              "templateHash": "4537280756464844268"
             }
           },
           "parameters": {
@@ -2490,8 +2499,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "4857117904279025114"
+              "version": "0.45.15.27210",
+              "templateHash": "11708500044116482511"
             }
           },
           "parameters": {
@@ -2687,7 +2696,6 @@
               "API_APP_NAME": "[format('api-{0}', variables('solutionSuffix'))]",
               "APP_FRONTEND_HOSTNAME": "[format('https://app-{0}.azurewebsites.net', variables('solutionSuffix'))]",
               "APP_ENV": "Prod",
-              "ADMIN_API_KEY": "[parameters('adminApiKey')]",
               "SOLUTION_SUFFIX": "[variables('solutionSuffix')]"
             }
           }
@@ -2698,8 +2706,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "15416323965013625336"
+              "version": "0.45.15.27210",
+              "templateHash": "4923875466157929514"
             }
           },
           "parameters": {
@@ -3007,8 +3015,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "15416323965013625336"
+              "version": "0.45.15.27210",
+              "templateHash": "4923875466157929514"
             }
           },
           "parameters": {
@@ -3262,6 +3270,122 @@
       ]
     },
     {
+      "condition": "[not(empty(parameters('frontendClientId')))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[take(format('module.frontend-auth.{0}', parameters('solutionName')), 64)]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "frontendAppName": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-service-frontend.{0}', parameters('solutionName')), 64)), '2025-04-01').outputs.name.value]"
+          },
+          "tenantId": {
+            "value": "[parameters('azureAdTenantId')]"
+          },
+          "backendClientId": {
+            "value": "[parameters('azureAdClientId')]"
+          },
+          "frontendClientId": {
+            "value": "[parameters('frontendClientId')]"
+          },
+          "frontendClientSecret": {
+            "value": "[parameters('frontendClientSecret')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.45.15.27210",
+              "templateHash": "3501673567575838227"
+            }
+          },
+          "parameters": {
+            "frontendAppName": {
+              "type": "string",
+              "metadata": {
+                "description": "Existing frontend App Service name."
+              }
+            },
+            "tenantId": {
+              "type": "string"
+            },
+            "backendClientId": {
+              "type": "string"
+            },
+            "frontendClientId": {
+              "type": "string"
+            },
+            "frontendClientSecret": {
+              "type": "securestring",
+              "minLength": 1,
+              "metadata": {
+                "description": "Frontend web registration secret; kept secure across all module boundaries."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites/config",
+              "apiVersion": "2025-03-01",
+              "name": "[format('{0}/{1}', parameters('frontendAppName'), 'appsettings')]",
+              "properties": "[union(list(format('{0}/config/appsettings', resourceId('Microsoft.Web/sites', parameters('frontendAppName'))), '2025-03-01').properties, createObject('FRONTEND_AUTH_CLIENT_SECRET', parameters('frontendClientSecret')))]"
+            },
+            {
+              "type": "Microsoft.Web/sites/config",
+              "apiVersion": "2025-03-01",
+              "name": "[format('{0}/{1}', parameters('frontendAppName'), 'authsettingsV2')]",
+              "properties": {
+                "platform": {
+                  "enabled": true
+                },
+                "globalValidation": {
+                  "requireAuthentication": true,
+                  "unauthenticatedClientAction": "RedirectToLoginPage",
+                  "redirectToProvider": "azureactivedirectory"
+                },
+                "identityProviders": {
+                  "azureActiveDirectory": {
+                    "enabled": true,
+                    "registration": {
+                      "openIdIssuer": "[uri(environment().authentication.loginEndpoint, format('{0}/v2.0', parameters('tenantId')))]",
+                      "clientId": "[parameters('frontendClientId')]",
+                      "clientSecretSettingName": "FRONTEND_AUTH_CLIENT_SECRET"
+                    },
+                    "login": {
+                      "loginParameters": [
+                        "[format('scope=openid profile email offline_access api://{0}/access_as_user', parameters('backendClientId'))]"
+                      ]
+                    }
+                  }
+                },
+                "login": {
+                  "tokenStore": {
+                    "enabled": true
+                  }
+                },
+                "httpSettings": {
+                  "requireHttps": true
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites/config', parameters('frontendAppName'), 'appsettings')]"
+              ]
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, resourceGroup().name), 'Microsoft.Resources/deployments', take(format('module.app-service-frontend.{0}', parameters('solutionName')), 64))]"
+      ]
+    },
+    {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "[take(format('module.role-assignments.{0}', parameters('solutionName')), 64)]",
@@ -3324,8 +3448,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.46.1.21595",
-              "templateHash": "16253024886724298901"
+              "version": "0.45.15.27210",
+              "templateHash": "17055097984030071018"
             }
           },
           "parameters": {
@@ -3760,8 +3884,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.46.1.21595",
-                      "templateHash": "1001648557732946394"
+                      "version": "0.45.15.27210",
+                      "templateHash": "1300049152829937087"
                     }
                   },
                   "parameters": {
@@ -3882,8 +4006,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.46.1.21595",
-                      "templateHash": "1001648557732946394"
+                      "version": "0.45.15.27210",
+                      "templateHash": "1300049152829937087"
                     }
                   },
                   "parameters": {
@@ -4004,8 +4128,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.46.1.21595",
-                      "templateHash": "1001648557732946394"
+                      "version": "0.45.15.27210",
+                      "templateHash": "1300049152829937087"
                     }
                   },
                   "parameters": {
@@ -4136,8 +4260,8 @@
                   "metadata": {
                     "_generator": {
                       "name": "bicep",
-                      "version": "0.46.1.21595",
-                      "templateHash": "1001648557732946394"
+                      "version": "0.45.15.27210",
+                      "templateHash": "1300049152829937087"
                     }
                   },
                   "parameters": {

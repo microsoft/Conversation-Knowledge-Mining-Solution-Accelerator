@@ -38,10 +38,20 @@ if ($BackendUrl -eq "http://localhost:8000") {
 }
 
 Write-Host "Getting access token..." -ForegroundColor Yellow
-$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
+$token = $env:BACKEND_API_ACCESS_TOKEN
 if (-not $token) {
-    $token = "test"
-    Write-Host "Using test token (local dev)" -ForegroundColor Yellow
+    $clientId = $env:AZURE_AD_CLIENT_ID
+    if (-not $clientId) { $clientId = azd env get-value AZURE_AD_CLIENT_ID 2>$null }
+    $tenantId = $env:AZURE_AD_TENANT_ID
+    if (-not $tenantId) { $tenantId = azd env get-value AZURE_AD_TENANT_ID 2>$null }
+    if (-not $clientId -or -not $tenantId) {
+        throw "Set AZURE_AD_TENANT_ID and AZURE_AD_CLIENT_ID, or supply BACKEND_API_ACCESS_TOKEN."
+    }
+    $token = az account get-access-token --tenant $tenantId --scope "api://$clientId/access_as_user" --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0) { $token = $null }
+}
+if (-not $token) {
+    throw "A role-bearing backend API access token is required; see docs/AppAuthentication.md."
 }
 
 Write-Host "Loading sample dataset..." -ForegroundColor Yellow

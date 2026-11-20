@@ -289,7 +289,7 @@ const Explore: React.FC = () => {
       // The answer is always saved to its own chat, but shown only if that chat is still on screen.
       if (currentSessionRef.current === activeSessionId) setMessages(allMsgs);
       const title = existingMessages.length === 0 ? q.slice(0, 60) : undefined;
-      saveChatHistory(activeSessionId, allMsgs, "default", title).then(() => loadSessions()).catch(() => {});
+      saveChatHistory(activeSessionId, allMsgs, title).then(() => loadSessions()).catch(() => {});
     } catch (err: unknown) {
       const errMsgs = [...existingMessages, userMsg, { role: "assistant" as const, content: `Error: ${err instanceof Error ? err.message : "Unknown"}` }];
       chatCacheRef.current.set(activeSessionId, errMsgs);

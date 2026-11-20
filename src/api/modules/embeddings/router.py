@@ -15,7 +15,7 @@ from src.api.modules.security.models import User
 router = APIRouter()
 
 
-@router.post("/generate", response_model=EmbeddingResponse)
+@router.post("/generate", response_model=EmbeddingResponse, dependencies=[Depends(require_role("contributor"))])
 async def generate_embedding(
     request: EmbeddingRequest,
 ):

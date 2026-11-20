@@ -1,12 +1,17 @@
 services:
   backend:
     build:
-      context: .
-      dockerfile: src/api/Dockerfile
+      context: ./src/api
+      dockerfile: ApiApp.Dockerfile
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     env_file:
       - .env
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID:-}
+      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
     volumes:
       - ./data:/app/data
       - ./src/api/config:/app/src/api/config
@@ -21,11 +26,11 @@ services:
   frontend:
     build:
       context: ./src/app
-      dockerfile: Dockerfile
+      dockerfile: WebApp.Dockerfile
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:80"
     environment:
-      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-http://localhost:8000/api}
+      - APP_API_BASE_URL=${APP_API_BASE_URL:-http://localhost:8000}
     depends_on:
       backend:
         condition: service_healthy

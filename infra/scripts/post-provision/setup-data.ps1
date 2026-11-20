@@ -184,7 +184,7 @@ elseif ($ResourceGroupName) {
 elseif ($BackendUrl -eq "http://localhost:8000") {
     $localHealthy = $false
     try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        Invoke-RestMethod -Uri "$BackendUrl/api/health" -Method GET -TimeoutSec 3 | Out-Null
         $localHealthy = $true
     } catch {
         $localHealthy = $false
@@ -193,7 +193,7 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
     if (-not $localHealthy) {
         $loopbackUrl = "http://127.0.0.1:8000"
         try {
-            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+            Invoke-RestMethod -Uri "$loopbackUrl/api/health" -Method GET -TimeoutSec 3 | Out-Null
             $BackendUrl = $loopbackUrl
             $localHealthy = $true
         } catch {
@@ -222,22 +222,32 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
 }
 
 # ── Auth token ──
-$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
+$token = $env:BACKEND_API_ACCESS_TOKEN
+$isLocalBackend = ([uri]$BackendUrl).IsLoopback
+$useLocalKey = $isLocalBackend -and $env:APP_ENV -in @("development", "local") -and $env:ADMIN_API_KEY
+if (-not $token -and -not $useLocalKey) {
+    $clientId = if ($ResourceGroupName) { Get-DeployValue "AZURE_AD_CLIENT_ID" } else { $env:AZURE_AD_CLIENT_ID }
+    if (-not $clientId) { $clientId = Get-DeployValue "AZURE_AD_CLIENT_ID" }
+    $tenantId = if ($ResourceGroupName) { Get-DeployValue "AZURE_AD_TENANT_ID" } else { $env:AZURE_AD_TENANT_ID }
+    if (-not $tenantId) { $tenantId = Get-DeployValue "AZURE_AD_TENANT_ID" }
+    if (-not $clientId -or -not $tenantId) {
+        throw "Set AZURE_AD_TENANT_ID and AZURE_AD_CLIENT_ID, or supply BACKEND_API_ACCESS_TOKEN. See docs/AppAuthentication.md."
+    }
+    $token = az account get-access-token --tenant $tenantId --scope "api://$clientId/access_as_user" --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0) { $token = $null }
+}
 $headers = @{}
 if ($token) {
     $headers["Authorization"] = "Bearer $token"
 } else {
-    $adminKey = $env:ADMIN_API_KEY
-    if (-not $adminKey) {
-        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
-    }
-    if ($adminKey) {
+    if ($useLocalKey) {
         Write-Host "Using admin API key for local auth" -ForegroundColor Yellow
-        $headers["X-Admin-Api-Key"] = $adminKey
+        $headers["X-Admin-Api-Key"] = $env:ADMIN_API_KEY
     } else {
-        Write-Host "No auth token or admin key found — requests may be rejected in prod" -ForegroundColor Yellow
+        throw "A role-bearing backend API access token is required. Assign the deployment identity Admin and consent access_as_user. See docs/AppAuthentication.md."
     }
 }
+if ($token) { $env:BACKEND_API_ACCESS_TOKEN = $token }
 
 # ── Wait for the backend's SQL connection to actually be ready ──
 # Right after a fresh deploy/restart, the container can come up and answer HTTP
@@ -254,11 +264,11 @@ function Wait-ForBackendSqlHealthy {
     )
 
     Write-Host "Waiting for backend SQL connectivity to be ready..." -ForegroundColor Yellow
-    $healthUrl = "$($BackendUrl.TrimEnd('/'))/api/health"
+    $healthUrl = "$($BackendUrl.TrimEnd('/'))/api/health/details"
     $elapsed = 0
     while ($elapsed -lt $TimeoutSec) {
         try {
-            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -TimeoutSec 10
+            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -Headers $headers -TimeoutSec 10
             if ($resp.checks.sql -eq "ok") {
                 Write-Host "Backend SQL is ready." -ForegroundColor Green
                 return $true

@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import defaultdict
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +22,7 @@ from src.api.modules.embeddings.router import router as embeddings_router
 from src.api.modules.rag.router import router as rag_router
 from src.api.modules.processing.router import router as processing_router
 from src.api.modules.pipelines.router import router as pipelines_router
-from src.api.modules.security.auth import router as auth_router
+from src.api.modules.security.auth import require_role, router as auth_router
 from src.api.modules.data_sources.router import router as data_sources_router
 from src.api.modules.insights.router import router as insights_router
 
@@ -186,23 +186,25 @@ app.add_middleware(
     allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*", "X-Request-ID"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Admin-Api-Key"],
     expose_headers=["X-Request-ID"],
 )
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(ScannerProbeBlockMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
-# Register module routers
-app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(ingestion_router, prefix="/api/ingestion", tags=["Data Ingestion"])
-app.include_router(docint_router, prefix="/api/documents", tags=["Document Intelligence"])
-app.include_router(embeddings_router, prefix="/api/embeddings", tags=["Vector Embeddings"])
-app.include_router(rag_router, prefix="/api/rag", tags=["RAG / Q&A"])
-app.include_router(processing_router, prefix="/api/processing", tags=["Processing"])
-app.include_router(pipelines_router, prefix="/api/pipelines", tags=["Configurable Pipelines"])
-app.include_router(data_sources_router, prefix="/api/data-sources", tags=["External Data Sources"])
-app.include_router(insights_router, prefix="/api/insights", tags=["Insights Dashboard"])
+# All business APIs share a deny-by-default role gate; mutations add stronger checks.
+protected_router = APIRouter(dependencies=[Depends(require_role("reader"))])
+protected_router.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+protected_router.include_router(ingestion_router, prefix="/api/ingestion", tags=["Data Ingestion"])
+protected_router.include_router(docint_router, prefix="/api/documents", tags=["Document Intelligence"])
+protected_router.include_router(embeddings_router, prefix="/api/embeddings", tags=["Vector Embeddings"])
+protected_router.include_router(rag_router, prefix="/api/rag", tags=["RAG / Q&A"])
+protected_router.include_router(processing_router, prefix="/api/processing", tags=["Processing"])
+protected_router.include_router(pipelines_router, prefix="/api/pipelines", tags=["Configurable Pipelines"])
+protected_router.include_router(data_sources_router, prefix="/api/data-sources", tags=["External Data Sources"])
+protected_router.include_router(insights_router, prefix="/api/insights", tags=["Insights Dashboard"])
+app.include_router(protected_router)
 
 
 @app.get("/", tags=["Health"])
@@ -211,6 +213,12 @@ async def root():
 
 
 @app.get("/api/health", tags=["Health"])
+async def health_probe():
+    """Public liveness only; connectivity details require an assigned role."""
+    return {"status": "healthy"}
+
+
+@app.get("/api/health/details", tags=["Health"], dependencies=[Depends(require_role("reader"))])
 async def health_check():
     """Deep health check — verifies SQL, Cosmos, and Search connectivity."""
     checks: dict[str, str] = {}
@@ -260,7 +268,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": _STATUS_LABELS.get(exc.status_code, f"HTTP_{exc.status_code}"), "detail": exc.detail, "request_id": rid},
-        headers={"X-Request-ID": rid} if rid else {},
+        headers={**(exc.headers or {}), **({"X-Request-ID": rid} if rid else {})},
     )
 
 

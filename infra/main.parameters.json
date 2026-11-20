@@ -53,8 +53,11 @@
     "azureAdClientId": {
       "value": "${AZURE_AD_CLIENT_ID}"
     },
-    "adminApiKey": {
-      "value": "${ADMIN_API_KEY=}"
+    "frontendClientId": {
+      "value": "${FRONTEND_AUTH_CLIENT_ID=}"
+    },
+    "frontendClientSecret": {
+      "value": "${FRONTEND_AUTH_CLIENT_SECRET=}"
     },
     "existingLogAnalyticsWorkspaceId": {
       "value": "${AZURE_ENV_EXISTING_LOG_ANALYTICS_WORKSPACE_RID}"

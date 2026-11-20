@@ -101,15 +101,22 @@ param kind string = 'app,linux,container'
 // Parameters — Authentication (matches infra_old/main.bicep)
 // ============================================================================
 
-@description('Optional. Azure AD tenant ID for authentication.')
-param azureAdTenantId string = ''
+@description('Required. Microsoft Entra tenant GUID used to validate backend v2 access tokens.')
+@minLength(36)
+@maxLength(36)
+param azureAdTenantId string
 
-@description('Optional. Azure AD client ID for authentication.')
-param azureAdClientId string = ''
+@description('Required. Backend API application (client) GUID and access-token audience.')
+@minLength(36)
+@maxLength(36)
+param azureAdClientId string
 
-@description('Optional. Admin API key for script-based authentication (setup-data, post-deploy scripts). Leave empty to disable.')
+@description('Optional. Separate frontend web app registration client GUID. Configure manually if omitted.')
+param frontendClientId string = ''
+
+@description('Frontend app registration secret, required when frontendClientId is set.')
 @secure()
-param adminApiKey string = ''
+param frontendClientSecret string = ''
 
 // ============================================================================
 // Parameters — Existing Resources
@@ -410,7 +417,6 @@ module backend_docker './modules/compute/app-service.bicep' = {
       API_APP_NAME: 'api-${solutionSuffix}'
       APP_FRONTEND_HOSTNAME: 'https://app-${solutionSuffix}.azurewebsites.net'
       APP_ENV: 'Prod'
-      ADMIN_API_KEY: adminApiKey
       SOLUTION_SUFFIX: solutionSuffix
     }
   }
@@ -436,6 +442,17 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     }
   }
   scope: resourceGroup(resourceGroup().name)
+}
+
+module frontend_auth '../shared/frontend-auth.bicep' = if (!empty(frontendClientId)) {
+  name: take('module.frontend-auth.${solutionName}', 64)
+  params: {
+    frontendAppName: frontend_docker.outputs.name
+    tenantId: azureAdTenantId
+    backendClientId: azureAdClientId
+    frontendClientId: frontendClientId
+    frontendClientSecret: frontendClientSecret
+  }
 }
 
 // ========== Role Assignments (centralized)  ========== //

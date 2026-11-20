@@ -987,9 +987,17 @@ def main():
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        admin_key = os.getenv("ADMIN_API_KEY", "")
-        if admin_key:
-            req.add_header("X-Admin-Api-Key", admin_key)
+        token = os.getenv("BACKEND_API_ACCESS_TOKEN", "").strip()
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        else:
+            from urllib.parse import urlparse
+            is_local = urlparse(backend_url).hostname in {"localhost", "127.0.0.1", "::1"}
+            admin_key = os.getenv("ADMIN_API_KEY", "")
+            if is_local and os.getenv("APP_ENV", "").lower() in {"development", "local"} and admin_key:
+                req.add_header("X-Admin-Api-Key", admin_key)
+            else:
+                raise RuntimeError("Set BACKEND_API_ACCESS_TOKEN to a role-bearing backend API access token")
         with _urlreq.urlopen(req, timeout=5) as resp:
             if resp.status in (200, 201):
                 print(f"  [OK] Backend notified — source is live in the app")
@@ -1023,4 +1031,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

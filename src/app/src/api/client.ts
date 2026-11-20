@@ -1,4 +1,5 @@
 import axios from "axios";
+import { AuthError, getTokenSession, invalidateSession, isCurrentSession, refreshSession, reportAccessDenied, sessionGeneration } from "../auth/session";
 
 
 function resolveApiBase(): string {
@@ -19,46 +20,47 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Fetch user info from EasyAuth and cache userId
-let _userId: string | null = null;
-
-async function getUserId(): Promise<string> {
-  if (_userId) return _userId;
-  const cached = localStorage.getItem("userId");
-  if (cached) {
-    _userId = cached;
-    return cached;
-  }
-  try {
-    const resp = await fetch(`${window.location.origin}/.auth/me`);
-    if (resp.ok) {
-      const data = await resp.json();
-      const claims = data?.[0]?.user_claims || [];
-      const oid = claims.find(
-        (c: any) =>
-          c.typ === "http://schemas.microsoft.com/identity/claims/objectidentifier" ||
-          c.typ === "oid"
-      );
-      if (oid?.val) {
-        _userId = oid.val;
-        localStorage.setItem("userId", oid.val);
-        return oid.val;
-      }
-    }
-  } catch {
-    // EasyAuth not available (local dev)
-  }
-  return "default";
-}
-
-// Attach userId header to every request
 apiClient.interceptors.request.use(async (config) => {
-  const userId = await getUserId();
-  if (userId) {
-    config.headers["X-Ms-Client-Principal-Id"] = userId;
-  }
+  const session = await getTokenSession(!(config as any)._authRetried);
+  const previousIdentity = (config as any)._authIdentity;
+  if (previousIdentity && previousIdentity !== session.identity) throw new AuthError("Account changed. Retry the request.");
+  if ((config as any)._authGeneration !== undefined && (config as any)._authGeneration !== sessionGeneration()) throw new AuthError("Account changed. Retry the request.");
+  (config as any)._authIdentity = session.identity;
+  (config as any)._authGeneration = sessionGeneration();
+  config.headers.Authorization = `Bearer ${session.token}`;
   return config;
 });
+
+apiClient.interceptors.response.use(
+  (response) => {
+    if (!isCurrentSession((response.config as any)._authIdentity) || (response.config as any)._authGeneration !== sessionGeneration()) throw new AuthError("Account changed. Discarding an outdated response.");
+    return response;
+  },
+  async (error) => {
+    const config = error.config;
+    if (config && config._authGeneration !== sessionGeneration()) {
+      throw new AuthError("Account changed. Discarding an outdated response.");
+    }
+    if (error.response?.status === 401 && config) {
+      if (!config._authRetried && isCurrentSession(config._authIdentity)) {
+        config._authRetried = true;
+        try {
+          await refreshSession();
+        } catch {
+          invalidateSession();
+          throw new AuthError();
+        }
+        return apiClient(config);
+      }
+      invalidateSession();
+      throw new AuthError();
+    }
+    if (error.response?.status === 403) {
+      throw reportAccessDenied();
+    }
+    return Promise.reject(error);
+  }
+);
 
 // --- Ingestion ---
 export const loadDefaultDataset = () => apiClient.post("/ingestion/load-default");
@@ -139,16 +141,15 @@ export const getVectorStats = () => apiClient.get("/embeddings/stats");
 export const saveChatHistory = (
   sessionId: string,
   messages: Array<{ role: string; content: string; sources?: any[] }>,
-  userId = "default",
   title?: string
 ) =>
-  apiClient.post("/rag/chat/save", { session_id: sessionId, messages, user_id: userId, title });
+  apiClient.post("/rag/chat/save", { session_id: sessionId, messages, title });
 export const loadChatHistory = (sessionId: string) =>
   apiClient.get(`/rag/chat/load/${sessionId}`);
-export const listChatSessions = (userId = "default") =>
-  apiClient.get("/rag/chat/sessions", { params: { user_id: userId } });
-export const deleteChatSession = (sessionId: string, userId = "default") =>
-  apiClient.delete(`/rag/chat/session/${sessionId}`, { params: { user_id: userId } });
+export const listChatSessions = () =>
+  apiClient.get("/rag/chat/sessions");
+export const deleteChatSession = (sessionId: string) =>
+  apiClient.delete(`/rag/chat/session/${sessionId}`);
 export const askQuestion = (
   question: string,
   topK = 5,

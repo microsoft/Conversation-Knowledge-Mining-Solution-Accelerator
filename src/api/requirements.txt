@@ -7,6 +7,7 @@ pydantic==2.13.4
 pydantic-settings==2.14.2
 PyYAML==6.0.3
 httpx==0.28.1
+PyJWT[crypto]==2.15.1
 openai==2.32.0
 azure-ai-projects==2.2.0
 azure-ai-agents==1.2.0b5

@@ -21,7 +21,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 | **Contributor** | Subscription level | Create and manage Azure resources |
 | **User Access Administrator** | Subscription level | Manage user access and role assignments |
 | **Role Based Access Control Admin** | Subscription/Resource Group level | Configure RBAC permissions |
-| **App Registration Creation** | Microsoft Entra ID | Create and configure authentication (optional) |
+| **App Registration Creation** | Microsoft Entra ID | Required backend API and frontend web registrations, consent and app-role assignments |
 
 **🔍 How to Check Your Permissions:**
 
@@ -301,6 +301,14 @@ az login --tenant <tenant-id>
 
 ### 4.2 Start Deployment
 
+First complete [Authentication and role assignments](./AppAuthentication.md):
+set `AZURE_AD_TENANT_ID` to your tenant GUID and `AZURE_AD_CLIENT_ID` to the
+**backend API** registration GUID. The deployment operator needs the backend
+`Admin` application role and consent for `access_as_user` before data setup.
+Configure frontend EasyAuth using the separate frontend registration (optional
+IaC inputs `FRONTEND_AUTH_CLIENT_ID` and secure `FRONTEND_AUTH_CLIENT_SECRET`,
+or the documented manual settings). These requirements apply to every flavor.
+
 ```shell
 azd up
 ```
@@ -317,7 +325,7 @@ azd up
 
 `azd up` runs the hooks defined in [azure.yaml](../azure.yaml) and performs the following steps automatically — no separate manual deploy step is required:
 
-1. **Pre-provision** — Generates and stores an `ADMIN_API_KEY` in the `azd` environment.
+1. **Pre-provision** — Validates the mandatory backend tenant/client GUIDs. No production admin key is generated.
 2. **Provision** — Creates all Azure resources using the Bicep templates in `infra/`. The backend and frontend App Services start with a temporary placeholder image.
 3. **Post-provision** — Runs automatically after provisioning:
    - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build_and_push_images.ps1](../infra/scripts/build/build_and_push_images.ps1))
@@ -425,12 +433,16 @@ Upon selection, the corresponding datasets and configuration files are uploaded,
 
 Once deployment and data setup complete, access your deployed frontend application at the URL from [Step 4.3](#43-get-application-url).
 
-### 5.4 Configure Authentication (Optional)
+### 5.4 Verify Authentication (Required)
 
-By default, the application is accessible without authentication (suitable for development and testing). For production deployments, enable Microsoft Entra ID authentication:
+The backend always requires a valid role-bearing Entra v2 access token for business
+APIs, whether called directly or through the frontend proxy. Production identity
+configuration is mandatory regardless of startup strictness; admin keys are local-only.
 
-1. Follow [App Authentication Configuration](./AppAuthentication.md)
-2. Wait up to 10 minutes for authentication changes to take effect
+1. Verify [App Authentication Configuration](./AppAuthentication.md), including the
+   frontend token store, backend delegated scope, consent, and user/workload role assignments.
+2. Sign in again after configuration changes. `/.auth/me` must return a backend
+   `access_token`; an ID token or frontend identity headers do not authorize the API.
 
 ### 5.5 Verify Deployment
 

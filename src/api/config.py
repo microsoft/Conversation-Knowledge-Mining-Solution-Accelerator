@@ -1,7 +1,9 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 import logging
 import os
+from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,11 @@ class Settings(BaseSettings):
     azure_ad_tenant_id: str = ""
     azure_ad_client_id: str = ""
 
+    @field_validator("azure_ad_tenant_id", "azure_ad_client_id")
+    @classmethod
+    def normalize_authentication_ids(cls, value: str) -> str:
+        return value.lower()
+
     # Optional user-assigned managed identity. Empty uses the system-assigned identity.
     azure_client_id: str = ""
 
@@ -81,7 +88,6 @@ class Settings(BaseSettings):
     app_env: str = ""
     app_frontend_hostname: str = ""
     startup_strict_in_prod: bool = True
-    auth_allow_anonymous_in_prod: bool = False
     data_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
@@ -163,10 +169,34 @@ class Settings(BaseSettings):
 
         return errors
 
+    def validate_authentication_requirements(self) -> list[str]:
+        """Authentication cannot be disabled by relaxing service startup checks."""
+        errors: list[str] = []
+        is_prod = self.app_env.lower() in ("prod", "production")
+        for name in ("azure_ad_tenant_id", "azure_ad_client_id"):
+            value = getattr(self, name)
+            if not value:
+                if is_prod or self.azure_ad_tenant_id or self.azure_ad_client_id:
+                    errors.append(f"{name} is required for Entra authentication.")
+            else:
+                try:
+                    if str(UUID(value)) != value.lower():
+                        raise ValueError("Expected a canonical GUID")
+                except ValueError:
+                    errors.append(f"{name} must be a tenant-specific GUID.")
+        if self.admin_api_key and self.app_env.lower() not in ("development", "local"):
+            errors.append("admin_api_key is permitted only with APP_ENV=development or local.")
+        return errors
+
 
 @lru_cache()
 def get_settings() -> Settings:
     settings = Settings()
+    auth_errors = settings.validate_authentication_requirements()
+    if auth_errors:
+        message = " | ".join(auth_errors)
+        logger.error("[CONFIG] Authentication configuration invalid: %s", message)
+        raise RuntimeError(f"Authentication configuration invalid: {message}")
     for w in settings.validate_startup():
         logger.warning(f"[CONFIG] {w}")
 

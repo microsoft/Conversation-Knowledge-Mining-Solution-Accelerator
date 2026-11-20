@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/summarize", response_model=SummarizeResponse)
+@router.post("/summarize", response_model=SummarizeResponse, dependencies=[Depends(require_role("contributor"))])
 async def summarize_text(request: SummarizeRequest):
     """Summarize a text string."""
     try:
@@ -29,7 +29,7 @@ async def summarize_text(request: SummarizeRequest):
         raise HTTPException(status_code=500, detail=f"Summarization failed: {e}")
 
 
-@router.post("/extract-entities", response_model=EntityExtractionResponse)
+@router.post("/extract-entities", response_model=EntityExtractionResponse, dependencies=[Depends(require_role("contributor"))])
 async def extract_entities(request: EntityExtractionRequest):
     """Extract entities from a text string."""
     try:

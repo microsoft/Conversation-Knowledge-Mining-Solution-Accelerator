@@ -5,9 +5,13 @@ import json
 import io
 import time
 import sys
+import os
 
 BASE = "http://127.0.0.1:8000"
-HEADERS = {"X-User-Email": "test@example.com", "X-User-Roles": "contributor"}
+token = os.environ.get("BACKEND_API_ACCESS_TOKEN", "").strip()
+if not token:
+    raise SystemExit("Set BACKEND_API_ACCESS_TOKEN to a backend API access token with assigned roles.")
+HEADERS = {"Authorization": f"Bearer {token}"}
 
 passed = 0
 failed = 0
@@ -31,7 +35,7 @@ def test(name, fn):
 
 # ── 1. Health Check ──
 def test_health():
-    r = requests.get(f"{BASE}/openapi.json", timeout=10)
+    r = requests.get(f"{BASE}/openapi.json", headers=HEADERS, timeout=10)
     assert r.status_code == 200, f"OpenAPI returned {r.status_code}"
     routes = list(r.json()["paths"].keys())
     print(f"  {len(routes)} API routes available")

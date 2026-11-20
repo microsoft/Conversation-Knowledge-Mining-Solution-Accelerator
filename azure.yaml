@@ -17,15 +17,12 @@ hooks:
         Write-Host "  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues" -ForegroundColor Cyan
         Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
         Write-Host ""
-        $ErrorActionPreference = "Continue"
-        $existing = azd env get-value ADMIN_API_KEY 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $existing) {
-          $key = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
-          azd env set ADMIN_API_KEY $key
-          $env:ADMIN_API_KEY = $key
-          Write-Host "Generated ADMIN_API_KEY and stored in azd env." -ForegroundColor Green
-        } else {
-          $env:ADMIN_API_KEY = $existing
+        $ErrorActionPreference = "Stop"
+        foreach ($name in @("AZURE_AD_TENANT_ID", "AZURE_AD_CLIENT_ID")) {
+          $value = azd env get-value $name 2>$null
+          if ($LASTEXITCODE -ne 0 -or "$value" -notmatch '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' -or "$value" -eq [guid]::Empty.ToString()) {
+            throw "$name must be a non-empty GUID. Configure the backend API app registration first; see docs/AppAuthentication.md."
+          }
         }
         exit 0
       shell: pwsh
@@ -40,15 +37,13 @@ hooks:
         printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
         printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
         printf '\n'
-        existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
-        if [ -z "$existing" ]; then
-          key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
-          azd env set ADMIN_API_KEY "$key"
-          export ADMIN_API_KEY="$key"
-          echo "Generated ADMIN_API_KEY and stored in azd env."
-        else
-          export ADMIN_API_KEY="$existing"
-        fi
+        for name in AZURE_AD_TENANT_ID AZURE_AD_CLIENT_ID; do
+          value=$(azd env get-value "$name" 2>/dev/null) || value=
+          if ! printf '%s' "$value" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' || [ "$value" = "00000000-0000-0000-0000-000000000000" ]; then
+            echo "$name must be a non-empty GUID. See docs/AppAuthentication.md." >&2
+            exit 1
+          fi
+        done
   postprovision:
     windows:
       shell: pwsh

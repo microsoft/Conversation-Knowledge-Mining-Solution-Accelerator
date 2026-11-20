@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AppStateProvider } from "./context/AppStateContext";
 import { Spinner } from "@fluentui/react-components";
+import SessionBoundary from "./auth/SessionBoundary";
 
 const Home = lazy(() => import("./pages/Home"));
 const Explore = lazy(() => import("./pages/Explore"));
@@ -17,6 +18,7 @@ const PageFallback = () => (
 
 const App: React.FC = () => {
   return (
+    <SessionBoundary>
     <AppStateProvider>
     <BrowserRouter>
       <Layout>
@@ -32,6 +34,7 @@ const App: React.FC = () => {
       </Layout>
     </BrowserRouter>
     </AppStateProvider>
+    </SessionBoundary>
   );
 };
 

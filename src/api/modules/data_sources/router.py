@@ -1,7 +1,7 @@
 """FastAPI router for external data source management."""
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.modules.data_sources.base import DataSourceConfig, FieldMapping, DataSourceType
 from src.api.modules.data_sources.models import (
@@ -14,6 +14,7 @@ from src.api.modules.data_sources.models import (
     RegisterScenarioRequest,
 )
 from src.api.modules.data_sources.registry import data_source_registry
+from src.api.modules.security.auth import require_role
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -68,7 +69,7 @@ async def list_data_sources():
     return [_to_response(s) for s in sources]
 
 
-@router.post("/scenario")
+@router.post("/scenario", dependencies=[Depends(require_role("contributor"))])
 async def register_scenario(request: RegisterScenarioRequest):
     """Register a seeded scenario as an inert 'native' data source (used by post-provision)."""
     config = data_source_registry.register_scenario(
@@ -79,7 +80,7 @@ async def register_scenario(request: RegisterScenarioRequest):
     return _to_response(config)
 
 
-@router.post("/")
+@router.post("/", dependencies=[Depends(require_role("contributor"))])
 async def create_data_source(request: CreateDataSourceRequest):
     """Add a new data source connection."""
     config = DataSourceConfig(
@@ -106,7 +107,7 @@ async def get_data_source(source_id: str):
     return _to_response(config)
 
 
-@router.put("/{source_id}")
+@router.put("/{source_id}", dependencies=[Depends(require_role("contributor"))])
 async def update_data_source(source_id: str, request: UpdateDataSourceRequest):
     """Update data source configuration."""
     updates = request.model_dump(exclude_none=True)
@@ -116,7 +117,7 @@ async def update_data_source(source_id: str, request: UpdateDataSourceRequest):
     return _to_response(result)
 
 
-@router.delete("/{source_id}")
+@router.delete("/{source_id}", dependencies=[Depends(require_role("contributor"))])
 async def delete_data_source(source_id: str):
     """Remove a data source."""
     if not data_source_registry.delete(source_id):
@@ -124,7 +125,7 @@ async def delete_data_source(source_id: str):
     return {"success": True}
 
 
-@router.post("/test")
+@router.post("/test", dependencies=[Depends(require_role("contributor"))])
 async def test_connection(request: TestConnectionRequest):
     """Test a data source connection without persisting."""
     config = DataSourceConfig(
@@ -140,7 +141,7 @@ async def test_connection(request: TestConnectionRequest):
     return TestConnectionResponse(**result)
 
 
-@router.post("/{source_id}/test")
+@router.post("/{source_id}/test", dependencies=[Depends(require_role("contributor"))])
 async def test_existing_connection(source_id: str):
     """Test an existing data source connection."""
     config = data_source_registry.get(source_id)
@@ -166,14 +167,14 @@ async def get_sample(source_id: str, count: int = 10):
     return docs
 
 
-@router.post("/{source_id}/ingest")
+@router.post("/{source_id}/ingest", dependencies=[Depends(require_role("contributor"))])
 async def ingest_data(source_id: str):
     """Pull data from the source and ingest into the accelerator."""
     result = data_source_registry.ingest(source_id)
     return IngestResponse(**result)
 
 
-@router.post("/quick-connect")
+@router.post("/quick-connect", dependencies=[Depends(require_role("contributor"))])
 async def quick_connect(request: CreateDataSourceRequest):
     """One-shot: test connection, auto-detect fields, create source, return sample.
     Designed for the simplified 'bring your data' wizard."""

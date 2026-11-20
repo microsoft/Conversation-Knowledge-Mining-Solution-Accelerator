@@ -197,11 +197,16 @@ This template uses [Managed Identity](https://learn.microsoft.com/entra/identity
 
 To ensure continued best practices in your own repository, we recommend that anyone creating solutions based on our templates ensure that the [GitHub secret scanning](https://docs.github.com/code-security/secret-scanning/about-secret-scanning) setting is enabled.
 
+**Required:** configure [Entra authentication and role assignments](./docs/AppAuthentication.md).
+Every deployment requires a tenant GUID and **backend API** registration client GUID.
+The backend validates role-bearing v2 access tokens on both direct and proxied calls;
+frontend EasyAuth must supply a backend `access_token` via its token store.
+Anonymous/sample identities and production admin-key bypasses are not supported.
+
 You may want to consider additional security measures, such as:
 
 * Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).
 * Protecting the Azure App Service instance with a [Virtual Network](https://learn.microsoft.com/azure/app-service/overview-vnet-integration).
-* Configuring [App Service authentication](./docs/AppAuthentication.md) to require users to sign in.
 
 For production, deploy the **Well-Architected Framework (WAF)** aligned configuration (deployment flavor `avm-waf`), which enables private networking, VNet integration, private endpoints, a Bastion-accessed jumpbox, and optional zone redundancy. See [Choose Deployment Type](./docs/DeploymentGuide.md#33-choose-deployment-type-standard-vs-production).
 

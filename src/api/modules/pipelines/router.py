@@ -114,7 +114,7 @@ async def get_processing_status():
 
 @router.get("/status/stream")
 async def stream_processing_status():
-    """SSE stream of processing status updates. No auth required for event streams."""
+    """SSE processing updates, protected by the shared API authentication gate."""
     import asyncio
 
     queue = pipeline_engine.subscribe_sse()

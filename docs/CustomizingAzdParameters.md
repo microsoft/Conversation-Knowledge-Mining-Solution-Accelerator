@@ -17,14 +17,15 @@ After setting parameters, run `azd up` (or `azd provision`) to apply them.
 | `environmentName` | `AZURE_ENV_NAME` | *(prompted)* | Name of the environment; used to derive resource names (3-16 chars, alphanumeric). |
 | `location` | `AZURE_LOCATION` | *(prompted)* | Primary Azure region for infrastructure resources. |
 | `contentUnderstandingLocation` | `AZURE_CU_LOCATION` | `swedencentral` | Region for the Azure AI Content Understanding resource. |
-| `azureAdTenantId` | `AZURE_AD_TENANT_ID` | *(empty)* | Microsoft Entra tenant ID for App Service authentication. |
-| `azureAdClientId` | `AZURE_AD_CLIENT_ID` | *(empty)* | App registration client ID for App Service authentication. |
+| `azureAdTenantId` | `AZURE_AD_TENANT_ID` | **required** | Entra tenant GUID for backend v2 JWT validation, all deployment flavors. |
+| `azureAdClientId` | `AZURE_AD_CLIENT_ID` | **required** | Backend API registration client GUID/access-token audience, not the frontend registration. |
+| `frontendClientId` | `FRONTEND_AUTH_CLIENT_ID` | *(empty)* | Separate frontend web registration GUID. Supply with its secret to configure EasyAuth. |
+| `frontendClientSecret` | `FRONTEND_AUTH_CLIENT_SECRET` | *(empty)* | Secure frontend registration secret value. Supply through protected input, never commit it. |
 | `useExistingAiProject` | `USE_EXISTING_AI_PROJECT` | `false` | Set to `true` to reuse an existing Azure AI Foundry project. |
 | `existingAiFoundryServiceName` | `EXISTING_AI_FOUNDRY_SERVICE_NAME` | *(empty)* | Name of an existing AI Foundry service to reuse. |
 | `existingAiFoundryProjectName` | `EXISTING_AI_FOUNDRY_PROJECT_NAME` | *(empty)* | Name of an existing AI Foundry project to reuse. |
 | `existingAiFoundryEndpoint` | `EXISTING_AI_FOUNDRY_ENDPOINT` | *(empty)* | Endpoint of an existing AI Foundry project to reuse. |
 | `existingAiSearchConnectionName` | `EXISTING_AI_SEARCH_CONNECTION_NAME` | *(empty)* | Name of an existing Azure AI Search connection to reuse. |
-| `adminApiKey` | `ADMIN_API_KEY` | *(empty)* | Optional admin API key for privileged operations. |
 | `deploymentFlavor` | `DEPLOYMENT_FLAVOR` | `bicep` | Infrastructure variant: `bicep`, `avm`, or `avm-waf`. See [Deployment Flavor & Production (WAF) Parameters](#deployment-flavor--production-waf-parameters). |
 | `azureAiServiceLocation` | `AZURE_ENV_AI_SERVICE_LOCATION` | *(location)* | Region for the Azure AI (OpenAI) service. |
 | `appServicePlanSku` | `AZURE_ENV_APP_SERVICE_PLAN_SKU` | `B3` | App Service Plan SKU for the backend and frontend web apps. |
@@ -83,6 +84,10 @@ The WAF parameters file sets the following additional values. Flags without an `
 > **Production prerequisite:** the WAF jumpbox VM enables host encryption, so the `EncryptionAtHost` feature must be registered on the subscription before deploying. See [Choose Deployment Type](./DeploymentGuide.md#33-choose-deployment-type-standard-vs-production) for the registration commands and VM credential setup.
 
 ## Examples
+
+Every example requires the tenant/backend API GUIDs first. Complete
+[authentication and role assignments](./AppAuthentication.md) before deployment;
+no flavor supports anonymous application access or a production admin-key bypass.
 
 **Deploy to Australia East with a specific environment name:**
 
