@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
+from uuid import UUID
 import logging
 import os
 
@@ -39,7 +41,7 @@ class Settings(BaseSettings):
     azure_content_understanding_api_version: str = "2025-11-01"
     azure_content_understanding_analyzer_id: str = "km_document"
 
-    # Admin API Key (local dev / script auth — never set in production)
+    # Optional privileged script credential. Never expose it to browser clients.
     admin_api_key: str = ""
 
     # Microsoft Entra ID (AAD)
@@ -81,7 +83,6 @@ class Settings(BaseSettings):
     app_env: str = ""
     app_frontend_hostname: str = ""
     startup_strict_in_prod: bool = True
-    auth_allow_anonymous_in_prod: bool = False
     data_dir: str = os.path.join(os.path.dirname(__file__), "..", "..", "data")
     pipelines_config_dir: str = os.path.join(os.path.dirname(__file__), "app", "config", "use_cases")
 
@@ -115,6 +116,16 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
+    @field_validator("azure_ad_tenant_id", "azure_ad_client_id")
+    @classmethod
+    def validate_entra_id(cls, value: str) -> str:
+        if not value:
+            return ""
+        try:
+            return str(UUID(value))
+        except ValueError as exc:
+            raise ValueError("Entra tenant and client IDs must be UUIDs") from exc
+
     def validate_startup(self) -> list[str]:
         """Check for missing configuration and return warnings.
 
@@ -139,6 +150,9 @@ class Settings(BaseSettings):
     def validate_production_requirements(self) -> list[str]:
         """Return blocking configuration errors for production deployments."""
         errors: list[str] = []
+
+        if not self.azure_ad_tenant_id or not self.azure_ad_client_id:
+            errors.append("azure_ad_tenant_id and azure_ad_client_id are required in production.")
 
         if not self.app_frontend_hostname:
             errors.append("app_frontend_hostname is required in production.")

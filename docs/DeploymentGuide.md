@@ -21,7 +21,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 | **Contributor** | Subscription level | Create and manage Azure resources |
 | **User Access Administrator** | Subscription level | Manage user access and role assignments |
 | **Role Based Access Control Admin** | Subscription/Resource Group level | Configure RBAC permissions |
-| **App Registration Creation** | Microsoft Entra ID | Create and configure authentication (optional) |
+| **App Registration Creation** | Microsoft Entra ID | Create and configure required API authentication |
 
 **🔍 How to Check Your Permissions:**
 
@@ -425,12 +425,15 @@ Upon selection, the corresponding datasets and configuration files are uploaded,
 
 Once deployment and data setup complete, access your deployed frontend application at the URL from [Step 4.3](#43-get-application-url).
 
-### 5.4 Configure Authentication (Optional)
+### 5.4 Configure Authentication (Required)
 
-By default, the application is accessible without authentication (suitable for development and testing). For production deployments, enable Microsoft Entra ID authentication:
+The API requires a validated Microsoft Entra access token or the optional
+privileged script key. Anonymous access and sample-user fallback are disabled.
 
-1. Follow [App Authentication Configuration](./AppAuthentication.md)
-2. Wait up to 10 minutes for authentication changes to take effect
+1. Follow [App Authentication Configuration](./AppAuthentication.md) **before provisioning**.
+2. Set `AZURE_AD_TENANT_ID` and `AZURE_AD_CLIENT_ID` in the `azd` environment.
+3. Assign `Contributor` or `Admin` app roles to users who manage data. Users
+   without an assigned role have read-only access.
 
 ### 5.5 Verify Deployment
 

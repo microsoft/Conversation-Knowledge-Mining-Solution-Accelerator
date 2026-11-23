@@ -7,6 +7,9 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     env_file:
       - .env
+    environment:
+      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID:?Set the Microsoft Entra tenant ID}
+      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID:?Set the Microsoft Entra app client ID}
     volumes:
       - ./data:/app/data
       - ./src/api/config:/app/src/api/config
@@ -25,7 +28,9 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-http://localhost:8000/api}
+      - APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-http://localhost:8000/api}
+      - APP_AZURE_AD_TENANT_ID=${AZURE_AD_TENANT_ID:?Set the Microsoft Entra tenant ID}
+      - APP_AZURE_AD_CLIENT_ID=${AZURE_AD_CLIENT_ID:?Set the Microsoft Entra app client ID}
     depends_on:
       backend:
         condition: service_healthy

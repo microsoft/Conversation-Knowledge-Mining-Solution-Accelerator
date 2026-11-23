@@ -39,15 +39,24 @@ if ($BackendUrl -eq "http://localhost:8000") {
 
 Write-Host "Getting access token..." -ForegroundColor Yellow
 $token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
-if (-not $token) {
-    $token = "test"
-    Write-Host "Using test token (local dev)" -ForegroundColor Yellow
+$headers = @{}
+if ($token) {
+    $headers["Authorization"] = "Bearer $token"
+} else {
+    $adminKey = $env:ADMIN_API_KEY
+    if (-not $adminKey) {
+        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
+    }
+    if (-not $adminKey) {
+        throw "An API access token or ADMIN_API_KEY is required. See docs/AppAuthentication.md."
+    }
+    $headers["X-Admin-Api-Key"] = $adminKey
 }
 
 Write-Host "Loading sample dataset..." -ForegroundColor Yellow
 $response = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `
     -Method POST `
-    -Headers @{ Authorization = "Bearer $token" } `
+    -Headers $headers `
     -ContentType "application/json" `
     -ErrorAction Stop
 

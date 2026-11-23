@@ -17,8 +17,8 @@ After setting parameters, run `azd up` (or `azd provision`) to apply them.
 | `environmentName` | `AZURE_ENV_NAME` | *(prompted)* | Name of the environment; used to derive resource names (3-16 chars, alphanumeric). |
 | `location` | `AZURE_LOCATION` | *(prompted)* | Primary Azure region for infrastructure resources. |
 | `contentUnderstandingLocation` | `AZURE_CU_LOCATION` | `swedencentral` | Region for the Azure AI Content Understanding resource. |
-| `azureAdTenantId` | `AZURE_AD_TENANT_ID` | *(empty)* | Microsoft Entra tenant ID for App Service authentication. |
-| `azureAdClientId` | `AZURE_AD_CLIENT_ID` | *(empty)* | App registration client ID for App Service authentication. |
+| `azureAdTenantId` | `AZURE_AD_TENANT_ID` | *(required for production)* | Single-tenant Microsoft Entra directory ID for API token validation and frontend sign-in. |
+| `azureAdClientId` | `AZURE_AD_CLIENT_ID` | *(required for production)* | API app registration client ID; also used by the MSAL frontend. |
 | `useExistingAiProject` | `USE_EXISTING_AI_PROJECT` | `false` | Set to `true` to reuse an existing Azure AI Foundry project. |
 | `existingAiFoundryServiceName` | `EXISTING_AI_FOUNDRY_SERVICE_NAME` | *(empty)* | Name of an existing AI Foundry service to reuse. |
 | `existingAiFoundryProjectName` | `EXISTING_AI_FOUNDRY_PROJECT_NAME` | *(empty)* | Name of an existing AI Foundry project to reuse. |

@@ -232,10 +232,10 @@ if ($token) {
         $adminKey = azd env get-value ADMIN_API_KEY 2>$null
     }
     if ($adminKey) {
-        Write-Host "Using admin API key for local auth" -ForegroundColor Yellow
+        Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
         $headers["X-Admin-Api-Key"] = $adminKey
     } else {
-        Write-Host "No auth token or admin key found — requests may be rejected in prod" -ForegroundColor Yellow
+        throw "An API access token or ADMIN_API_KEY is required. See docs/AppAuthentication.md."
     }
 }
 

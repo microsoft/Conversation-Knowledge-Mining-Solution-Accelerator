@@ -432,6 +432,8 @@ module frontend_docker './modules/compute/app-service.bicep' = {
     appSettings: {
       DOCKER_REGISTRY_SERVER_URL: 'https://${container_registry.outputs.loginServer}'
       APP_API_BASE_URL: backend_docker!.outputs.appUrl
+      APP_AZURE_AD_TENANT_ID: azureAdTenantId
+      APP_AZURE_AD_CLIENT_ID: azureAdClientId
       WEBSITES_PORT: '80'
     }
   }

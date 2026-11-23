@@ -1,70 +1,55 @@
-import base64
-import json
-import logging
+import hmac
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from src.api.config import get_settings
 from src.api.auth.auth_utils import get_authenticated_user_details
 from src.api.modules.security.models import User, UserInfo
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _parse_principal(b64_principal: str) -> dict:
-    """Decode the base64-encoded X-Ms-Client-Principal header."""
-    try:
-        decoded = base64.b64decode(b64_principal)
-        return json.loads(decoded)
-    except Exception:
-        return {}
-
-
-async def get_current_user(request: Request) -> User:
-    """FastAPI Depends wrapper around get_authenticated_user_details().
-    """
+def get_current_user(request: Request) -> User:
+    """Resolve identity only from a validated access token or configured script key."""
+    cached_user = getattr(request.state, "user", None)
+    if isinstance(cached_user, User):
+        return cached_user
     settings = get_settings()
 
-    # Admin API key bypass — key secrecy is the security boundary
-    admin_api_key = getattr(settings, "admin_api_key", "")
-    if admin_api_key:
-        provided_key = request.headers.get("X-Admin-Api-Key", "")
-        if provided_key == admin_api_key:
-            return User(user_id="admin", name="Admin", email="", roles=["Admin"])
+    provided_key = request.headers.get("X-Admin-Api-Key")
+    if provided_key is not None:
+        if not settings.admin_api_key or not hmac.compare_digest(
+            provided_key.encode("utf-8"), settings.admin_api_key.encode("utf-8")
+        ):
+            raise HTTPException(status_code=401, detail="Invalid admin API key")
+        user = User(user_id="admin", name="Admin", roles=["Admin"])
+    else:
+        claims = get_authenticated_user_details(request.headers)
+        user = User(
+            user_id=claims["oid"],
+            name=claims.get("name", ""),
+            email=claims.get("preferred_username") or claims.get("email", ""),
+            roles=claims.get("roles", []),
+        )
+    request.state.user = user
+    return user
 
-    # Delegate header reading + sample_user fallback to the shared GSA helper
-    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
 
-    user_id = authenticated_user.get("user_principal_id") or "anonymous"
-    name = authenticated_user.get("user_name") or "Anonymous"
-    principal_b64 = authenticated_user.get("client_principal_b64", "")
-
-    # Parse email and AAD app roles from the base64 claims (only present when
-    # EasyAuth is active; the sample_user placeholder value is skipped).
-    email = ""
-    roles: list[str] = []
-    if principal_b64 and principal_b64 != "your_base_64_encoded_token":
-        claims_obj = _parse_principal(principal_b64)
-        for claim in claims_obj.get("claims", []):
-            typ = claim.get("typ", "")
-            val = claim.get("val", "")
-            if typ == "name":
-                name = name or val
-            elif typ in ("preferred_username", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"):
-                email = val
-            elif typ == "roles":
-                roles.append(val)
-
-    return User(user_id=user_id, name=name, email=email, roles=roles)
+def authenticate_request(request: Request) -> None:
+    """Require authentication by default, excluding only liveness/health checks."""
+    if request.method in ("GET", "HEAD") and request.url.path in ("/", "/api/health"):
+        return
+    get_current_user(request)
 
 
 def require_role(required_role: str):
     """Dependency factory to enforce role-based access."""
+    role_hierarchy = {"reader": 0, "contributor": 1, "admin": 2}
+    if required_role not in role_hierarchy:
+        raise ValueError(f"Unknown required role: {required_role}")
 
     async def role_checker(user: User = Depends(get_current_user)) -> User:
-        role_hierarchy = {"reader": 0, "contributor": 1, "admin": 2}
-        user_level = role_hierarchy.get(user.best_role, 0)
-        required_level = role_hierarchy.get(required_role, 0)
+        user_level = role_hierarchy[user.best_role]
+        required_level = role_hierarchy[required_role]
         if user_level < required_level:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   Button,
   Text,
@@ -17,31 +17,24 @@ import {
 } from "@fluentui/react-icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
+import { loginRequest, msalInstance } from "../auth/msalConfig";
 import styles from "./Layout.module.css";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showChat, setShowChat] = useState(false);
-  const [userName, setUserName] = useState("");
-
-  useEffect(() => {
-    // Fetch user info from EasyAuth
-    fetch(`${window.location.origin}/.auth/me`)
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => {
-        const claims = data?.[0]?.user_claims || [];
-        const name = claims.find((c: any) => c.typ === "name")?.val || "";
-        setUserName(name);
-      })
-      .catch(() => {});
-  }, []);
-
-  const isAuthenticated = !!userName;
+  const [authError, setAuthError] = useState("");
+  const account = msalInstance.getActiveAccount();
+  const userName = account?.name || account?.username || "";
+  const isAuthenticated = !!account;
   const showChatAvailable = location.pathname === "/insights";
 
-  const handleLogin = () => { window.location.href = "/.auth/login/aad"; };
-  const handleLogout = () => { window.location.href = "/.auth/logout"; };
+  const showAuthError = (error: unknown) => {
+    setAuthError(error instanceof Error ? error.message : "Authentication failed.");
+  };
+  const handleLogin = () => { void msalInstance.loginRedirect(loginRequest).catch(showAuthError); };
+  const handleLogout = () => { void msalInstance.logoutRedirect().catch(showAuthError); };
 
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
@@ -61,6 +54,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </span>
         </div>
         <div className={styles.topBarRight}>
+          {authError && <Text role="alert">{authError}</Text>}
           {showChatAvailable && (
             <Button
               appearance="subtle"
