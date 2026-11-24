@@ -5,7 +5,42 @@ All application APIs require authentication, including local deployments. Only
 return HTTP 401; missing token-validation configuration never enables anonymous
 access. Client-supplied `x-ms-client-principal-*` headers are not credentials.
 
-## App registration
+## Automated deployment setup
+
+Following the create/reuse approach in [MACAE PR #1188](https://github.com/microsoft/Multi-Agent-Custom-Automation-Engine-Solution-Accelerator/pull/1188),
+`azd up` now runs `infra/scripts/post-provision/configure_auth.ps1` in two phases:
+
+- **PreProvision:** selects the subscription configured in azd (or uses the current
+  Azure CLI subscription), validates the tenant, creates or reuses a single-tenant
+  registration, and saves `AZURE_SUBSCRIPTION_ID`, `AZURE_AD_TENANT_ID`, and
+  `AZURE_AD_CLIENT_ID`. It configures v2 access tokens, the `access_as_user` scope,
+  app roles, and Azure CLI scope preauthorization.
+- **PostProvision:** adds the deployed frontend's **SPA** redirect URI and synchronizes
+  the API's `AZURE_AD_*` settings and frontend's `APP_AZURE_AD_*` settings, then
+  restarts both App Services. Existing redirects, roles, and permissions are preserved.
+
+Azure CLI and azd must both be signed in to the deployment tenant. The caller needs
+permission to create/manage Entra app registrations and service principals, plus
+App Service configuration permissions. A tenant mismatch or permission failure
+stops deployment. No client secret or automatic user role assignment is created.
+Assign users/groups to `Reader`, `Contributor`, or `Admin` explicitly through the
+enterprise application after setup; roleless users remain read-only.
+
+To reuse an existing registration, set `AZURE_AD_CLIENT_ID` in the selected azd
+environment before provisioning. You can also run either phase manually:
+
+```powershell
+.\infra\scripts\post-provision\configure_auth.ps1 -Phase PreProvision
+.\infra\scripts\post-provision\configure_auth.ps1 -Phase PostProvision
+```
+
+For an already provisioned deployment missing its IDs, run **PostProvision** from
+its selected azd environment. It creates/reuses the registration and updates the
+deployed apps without provisioning infrastructure or loading/clearing data.
+Optional parameters include `-ClientId`, `-TenantId`, `-SubscriptionId`,
+`-ResourceGroupName`, `-FrontendAppName`, and `-BackendAppName`.
+
+## Manual app registration
 
 1. Create a **single-tenant** Microsoft Entra app registration. Record its
    **Directory (tenant) ID** and **Application (client) ID**.
@@ -29,7 +64,7 @@ additionally clear all documents or the vector index and reload pipelines.
 
 ## Deployment configuration
 
-Before provisioning, configure both IDs:
+For manual registration, configure both IDs before provisioning:
 
 ```shell
 azd env set AZURE_AD_TENANT_ID <tenant-id>

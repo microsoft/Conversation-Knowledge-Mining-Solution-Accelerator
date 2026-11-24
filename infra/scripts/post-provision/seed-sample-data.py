@@ -23,7 +23,9 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 env_path = os.path.join(project_root, ".env")
 
-if os.path.exists(env_path):
+if os.getenv("KM_SKIP_LOCAL_ENV") == "1":
+    print("Using targeted deployment settings; ignoring local .env")
+elif os.path.exists(env_path):
     with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -400,21 +402,21 @@ def main():
             conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
             cursor = conn.cursor()
             for table in ["documents", "uploaded_files", "filter_schemas", "enrichment_cache"]:
-                try:
-                    cursor.execute(f"DELETE FROM {table}")
-                except Exception:
-                    pass  # Table may not exist yet
+                cursor.execute(f"IF OBJECT_ID('dbo.{table}', 'U') IS NOT NULL DELETE FROM {table}")
             conn.commit()
             conn.close()
-            print(f"  [OK] Cleared SQL tables")
+            print("  [OK] Cleared SQL tables")
         except Exception as e:
-            print(f"  [WARN] Could not clear SQL: {e}")
+            print(f"  [FAIL] Could not clear SQL: {e}")
+            print("  Verify the deployer's contained SQL user and write permissions before retrying.")
+            sys.exit(1)
 
     try:
         upload_search_data()
     except Exception as e:
         print(f"\n  [FAIL] Search upload failed: {e}")
         print("  Make sure your identity has 'Search Index Data Contributor' role.")
+        sys.exit(1)
 
     if COSMOS_ENDPOINT:
         try:
@@ -422,12 +424,14 @@ def main():
         except Exception as e:
             print(f"\n  [FAIL] Cosmos processed data upload failed: {e}")
             print("  Make sure your identity has Cosmos DB data contributor role.")
+            sys.exit(1)
 
         try:
             upload_key_phrases()
         except Exception as e:
             print(f"\n  [FAIL] Cosmos key phrases upload failed: {e}")
             print("  Make sure your identity has Cosmos DB data contributor role.")
+            sys.exit(1)
     else:
         print("\n  [SKIP] AZURE_COSMOS_ENDPOINT not set — skipping Cosmos DB upload.")
 
@@ -438,26 +442,36 @@ def main():
         except Exception as e:
             print(f"\n  [FAIL] SQL upload failed: {e}")
             print("  Make sure your identity has SQL admin access.")
+            sys.exit(1)
     else:
         print("\n  [SKIP] No AZURE_SQL_SERVER set — skipping SQL upload.")
-
-    print(f"\n{'='*60}")
-    print("  Done!")
-    print(f"{'='*60}")
-    print(f"  Search Index : {INDEX_NAME}")
-    print(f"  Cosmos DB    : {COSMOS_DATABASE}")
-    if SQL_SERVER:
-        print(f"  Azure SQL    : {SQL_DATABASE}")
 
     # Notify running API server to refresh its cache
     import urllib.request
     api_url = os.getenv("BACKEND_URL", "http://localhost:8000")
     try:
         req = urllib.request.Request(f"{api_url}/api/ingestion/refresh", method="POST")
-        urllib.request.urlopen(req, timeout=5)
-        print(f"\n  [OK] API server cache refreshed")
-    except Exception:
-        print(f"\n  [INFO] Could not reach API at {api_url} — restart the server to pick up new data")
+        admin_key = os.getenv("ADMIN_API_KEY", "")
+        if admin_key:
+            req.add_header("X-Admin-Api-Key", admin_key)
+        elif os.getenv("KM_API_ACCESS_TOKEN"):
+            req.add_header("Authorization", f"Bearer {os.environ['KM_API_ACCESS_TOKEN']}")
+        else:
+            raise RuntimeError("An API access token or ADMIN_API_KEY is required to refresh the backend.")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+        print("\n  [OK] API server cache refreshed")
+    except Exception as e:
+        print(f"\n  [FAIL] Could not refresh API cache ({e}). Check API credentials and backend access.")
+        sys.exit(1)
+
+    print(f"\n{'=' * 60}")
+    print("  Done!")
+    print(f"{'=' * 60}")
+    print(f"  Search Index : {INDEX_NAME}")
+    print(f"  Cosmos DB    : {COSMOS_DATABASE}")
+    if SQL_SERVER:
+        print(f"  Azure SQL    : {SQL_DATABASE}")
     print()
 
 

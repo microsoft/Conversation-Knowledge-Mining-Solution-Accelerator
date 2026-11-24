@@ -13,6 +13,7 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 from src.api.config import get_settings
 
@@ -132,6 +133,15 @@ class CosmosService:
             logger.warning(f"Failed to list sessions: {e}")
             return []
 
+    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
+        if not self.available:
+            return None
+        container = self._db.get_container_client(self.SESSIONS_CONTAINER)
+        try:
+            return container.read_item(item=session_id, partition_key=user_id)
+        except CosmosResourceNotFoundError:
+            return None
+
     def update_session(self, session_id: str, user_id: str, title: Optional[str] = None,
                        message_count: Optional[int] = None) -> bool:
         """Update session metadata (title, message count)."""
@@ -222,11 +232,22 @@ class CosmosService:
             logger.warning(f"Failed to get messages: {e}")
             return []
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, user_id: str, messages: list[dict],
+                           title: Optional[str] = None) -> bool:
         """Save multiple messages at once (for batch save from frontend)."""
         if not self.available:
             return False
         try:
+            sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
+            owners = list(sessions.query_items(
+                "SELECT c.user_id FROM c WHERE c.id = @sid",
+                parameters=[{"name": "@sid", "value": session_id}],
+                enable_cross_partition_query=True,
+            ))
+            # Messages are partitioned only by session ID, so ambiguous ownership is unsafe.
+            if len(owners) != 1 or owners[0]["user_id"] != user_id:
+                logger.warning("Refusing to save chat session '%s' without unique matching ownership", session_id)
+                return False
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
 
             # Clear existing messages for this session
@@ -252,7 +273,7 @@ class CosmosService:
                     "timestamp": msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
                     "order": i,
                 })
-            return True
+            return self.update_session(session_id, user_id, title, len(messages))
         except Exception as e:
             logger.warning(f"Failed to save messages bulk: {e}")
             return False

@@ -14,18 +14,18 @@ from azure.identity import AzureCliCredential
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 
 
-def client_id_to_sid(principal_id: str) -> str:
+def client_id_to_sid(client_id: str) -> str:
     """
-    Convert a principal ID (GUID) to a SQL Server SID format.
+    Convert a managed identity's client/application ID to a SQL Server SID.
     This allows creating users without requiring MS Graph permissions.
 
     Args:
-        principal_id: The principal ID (GUID) of the managed identity
+        client_id: The client/application ID (GUID), not the Entra object ID
 
     Returns:
         str: Hexadecimal SID string for use in CREATE USER statement
     """
-    guid_bytes = uuid.UUID(principal_id).bytes_le
+    guid_bytes = uuid.UUID(client_id).bytes_le
     return "0x" + guid_bytes.hex().upper()
 
 
@@ -37,10 +37,14 @@ def connect_with_token(server: str, database: str, credential: AzureCliCredentia
     token_struct = struct.pack(f"<I{len(token_bytes)}s", len(token_bytes), token_bytes)
     for driver in ["{ODBC Driver 18 for SQL Server}", "{ODBC Driver 17 for SQL Server}"]:
         try:
-            conn_str = f"DRIVER={driver};SERVER={server};DATABASE={database};"
+            conn_str = (
+                f"DRIVER={driver};SERVER={server};DATABASE={database};"
+                "Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+            )
             return pyodbc.connect(conn_str, attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct})
-        except pyodbc.Error:
-            continue
+        except pyodbc.Error as error:
+            if error.args[0] not in ("IM002", "IM003"):
+                raise
     raise RuntimeError("Unable to connect using ODBC Driver 18 or 17. Install driver msodbcsql17/18.")
 
 
@@ -55,7 +59,11 @@ def assign_sql_roles(server, database, roles):
             Format: [{"principalId": "...", "displayName": "...", "role": "db_datareader",
                       "isServicePrincipal": true}, ...]
     """
+    conn = None
+    cursor = None
     try:
+        if not roles:
+            raise ValueError("No SQL role assignments supplied")
         credential = AzureCliCredential()
         conn = connect_with_token(server, database, credential)
         cursor = conn.cursor()
@@ -67,28 +75,29 @@ def assign_sql_roles(server, database, roles):
             is_service_principal = role_assignment.get("isServicePrincipal", False)
 
             if not principal_id or not display_name or not role:
-                continue
+                raise ValueError("Each SQL assignment requires principalId, displayName and role")
 
-            # Check if user already exists
             cursor.execute(
-                "SELECT COUNT(*) FROM sys.database_principals WHERE name = ?", display_name
+                "SELECT sid, type FROM sys.database_principals WHERE name = ?", display_name
             )
-            user_exists = cursor.fetchone()[0] > 0
+            existing_user = cursor.fetchone()
+            sid = client_id_to_sid(principal_id) if is_service_principal else None
+            if existing_user and is_service_principal:
+                if bytes(existing_user[0]) != bytes.fromhex(sid[2:]) or existing_user[1] != "E":
+                    raise ValueError(
+                        f"SQL user '{display_name}' has the wrong SID/type for managed identity "
+                        f"client ID {principal_id}. Repair the contained user mapping before retrying; "
+                        "adding roles does not correct the SID."
+                    )
 
-            if not user_exists:
-                try:
-                    if is_service_principal:
-                        # SID-based create avoids needing MS Graph permissions on SQL Server
-                        sid = client_id_to_sid(principal_id)
-                        create_user_sql = f"CREATE USER [{display_name}] WITH SID = {sid}, TYPE = E"
-                    else:
-                        create_user_sql = f"CREATE USER [{display_name}] FROM EXTERNAL PROVIDER"
-                    cursor.execute(create_user_sql)
-                    conn.commit()
-                    print(f"Created user: {display_name}")
-                except Exception as e:
-                    print(f"Failed to create user {display_name}: {e}")
-                    continue
+            quoted_user = "[" + display_name.replace("]", "]]") + "]"
+            quoted_role = "[" + role.replace("]", "]]") + "]"
+            if not existing_user:
+                if is_service_principal:
+                    create_user_sql = f"CREATE USER {quoted_user} WITH SID = {sid}, TYPE = E"
+                else:
+                    create_user_sql = f"CREATE USER {quoted_user} FROM EXTERNAL PROVIDER"
+                cursor.execute(create_user_sql)
 
             # Check if user already has the role
             cursor.execute(
@@ -105,23 +114,24 @@ def assign_sql_roles(server, database, roles):
             has_role = cursor.fetchone()[0] > 0
 
             if not has_role:
-                try:
-                    cursor.execute(f"ALTER ROLE [{role}] ADD MEMBER [{display_name}]")
-                    conn.commit()
-                    print(f"Assigned {role} to {display_name}")
-                except Exception as e:
-                    print(f"Failed to assign {role} to {display_name}: {e}")
-                    continue
+                cursor.execute(f"ALTER ROLE {quoted_role} ADD MEMBER {quoted_user}")
 
-        cursor.close()
-        conn.close()
+        conn.commit()
+        print("SQL identity mappings and role assignments verified.")
         return 0
 
     except Exception as e:
+        if conn is not None:
+            conn.rollback()
         print(f"\nError: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         return 1
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None:
+            conn.close()
 
 
 def main():

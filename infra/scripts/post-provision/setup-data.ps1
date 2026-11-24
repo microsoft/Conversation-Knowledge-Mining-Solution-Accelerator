@@ -66,6 +66,8 @@ $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 # Cache of the deployed backend's app settings, populated once per resource group.
 $script:RgAppSettingsCache = $null
+$script:RgApiAppName = ""
+$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
 
 # Read every app setting from the api-* App Service in the resource group (cached).
 # This is the source of truth when a resource group is targeted explicitly.
@@ -75,15 +77,19 @@ function Get-RgAppSettings {
     if ($null -ne $script:RgAppSettingsCache) { return $script:RgAppSettingsCache }
 
     $settings = @{}
-    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
-    if ($LASTEXITCODE -eq 0 -and $names) {
-        $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
-        if ($apiApp) {
-            $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
-            if ($LASTEXITCODE -eq 0 -and $json) {
-                try { foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value } } catch {}
-            }
-        }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv)
+    if ($LASTEXITCODE -ne 0) { throw "Could not list App Services in '$Rg'. Check Azure CLI sign-in and resource-group access." }
+    $apiApps = @(($names -split "`n") | ForEach-Object { $_.Trim() } | Where-Object { $_ -like "api-*" })
+    if ($apiApps.Count -ne 1) {
+        throw "Expected one api-* App Service in '$Rg'; found $($apiApps.Count). Target the resource group for this deployment."
+    }
+    $script:RgApiAppName = $apiApps[0]
+    $json = (az webapp config appsettings list --name $script:RgApiAppName --resource-group $Rg -o json)
+    if ($LASTEXITCODE -ne 0 -or -not $json) {
+        throw "Could not read backend app settings in '$Rg'. Check App Service configuration permissions."
+    }
+    foreach ($kv in ($json | ConvertFrom-Json)) {
+        $settings[$kv.name] = $kv.value
     }
     $script:RgAppSettingsCache = $settings
     return $settings
@@ -100,14 +106,23 @@ function Get-DeployValue {
         return ""
     }
 
-    $val = azd env get-value $Name 2>$null
-    if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
-        return "$val".Trim()
+    if ($azdAvailable) {
+        $val = azd env get-value $Name 2>$null
+        if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
+            return "$val".Trim()
+        }
     }
+    $val = [Environment]::GetEnvironmentVariable($Name)
+    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val.Trim() }
     $envFile = Join-Path $projectRoot ".env"
     if (Test-Path $envFile) {
-        $line = Get-Content $envFile | Where-Object { $_ -match "^$Name=" } | Select-Object -First 1
-        if ($line) { return ($line -replace "^$Name=", '').Trim() }
+        $pattern = "^$([regex]::Escape($Name))="
+        $line = Get-Content $envFile | Where-Object { $_ -match $pattern } | Select-Object -First 1
+        if ($line) {
+            $value = ($line -replace $pattern, '').Trim()
+            if ($value -match '^"(.*)"$' -or $value -match "^'(.*)'$") { return $Matches[1] }
+            return $value
+        }
     }
     return ""
 }
@@ -117,12 +132,9 @@ function Get-DeployValue {
 function Get-DiscoveredBackendUrl {
     param([string]$Rg)
     if (-not $Rg) { return "" }
-    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
-    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
-    $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
-    if (-not $apiApp) { return "" }
-    $hostName = (az webapp show --name $apiApp.Trim() --resource-group $Rg --query defaultHostName -o tsv 2>$null)
-    if ($LASTEXITCODE -ne 0 -or -not $hostName) { return "" }
+    Get-RgAppSettings $Rg | Out-Null
+    $hostName = (az webapp show --name $script:RgApiAppName --resource-group $Rg --query defaultHostName -o tsv)
+    if ($LASTEXITCODE -ne 0 -or -not $hostName) { throw "Could not resolve the backend hostname in '$Rg'." }
     return "https://$($hostName.Trim())"
 }
 
@@ -166,6 +178,18 @@ function Resolve-ScenarioDataPath {
     return $null
 }
 
+function Test-BackendReachable {
+    param([string]$Url)
+    try {
+        # Probe the anonymous root, not an authenticated ingestion endpoint.
+        Invoke-RestMethod -Uri "$($Url.TrimEnd('/'))/" -Method GET -TimeoutSec 3 -SkipHttpErrorCheck | Out-Null
+        return $true
+    } catch {
+        Write-Host "Backend at $Url is not responding; checking the next configured address." -ForegroundColor DarkGray
+        return $false
+    }
+}
+
 # ── Resolve backend URL ──
 if ($PSBoundParameters.ContainsKey("BackendUrl")) {
     Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
@@ -182,22 +206,13 @@ elseif ($ResourceGroupName) {
     }
 }
 elseif ($BackendUrl -eq "http://localhost:8000") {
-    $localHealthy = $false
-    try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
-        $localHealthy = $true
-    } catch {
-        $localHealthy = $false
-    }
+    $localHealthy = Test-BackendReachable $BackendUrl
 
     if (-not $localHealthy) {
         $loopbackUrl = "http://127.0.0.1:8000"
-        try {
-            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        if (Test-BackendReachable $loopbackUrl) {
             $BackendUrl = $loopbackUrl
             $localHealthy = $true
-        } catch {
-            $localHealthy = $false
         }
     }
 
@@ -205,7 +220,7 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
     } else {
         if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
-            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+            $azdUrl = Get-DeployValue "SERVICE_BACKEND_URI"
             if ($azdUrl) {
                 Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
                 $BackendUrl = $azdUrl
@@ -221,23 +236,82 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
     }
 }
 
-# ── Auth token ──
-$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
-$headers = @{}
-if ($token) {
-    $headers["Authorization"] = "Bearer $token"
-} else {
-    $adminKey = $env:ADMIN_API_KEY
-    if (-not $adminKey) {
-        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
-    }
+function Get-ApiHeaders {
+    $adminKey = Get-DeployValue "ADMIN_API_KEY"
     if ($adminKey) {
         Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
-        $headers["X-Admin-Api-Key"] = $adminKey
-    } else {
-        throw "An API access token or ADMIN_API_KEY is required. See docs/AppAuthentication.md."
+        return @{ "X-Admin-Api-Key" = $adminKey }
+    }
+    $clientId = Get-DeployValue "AZURE_AD_CLIENT_ID"
+    $tenantId = Get-DeployValue "AZURE_AD_TENANT_ID"
+    if (-not $clientId -or -not $tenantId) {
+        throw "Configure AZURE_AD_CLIENT_ID and AZURE_AD_TENANT_ID, or ADMIN_API_KEY, for the targeted backend. See docs/AppAuthentication.md."
+    }
+    $token = az account get-access-token --tenant $tenantId --resource "api://$clientId" --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $token -or "$token" -match '^ERROR:') {
+        throw "Could not obtain an API access token. Run az login for the API tenant, grant Azure CLI consent to the API scope, and assign the required app role; alternatively configure ADMIN_API_KEY. See docs/AppAuthentication.md."
+    }
+    return @{ Authorization = "Bearer $($token.Trim())" }
+}
+
+function Assert-ApiRole {
+    param([ValidateSet("contributor", "admin")][string]$RequiredRole = "contributor")
+    if ($script:ApiRole -eq "admin" -or ($RequiredRole -eq "contributor" -and $script:ApiRole -eq "contributor")) { return }
+    throw "Data setup requires the '$RequiredRole' app role for this operation. Assign it in Entra ID or use the targeted backend's ADMIN_API_KEY."
+}
+
+function Test-ApiAccess {
+    param([string]$Url, [hashtable]$Headers)
+    $authStatus = 0
+    try {
+        $user = Invoke-RestMethod -Uri "$Url/api/auth/me" -Method GET -Headers $Headers -TimeoutSec 30 `
+            -SkipHttpErrorCheck -StatusCodeVariable authStatus
+    } catch {
+        throw "Could not reach the backend authentication endpoint. Check App Service access restrictions, private networking, and the backend URL."
+    }
+    switch ($authStatus) {
+        200 {
+            $script:ApiRole = if ($user.roles -contains "Admin") { "admin" } elseif ($user.roles -contains "Contributor") { "contributor" } else { "reader" }
+            Assert-ApiRole
+        }
+        401 { throw "Backend rejected the API credentials (HTTP 401). Check the target app's ADMIN_API_KEY or Entra tenant, audience, API scope, and token lifetime." }
+        403 { throw "Backend access denied (HTTP 403). Check App Service/EasyAuth access restrictions and private-network connectivity; an API key cannot bypass platform restrictions." }
+        503 { throw "Backend authentication is unavailable (HTTP 503). Configure both Entra IDs on the deployed API and verify its signing-key connectivity." }
+        default { throw "Backend authentication preflight failed (HTTP $authStatus). Check the backend URL and deployment health." }
     }
 }
+
+$backendUri = $null
+if (-not [Uri]::TryCreate($BackendUrl, [UriKind]::Absolute, [ref]$backendUri) -or
+    $backendUri.Scheme -notin @("http", "https") -or $backendUri.UserInfo -or $backendUri.Query -or $backendUri.Fragment) {
+    throw "BackendUrl must be an absolute HTTP(S) URL without credentials, a query, or a fragment."
+}
+if ($backendUri.Scheme -eq "http" -and -not $backendUri.IsLoopback) {
+    throw "Use HTTPS for remote backends to protect API credentials."
+}
+$BackendUrl = $BackendUrl.TrimEnd("/")
+$headers = Get-ApiHeaders
+Test-ApiAccess -Url $BackendUrl -Headers $headers
+if ($Scenario -or $UseSampleData -or $ExternalSource -or $ClearExisting -or -not $DataPath) {
+    Assert-ApiRole -RequiredRole "admin"
+}
+
+# Child Python scripts read configuration from process environment before .env.
+if ($ResourceGroupName) {
+    foreach ($entry in (Get-RgAppSettings $ResourceGroupName).GetEnumerator()) {
+        Set-Item -Path "Env:$($entry.Key)" -Value $entry.Value
+    }
+    $env:RESOURCE_GROUP_NAME = $ResourceGroupName
+    $env:AZURE_RESOURCE_GROUP = $ResourceGroupName
+    $env:API_APP_NAME = $script:RgApiAppName
+}
+$env:BACKEND_URL = $BackendUrl
+$env:KM_SKIP_LOCAL_ENV = if ($ResourceGroupName) { "1" } else { "0" }
+# Clear stale keys as well as forwarding the selected deployment's script key.
+$env:ADMIN_API_KEY = Get-DeployValue "ADMIN_API_KEY"
+$env:KM_API_ACCESS_TOKEN = if ($headers.ContainsKey("Authorization")) {
+    $headers["Authorization"] -replace '^Bearer ', ''
+} else { "" }
 
 # ── Wait for the backend's SQL connection to actually be ready ──
 # Right after a fresh deploy/restart, the container can come up and answer HTTP
@@ -249,34 +323,42 @@ if ($token) {
 function Wait-ForBackendSqlHealthy {
     param(
         [string]$BackendUrl,
-        [int]$TimeoutSec = 300,
-        [int]$PollIntervalSec = 10
+        [hashtable]$Headers,
+        [ValidateSet("sql", "cosmos")][string]$DatabaseProvider = "sql",
+        [ValidateRange(1, 2147483647)][int]$TimeoutSec = 300,
+        [ValidateRange(1, 2147483647)][int]$PollIntervalSec = 10
     )
 
-    Write-Host "Waiting for backend SQL connectivity to be ready..." -ForegroundColor Yellow
+    Write-Host "Waiting for backend $DatabaseProvider connectivity to be ready..." -ForegroundColor Yellow
     $healthUrl = "$($BackendUrl.TrimEnd('/'))/api/health"
     $elapsed = 0
     while ($elapsed -lt $TimeoutSec) {
+        $healthStatus = 0
+        $resp = $null
         try {
-            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -TimeoutSec 10
-            if ($resp.checks.sql -eq "ok") {
-                Write-Host "Backend SQL is ready." -ForegroundColor Green
-                return $true
-            }
-            Write-Host "  SQL not ready yet (checks.sql=$($resp.checks.sql)) — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
+            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -Headers $Headers -TimeoutSec 10 `
+                -SkipHttpErrorCheck -StatusCodeVariable healthStatus
         } catch {
             Write-Host "  Backend not reachable yet — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
         }
+        if ($healthStatus -in @(401, 403)) {
+            throw "Backend health access denied (HTTP $healthStatus). Check credentials, App Service restrictions, and private-network access before retrying."
+        }
+        if ($healthStatus -eq 404) { throw "Backend health endpoint was not found. Check BackendUrl." }
+        if ($healthStatus -in @(200, 503) -and $resp.checks.$DatabaseProvider -eq "ok") {
+            Write-Host "Backend $DatabaseProvider is ready." -ForegroundColor Green
+            return $true
+        }
+        Write-Host "  $DatabaseProvider not ready (HTTP $healthStatus, checks.$DatabaseProvider=$($resp.checks.$DatabaseProvider)) — retrying..." -ForegroundColor DarkGray
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
     }
-    Write-Host "WARNING: Timed out after ${TimeoutSec}s waiting for backend SQL to become ready. Proceeding anyway — scenario registration may need a manual retry (see Sources page) if data source persistence fails." -ForegroundColor Yellow
-    return $false
+    throw "Timed out waiting for backend $DatabaseProvider access. Setup stopped before changing data. For SQL, verify the API managed identity's contained user/roles (setup-sql-roles.ps1), SQL firewall/private endpoints, and backend logs."
 }
 
-if ($BackendUrl -notmatch '^https?://localhost' -and $BackendUrl -notmatch '^https?://127\.0\.0\.1') {
-    Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl | Out-Null
-}
+$databaseProvider = Get-DeployValue "DATABASE_PROVIDER"
+if (-not $databaseProvider) { $databaseProvider = "sql" }
+Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl -Headers $headers -DatabaseProvider $databaseProvider.ToLowerInvariant() | Out-Null
 
 # ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
 function Invoke-DataCleanup {
@@ -285,6 +367,7 @@ function Invoke-DataCleanup {
         [hashtable]$Headers
     )
 
+    Assert-ApiRole -RequiredRole "admin"
     # Clear existing demo data (documents, insights cache) and any external data source
     # registrations so every scenario starts from a clean slate.
     Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
@@ -294,7 +377,7 @@ function Invoke-DataCleanup {
     } catch {
         Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
         Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
-        exit 1
+        throw
     }
 }
 
@@ -332,7 +415,15 @@ function Confirm-UploadRegistered {
     $cnt = 0
     while ($elapsed -lt $TimeoutSec) {
         $cnt = -1
-        try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
+        try {
+            $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers
+            $cnt = [int]$r.files
+        } catch {
+            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(401, 403)) {
+                throw "Upload registration access denied. Check API credentials, app roles, and App Service access restrictions."
+            }
+            Write-Warning "Could not confirm upload registration; retrying."
+        }
         if ($cnt -ge $expectedCount) { break }
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
@@ -341,7 +432,7 @@ function Confirm-UploadRegistered {
     if ($cnt -ge $expectedCount) {
         Write-Host "  $expectedCount file(s) registered - processing continues in the background." -ForegroundColor Green
     } else {
-        Write-Warning "  Only $([Math]::Max(0, $cnt))/$expectedCount file(s) registered after ${elapsed}s. Check the Sources page; re-upload any missing files from the web UI."
+        throw "Only $([Math]::Max(0, $cnt))/$expectedCount file(s) registered after ${elapsed}s. Setup did not complete; check backend storage access and the Sources page."
     }
     return [pscustomobject]@{ Registered = [Math]::Max(0, $cnt); Expected = $expectedCount }
 }
@@ -361,7 +452,7 @@ function Invoke-EnsureSearchIndex {
     if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
     & $pythonExe @idxArgs
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
+        throw "Could not ensure the search index. Check the deployer's Azure AI Search permissions and network access."
     }
 }
 
@@ -435,7 +526,6 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
         }
         "skip" {
             Write-Host ""
-            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host "Skipped data loading. You can upload documents from the web UI." -ForegroundColor Yellow
             Write-Host ""
             Invoke-EnsureSearchIndex
@@ -494,7 +584,7 @@ if ($Scenario) {
             -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
         Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
     } catch {
-        Write-Host "WARNING: Could not register scenario use case name: $($_.Exception.Message)" -ForegroundColor Yellow
+        throw "Could not register scenario use case name. Check API authorization and backend SQL access: $($_.Exception.Message)"
     }
 
     # Create the solution search index (seeded scenarios only)
@@ -515,7 +605,7 @@ if ($Scenario) {
             "AZURE_SQL_SERVER", "AZURE_SQL_DATABASE"
         )) {
             $val = Get-DeployValue $name
-            if ($val) { Set-Item -Path "Env:$name" -Value $val }
+            Set-Item -Path "Env:$name" -Value $val
         }
 
         # Run seed-sample-data.py with the scenario data directory
@@ -544,13 +634,7 @@ if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not 
         if ($confirm -eq "y" -or $confirm -eq "Y") { $ClearExisting = $true }
     }
     if ($ClearExisting) {
-        Write-Host "Clearing existing data..." -ForegroundColor Yellow
-        try {
-            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $headers | Out-Null
-            Write-Host "Data cleared." -ForegroundColor Green
-        } catch {
-            Write-Host "Warning: Could not clear data — $_" -ForegroundColor Yellow
-        }
+        Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
     }
 }
 
@@ -575,14 +659,14 @@ if ($DataPath) {
 
     $audioUploaded = 0
     $docUploaded = 0
+    $uploadFailures = 0
 
     # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {
         Write-Host ""
         Write-Host "Uploading $($audioFiles.Count) audio files (transcription via Content Understanding)..." -ForegroundColor Yellow
 
-        # Upload in batches of 5 (API limit: max_concurrent_uploads)
-        $batchSize = 5
+        $batchSize = 1
         $success = 0; $failed = 0
         for ($i = 0; $i -lt $audioFiles.Count; $i += $batchSize) {
             $batch = $audioFiles[$i..([Math]::Min($i + $batchSize - 1, $audioFiles.Count - 1))]
@@ -594,7 +678,7 @@ if ($DataPath) {
             }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers -TimeoutSec 180 | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
@@ -604,6 +688,7 @@ if ($DataPath) {
         }
         Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
         $audioUploaded = $success
+        $uploadFailures += $failed
         if ($success -gt 0) {
             Write-Host "  Audio files are processing in background — check Sources page for status." -ForegroundColor Cyan
         }
@@ -626,7 +711,7 @@ if ($DataPath) {
             }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers -TimeoutSec 180 | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
@@ -636,6 +721,11 @@ if ($DataPath) {
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
         $docUploaded = $success
+        $uploadFailures += $failed
+    }
+
+    if ($uploadFailures -gt 0) {
+        throw "$uploadFailures file(s) failed to upload. Setup did not complete; check API credentials, ingestion permissions, and backend storage access."
     }
 
     $registration = $null
@@ -684,6 +774,7 @@ if ($ExternalSource) {
 # Option 3: Load built-in sample data
 # ══════════════════════════════════════════
 if ($UseSampleData) {
+    Assert-ApiRole -RequiredRole "admin"
     Write-Host "Loading built-in sample dataset..." -ForegroundColor Yellow
     try {
         $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `
@@ -695,12 +786,6 @@ if ($UseSampleData) {
     }
 }
 
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Setup complete!" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-
 # ══════════════════════════════════════════
 # Create scenario-based AI agent
 # ══════════════════════════════════════════
@@ -711,6 +796,13 @@ if ($Scenario) {
     Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
     & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario -ResourceGroupName $ResourceGroupName
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
+        throw "Agent setup failed. Check Foundry project permissions and retry setup-agent.ps1 for scenario '$Scenario'."
     }
 }
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Setup complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+exit 0

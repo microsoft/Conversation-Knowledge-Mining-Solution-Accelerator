@@ -18,10 +18,13 @@ hooks:
         Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
         Write-Host ""
         $ErrorActionPreference = "Continue"
+        pwsh -File .\infra\scripts\post-provision\configure_auth.ps1 -Phase PreProvision
+        if ($LASTEXITCODE -ne 0) { throw "Authentication preparation failed." }
         $existing = azd env get-value ADMIN_API_KEY 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $existing) {
           $key = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
           azd env set ADMIN_API_KEY $key
+          if ($LASTEXITCODE -ne 0) { throw "Could not persist ADMIN_API_KEY." }
           $env:ADMIN_API_KEY = $key
           Write-Host "Generated ADMIN_API_KEY and stored in azd env." -ForegroundColor Green
         } else {
@@ -40,10 +43,11 @@ hooks:
         printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
         printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
         printf '\n'
+        pwsh -File ./infra/scripts/post-provision/configure_auth.ps1 -Phase PreProvision || exit 1
         existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
         if [ -z "$existing" ]; then
           key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
-          azd env set ADMIN_API_KEY "$key"
+          azd env set ADMIN_API_KEY "$key" || exit 1
           export ADMIN_API_KEY="$key"
           echo "Generated ADMIN_API_KEY and stored in azd env."
         else
@@ -57,6 +61,8 @@ hooks:
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert in the finally block ──
         try {
+          pwsh -File .\infra\scripts\post-provision\configure_auth.ps1 -Phase PostProvision
+          if ($LASTEXITCODE -ne 0) { throw "Authentication configuration failed." }
           pwsh -File ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
           # ── Step 0: Build & push the app images to ACR and point the App Services
           #    at them (apps are provisioned with a placeholder hello-world image) ──
@@ -88,12 +94,13 @@ hooks:
           Write-Host ""
           & ./infra/scripts/post-provision/setup-sql-roles.ps1
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
+            throw "SQL role assignment failed. Correct the identity mapping/permissions before running data setup."
           }
 
           # ── Step 3: Choose use case, load data, then create the scenario agent ──
           Write-Host ""
           & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
+          if ($LASTEXITCODE -ne 0) { throw "Data setup failed." }
 
           # ── Done ──
           Write-Host ""
@@ -115,6 +122,7 @@ hooks:
     posix:
       shell: sh
       run: |
+        pwsh -File ./infra/scripts/post-provision/configure_auth.ps1 -Phase PostProvision || exit 1
         # ── Step -1: If private networking is enabled, temporarily open public
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert on exit (success or failure) ──
@@ -148,11 +156,11 @@ hooks:
         # ── Step 2: Grant API identity access to SQL ──
         echo ""
         echo "Granting API identity SQL access..."
-        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/post-provision/setup-sql-roles.ps1"
+        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || exit 1
 
         # ── Step 3: Choose use case, load data, then create the scenario agent ──
         echo ""
-        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
+        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback || exit 1
 
         echo ""
         echo "========================================"

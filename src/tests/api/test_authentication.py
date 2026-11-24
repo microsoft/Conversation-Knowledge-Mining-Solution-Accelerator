@@ -1,6 +1,7 @@
 import base64
 import json
 import re
+import sqlite3
 import time
 from unittest.mock import Mock
 
@@ -230,6 +231,195 @@ def test_chat_identity_comes_from_validated_token_not_client_headers(client, mak
     )
     assert response.status_code == 200
     list_sessions.assert_called_once_with(USER_ID)
+
+
+@pytest.fixture
+def chat_database(monkeypatch):
+    from src.api.storage.chat_store import ChatStore
+    from src.api.storage.db_service import db_service
+
+    database = sqlite3.connect(":memory:", check_same_thread=False)
+    database.executescript("""
+        CREATE TABLE chat_sessions (
+            id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT, message_count INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE chat_messages (
+            id TEXT PRIMARY KEY, session_id TEXT NOT NULL, role TEXT, content TEXT,
+            sources TEXT, sort_order INTEGER, timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
+
+    class Cursor:
+        def __init__(self):
+            self.cursor = database.cursor()
+
+        def execute(self, query, *parameters):
+            query = query.replace(" WITH (UPDLOCK, HOLDLOCK)", "")
+            query = query.replace("GETUTCDATE()", "CURRENT_TIMESTAMP")
+            self.cursor.execute(query, parameters)
+            return self
+
+        def fetchone(self):
+            return self.cursor.fetchone()
+
+        @property
+        def rowcount(self):
+            return self.cursor.rowcount
+
+    connection = Mock()
+    connection.cursor.side_effect = Cursor
+    connection.commit.side_effect = database.commit
+    connection.rollback.side_effect = database.rollback
+    sql = Mock(available=True)
+    sql._get_connection.return_value = connection
+    store = ChatStore()
+    monkeypatch.setattr(store, "_get_sql", lambda: sql)
+    monkeypatch.setattr(db_service, "_provider", "sql")
+    monkeypatch.setattr(db_service, "_chat", store)
+    monkeypatch.setattr(db_service, "_data", sql)
+    yield database, store, connection
+    database.close()
+
+
+def test_chat_save_rejects_another_users_session(client, make_token, monkeypatch, chat_database):
+    from src.api.modules.rag import router as rag
+
+    http, _, _ = client
+    database, store, _ = chat_database
+    store.create_session("victim", title="Victim title", session_id="victim-session")
+    store.save_messages_bulk(
+        "victim-session", "victim", [{"role": "user", "content": "Victim message"}],
+    )
+    monkeypatch.setattr(rag.rag_service, "generate_title", Mock(return_value="Forged title"))
+    response = http.post(
+        "/api/rag/chat/save",
+        headers={"Authorization": f"Bearer {make_token()}"},
+        json={
+            "session_id": "victim-session", "user_id": "victim",
+            "messages": [{"role": "user", "content": "Forged message"}],
+        },
+    )
+    assert response.status_code == 409
+    assert database.execute("SELECT title, user_id FROM chat_sessions").fetchall() == [
+        ("Victim title", "victim")
+    ]
+    assert database.execute("SELECT content FROM chat_messages").fetchall() == [("Victim message",)]
+
+
+def test_chat_save_creates_and_updates_owned_sessions(client, make_token, monkeypatch, chat_database):
+    from src.api.modules.rag import router as rag
+
+    http, _, _ = client
+    database, _, _ = chat_database
+    title = Mock(return_value="Generated title")
+    monkeypatch.setattr(rag.rag_service, "generate_title", title)
+    headers = {"Authorization": f"Bearer {make_token()}"}
+    for content in ("First message", "Replacement message"):
+        response = http.post(
+            "/api/rag/chat/save", headers=headers,
+            json={
+                "session_id": "owned-session", "user_id": "forged-user",
+                "messages": [{"role": "user", "content": content}],
+            },
+        )
+        assert response.status_code == 200
+        assert response.json() == {"saved": True}
+    title.assert_called_once()
+    assert database.execute("SELECT user_id, title, message_count FROM chat_sessions").fetchall() == [
+        (USER_ID, "Generated title", 1)
+    ]
+    assert database.execute("SELECT content FROM chat_messages").fetchall() == [("Replacement message",)]
+
+
+def test_chat_store_enforces_ownership_for_messages_and_metadata(chat_database):
+    database, store, _ = chat_database
+    store.create_session("victim", title="Victim title", session_id="victim-session")
+    store.save_messages_bulk("victim-session", "victim", [{"content": "Victim message"}])
+    assert not store.save_messages_bulk(
+        "victim-session", USER_ID, [{"content": "Forged message"}], title="Forged title",
+    )
+    assert not store.update_session("victim-session", USER_ID, title="Forged title")
+    assert database.execute("SELECT title, message_count FROM chat_sessions").fetchall() == [
+        ("Victim title", 1)
+    ]
+    assert database.execute("SELECT content FROM chat_messages").fetchall() == [("Victim message",)]
+
+
+def test_chat_save_rolls_back_messages_and_metadata_on_database_failure(
+    client, make_token, chat_database
+):
+    http, _, _ = client
+    database, store, connection = chat_database
+    store.create_session(USER_ID, title="Original title", session_id="owned-session")
+    store.save_messages_bulk("owned-session", USER_ID, [{"content": "Original message"}])
+    original_cursor = connection.cursor.side_effect
+
+    def failing_cursor():
+        cursor = original_cursor()
+        execute = cursor.execute
+
+        def fail_update(query, *parameters):
+            if query.startswith("UPDATE chat_sessions"):
+                raise RuntimeError("Simulated SQL write failure")
+            return execute(query, *parameters)
+
+        cursor.execute = fail_update
+        return cursor
+
+    connection.cursor.side_effect = failing_cursor
+    response = http.post(
+        "/api/rag/chat/save",
+        headers={"Authorization": f"Bearer {make_token()}"},
+        json={"session_id": "owned-session", "messages": [{"content": "Replacement message"}]},
+    )
+    assert response.status_code == 500
+    assert database.execute("SELECT title, message_count FROM chat_sessions").fetchall() == [
+        ("Original title", 1)
+    ]
+    assert database.execute("SELECT content FROM chat_messages").fetchall() == [("Original message",)]
+
+
+def test_cosmos_save_rejects_missing_foreign_or_ambiguous_session_ownership():
+    from src.api.storage.cosmos_service import CosmosService
+
+    store = CosmosService()
+    store._initialized = True
+    store._db = Mock()
+    sessions = Mock()
+    messages = Mock()
+    store._db.get_container_client.side_effect = lambda name: (
+        sessions if name == store.SESSIONS_CONTAINER else messages
+    )
+    for owners in ([], [{"user_id": "victim"}], [{"user_id": USER_ID}, {"user_id": "victim"}]):
+        sessions.query_items.return_value = owners
+        assert not store.save_messages_bulk("victim-session", USER_ID, [{"content": "Forged"}])
+    messages.query_items.assert_not_called()
+    messages.create_item.assert_not_called()
+    sessions.replace_item.assert_not_called()
+
+
+def test_cosmos_save_preserves_owned_session_behavior():
+    from src.api.storage.cosmos_service import CosmosService
+
+    store = CosmosService()
+    store._initialized = True
+    store._db = Mock()
+    sessions = Mock()
+    messages = Mock()
+    store._db.get_container_client.side_effect = lambda name: (
+        sessions if name == store.SESSIONS_CONTAINER else messages
+    )
+    sessions.query_items.return_value = [{"user_id": USER_ID}]
+    sessions.read_item.return_value = {"id": "owned-session", "user_id": USER_ID, "title": "Original"}
+    messages.query_items.return_value = [{"id": "old-message"}]
+    assert store.save_messages_bulk("owned-session", USER_ID, [{"content": "Replacement"}])
+    messages.delete_item.assert_called_once_with(item="old-message", partition_key="owned-session")
+    assert messages.create_item.call_args.args[0]["content"] == "Replacement"
+    metadata = sessions.replace_item.call_args.kwargs["body"]
+    assert metadata["user_id"] == USER_ID
+    assert metadata["title"] == "Original"
+    assert metadata["message_count"] == 1
 
 
 def test_script_key_remains_supported_but_is_never_an_anonymous_fallback(client, monkeypatch):

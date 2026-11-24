@@ -52,6 +52,10 @@ class DbService:
         self._ensure_init()
         return self._chat.list_sessions(user_id, limit)
 
+    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
+        self._ensure_init()
+        return self._chat.get_session(session_id, user_id)
+
     def update_session(self, session_id: str, user_id: str,
                        title: Optional[str] = None, message_count: Optional[int] = None) -> bool:
         self._ensure_init()
@@ -72,9 +76,10 @@ class DbService:
         self._ensure_init()
         return self._chat.get_messages(session_id)
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, user_id: str, messages: list[dict],
+                           title: Optional[str] = None) -> bool:
         self._ensure_init()
-        return self._chat.save_messages_bulk(session_id, messages)
+        return self._chat.save_messages_bulk(session_id, user_id, messages, title)
 
     # ── Insights Cache ──
 

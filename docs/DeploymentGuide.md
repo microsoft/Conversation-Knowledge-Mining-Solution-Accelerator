@@ -301,6 +301,13 @@ az login --tenant <tenant-id>
 
 ### 4.2 Start Deployment
 
+The pre-provision hook creates or reuses the Entra registration and saves the
+authentication IDs automatically. Ensure the Azure CLI account uses the intended
+subscription (or set `AZURE_SUBSCRIPTION_ID` in azd) and has Entra app-registration
+permissions. To reuse a registration, set `AZURE_AD_CLIENT_ID` before running
+`azd up`. See [App Authentication](./AppAuthentication.md) for role assignments
+and manual recovery of an existing deployment.
+
 ```shell
 azd up
 ```
@@ -317,9 +324,10 @@ azd up
 
 `azd up` runs the hooks defined in [azure.yaml](../azure.yaml) and performs the following steps automatically — no separate manual deploy step is required:
 
-1. **Pre-provision** — Generates and stores an `ADMIN_API_KEY` in the `azd` environment.
+1. **Pre-provision** — Creates/reuses the Entra registration, saves subscription/tenant/client IDs, and generates an `ADMIN_API_KEY` in the `azd` environment.
 2. **Provision** — Creates all Azure resources using the Bicep templates in `infra/`. The backend and frontend App Services start with a temporary placeholder image.
 3. **Post-provision** — Runs automatically after provisioning:
+   - Adds the frontend SPA redirect URI and synchronizes authentication settings on both App Services.
    - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build_and_push_images.ps1](../infra/scripts/build/build_and_push_images.ps1))
    - Writes the `azd` environment values to a local `.env` file (already gitignored; it may contain secrets — do not commit it)
    - Creates a Python virtual environment and installs [infra/scripts/post-provision/requirements.txt](../infra/scripts/post-provision/requirements.txt)
@@ -391,6 +399,20 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
   pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
+Data setup validates API credentials and database connectivity before changing data.
+It prefers the configured `ADMIN_API_KEY`; otherwise it requests an Entra access
+token for the configured tenant and API. Scenario loading, cleanup, and sample
+loading require the `Admin` app role; upload-only runs can use `Contributor`.
+With `-ResourceGroupName`, backend discovery and credentials come from that
+deployment rather than a potentially stale local azd environment.
+
+For Contact Center seeding and BYOD registration, the deployer's identity also
+needs access to Azure SQL, not just the API managed identity. Ensure it has the
+required contained database user and read/write/schema permissions. App roles
+and the API key do not grant SQL permissions or bypass private endpoints and
+App Service access restrictions. Database readiness timeouts, access failures,
+and incomplete uploads stop setup with an error instead of reporting completion.
+
 The system presents available scenarios for selection:
 
 > **Options 4 & 5 — Bring your own data (BYOD):** Before choosing Azure AI Search or Microsoft Fabric, gather the connection details (endpoint, index/table names, workspace ID, required permissions) listed in the [Bring Your Own Data Guide](./ConnectDataSource.md).
@@ -431,11 +453,20 @@ The API requires a validated Microsoft Entra access token or the optional
 privileged script key. Anonymous access and sample-user fallback are disabled.
 
 1. Follow [App Authentication Configuration](./AppAuthentication.md) **before provisioning**.
-2. Set `AZURE_AD_TENANT_ID` and `AZURE_AD_CLIENT_ID` in the `azd` environment.
+2. The hooks configure the Entra IDs and frontend SPA redirect automatically.
+   For an existing deployment missing its IDs, run `configure_auth.ps1 -Phase PostProvision`
+   from that deployment's selected azd environment.
 3. Assign `Contributor` or `Admin` app roles to users who manage data. Users
    without an assigned role have read-only access.
 
 ### 5.5 Verify Deployment
+
+The API's `/api/health` response must report `checks.sql = "ok"` before SQL data
+setup can proceed. The script's admin API key authorizes API requests; it does
+not grant the API managed identity access to SQL. SQL role setup now stops on
+failed grants or an existing contained user with the wrong identity SID.
+See [SQL connectivity troubleshooting](./TroubleShootingSteps.md#sql-health-remains-unavailable-after-role-assignment)
+if the health check remains unavailable.
 
 1. Access your application using the URL from Step 4.3
 2. Confirm the application loads successfully
