@@ -212,8 +212,10 @@ def test_validated_roles_control_real_operations(
     monkeypatch.setattr(ingestion, "_trigger_auto_pipeline", lambda: None)
     monkeypatch.setattr(embeddings.embeddings_service, "clear", clear)
     headers = {"Authorization": f"Bearer {make_token(roles=roles)}", **FORGED_HEADERS}
-    assert http.post("/api/ingestion/load-default", headers=headers).status_code == contributor_status
-    assert http.delete("/api/embeddings/clear", headers=headers).status_code == admin_status
+    contributor_response = http.post("/api/ingestion/load-default", headers=headers)
+    admin_response = http.delete("/api/embeddings/clear", headers=headers)
+    assert contributor_response.status_code == contributor_status
+    assert admin_response.status_code == admin_status
     assert load.call_count == (1 if contributor_status == 200 else 0)
     assert clear.call_count == (1 if admin_status == 200 else 0)
 
@@ -238,9 +240,10 @@ def test_script_key_remains_supported_but_is_never_an_anonymous_fallback(client,
     http, settings, _ = client
     clear = Mock()
     monkeypatch.setattr(embeddings.embeddings_service, "clear", clear)
-    assert http.delete(
+    response = http.delete(
         "/api/embeddings/clear", headers={"X-Admin-Api-Key": SCRIPT_KEY}
-    ).status_code == 200
+    )
+    assert response.status_code == 200
     clear.assert_called_once()
     assert http.get("/api/auth/me", headers={"X-Admin-Api-Key": "wrong"}).status_code == 401
     settings.admin_api_key = ""
