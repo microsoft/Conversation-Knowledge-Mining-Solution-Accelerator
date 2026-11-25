@@ -16,7 +16,6 @@ initializeAuthentication().then((authenticated) => {
     <React.StrictMode>
       <FluentProvider theme={webLightTheme}>
         <App />
-        {console.log("AK")}
       </FluentProvider>
     </React.StrictMode>
   );
