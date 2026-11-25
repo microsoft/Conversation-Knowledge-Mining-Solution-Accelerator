@@ -38,8 +38,8 @@ param location string = resourceGroup().location
   azd:{
     type: 'location'
     usageName: [
-      'OpenAI.GlobalStandard.gpt-5.2,10'
-      'OpenAI.GlobalStandard.text-embedding-3-small,10'
+      'OpenAI.GlobalStandard.gpt-5.2,150'
+      'OpenAI.GlobalStandard.text-embedding-3-small,80'
     ]
   }
 })
