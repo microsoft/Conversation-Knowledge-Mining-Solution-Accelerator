@@ -7,8 +7,8 @@ access. Client-supplied `x-ms-client-principal-*` headers are not credentials.
 
 ## Automated deployment setup
 
-Following the create/reuse approach in [MACAE PR #1188](https://github.com/microsoft/Multi-Agent-Custom-Automation-Engine-Solution-Accelerator/pull/1188),
-`azd up` now runs `infra/scripts/post-provision/configure_auth.ps1` in two phases:
+`azd up` configures authentication automatically by running
+`infra/scripts/post-provision/configure_auth.ps1` in two phases:
 
 - **PreProvision:** selects the subscription configured in azd (or uses the current
   Azure CLI subscription), validates the tenant, creates or reuses a single-tenant
@@ -42,6 +42,11 @@ Optional parameters include `-ClientId`, `-TenantId`, `-SubscriptionId`,
 
 ## Manual app registration
 
+Use these steps as an alternative to automatic registration creation, for example
+when an administrator must create the registration in advance. They are not a
+separate requirement for the normal `azd up` flow. The deployment hooks still
+configure the supplied registration and require permission to manage it.
+
 1. Create a **single-tenant** Microsoft Entra app registration. Record its
    **Directory (tenant) ID** and **Application (client) ID**.
 2. Under **Authentication**, add a **Single-page application** platform with the
@@ -64,7 +69,8 @@ additionally clear all documents or the vector index and reload pipelines.
 
 ## Deployment configuration
 
-For manual registration, configure both IDs before provisioning:
+The deployment hooks populate both IDs automatically. To use a manually created
+registration instead, configure both IDs before provisioning:
 
 ```shell
 azd env set AZURE_AD_TENANT_ID <tenant-id>
@@ -90,6 +96,16 @@ appropriate app role, or the existing optional `ADMIN_API_KEY` credential.
 The key grants Admin access: protect it as a secret, rotate it when necessary,
 and never include it in frontend settings or source control. An unset key
 disables key-based access; an incorrect key returns HTTP 401.
+Both `setup-data.ps1` and `seed-data.ps1` prefer a configured admin key and request
+an Entra token only when no key is available.
+
+Cosmos chat persistence reserves each session ID atomically using an ownership
+record in its message partition before creating session metadata. Existing sessions
+are checked before claiming ownership; foreign or ambiguous owners cannot save or
+delete the shared history. Ownership records are excluded from chat messages and
+retained after deletion to prevent concurrent reassignment of the session ID.
+Existing sessions with duplicate owner rows require manual repair before saves or
+deletes can proceed.
 
 For app-only access, assign an application app role and configure the `idtyp`
 optional **access-token** claim on the API registration. App-only tokens must

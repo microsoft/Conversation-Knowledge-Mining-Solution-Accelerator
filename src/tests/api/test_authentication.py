@@ -3,6 +3,8 @@ import json
 import re
 import sqlite3
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier, Lock
 from unittest.mock import Mock
 
 import jwt
@@ -397,6 +399,137 @@ def test_cosmos_save_rejects_missing_foreign_or_ambiguous_session_ownership():
     messages.query_items.assert_not_called()
     messages.create_item.assert_not_called()
     sessions.replace_item.assert_not_called()
+
+
+@pytest.fixture
+def cosmos_chat_database(monkeypatch):
+    from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
+    from src.api.storage.cosmos_service import CosmosService
+    from src.api.storage.db_service import db_service
+
+    store = CosmosService()
+    store._initialized = True
+    lock = Lock()
+
+    class Container:
+        def __init__(self, partition_field):
+            self.partition_field = partition_field
+            self.items = {}
+            self.barrier = None
+
+        def create_item(self, body):
+            key = (body[self.partition_field], body["id"])
+            with lock:
+                if key in self.items:
+                    raise CosmosResourceExistsError()
+                self.items[key] = dict(body)
+            return dict(body)
+
+        def read_item(self, item, partition_key):
+            with lock:
+                if (partition_key, item) not in self.items:
+                    raise CosmosResourceNotFoundError()
+                return dict(self.items[(partition_key, item)])
+
+        def replace_item(self, item, body):
+            with lock:
+                self.items[(body[self.partition_field], item)] = dict(body)
+
+        def delete_item(self, item, partition_key):
+            with lock:
+                if (partition_key, item) not in self.items:
+                    raise CosmosResourceNotFoundError()
+                del self.items[(partition_key, item)]
+
+        def query_items(self, query, parameters, **kwargs):
+            values = {p["name"]: p["value"] for p in parameters}
+            with lock:
+                items = [
+                    dict(item) for item in self.items.values()
+                    if item.get("session_id" if self.partition_field == "session_id" else "id") == values["@sid"]
+                    and ("@owner_id" not in values or item["id"] != values["@owner_id"])
+                ]
+            if self.barrier:
+                self.barrier.wait(timeout=5)
+            return items
+
+    sessions = Container("user_id")
+    messages = Container("session_id")
+    store._db = Mock()
+    store._db.get_container_client.side_effect = lambda name: (
+        sessions if name == store.SESSIONS_CONTAINER else messages
+    )
+    monkeypatch.setattr(db_service, "_provider", "cosmos")
+    monkeypatch.setattr(db_service, "_chat", store)
+    monkeypatch.setattr(db_service, "_data", store)
+    return store, sessions, messages
+
+
+def test_cosmos_foreign_save_and_delete_preserve_victim_history(
+    client, make_token, monkeypatch, cosmos_chat_database
+):
+    from src.api.modules.rag import router as rag
+
+    http, _, _ = client
+    store, sessions, _ = cosmos_chat_database
+    store.create_session("victim", session_id="victim-session")
+    assert store.save_messages_bulk("victim-session", "victim", [{"content": "Victim message"}])
+    monkeypatch.setattr(rag.rag_service, "generate_title", Mock(return_value="Forged title"))
+    headers = {"Authorization": f"Bearer {make_token()}"}
+    response = http.post(
+        "/api/rag/chat/save", headers=headers,
+        json={"session_id": "victim-session", "messages": [{"content": "Forged message"}]},
+    )
+    assert response.status_code == 409
+    assert (USER_ID, "victim-session") not in sessions.items
+    assert not http.delete("/api/rag/chat/session/victim-session", headers=headers).json()["deleted"]
+    assert [m["content"] for m in store.get_messages("victim-session")] == ["Victim message"]
+    assert store.save_messages_bulk("victim-session", "victim", [{"content": "Next victim message"}])
+
+
+def test_cosmos_concurrent_creators_claim_one_owner_atomically(cosmos_chat_database):
+    store, sessions, messages = cosmos_chat_database
+    sessions.barrier = Barrier(2)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(
+            lambda user: store.create_session(user, session_id="shared-session"),
+            ["first-user", "second-user"],
+        ))
+    sessions.barrier = None
+    winners = [session for session in results if session is not None]
+    assert len(winners) == 1
+    assert len(sessions.items) == 1
+    assert messages.read_item(
+        item=store.SESSION_OWNER_ID, partition_key="shared-session"
+    )["user_id"] == winners[0]["user_id"]
+
+
+def test_cosmos_legacy_ownership_is_preserved_and_ambiguous_deletes_are_rejected(cosmos_chat_database):
+    store, sessions, messages = cosmos_chat_database
+    sessions.create_item({"id": "legacy-session", "user_id": "victim"})
+    messages.create_item({"id": "legacy-message", "session_id": "legacy-session", "content": "Legacy"})
+    assert store.create_session(USER_ID, session_id="legacy-session") is None
+    assert not store.delete_session("legacy-session", USER_ID)
+    assert store.save_messages_bulk("legacy-session", "victim", [{"content": "Updated legacy"}])
+    sessions.create_item({"id": "legacy-session", "user_id": USER_ID})
+    assert not store.delete_session("legacy-session", USER_ID)
+    assert not store.delete_session("legacy-session", "victim")
+    assert [m["content"] for m in store.get_messages("legacy-session")] == ["Updated legacy"]
+
+
+def test_cosmos_deleted_session_retains_claim_without_exposing_it_as_a_message(cosmos_chat_database):
+    store, _, messages = cosmos_chat_database
+    assert store.create_session("victim", session_id="deleted-session")
+    for content in ("First", "Replacement"):
+        assert store.save_messages_bulk("deleted-session", "victim", [{"content": content}])
+        assert [m["content"] for m in store.get_messages("deleted-session")] == [content]
+    assert store.delete_session("deleted-session", "victim")
+    assert store.get_messages("deleted-session") == []
+    assert store.create_session(USER_ID, session_id="deleted-session") is None
+    assert messages.read_item(
+        item=store.SESSION_OWNER_ID, partition_key="deleted-session"
+    )["user_id"] == "victim"
+    assert store.create_session("victim", session_id="deleted-session")
 
 
 def test_cosmos_save_preserves_owned_session_behavior():

@@ -116,11 +116,12 @@ def upload_search_data():
             else:
                 errors.append(f"  {r.key}: {r.error_message}")
 
-    print(f"  [OK] Indexed {uploaded}/{len(mapped)} documents")
     if errors:
-        print(f"  [WARN] {len(errors)} errors:")
-        for e in errors[:5]:
-            print(f"    {e}")
+        raise RuntimeError(
+            f"Indexed {uploaded}/{len(mapped)} documents; {len(errors)} indexing errors:\n"
+            + "\n".join(errors[:5])
+        )
+    print(f"  [OK] Indexed {uploaded}/{len(mapped)} documents")
 
 
 # ---------------------------------------------------------------------------

@@ -128,6 +128,42 @@ def test_credentials_support_quoted_env_without_azd(tmp_path):
     """)
 
 
+@pytest.mark.parametrize("source", ["process", "azd"])
+def test_seed_data_prefers_admin_key_without_requesting_a_token(source):
+    run_powershell(f"""
+        $env:ADMIN_API_KEY = '{'test-key' if source == 'process' else ''}'
+        function azd {{
+            if (($args -join ' ') -ne 'env get-value ADMIN_API_KEY') {{
+                throw 'Token configuration requested despite admin key'
+            }}
+            return 'test-key'
+        }}
+        $headers = Get-ApiHeaders
+        if ($headers['X-Admin-Api-Key'] -ne 'test-key' -or $headers.ContainsKey('Authorization')) {{
+            throw 'Admin key not preferred'
+        }}
+    """, filename="seed-data.ps1")
+
+
+def test_seed_data_uses_token_only_without_an_admin_key():
+    run_powershell("""
+        $env:ADMIN_API_KEY = ''
+        $env:AZURE_AD_CLIENT_ID = 'target-client'
+        function azd { return '' }
+        function az {
+            if (($args -join ' ') -notlike '*--resource api://target-client*') {
+                throw 'Wrong token target'
+            }
+            $global:LASTEXITCODE = 0
+            return 'test-token'
+        }
+        if ((Get-ApiHeaders).Authorization -ne 'Bearer test-token') { throw 'Token missing' }
+        function az { $global:LASTEXITCODE = 1; return '' }
+        try { Get-ApiHeaders; throw 'Token acquisition failure accepted' }
+        catch { if ($_.Exception.Message -notlike '*API access token or ADMIN_API_KEY*') { throw } }
+    """, filename="seed-data.ps1")
+
+
 def test_access_token_uses_target_tenant_and_failed_cli_output_is_rejected():
     run_powershell("""
         function Get-DeployValue {
@@ -262,7 +298,7 @@ def test_setup_stops_before_data_changes_when_sql_is_unavailable():
                     -not $statement.Extent.Text.StartsWith('$projectRoot =')) {
                     . ([scriptblock]::Create($statement.Extent.Text))
                 }
-                if ($statement.Extent.Text.StartsWith('Wait-ForBackendSqlHealthy -BackendUrl')) { break }
+                if ($statement.Extent.Text.StartsWith('if ($requiresDatabaseReadiness)')) { break }
             }
             throw 'SQL failure accepted'
         } catch { if ($_.Exception.Message -notlike '*Setup stopped before changing data*') { throw } }
@@ -278,6 +314,48 @@ def test_cosmos_readiness_does_not_require_sql():
         }
         if (-not (Wait-ForBackendSqlHealthy -BackendUrl 'https://backend.example' -Headers @{} `
             -DatabaseProvider cosmos -TimeoutSec 1 -PollIntervalSec 1)) { throw 'Cosmos rejected' }
+    """)
+
+
+@pytest.mark.parametrize(
+    ("url", "provider", "configured", "expected"),
+    [
+        ("http://localhost:8000", "sql", False, False),
+        ("http://127.0.0.1:8000", "sql", False, False),
+        ("http://[::1]:8000", "sql", False, False),
+        ("http://localhost:8000", "sql", True, True),
+        ("http://localhost:8000", "cosmos", False, False),
+        ("http://localhost:8000", "cosmos", True, True),
+        ("https://backend.example", "sql", False, True),
+        ("https://backend.example", "cosmos", False, True),
+    ],
+)
+def test_database_readiness_gate_preserves_memory_only_local_runs(url, provider, configured, expected):
+    run_powershell(f"""
+        $BackendUrl = '{url}'
+        $backendUri = [Uri]$BackendUrl
+        $headers = @{{}}
+        $script:ReadinessCalls = 0
+        function Get-DeployValue {{
+            param($Name)
+            if ($Name -eq 'DATABASE_PROVIDER') {{ return '{provider}' }}
+            if ($Name -eq '{'AZURE_SQL_SERVER' if provider == 'sql' else 'AZURE_COSMOS_ENDPOINT'}') {{
+                return '{'configured-endpoint' if configured else ''}'
+            }}
+            return ''
+        }}
+        function Wait-ForBackendSqlHealthy {{
+            param($BackendUrl, $Headers, $DatabaseProvider)
+            if ($DatabaseProvider -ne '{provider}') {{ throw 'Wrong provider checked' }}
+            $script:ReadinessCalls++
+        }}
+        $started = $false
+        foreach ($statement in $ast.EndBlock.Statements) {{
+            if ($statement.Extent.Text.StartsWith('$databaseProvider =')) {{ $started = $true }}
+            if ($started) {{ . ([scriptblock]::Create($statement.Extent.Text)) }}
+            if ($started -and $statement.Extent.Text.StartsWith('if ($requiresDatabaseReadiness)')) {{ break }}
+        }}
+        if ($script:ReadinessCalls -ne {int(expected)}) {{ throw 'Incorrect readiness gate' }}
     """)
 
 
@@ -330,6 +408,44 @@ def test_seed_search_permission_failure_exits_unsuccessfully():
     with patch("os.path.exists", return_value=True), pytest.raises(SystemExit) as error:
         namespace["main"]()
     assert error.value.code == 1
+
+
+@pytest.mark.parametrize("partial_failure", [False, True])
+def test_seed_search_document_results_control_completion(partial_failure):
+    import urllib.request
+
+    namespace = load_seed_main()
+    path = SCRIPTS / "seed-sample-data.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    upload = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "upload_search_data"
+    )
+    search_client = Mock()
+    search_client.upload_documents.return_value = [
+        Mock(succeeded=True, key="first"),
+        Mock(succeeded=not partial_failure, key="second", error_message="Invalid document"),
+    ]
+    namespace.update({
+        "load_json": Mock(return_value=[{"id": "first"}, {"id": "second"}]),
+        "SearchClient": Mock(return_value=search_client), "credential": Mock(),
+        "COSMOS_ENDPOINT": "https://cosmos.example",
+        "upload_processed_data": Mock(), "upload_key_phrases": Mock(),
+    })
+    exec(compile(ast.Module(body=[upload], type_ignores=[]), str(path), "exec"), namespace)
+    with patch("os.path.exists", return_value=True), patch.dict(os.environ, {"ADMIN_API_KEY": "test-key"}):
+        with patch.object(urllib.request, "urlopen") as refresh:
+            if partial_failure:
+                with pytest.raises(SystemExit) as error:
+                    namespace["main"]()
+                assert error.value.code == 1
+                namespace["upload_processed_data"].assert_not_called()
+                namespace["upload_key_phrases"].assert_not_called()
+                refresh.assert_not_called()
+            else:
+                namespace["main"]()
+                namespace["upload_processed_data"].assert_called_once()
+                namespace["upload_key_phrases"].assert_called_once()
+                refresh.assert_called_once()
 
 
 def test_seed_sql_permission_failure_stops_before_search_upload():

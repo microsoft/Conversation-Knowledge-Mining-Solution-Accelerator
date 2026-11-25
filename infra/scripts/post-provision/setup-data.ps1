@@ -358,7 +358,15 @@ function Wait-ForBackendSqlHealthy {
 
 $databaseProvider = Get-DeployValue "DATABASE_PROVIDER"
 if (-not $databaseProvider) { $databaseProvider = "sql" }
-Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl -Headers $headers -DatabaseProvider $databaseProvider.ToLowerInvariant() | Out-Null
+$databaseProvider = $databaseProvider.ToLowerInvariant()
+$databaseEndpointSetting = if ($databaseProvider -eq "cosmos") { "AZURE_COSMOS_ENDPOINT" } else { "AZURE_SQL_SERVER" }
+$requiresDatabaseReadiness = -not $backendUri.IsLoopback -or
+    -not [string]::IsNullOrWhiteSpace((Get-DeployValue $databaseEndpointSetting))
+if ($requiresDatabaseReadiness) {
+    Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl -Headers $headers -DatabaseProvider $databaseProvider | Out-Null
+} else {
+    Write-Host "Memory-only local backend; skipping database readiness check." -ForegroundColor Yellow
+}
 
 # ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
 function Invoke-DataCleanup {
@@ -605,6 +613,11 @@ if ($Scenario) {
             "AZURE_SQL_SERVER", "AZURE_SQL_DATABASE"
         )) {
             $val = Get-DeployValue $name
+            # An empty environment variable overrides the seed script's default.
+            # Match the default used when creating the solution search index.
+            if ($name -eq "AZURE_SEARCH_INDEX_NAME" -and [string]::IsNullOrWhiteSpace($val)) {
+                $val = "knowledge-mining-index"
+            }
             Set-Item -Path "Env:$name" -Value $val
         }
 

@@ -301,12 +301,17 @@ az login --tenant <tenant-id>
 
 ### 4.2 Start Deployment
 
+Authentication is required, but manual app registration is not a separate setup
+step for the normal `azd up` flow. Before provisioning, ensure both Azure CLI and
+azd are signed in to the deployment tenant, the Azure CLI account uses the intended
+subscription (or set `AZURE_SUBSCRIPTION_ID` in azd), and the caller can create/manage
+Entra app registrations and service principals and configure App Services.
+
 The pre-provision hook creates or reuses the Entra registration and saves the
-authentication IDs automatically. Ensure the Azure CLI account uses the intended
-subscription (or set `AZURE_SUBSCRIPTION_ID` in azd) and has Entra app-registration
-permissions. To reuse a registration, set `AZURE_AD_CLIENT_ID` before running
-`azd up`. See [App Authentication](./AppAuthentication.md) for role assignments
-and manual recovery of an existing deployment.
+authentication IDs automatically. To reuse a registration, set
+`AZURE_AD_CLIENT_ID` before running `azd up`; the hooks still require permission
+to manage it. See [App Authentication](./AppAuthentication.md) for the manual
+registration alternative, role assignments, and recovery instructions.
 
 ```shell
 azd up
@@ -400,6 +405,10 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
   ```
 
 Data setup validates API credentials and database connectivity before changing data.
+Database readiness is skipped only for a loopback backend with no configured endpoint
+for its selected database provider; memory-only local sample loading and uploads
+still require authentication. Remote backends and configured local databases must
+pass the readiness check.
 It prefers the configured `ADMIN_API_KEY`; otherwise it requests an Entra access
 token for the configured tenant and API. Scenario loading, cleanup, and sample
 loading require the `Admin` app role; upload-only runs can use `Contributor`.
@@ -412,6 +421,8 @@ required contained database user and read/write/schema permissions. App roles
 and the API key do not grant SQL permissions or bypass private endpoints and
 App Service access restrictions. Database readiness timeouts, access failures,
 and incomplete uploads stop setup with an error instead of reporting completion.
+Document-level Search indexing failures also stop seeding before database uploads
+or the backend cache refresh.
 
 The system presents available scenarios for selection:
 
@@ -452,12 +463,16 @@ Once deployment and data setup complete, access your deployed frontend applicati
 The API requires a validated Microsoft Entra access token or the optional
 privileged script key. Anonymous access and sample-user fallback are disabled.
 
-1. Follow [App Authentication Configuration](./AppAuthentication.md) **before provisioning**.
-2. The hooks configure the Entra IDs and frontend SPA redirect automatically.
-   For an existing deployment missing its IDs, run `configure_auth.ps1 -Phase PostProvision`
-   from that deployment's selected azd environment.
-3. Assign `Contributor` or `Admin` app roles to users who manage data. Users
-   without an assigned role have read-only access.
+The deployment hooks have already configured authentication. After deployment:
+
+1. Verify frontend sign-in succeeds and authenticated API requests are accepted.
+   The hooks configure the Entra IDs and frontend SPA redirect automatically.
+2. Assign `Contributor` or `Admin` app roles through the enterprise application
+   to users who manage data. Users without an assigned role have read-only access.
+3. If an existing deployment is missing its IDs, run
+   `configure_auth.ps1 -Phase PostProvision` from that deployment's selected azd
+   environment. See [App Authentication Configuration](./AppAuthentication.md)
+   for verification and recovery details.
 
 ### 5.5 Verify Deployment
 

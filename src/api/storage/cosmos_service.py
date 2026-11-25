@@ -13,7 +13,7 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, PartitionKey
-from azure.cosmos.exceptions import CosmosResourceNotFoundError
+from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
 
 from src.api.config import get_settings
 
@@ -25,6 +25,7 @@ class CosmosService:
 
     SESSIONS_CONTAINER = "chat_sessions"
     MESSAGES_CONTAINER = "chat_messages"
+    SESSION_OWNER_ID = "__session_owner__"
     INSIGHTS_CONTAINER = "document_insights"
     ENRICHMENT_CONTAINER = "enrichment_cache"
     DOCUMENTS_CONTAINER = "documents"
@@ -89,14 +90,45 @@ class CosmosService:
 
     # --- Chat Sessions ---
 
+    def _claim_session_ownership(self, session_id: str, user_id: str, allow_new: bool = False) -> bool:
+        sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
+        owners = list(sessions.query_items(
+            "SELECT c.user_id FROM c WHERE c.id = @sid",
+            parameters=[{"name": "@sid", "value": session_id}],
+            enable_cross_partition_query=True,
+        ))
+        if (not owners and not allow_new) or (owners and (len(owners) != 1 or owners[0]["user_id"] != user_id)):
+            logger.warning("Refusing chat session '%s' without unique matching ownership", session_id)
+            return False
+
+        # All contenders create the same item in the same message partition.
+        # Retain the claim even after deletion so concurrent requests cannot reassign it.
+        messages = self._db.get_container_client(self.MESSAGES_CONTAINER)
+        try:
+            messages.create_item({
+                "id": self.SESSION_OWNER_ID,
+                "session_id": session_id,
+                "user_id": user_id,
+            })
+            return True
+        except CosmosResourceExistsError:
+            owner = messages.read_item(item=self.SESSION_OWNER_ID, partition_key=session_id)
+            if owner["user_id"] == user_id:
+                return True
+            logger.warning("Refusing chat session '%s' claimed by another user", session_id)
+            return False
+
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         """Create a new chat session. Returns session metadata."""
         if not self.available:
             return None
         try:
+            sid = session_id or str(uuid.uuid4())
+            if not self._claim_session_ownership(sid, user_id, allow_new=True):
+                return None
             container = self._db.get_container_client(self.SESSIONS_CONTAINER)
             session = {
-                "id": session_id or str(uuid.uuid4()),
+                "id": sid,
                 "user_id": user_id,
                 "title": title,
                 "message_count": 0,
@@ -166,15 +198,20 @@ class CosmosService:
         if not self.available:
             return False
         try:
+            if not self._claim_session_ownership(session_id, user_id):
+                return False
             # Delete session
             sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
             sessions.delete_item(item=session_id, partition_key=user_id)
 
             # Delete all messages in session
             messages = self._db.get_container_client(self.MESSAGES_CONTAINER)
-            query = "SELECT c.id FROM c WHERE c.session_id = @sid"
+            query = "SELECT c.id FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
             items = list(messages.query_items(
-                query, parameters=[{"name": "@sid", "value": session_id}],
+                query, parameters=[
+                    {"name": "@sid", "value": session_id},
+                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
+                ],
                 partition_key=session_id,
             ))
             for item in items:
@@ -215,11 +252,14 @@ class CosmosService:
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
             query = (
                 "SELECT c.id, c.role, c.content, c.sources, c.timestamp, c[\"order\"] AS position "
-                "FROM c WHERE c.session_id = @sid"
+                "FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
             )
             items = list(container.query_items(
                 query,
-                parameters=[{"name": "@sid", "value": session_id}],
+                parameters=[
+                    {"name": "@sid", "value": session_id},
+                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
+                ],
                 partition_key=session_id,
             ))
             # Sort by the saved position (timestamps can tie or come from the client), then timestamp.
@@ -238,22 +278,17 @@ class CosmosService:
         if not self.available:
             return False
         try:
-            sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
-            owners = list(sessions.query_items(
-                "SELECT c.user_id FROM c WHERE c.id = @sid",
-                parameters=[{"name": "@sid", "value": session_id}],
-                enable_cross_partition_query=True,
-            ))
-            # Messages are partitioned only by session ID, so ambiguous ownership is unsafe.
-            if len(owners) != 1 or owners[0]["user_id"] != user_id:
-                logger.warning("Refusing to save chat session '%s' without unique matching ownership", session_id)
+            if not self._claim_session_ownership(session_id, user_id):
                 return False
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
 
             # Clear existing messages for this session
-            existing = "SELECT c.id FROM c WHERE c.session_id = @sid"
+            existing = "SELECT c.id FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
             old = list(container.query_items(
-                existing, parameters=[{"name": "@sid", "value": session_id}],
+                existing, parameters=[
+                    {"name": "@sid", "value": session_id},
+                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
+                ],
                 partition_key=session_id,
             ))
             for item in old:

@@ -37,21 +37,32 @@ if ($BackendUrl -eq "http://localhost:8000") {
     }
 }
 
-Write-Host "Getting access token..." -ForegroundColor Yellow
-$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
-$headers = @{}
-if ($token) {
-    $headers["Authorization"] = "Bearer $token"
-} else {
+function Get-ApiHeaders {
     $adminKey = $env:ADMIN_API_KEY
     if (-not $adminKey) {
         $adminKey = azd env get-value ADMIN_API_KEY 2>$null
     }
-    if (-not $adminKey) {
+    if ($adminKey) {
+        Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
+        return @{ "X-Admin-Api-Key" = $adminKey }
+    }
+
+    Write-Host "Getting access token..." -ForegroundColor Yellow
+    $clientId = $env:AZURE_AD_CLIENT_ID
+    if (-not $clientId) {
+        $clientId = azd env get-value AZURE_AD_CLIENT_ID 2>$null
+    }
+    if (-not $clientId) {
+        throw "Configure AZURE_AD_CLIENT_ID or ADMIN_API_KEY. See docs/AppAuthentication.md."
+    }
+    $token = az account get-access-token --resource "api://$clientId" --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $token -or "$token" -match '^ERROR:') {
         throw "An API access token or ADMIN_API_KEY is required. See docs/AppAuthentication.md."
     }
-    $headers["X-Admin-Api-Key"] = $adminKey
+    return @{ Authorization = "Bearer $token" }
 }
+
+$headers = Get-ApiHeaders
 
 Write-Host "Loading sample dataset..." -ForegroundColor Yellow
 $response = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `
