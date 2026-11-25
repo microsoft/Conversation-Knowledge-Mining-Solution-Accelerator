@@ -43,15 +43,19 @@ export const loginRequest = {
 
 export const msalInstance = new PublicClientApplication(msalConfig);
 
-export async function initializeAuthentication(): Promise<void> {
+export async function initializeAuthentication(): Promise<boolean> {
   if (!TENANT_ID || !CLIENT_ID) {
     throw new Error("Configure the Microsoft Entra tenant and client IDs before signing in.");
   }
   await msalInstance.initialize();
   const result = await msalInstance.handleRedirectPromise();
-  msalInstance.setActiveAccount(
-    result?.account || msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0] || null
-  );
+  const account = result?.account || msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
+  if (!account) {
+    await msalInstance.loginRedirect(loginRequest);
+    return false;
+  }
+  msalInstance.setActiveAccount(account);
+  return true;
 }
 
 export async function getAccessToken(): Promise<string> {

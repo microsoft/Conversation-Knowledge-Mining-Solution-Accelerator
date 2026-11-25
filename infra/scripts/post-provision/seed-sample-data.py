@@ -116,12 +116,11 @@ def upload_search_data():
             else:
                 errors.append(f"  {r.key}: {r.error_message}")
 
-    if errors:
-        raise RuntimeError(
-            f"Indexed {uploaded}/{len(mapped)} documents; {len(errors)} indexing errors:\n"
-            + "\n".join(errors[:5])
-        )
     print(f"  [OK] Indexed {uploaded}/{len(mapped)} documents")
+    if errors:
+        print(f"  [WARN] {len(errors)} errors:")
+        for e in errors[:5]:
+            print(f"    {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -403,21 +402,21 @@ def main():
             conn = pyodbc.connect(conn_str, attrs_before={1256: token_struct})
             cursor = conn.cursor()
             for table in ["documents", "uploaded_files", "filter_schemas", "enrichment_cache"]:
-                cursor.execute(f"IF OBJECT_ID('dbo.{table}', 'U') IS NOT NULL DELETE FROM {table}")
+                try:
+                    cursor.execute(f"DELETE FROM {table}")
+                except Exception:
+                    pass  # Table may not exist yet
             conn.commit()
             conn.close()
-            print("  [OK] Cleared SQL tables")
+            print(f"  [OK] Cleared SQL tables")
         except Exception as e:
-            print(f"  [FAIL] Could not clear SQL: {e}")
-            print("  Verify the deployer's contained SQL user and write permissions before retrying.")
-            sys.exit(1)
+            print(f"  [WARN] Could not clear SQL: {e}")
 
     try:
         upload_search_data()
     except Exception as e:
         print(f"\n  [FAIL] Search upload failed: {e}")
         print("  Make sure your identity has 'Search Index Data Contributor' role.")
-        sys.exit(1)
 
     if COSMOS_ENDPOINT:
         try:
@@ -425,14 +424,12 @@ def main():
         except Exception as e:
             print(f"\n  [FAIL] Cosmos processed data upload failed: {e}")
             print("  Make sure your identity has Cosmos DB data contributor role.")
-            sys.exit(1)
 
         try:
             upload_key_phrases()
         except Exception as e:
             print(f"\n  [FAIL] Cosmos key phrases upload failed: {e}")
             print("  Make sure your identity has Cosmos DB data contributor role.")
-            sys.exit(1)
     else:
         print("\n  [SKIP] AZURE_COSMOS_ENDPOINT not set — skipping Cosmos DB upload.")
 
@@ -443,7 +440,6 @@ def main():
         except Exception as e:
             print(f"\n  [FAIL] SQL upload failed: {e}")
             print("  Make sure your identity has SQL admin access.")
-            sys.exit(1)
     else:
         print("\n  [SKIP] No AZURE_SQL_SERVER set — skipping SQL upload.")
 

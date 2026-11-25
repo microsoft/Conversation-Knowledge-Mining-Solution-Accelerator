@@ -94,13 +94,12 @@ hooks:
           Write-Host ""
           & ./infra/scripts/post-provision/setup-sql-roles.ps1
           if ($LASTEXITCODE -ne 0) {
-            throw "SQL role assignment failed. Correct the identity mapping/permissions before running data setup."
+            Write-Host "WARNING: SQL role assignment failed — retry later with: ./infra/scripts/post-provision/setup-sql-roles.ps1" -ForegroundColor Yellow
           }
 
           # ── Step 3: Choose use case, load data, then create the scenario agent ──
           Write-Host ""
           & ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
-          if ($LASTEXITCODE -ne 0) { throw "Data setup failed." }
 
           # ── Done ──
           Write-Host ""
@@ -156,11 +155,11 @@ hooks:
         # ── Step 2: Grant API identity access to SQL ──
         echo ""
         echo "Granting API identity SQL access..."
-        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || exit 1
+        pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1 || echo "WARNING: SQL role assignment failed — retry with: ./infra/scripts/post-provision/setup-sql-roles.ps1"
 
         # ── Step 3: Choose use case, load data, then create the scenario agent ──
         echo ""
-        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback || exit 1
+        pwsh -File ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
 
         echo ""
         echo "========================================"

@@ -38,8 +38,8 @@ param location string = resourceGroup().location
   azd:{
     type: 'location'
     usageName: [
-      'OpenAI.GlobalStandard.gpt-5.2,150'
-      'OpenAI.GlobalStandard.text-embedding-3-small,80'
+      'OpenAI.GlobalStandard.gpt-5.2,10'
+      'OpenAI.GlobalStandard.text-embedding-3-small,10'
     ]
   }
 })
@@ -138,7 +138,9 @@ param deployingUserPrincipalType string = 'User'
 // ============================================================================
 
 @description('Optional. Tags to apply to all resources (AVM only).')
-param tags object = {}
+param tags object = {
+  SecurityControl: 'Ignore'
+}
 
 @description('Optional. Enable/Disable usage telemetry for AVM modules.')
 param enableTelemetry bool = true

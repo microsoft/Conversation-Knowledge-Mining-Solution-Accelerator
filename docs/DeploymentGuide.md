@@ -404,25 +404,12 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
   pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
-Data setup validates API credentials and database connectivity before changing data.
-Database readiness is skipped only for a loopback backend with no configured endpoint
-for its selected database provider; memory-only local sample loading and uploads
-still require authentication. Remote backends and configured local databases must
-pass the readiness check.
+Data setup validates API credentials before changing data.
 It prefers the configured `ADMIN_API_KEY`; otherwise it requests an Entra access
 token for the configured tenant and API. Scenario loading, cleanup, and sample
 loading require the `Admin` app role; upload-only runs can use `Contributor`.
 With `-ResourceGroupName`, backend discovery and credentials come from that
 deployment rather than a potentially stale local azd environment.
-
-For Contact Center seeding and BYOD registration, the deployer's identity also
-needs access to Azure SQL, not just the API managed identity. Ensure it has the
-required contained database user and read/write/schema permissions. App roles
-and the API key do not grant SQL permissions or bypass private endpoints and
-App Service access restrictions. Database readiness timeouts, access failures,
-and incomplete uploads stop setup with an error instead of reporting completion.
-Document-level Search indexing failures also stop seeding before database uploads
-or the backend cache refresh.
 
 The system presents available scenarios for selection:
 
@@ -475,13 +462,6 @@ The deployment hooks have already configured authentication. After deployment:
    for verification and recovery details.
 
 ### 5.5 Verify Deployment
-
-The API's `/api/health` response must report `checks.sql = "ok"` before SQL data
-setup can proceed. The script's admin API key authorizes API requests; it does
-not grant the API managed identity access to SQL. SQL role setup now stops on
-failed grants or an existing contained user with the wrong identity SID.
-See [SQL connectivity troubleshooting](./TroubleShootingSteps.md#sql-health-remains-unavailable-after-role-assignment)
-if the health check remains unavailable.
 
 1. Access your application using the URL from Step 4.3
 2. Confirm the application loads successfully

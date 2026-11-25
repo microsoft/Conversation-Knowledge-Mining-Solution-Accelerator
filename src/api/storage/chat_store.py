@@ -70,22 +70,6 @@ class ChatStore:
             sql._refresh_token()
             return []
 
-    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
-        sql = self._get_sql()
-        if not sql.available:
-            return None
-        conn = sql._get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT id, title, message_count FROM chat_sessions WHERE id = ? AND user_id = ?",
-                session_id, user_id,
-            )
-            row = cursor.fetchone()
-            return {"id": row[0], "title": row[1], "message_count": row[2]} if row else None
-        finally:
-            conn.close()
-
     def update_session(self, session_id: str, user_id: str, title: Optional[str] = None, message_count: Optional[int] = None) -> bool:
         sql = self._get_sql()
         if not sql.available:
@@ -101,12 +85,11 @@ class ChatStore:
             if message_count is not None:
                 sets.append("message_count = ?")
                 params.append(message_count)
-            params.extend([session_id, user_id])
-            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ? AND user_id = ?", *params)
-            updated = cursor.rowcount > 0
+            params.append(session_id)
+            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ?", *params)
             conn.commit()
             conn.close()
-            return updated
+            return True
         except Exception as e:
             logger.warning(f"Failed to update session: {e}")
             sql._refresh_token()
@@ -175,24 +158,13 @@ class ChatStore:
             sql._refresh_token()
             return []
 
-    def save_messages_bulk(self, session_id: str, user_id: str, messages: list[dict],
-                           title: Optional[str] = None) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
         sql = self._get_sql()
         if not sql.available:
             return False
-        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
-            # Keep the owner row locked until messages and metadata are committed.
-            cursor.execute(
-                "SELECT id FROM chat_sessions WITH (UPDLOCK, HOLDLOCK) WHERE id = ? AND user_id = ?",
-                session_id, user_id,
-            )
-            if cursor.fetchone() is None:
-                logger.warning("Refusing to save chat session '%s' without matching ownership", session_id)
-                conn.rollback()
-                return False
             cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", session_id)
             for i, msg in enumerate(messages):
                 cursor.execute(
@@ -200,22 +172,13 @@ class ChatStore:
                     str(uuid.uuid4()), session_id, msg.get("role", "user"),
                     msg.get("content", ""), json.dumps(msg.get("sources", [])), i,
                 )
-            cursor.execute(
-                "UPDATE chat_sessions SET title = COALESCE(?, title), message_count = ?, "
-                "updated_at = GETUTCDATE() WHERE id = ? AND user_id = ?",
-                title, len(messages), session_id, user_id,
-            )
             conn.commit()
+            conn.close()
             return True
         except Exception as e:
-            if conn is not None:
-                conn.rollback()
             logger.warning(f"Failed to save messages bulk: {e}")
             sql._refresh_token()
             return False
-        finally:
-            if conn is not None:
-                conn.close()
 
 
 chat_store = ChatStore()

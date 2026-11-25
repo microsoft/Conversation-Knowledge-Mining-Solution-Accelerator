@@ -10,11 +10,13 @@ const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement
 );
 
-initializeAuthentication().then(() => {
+initializeAuthentication().then((authenticated) => {
+  if (!authenticated) return;
   root.render(
     <React.StrictMode>
       <FluentProvider theme={webLightTheme}>
         <App />
+        {console.log("AK")}
       </FluentProvider>
     </React.StrictMode>
   );

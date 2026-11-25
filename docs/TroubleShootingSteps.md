@@ -83,45 +83,6 @@ source .venv/bin/activate
 pwsh -File ./infra/scripts/post-provision/setup-sql-roles.ps1
 ```
 
-### SQL health remains unavailable after role assignment
-
-**Symptom:** Data setup repeatedly reports HTTP 503 with `checks.sql=unavailable`,
-even though the API accepts the configured admin key.
-
-API authentication and SQL authentication are separate. The API connects to SQL
-as its managed identity, which requires a contained user with `db_datareader`,
-`db_datawriter`, and `db_ddladmin`. For a managed identity, the contained user's
-SQL SID must encode its **client/application ID**, not its Entra object/principal
-ID. Existing role memberships do not repair an incorrect SID.
-
-From the repository root, activate `.venv` and run the role setup against the
-explicit deployment target:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-.\infra\scripts\post-provision\setup-sql-roles.ps1 -ResourceGroupName <resource-group>
-```
-
-The script validates the existing SID and reports failed grants as errors. If
-it identifies a mismatched contained user, have the SQL administrator repair
-the mapping while preserving existing permissions and ownership; the script
-does not automatically drop database users. See Microsoft's
-[CREATE USER reference](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-user-transact-sql)
-for SID-based managed identity users.
-
-Also inspect backend logs for the original SQL login, firewall/private-endpoint,
-or table-creation error. Retry data setup only once `checks.sql` is `ok`.
-
-### Telecom setup stalls during audio upload
-
-**Symptom:** SQL is healthy, but data setup stops reporting progress after listing
-the audio files in a multipart upload batch.
-
-The setup script uploads audio files individually and limits each upload request
-to 180 seconds. Update to the current script before retrying. Scenario setup
-clears existing data and external-source registrations; choose **Skip** to
-preserve data instead of reloading a scenario.
-
 ### `scenarios.json` or config file not found
 
 **Symptom:** A post-provision script reports it cannot find `data/config/scenarios.json`.

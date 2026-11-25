@@ -99,14 +99,6 @@ disables key-based access; an incorrect key returns HTTP 401.
 Both `setup-data.ps1` and `seed-data.ps1` prefer a configured admin key and request
 an Entra token only when no key is available.
 
-Cosmos chat persistence reserves each session ID atomically using an ownership
-record in its message partition before creating session metadata. Existing sessions
-are checked before claiming ownership; foreign or ambiguous owners cannot save or
-delete the shared history. Ownership records are excluded from chat messages and
-retained after deletion to prevent concurrent reassignment of the session ID.
-Existing sessions with duplicate owner rows require manual repair before saves or
-deletes can proceed.
-
 For app-only access, assign an application app role and configure the `idtyp`
 optional **access-token** claim on the API registration. App-only tokens must
 identify themselves as `idtyp=app` and contain a recognized app role. ID tokens

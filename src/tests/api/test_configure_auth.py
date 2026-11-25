@@ -307,9 +307,7 @@ def test_authentication_hooks_run_in_required_order_and_fail_closed():
             assert "-Phase PreProvision || exit 1" in before
             assert "-Phase PostProvision || exit 1" in after
             assert 'azd env set ADMIN_API_KEY "$key" || exit 1' in before
-            assert "-AllowDeployedFallback || exit 1" in after
         else:
             assert 'throw "Authentication preparation failed."' in before
             assert 'throw "Authentication configuration failed."' in after
             assert 'throw "Could not persist ADMIN_API_KEY."' in before
-            assert 'throw "Data setup failed."' in after

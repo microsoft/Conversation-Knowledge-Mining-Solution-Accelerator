@@ -13,7 +13,6 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, PartitionKey
-from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
 
 from src.api.config import get_settings
 
@@ -25,7 +24,6 @@ class CosmosService:
 
     SESSIONS_CONTAINER = "chat_sessions"
     MESSAGES_CONTAINER = "chat_messages"
-    SESSION_OWNER_ID = "__session_owner__"
     INSIGHTS_CONTAINER = "document_insights"
     ENRICHMENT_CONTAINER = "enrichment_cache"
     DOCUMENTS_CONTAINER = "documents"
@@ -90,45 +88,14 @@ class CosmosService:
 
     # --- Chat Sessions ---
 
-    def _claim_session_ownership(self, session_id: str, user_id: str, allow_new: bool = False) -> bool:
-        sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
-        owners = list(sessions.query_items(
-            "SELECT c.user_id FROM c WHERE c.id = @sid",
-            parameters=[{"name": "@sid", "value": session_id}],
-            enable_cross_partition_query=True,
-        ))
-        if (not owners and not allow_new) or (owners and (len(owners) != 1 or owners[0]["user_id"] != user_id)):
-            logger.warning("Refusing chat session '%s' without unique matching ownership", session_id)
-            return False
-
-        # All contenders create the same item in the same message partition.
-        # Retain the claim even after deletion so concurrent requests cannot reassign it.
-        messages = self._db.get_container_client(self.MESSAGES_CONTAINER)
-        try:
-            messages.create_item({
-                "id": self.SESSION_OWNER_ID,
-                "session_id": session_id,
-                "user_id": user_id,
-            })
-            return True
-        except CosmosResourceExistsError:
-            owner = messages.read_item(item=self.SESSION_OWNER_ID, partition_key=session_id)
-            if owner["user_id"] == user_id:
-                return True
-            logger.warning("Refusing chat session '%s' claimed by another user", session_id)
-            return False
-
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         """Create a new chat session. Returns session metadata."""
         if not self.available:
             return None
         try:
-            sid = session_id or str(uuid.uuid4())
-            if not self._claim_session_ownership(sid, user_id, allow_new=True):
-                return None
             container = self._db.get_container_client(self.SESSIONS_CONTAINER)
             session = {
-                "id": sid,
+                "id": session_id or str(uuid.uuid4()),
                 "user_id": user_id,
                 "title": title,
                 "message_count": 0,
@@ -165,15 +132,6 @@ class CosmosService:
             logger.warning(f"Failed to list sessions: {e}")
             return []
 
-    def get_session(self, session_id: str, user_id: str) -> Optional[dict]:
-        if not self.available:
-            return None
-        container = self._db.get_container_client(self.SESSIONS_CONTAINER)
-        try:
-            return container.read_item(item=session_id, partition_key=user_id)
-        except CosmosResourceNotFoundError:
-            return None
-
     def update_session(self, session_id: str, user_id: str, title: Optional[str] = None,
                        message_count: Optional[int] = None) -> bool:
         """Update session metadata (title, message count)."""
@@ -198,20 +156,15 @@ class CosmosService:
         if not self.available:
             return False
         try:
-            if not self._claim_session_ownership(session_id, user_id):
-                return False
             # Delete session
             sessions = self._db.get_container_client(self.SESSIONS_CONTAINER)
             sessions.delete_item(item=session_id, partition_key=user_id)
 
             # Delete all messages in session
             messages = self._db.get_container_client(self.MESSAGES_CONTAINER)
-            query = "SELECT c.id FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
+            query = "SELECT c.id FROM c WHERE c.session_id = @sid"
             items = list(messages.query_items(
-                query, parameters=[
-                    {"name": "@sid", "value": session_id},
-                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
-                ],
+                query, parameters=[{"name": "@sid", "value": session_id}],
                 partition_key=session_id,
             ))
             for item in items:
@@ -252,14 +205,11 @@ class CosmosService:
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
             query = (
                 "SELECT c.id, c.role, c.content, c.sources, c.timestamp, c[\"order\"] AS position "
-                "FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
+                "FROM c WHERE c.session_id = @sid"
             )
             items = list(container.query_items(
                 query,
-                parameters=[
-                    {"name": "@sid", "value": session_id},
-                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
-                ],
+                parameters=[{"name": "@sid", "value": session_id}],
                 partition_key=session_id,
             ))
             # Sort by the saved position (timestamps can tie or come from the client), then timestamp.
@@ -272,23 +222,17 @@ class CosmosService:
             logger.warning(f"Failed to get messages: {e}")
             return []
 
-    def save_messages_bulk(self, session_id: str, user_id: str, messages: list[dict],
-                           title: Optional[str] = None) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
         """Save multiple messages at once (for batch save from frontend)."""
         if not self.available:
             return False
         try:
-            if not self._claim_session_ownership(session_id, user_id):
-                return False
             container = self._db.get_container_client(self.MESSAGES_CONTAINER)
 
             # Clear existing messages for this session
-            existing = "SELECT c.id FROM c WHERE c.session_id = @sid AND c.id != @owner_id"
+            existing = "SELECT c.id FROM c WHERE c.session_id = @sid"
             old = list(container.query_items(
-                existing, parameters=[
-                    {"name": "@sid", "value": session_id},
-                    {"name": "@owner_id", "value": self.SESSION_OWNER_ID},
-                ],
+                existing, parameters=[{"name": "@sid", "value": session_id}],
                 partition_key=session_id,
             ))
             for item in old:
@@ -308,7 +252,7 @@ class CosmosService:
                     "timestamp": msg.get("timestamp", datetime.utcnow().isoformat() + "Z"),
                     "order": i,
                 })
-            return self.update_session(session_id, user_id, title, len(messages))
+            return True
         except Exception as e:
             logger.warning(f"Failed to save messages bulk: {e}")
             return False

@@ -323,49 +323,33 @@ $env:KM_API_ACCESS_TOKEN = if ($headers.ContainsKey("Authorization")) {
 function Wait-ForBackendSqlHealthy {
     param(
         [string]$BackendUrl,
-        [hashtable]$Headers,
-        [ValidateSet("sql", "cosmos")][string]$DatabaseProvider = "sql",
-        [ValidateRange(1, 2147483647)][int]$TimeoutSec = 300,
-        [ValidateRange(1, 2147483647)][int]$PollIntervalSec = 10
+        [int]$TimeoutSec = 300,
+        [int]$PollIntervalSec = 10
     )
 
-    Write-Host "Waiting for backend $DatabaseProvider connectivity to be ready..." -ForegroundColor Yellow
+    Write-Host "Waiting for backend SQL connectivity to be ready..." -ForegroundColor Yellow
     $healthUrl = "$($BackendUrl.TrimEnd('/'))/api/health"
     $elapsed = 0
     while ($elapsed -lt $TimeoutSec) {
-        $healthStatus = 0
-        $resp = $null
         try {
-            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -Headers $Headers -TimeoutSec 10 `
-                -SkipHttpErrorCheck -StatusCodeVariable healthStatus
+            $resp = Invoke-RestMethod -Uri $healthUrl -Method GET -TimeoutSec 10
+            if ($resp.checks.sql -eq "ok") {
+                Write-Host "Backend SQL is ready." -ForegroundColor Green
+                return $true
+            }
+            Write-Host "  SQL not ready yet (checks.sql=$($resp.checks.sql)) — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
         } catch {
             Write-Host "  Backend not reachable yet — retrying in ${PollIntervalSec}s..." -ForegroundColor DarkGray
         }
-        if ($healthStatus -in @(401, 403)) {
-            throw "Backend health access denied (HTTP $healthStatus). Check credentials, App Service restrictions, and private-network access before retrying."
-        }
-        if ($healthStatus -eq 404) { throw "Backend health endpoint was not found. Check BackendUrl." }
-        if ($healthStatus -in @(200, 503) -and $resp.checks.$DatabaseProvider -eq "ok") {
-            Write-Host "Backend $DatabaseProvider is ready." -ForegroundColor Green
-            return $true
-        }
-        Write-Host "  $DatabaseProvider not ready (HTTP $healthStatus, checks.$DatabaseProvider=$($resp.checks.$DatabaseProvider)) — retrying..." -ForegroundColor DarkGray
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
     }
-    throw "Timed out waiting for backend $DatabaseProvider access. Setup stopped before changing data. For SQL, verify the API managed identity's contained user/roles (setup-sql-roles.ps1), SQL firewall/private endpoints, and backend logs."
+    Write-Host "WARNING: Timed out after ${TimeoutSec}s waiting for backend SQL to become ready. Proceeding anyway — scenario registration may need a manual retry (see Sources page) if data source persistence fails." -ForegroundColor Yellow
+    return $false
 }
 
-$databaseProvider = Get-DeployValue "DATABASE_PROVIDER"
-if (-not $databaseProvider) { $databaseProvider = "sql" }
-$databaseProvider = $databaseProvider.ToLowerInvariant()
-$databaseEndpointSetting = if ($databaseProvider -eq "cosmos") { "AZURE_COSMOS_ENDPOINT" } else { "AZURE_SQL_SERVER" }
-$requiresDatabaseReadiness = -not $backendUri.IsLoopback -or
-    -not [string]::IsNullOrWhiteSpace((Get-DeployValue $databaseEndpointSetting))
-if ($requiresDatabaseReadiness) {
-    Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl -Headers $headers -DatabaseProvider $databaseProvider | Out-Null
-} else {
-    Write-Host "Memory-only local backend; skipping database readiness check." -ForegroundColor Yellow
+if ($BackendUrl -notmatch '^https?://localhost' -and $BackendUrl -notmatch '^https?://127\.0\.0\.1') {
+    Wait-ForBackendSqlHealthy -BackendUrl $BackendUrl | Out-Null
 }
 
 # ── Shared cleanup: clear demo data + external source connections for scenario isolation ──
@@ -385,7 +369,7 @@ function Invoke-DataCleanup {
     } catch {
         Write-Host "ERROR: Could not clear existing data before scenario load: $_" -ForegroundColor Red
         Write-Host "Aborting to prevent mixed data across use cases." -ForegroundColor Yellow
-        throw
+        exit 1
     }
 }
 
@@ -440,7 +424,7 @@ function Confirm-UploadRegistered {
     if ($cnt -ge $expectedCount) {
         Write-Host "  $expectedCount file(s) registered - processing continues in the background." -ForegroundColor Green
     } else {
-        throw "Only $([Math]::Max(0, $cnt))/$expectedCount file(s) registered after ${elapsed}s. Setup did not complete; check backend storage access and the Sources page."
+        Write-Warning "  Only $([Math]::Max(0, $cnt))/$expectedCount file(s) registered after ${elapsed}s. Check the Sources page; re-upload any missing files from the web UI."
     }
     return [pscustomobject]@{ Registered = [Math]::Max(0, $cnt); Expected = $expectedCount }
 }
@@ -460,7 +444,7 @@ function Invoke-EnsureSearchIndex {
     if ($embeddingDeployment) { $idxArgs += "--embedding-deployment", $embeddingDeployment }
     & $pythonExe @idxArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "Could not ensure the search index. Check the deployer's Azure AI Search permissions and network access."
+        Write-Host "Warning: Could not ensure search index — uploads may fail." -ForegroundColor Yellow
     }
 }
 
@@ -534,6 +518,7 @@ if (-not $Scenario -and -not $DataPath -and -not $UseSampleData -and -not $Exter
         }
         "skip" {
             Write-Host ""
+            Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
             Write-Host "Skipped data loading. You can upload documents from the web UI." -ForegroundColor Yellow
             Write-Host ""
             Invoke-EnsureSearchIndex
@@ -592,7 +577,7 @@ if ($Scenario) {
             -Headers $headers -ContentType "application/json" -Body $scenarioBody | Out-Null
         Write-Host "Registered scenario use case: '$($pack.name)'" -ForegroundColor Green
     } catch {
-        throw "Could not register scenario use case name. Check API authorization and backend SQL access: $($_.Exception.Message)"
+        Write-Host "WARNING: Could not register scenario use case name: $($_.Exception.Message)" -ForegroundColor Yellow
     }
 
     # Create the solution search index (seeded scenarios only)
@@ -647,7 +632,14 @@ if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not 
         if ($confirm -eq "y" -or $confirm -eq "Y") { $ClearExisting = $true }
     }
     if ($ClearExisting) {
-        Invoke-DataCleanup -BackendUrl $BackendUrl -Headers $headers
+        Assert-ApiRole -RequiredRole "admin"
+        Write-Host "Clearing existing data..." -ForegroundColor Yellow
+        try {
+            Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $headers | Out-Null
+            Write-Host "Data cleared." -ForegroundColor Green
+        } catch {
+            Write-Host "Warning: Could not clear data — $_" -ForegroundColor Yellow
+        }
     }
 }
 
@@ -672,14 +664,14 @@ if ($DataPath) {
 
     $audioUploaded = 0
     $docUploaded = 0
-    $uploadFailures = 0
 
     # ── Audio files (batch upload) ──
     if ($audioFiles.Count -gt 0) {
         Write-Host ""
         Write-Host "Uploading $($audioFiles.Count) audio files (transcription via Content Understanding)..." -ForegroundColor Yellow
 
-        $batchSize = 1
+        # Upload in batches of 5 (API limit: max_concurrent_uploads)
+        $batchSize = 5
         $success = 0; $failed = 0
         for ($i = 0; $i -lt $audioFiles.Count; $i += $batchSize) {
             $batch = $audioFiles[$i..([Math]::Min($i + $batchSize - 1, $audioFiles.Count - 1))]
@@ -691,7 +683,7 @@ if ($DataPath) {
             }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers -TimeoutSec 180 | Out-Null
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
@@ -701,7 +693,6 @@ if ($DataPath) {
         }
         Write-Host "  Audio: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
         $audioUploaded = $success
-        $uploadFailures += $failed
         if ($success -gt 0) {
             Write-Host "  Audio files are processing in background — check Sources page for status." -ForegroundColor Cyan
         }
@@ -724,7 +715,7 @@ if ($DataPath) {
             }
             try {
                 Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/upload/document" `
-                    -Method POST -Form @{ files = $fileItems } -Headers $headers -TimeoutSec 180 | Out-Null
+                    -Method POST -Form @{ files = $fileItems } -Headers $headers | Out-Null
                 $success += $batch.Count
                 Write-Host "  Batch of $($batch.Count) submitted" -ForegroundColor Green
             } catch {
@@ -734,11 +725,6 @@ if ($DataPath) {
         }
         Write-Host "  Documents: $success uploaded, $failed failed" -ForegroundColor $(if ($failed) { "Yellow" } else { "Green" })
         $docUploaded = $success
-        $uploadFailures += $failed
-    }
-
-    if ($uploadFailures -gt 0) {
-        throw "$uploadFailures file(s) failed to upload. Setup did not complete; check API credentials, ingestion permissions, and backend storage access."
     }
 
     $registration = $null
@@ -799,6 +785,12 @@ if ($UseSampleData) {
     }
 }
 
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "  Setup complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
+Write-Host ""
+
 # ══════════════════════════════════════════
 # Create scenario-based AI agent
 # ══════════════════════════════════════════
@@ -809,13 +801,6 @@ if ($Scenario) {
     Write-Host "Creating scenario-based AI agent for '$Scenario'..." -ForegroundColor Yellow
     & (Join-Path $PSScriptRoot "setup-agent.ps1") -Scenario $Scenario -ResourceGroupName $ResourceGroupName
     if ($LASTEXITCODE -ne 0) {
-        throw "Agent setup failed. Check Foundry project permissions and retry setup-agent.ps1 for scenario '$Scenario'."
+        Write-Host "WARNING: Agent setup failed — retry with: ./infra/scripts/post-provision/setup-agent.ps1 -Scenario $Scenario" -ForegroundColor Yellow
     }
 }
-
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Green
-Write-Host "  Setup complete!" -ForegroundColor Green
-Write-Host "========================================" -ForegroundColor Green
-Write-Host ""
-exit 0

@@ -162,7 +162,8 @@ if ($LASTEXITCODE -eq 0) {
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  [OK] App Service settings updated" -ForegroundColor Green
             } else {
-                throw "Failed to update API App Service agent settings. Check App Service configuration permissions."
+                Write-Host "  [WARN] Failed to update App Service settings" -ForegroundColor Yellow
+                $global:LASTEXITCODE = 0
             }
         }
     } else {
