@@ -235,8 +235,10 @@ function Get-ApiHeaders {
         Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
         return @{ "X-Admin-Api-Key" = $adminKey }
     }
-    $clientId = Get-DeployValue "AZURE_AD_CLIENT_ID"
-    $tenantId = Get-DeployValue "AZURE_AD_TENANT_ID"
+    $clientId = if (-not $ResourceGroupName) { $env:AZURE_AD_CLIENT_ID } else { "" }
+    if (-not $clientId) { $clientId = Get-DeployValue "AZURE_AD_CLIENT_ID" }
+    $tenantId = if (-not $ResourceGroupName) { $env:AZURE_AD_TENANT_ID } else { "" }
+    if (-not $tenantId) { $tenantId = Get-DeployValue "AZURE_AD_TENANT_ID" }
     if (-not $clientId -or -not $tenantId) {
         throw "Configure AZURE_AD_CLIENT_ID and AZURE_AD_TENANT_ID, or ADMIN_API_KEY, for the targeted backend. See docs/AppAuthentication.md."
     }

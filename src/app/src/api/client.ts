@@ -32,7 +32,12 @@ export const getDocument = (id: string) => apiClient.get(`/ingestion/documents/$
 export const getIngestionStats = () => apiClient.get("/ingestion/stats");
 export const getAvailableFilters = () => apiClient.get("/ingestion/filters");
 export const getUploadedFiles = () => apiClient.get("/ingestion/files");
-export const refreshIngestionCache = () => apiClient.post("/ingestion/refresh");
+export const refreshIngestionCache = async (): Promise<void> => {
+  const { data: user } = await apiClient.get<{ roles: string[] }>("/auth/me");
+  if (user.roles.some((role) => role === "Contributor" || role === "Admin")) {
+    await apiClient.post("/ingestion/refresh");
+  }
+};
 
 /**
  * Clear frontend session storage caches when scenario data changes.
