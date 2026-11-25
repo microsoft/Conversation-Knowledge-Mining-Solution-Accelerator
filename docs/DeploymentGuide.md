@@ -404,13 +404,6 @@ During the `azd up` postprovision hook, an interactive data setup menu is presen
   pwsh ./infra/scripts/post-provision/setup-data.ps1 -AllowDeployedFallback
   ```
 
-Data setup validates API credentials before changing data.
-It prefers the configured `ADMIN_API_KEY`; otherwise it requests an Entra access
-token for the configured tenant and API. Scenario loading, cleanup, and sample
-loading require the `Admin` app role; upload-only runs can use `Contributor`.
-With `-ResourceGroupName`, backend discovery and credentials come from that
-deployment rather than a potentially stale local azd environment.
-
 The system presents available scenarios for selection:
 
 > **Options 4 & 5 — Bring your own data (BYOD):** Before choosing Azure AI Search or Microsoft Fabric, gather the connection details (endpoint, index/table names, workspace ID, required permissions) listed in the [Bring Your Own Data Guide](./ConnectDataSource.md).
@@ -456,7 +449,7 @@ The deployment hooks have already configured authentication. After deployment:
    The hooks configure the Entra IDs and frontend SPA redirect automatically.
 2. Assign `Contributor` or `Admin` app roles through the enterprise application
    to users who manage data. Users without an assigned role have read-only access.
-3. If an existing deployment is missing its IDs, run
+3. When upgrading an existing deployment, run
    `configure_auth.ps1 -Phase PostProvision` from that deployment's selected azd
    environment. See [App Authentication Configuration](./AppAuthentication.md)
    for verification and recovery details.

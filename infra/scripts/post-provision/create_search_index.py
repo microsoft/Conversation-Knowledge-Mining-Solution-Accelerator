@@ -36,14 +36,6 @@ def create_search_index(
     credential=None,
 ):
     """Create or update the standard knowledge-mining index (vector + semantic search)."""
-    for setting, value in (
-        ("AZURE_SEARCH_INDEX_NAME (--index-name)", index_name),
-        ("AZURE_OPENAI_ENDPOINT (--openai-endpoint)", openai_endpoint),
-        ("AZURE_OPENAI_EMBEDDING_DEPLOYMENT (--embedding-deployment)", embedding_model),
-    ):
-        if not value or not value.strip():
-            raise ValueError(f"{setting} must not be empty.")
-
     credential = credential or DefaultAzureCredential()
     index_client = SearchIndexClient(endpoint=endpoint, credential=credential)
 
@@ -117,11 +109,9 @@ def create_search_index(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create the Knowledge Mining search index")
     parser.add_argument("--search-endpoint", default=os.getenv("AZURE_SEARCH_ENDPOINT", ""))
-    # Provisioning can export optional settings as empty strings. getenv's default
-    # only handles missing variables, so explicitly fall back for blank values too.
-    parser.add_argument("--index-name", default=(os.getenv("AZURE_SEARCH_INDEX_NAME") or "").strip() or "knowledge-mining-index")
+    parser.add_argument("--index-name", default=os.getenv("AZURE_SEARCH_INDEX_NAME", "knowledge-mining-index"))
     parser.add_argument("--openai-endpoint", default=os.getenv("AZURE_OPENAI_ENDPOINT", ""))
-    parser.add_argument("--embedding-deployment", default=(os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") or "").strip() or "text-embedding-3-small")
+    parser.add_argument("--embedding-deployment", default=os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"))
     args = parser.parse_args()
 
     if not args.search_endpoint:

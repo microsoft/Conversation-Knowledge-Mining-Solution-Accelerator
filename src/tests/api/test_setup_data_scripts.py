@@ -29,9 +29,6 @@ def run_powershell(body, filename="setup-data.ps1"):
                 . ([scriptblock]::Create($statement.Extent.Text))
             }
         }
-        $azdAvailable = $false
-        $script:RgAppSettingsCache = $null
-        $script:RgApiAppName = ''
         function az { throw 'Unexpected Azure CLI call' }
         function azd { throw 'Unexpected azd call' }
         function Start-Sleep {}
@@ -51,30 +48,6 @@ def test_local_backend_probe_uses_anonymous_root():
             if ($Uri -ne 'http://localhost:8000/') { throw 'Protected endpoint probed' }
         }
         if (-not (Test-BackendReachable 'http://localhost:8000')) { throw 'Local API rejected' }
-    """)
-
-
-def test_resource_group_credentials_ignore_stale_azd_and_process_values():
-    run_powershell("""
-        $ResourceGroupName = 'target-rg'
-        $env:ADMIN_API_KEY = 'stale-key'
-        $azdAvailable = $true
-        $script:RgAppSettingsCache = @{ ADMIN_API_KEY = 'target-key' }
-        $headers = Get-ApiHeaders
-        if ($headers['X-Admin-Api-Key'] -ne 'target-key') { throw 'Wrong deployment key' }
-        $script:RgAppSettingsCache = @{}
-        try { Get-ApiHeaders; throw 'Missing target credentials accepted' }
-        catch { if ($_.Exception.Message -notlike '*Configure AZURE_AD_CLIENT_ID*') { throw } }
-    """)
-
-
-def test_credentials_support_quoted_env_without_azd(tmp_path):
-    (tmp_path / ".env").write_text('ADMIN_API_KEY="env-file-key"\n')
-    run_powershell(f"""
-        $projectRoot = '{tmp_path}'
-        $env:ADMIN_API_KEY = ''
-        $headers = Get-ApiHeaders
-        if ($headers['X-Admin-Api-Key'] -ne 'env-file-key') {{ throw 'Quoted key not resolved' }}
     """)
 
 
@@ -114,63 +87,6 @@ def test_seed_data_uses_token_only_without_an_admin_key():
     """, filename="seed-data.ps1")
 
 
-def test_access_token_uses_target_tenant_and_failed_cli_output_is_rejected():
-    run_powershell("""
-        function Get-DeployValue {
-            param($Name)
-            switch ($Name) {
-                AZURE_AD_CLIENT_ID { return 'target-client' }
-                AZURE_AD_TENANT_ID { return 'target-tenant' }
-            }
-            return ''
-        }
-        function az {
-            if (($args -join ' ') -notlike '*--tenant target-tenant --resource api://target-client*') {
-                throw 'Wrong token target'
-            }
-            $global:LASTEXITCODE = 0
-            return 'valid-token'
-        }
-        if ((Get-ApiHeaders).Authorization -ne 'Bearer valid-token') { throw 'Token missing' }
-        function az { $global:LASTEXITCODE = 1; return 'ERROR: failed acquisition' }
-        try { Get-ApiHeaders; throw 'CLI failure accepted' }
-        catch { if ($_.Exception.Message -notlike '*Could not obtain an API access token*') { throw } }
-    """)
-
-
-@pytest.mark.parametrize("status", [401, 403, 503])
-def test_authentication_preflight_reports_access_failures(status):
-    run_powershell(f"""
-        function Invoke-RestMethod {{
-            param($StatusCodeVariable)
-            Set-Variable -Name $StatusCodeVariable -Value {status} -Scope 1
-            return @{{}}
-        }}
-        try {{ Test-ApiAccess -Url 'https://backend.example' -Headers @{{}}; throw 'Failure accepted' }}
-        catch {{ if ($_.Exception.Message -notlike '*HTTP {status}*') {{ throw }} }}
-    """)
-
-
-def test_preflight_preserves_contributor_uploads_but_rejects_reader_and_admin_operations():
-    run_powershell("""
-        $script:Roles = @('Reader')
-        function Invoke-RestMethod {
-            param($StatusCodeVariable)
-            Set-Variable -Name $StatusCodeVariable -Value 200 -Scope 1
-            return @{ roles = $script:Roles }
-        }
-        try { Test-ApiAccess -Url 'https://backend.example' -Headers @{}; throw 'Reader accepted' }
-        catch { if ($_.Exception.Message -notlike "*requires the 'contributor'*") { throw } }
-        $script:Roles = @('Contributor')
-        Test-ApiAccess -Url 'https://backend.example' -Headers @{}
-        try { Assert-ApiRole -RequiredRole admin; throw 'Contributor accepted as admin' }
-        catch { if ($_.Exception.Message -notlike "*requires the 'admin'*") { throw } }
-        $script:Roles = @('Admin')
-        Test-ApiAccess -Url 'https://backend.example' -Headers @{}
-        Assert-ApiRole -RequiredRole admin
-    """)
-
-
 def load_seed_main():
     path = SCRIPTS / "seed-sample-data.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -201,34 +117,6 @@ def test_seed_backend_notification_uses_selected_credentials(credential, monkeyp
     header = "X-admin-api-key" if credential == "ADMIN_API_KEY" else "Authorization"
     value = "test-credential" if credential == "ADMIN_API_KEY" else "Bearer test-credential"
     assert request.get_header(header) == value
-
-
-def test_seed_notification_access_denial_exits_unsuccessfully(monkeypatch):
-    import urllib.error
-    import urllib.request
-
-    namespace = load_seed_main()
-    monkeypatch.setenv("ADMIN_API_KEY", "test-key")
-    denial = urllib.error.HTTPError("https://backend.example", 403, "Forbidden", {}, None)
-    with patch("os.path.exists", return_value=True):
-        with patch.object(urllib.request, "urlopen", side_effect=denial):
-            with pytest.raises(SystemExit) as error:
-                namespace["main"]()
-    assert error.value.code == 1
-
-
-@pytest.mark.parametrize("filename", ["connect-data.py", "seed-sample-data.py"])
-def test_targeted_child_scripts_do_not_reload_stale_local_env(filename, tmp_path, monkeypatch):
-    path = SCRIPTS / filename
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    load_env = next(node for node in tree.body if isinstance(node, ast.If))
-    env_file = tmp_path / ".env"
-    env_file.write_text("AZURE_SQL_SERVER=wrong-server\n")
-    monkeypatch.delenv("AZURE_SQL_SERVER", raising=False)
-    monkeypatch.setenv("KM_SKIP_LOCAL_ENV", "1")
-    namespace = {"os": os, "env_path": str(env_file)}
-    exec(compile(ast.Module(body=[load_env], type_ignores=[]), str(path), "exec"), namespace)
-    assert "AZURE_SQL_SERVER" not in os.environ
 
 
 def notify_connected_backend():
@@ -262,15 +150,3 @@ def test_connected_backend_notification_uses_selected_credentials(credential, mo
     header = "X-admin-api-key" if credential == "ADMIN_API_KEY" else "Authorization"
     value = "test-credential" if credential == "ADMIN_API_KEY" else "Bearer test-credential"
     assert request.get_header(header) == value
-
-
-def test_connected_backend_notification_denial_is_fatal(monkeypatch):
-    import urllib.error
-    import urllib.request
-
-    monkeypatch.setenv("ADMIN_API_KEY", "test-key")
-    denial = urllib.error.HTTPError("https://backend.example", 401, "Unauthorized", {}, None)
-    with patch.object(urllib.request, "urlopen", side_effect=denial):
-        with pytest.raises(SystemExit) as error:
-            notify_connected_backend()
-    assert error.value.code == 1

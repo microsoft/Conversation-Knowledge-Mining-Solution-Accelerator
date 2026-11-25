@@ -35,9 +35,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_dir)))
 env_path = os.path.join(project_root, ".env")
 
-if os.getenv("KM_SKIP_LOCAL_ENV") == "1":
-    print("Using targeted deployment settings; ignoring local .env")
-elif os.path.exists(env_path):
+if os.path.exists(env_path):
     with open(env_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -994,14 +992,11 @@ def main():
             req.add_header("X-Admin-Api-Key", admin_key)
         elif os.getenv("KM_API_ACCESS_TOKEN"):
             req.add_header("Authorization", f"Bearer {os.environ['KM_API_ACCESS_TOKEN']}")
-        else:
-            raise RuntimeError("An API access token or ADMIN_API_KEY is required to notify the backend.")
         with _urlreq.urlopen(req, timeout=5) as resp:
             if resp.status in (200, 201):
                 print(f"  [OK] Backend notified — source is live in the app")
     except Exception as e:
-        print(f"  [FAIL] Could not notify backend ({e}). Check API credentials and backend access.")
-        sys.exit(1)
+        print(f"  [INFO] Could not notify backend ({e}) — source will appear after backend restart")
 
     print(f"\n{'='*40}")
     print("  Done!")

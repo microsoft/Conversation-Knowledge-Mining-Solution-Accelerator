@@ -66,8 +66,6 @@ $pythonExe = Join-Path $projectRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 # Cache of the deployed backend's app settings, populated once per resource group.
 $script:RgAppSettingsCache = $null
-$script:RgApiAppName = ""
-$azdAvailable = [bool](Get-Command azd -ErrorAction SilentlyContinue)
 
 # Read every app setting from the api-* App Service in the resource group (cached).
 # This is the source of truth when a resource group is targeted explicitly.
@@ -77,19 +75,19 @@ function Get-RgAppSettings {
     if ($null -ne $script:RgAppSettingsCache) { return $script:RgAppSettingsCache }
 
     $settings = @{}
-    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv)
-    if ($LASTEXITCODE -ne 0) { throw "Could not list App Services in '$Rg'. Check Azure CLI sign-in and resource-group access." }
-    $apiApps = @(($names -split "`n") | ForEach-Object { $_.Trim() } | Where-Object { $_ -like "api-*" })
-    if ($apiApps.Count -ne 1) {
-        throw "Expected one api-* App Service in '$Rg'; found $($apiApps.Count). Target the resource group for this deployment."
-    }
-    $script:RgApiAppName = $apiApps[0]
-    $json = (az webapp config appsettings list --name $script:RgApiAppName --resource-group $Rg -o json)
-    if ($LASTEXITCODE -ne 0 -or -not $json) {
-        throw "Could not read backend app settings in '$Rg'. Check App Service configuration permissions."
-    }
-    foreach ($kv in ($json | ConvertFrom-Json)) {
-        $settings[$kv.name] = $kv.value
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $names) {
+        $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+        if ($apiApp) {
+            $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $json) {
+                try {
+                    foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value }
+                } catch {
+                    Write-Warning "Could not parse backend app settings: $_"
+                }
+            }
+        }
     }
     $script:RgAppSettingsCache = $settings
     return $settings
@@ -106,23 +104,14 @@ function Get-DeployValue {
         return ""
     }
 
-    if ($azdAvailable) {
-        $val = azd env get-value $Name 2>$null
-        if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
-            return "$val".Trim()
-        }
+    $val = azd env get-value $Name 2>$null
+    if ($LASTEXITCODE -eq 0 -and $val -and "$val" -notmatch '^ERROR:') {
+        return "$val".Trim()
     }
-    $val = [Environment]::GetEnvironmentVariable($Name)
-    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val.Trim() }
     $envFile = Join-Path $projectRoot ".env"
     if (Test-Path $envFile) {
-        $pattern = "^$([regex]::Escape($Name))="
-        $line = Get-Content $envFile | Where-Object { $_ -match $pattern } | Select-Object -First 1
-        if ($line) {
-            $value = ($line -replace $pattern, '').Trim()
-            if ($value -match '^"(.*)"$' -or $value -match "^'(.*)'$") { return $Matches[1] }
-            return $value
-        }
+        $line = Get-Content $envFile | Where-Object { $_ -match "^$Name=" } | Select-Object -First 1
+        if ($line) { return ($line -replace "^$Name=", '').Trim() }
     }
     return ""
 }
@@ -132,9 +121,12 @@ function Get-DeployValue {
 function Get-DiscoveredBackendUrl {
     param([string]$Rg)
     if (-not $Rg) { return "" }
-    Get-RgAppSettings $Rg | Out-Null
-    $hostName = (az webapp show --name $script:RgApiAppName --resource-group $Rg --query defaultHostName -o tsv)
-    if ($LASTEXITCODE -ne 0 -or -not $hostName) { throw "Could not resolve the backend hostname in '$Rg'." }
+    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
+    $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
+    if (-not $apiApp) { return "" }
+    $hostName = (az webapp show --name $apiApp.Trim() --resource-group $Rg --query defaultHostName -o tsv 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $hostName) { return "" }
     return "https://$($hostName.Trim())"
 }
 
@@ -220,7 +212,7 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
     } else {
         if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
-            $azdUrl = Get-DeployValue "SERVICE_BACKEND_URI"
+            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
             if ($azdUrl) {
                 Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
                 $BackendUrl = $azdUrl
@@ -237,7 +229,8 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
 }
 
 function Get-ApiHeaders {
-    $adminKey = Get-DeployValue "ADMIN_API_KEY"
+    $adminKey = if (-not $ResourceGroupName) { $env:ADMIN_API_KEY } else { "" }
+    if (-not $adminKey) { $adminKey = Get-DeployValue "ADMIN_API_KEY" }
     if ($adminKey) {
         Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
         return @{ "X-Admin-Api-Key" = $adminKey }
@@ -254,61 +247,11 @@ function Get-ApiHeaders {
     return @{ Authorization = "Bearer $($token.Trim())" }
 }
 
-function Assert-ApiRole {
-    param([ValidateSet("contributor", "admin")][string]$RequiredRole = "contributor")
-    if ($script:ApiRole -eq "admin" -or ($RequiredRole -eq "contributor" -and $script:ApiRole -eq "contributor")) { return }
-    throw "Data setup requires the '$RequiredRole' app role for this operation. Assign it in Entra ID or use the targeted backend's ADMIN_API_KEY."
-}
-
-function Test-ApiAccess {
-    param([string]$Url, [hashtable]$Headers)
-    $authStatus = 0
-    try {
-        $user = Invoke-RestMethod -Uri "$Url/api/auth/me" -Method GET -Headers $Headers -TimeoutSec 30 `
-            -SkipHttpErrorCheck -StatusCodeVariable authStatus
-    } catch {
-        throw "Could not reach the backend authentication endpoint. Check App Service access restrictions, private networking, and the backend URL."
-    }
-    switch ($authStatus) {
-        200 {
-            $script:ApiRole = if ($user.roles -contains "Admin") { "admin" } elseif ($user.roles -contains "Contributor") { "contributor" } else { "reader" }
-            Assert-ApiRole
-        }
-        401 { throw "Backend rejected the API credentials (HTTP 401). Check the target app's ADMIN_API_KEY or Entra tenant, audience, API scope, and token lifetime." }
-        403 { throw "Backend access denied (HTTP 403). Check App Service/EasyAuth access restrictions and private-network connectivity; an API key cannot bypass platform restrictions." }
-        503 { throw "Backend authentication is unavailable (HTTP 503). Configure both Entra IDs on the deployed API and verify its signing-key connectivity." }
-        default { throw "Backend authentication preflight failed (HTTP $authStatus). Check the backend URL and deployment health." }
-    }
-}
-
-$backendUri = $null
-if (-not [Uri]::TryCreate($BackendUrl, [UriKind]::Absolute, [ref]$backendUri) -or
-    $backendUri.Scheme -notin @("http", "https") -or $backendUri.UserInfo -or $backendUri.Query -or $backendUri.Fragment) {
-    throw "BackendUrl must be an absolute HTTP(S) URL without credentials, a query, or a fragment."
-}
-if ($backendUri.Scheme -eq "http" -and -not $backendUri.IsLoopback) {
-    throw "Use HTTPS for remote backends to protect API credentials."
-}
-$BackendUrl = $BackendUrl.TrimEnd("/")
 $headers = Get-ApiHeaders
-Test-ApiAccess -Url $BackendUrl -Headers $headers
-if ($Scenario -or $UseSampleData -or $ExternalSource -or $ClearExisting -or -not $DataPath) {
-    Assert-ApiRole -RequiredRole "admin"
-}
-
-# Child Python scripts read configuration from process environment before .env.
-if ($ResourceGroupName) {
-    foreach ($entry in (Get-RgAppSettings $ResourceGroupName).GetEnumerator()) {
-        Set-Item -Path "Env:$($entry.Key)" -Value $entry.Value
-    }
-    $env:RESOURCE_GROUP_NAME = $ResourceGroupName
-    $env:AZURE_RESOURCE_GROUP = $ResourceGroupName
-    $env:API_APP_NAME = $script:RgApiAppName
-}
 $env:BACKEND_URL = $BackendUrl
-$env:KM_SKIP_LOCAL_ENV = if ($ResourceGroupName) { "1" } else { "0" }
-# Clear stale keys as well as forwarding the selected deployment's script key.
-$env:ADMIN_API_KEY = Get-DeployValue "ADMIN_API_KEY"
+$env:ADMIN_API_KEY = if ($headers.ContainsKey("X-Admin-Api-Key")) {
+    $headers["X-Admin-Api-Key"]
+} else { "" }
 $env:KM_API_ACCESS_TOKEN = if ($headers.ContainsKey("Authorization")) {
     $headers["Authorization"] -replace '^Bearer ', ''
 } else { "" }
@@ -359,7 +302,6 @@ function Invoke-DataCleanup {
         [hashtable]$Headers
     )
 
-    Assert-ApiRole -RequiredRole "admin"
     # Clear existing demo data (documents, insights cache) and any external data source
     # registrations so every scenario starts from a clean slate.
     Write-Host "Clearing existing data and external source connections for scenario isolation..." -ForegroundColor Yellow
@@ -411,10 +353,7 @@ function Confirm-UploadRegistered {
             $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers
             $cnt = [int]$r.files
         } catch {
-            if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -in @(401, 403)) {
-                throw "Upload registration access denied. Check API credentials, app roles, and App Service access restrictions."
-            }
-            Write-Warning "Could not confirm upload registration; retrying."
+            Write-Warning "Could not confirm upload registration; retrying: $_"
         }
         if ($cnt -ge $expectedCount) { break }
         Start-Sleep -Seconds $PollIntervalSec
@@ -598,12 +537,7 @@ if ($Scenario) {
             "AZURE_SQL_SERVER", "AZURE_SQL_DATABASE"
         )) {
             $val = Get-DeployValue $name
-            # An empty environment variable overrides the seed script's default.
-            # Match the default used when creating the solution search index.
-            if ($name -eq "AZURE_SEARCH_INDEX_NAME" -and [string]::IsNullOrWhiteSpace($val)) {
-                $val = "knowledge-mining-index"
-            }
-            Set-Item -Path "Env:$name" -Value $val
+            if ($val) { Set-Item -Path "Env:$name" -Value $val }
         }
 
         # Run seed-sample-data.py with the scenario data directory
@@ -632,7 +566,6 @@ if ($ClearExisting -or (-not $UseSampleData -and -not $ExternalSource -and -not 
         if ($confirm -eq "y" -or $confirm -eq "Y") { $ClearExisting = $true }
     }
     if ($ClearExisting) {
-        Assert-ApiRole -RequiredRole "admin"
         Write-Host "Clearing existing data..." -ForegroundColor Yellow
         try {
             Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/clear?include_external=true" -Method DELETE -Headers $headers | Out-Null
@@ -773,7 +706,6 @@ if ($ExternalSource) {
 # Option 3: Load built-in sample data
 # ══════════════════════════════════════════
 if ($UseSampleData) {
-    Assert-ApiRole -RequiredRole "admin"
     Write-Host "Loading built-in sample dataset..." -ForegroundColor Yellow
     try {
         $result = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/load-default" `

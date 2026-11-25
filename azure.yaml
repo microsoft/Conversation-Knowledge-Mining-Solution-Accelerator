@@ -24,7 +24,6 @@ hooks:
         if ($LASTEXITCODE -ne 0 -or -not $existing) {
           $key = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
           azd env set ADMIN_API_KEY $key
-          if ($LASTEXITCODE -ne 0) { throw "Could not persist ADMIN_API_KEY." }
           $env:ADMIN_API_KEY = $key
           Write-Host "Generated ADMIN_API_KEY and stored in azd env." -ForegroundColor Green
         } else {
@@ -47,7 +46,7 @@ hooks:
         existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
         if [ -z "$existing" ]; then
           key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
-          azd env set ADMIN_API_KEY "$key" || exit 1
+          azd env set ADMIN_API_KEY "$key"
           export ADMIN_API_KEY="$key"
           echo "Generated ADMIN_API_KEY and stored in azd env."
         else

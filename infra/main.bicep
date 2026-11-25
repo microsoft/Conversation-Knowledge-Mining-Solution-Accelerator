@@ -138,9 +138,7 @@ param deployingUserPrincipalType string = 'User'
 // ============================================================================
 
 @description('Optional. Tags to apply to all resources (AVM only).')
-param tags object = {
-  SecurityControl: 'Ignore'
-}
+param tags object = {}
 
 @description('Optional. Enable/Disable usage telemetry for AVM modules.')
 param enableTelemetry bool = true

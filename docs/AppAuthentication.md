@@ -1,9 +1,14 @@
 # Configure Microsoft Entra Authentication
 
-All application APIs require authentication, including local deployments. Only
-`GET /` and `GET /api/health` are anonymous health checks. Missing credentials
-return HTTP 401; missing token-validation configuration never enables anonymous
-access. Client-supplied `x-ms-client-principal-*` headers are not credentials.
+All application data and operation APIs require authentication, including local
+deployments. `GET/HEAD /` and `/api/health` remain anonymous health checks.
+The framework documentation routes (`/docs`, `/redoc`, `/openapi.json`) and valid
+CORS preflight requests are also public. The documentation exposes the API schema,
+not application data; health responses include dependency status for diagnostics.
+These public routes are intentional and do not bypass authentication on application
+operations. Missing credentials return HTTP 401; missing token-validation
+configuration never enables anonymous access. Client-supplied
+`x-ms-client-principal-*` headers are not credentials.
 
 ## Automated deployment setup
 
@@ -26,6 +31,14 @@ stops deployment. No client secret or automatic user role assignment is created.
 Assign users/groups to `Reader`, `Contributor`, or `Admin` explicitly through the
 enterprise application after setup; roleless users remain read-only.
 
+The default policy does not enable `appRoleAssignmentRequired`: users in the
+configured tenant who obtain a valid API access token can query the knowledge base
+with Reader access even without an app-role assignment. This includes query
+operations that consume service capacity. Deployments requiring assigned-user-only
+access must enable **Assignment required** on the enterprise application and assign
+the permitted users/groups; write and administrative operations always require
+their corresponding app roles.
+
 To reuse an existing registration, set `AZURE_AD_CLIENT_ID` in the selected azd
 environment before provisioning. You can also run either phase manually:
 
@@ -34,11 +47,18 @@ environment before provisioning. You can also run either phase manually:
 .\infra\scripts\post-provision\configure_auth.ps1 -Phase PostProvision
 ```
 
-For an already provisioned deployment missing its IDs, run **PostProvision** from
-its selected azd environment. It creates/reuses the registration and updates the
-deployed apps without provisioning infrastructure or loading/clearing data.
+For an existing deployment, run **PostProvision** from its selected azd environment
+after upgrading. It creates/reuses the registration and updates the deployed apps
+without provisioning infrastructure or loading/clearing data.
 Optional parameters include `-ClientId`, `-TenantId`, `-SubscriptionId`,
 `-ResourceGroupName`, `-FrontendAppName`, and `-BackendAppName`.
+
+**Breaking upgrade requirements:** deployment operators now need permission to
+create/manage Entra app registrations and service principals, or permission to
+configure a registration created in advance. Direct ARM/Bicep deployments must
+supply both Entra IDs before starting the production backend. After running
+PostProvision, assign the required app roles and sign in again; the previous
+anonymous/sample-user access and unsigned identity headers are no longer supported.
 
 ## Manual app registration
 
