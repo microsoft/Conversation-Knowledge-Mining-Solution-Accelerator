@@ -449,6 +449,7 @@ The deployment hooks have already configured authentication. After deployment:
    The hooks configure the Entra IDs and frontend SPA redirect automatically.
 2. Assign `Contributor` or `Admin` app roles through the enterprise application
    to users who manage data. Users without an assigned role have read-only access.
+   See the [illustrated role-assignment steps](./AppAuthentication.md#automated-deployment-setup).
 3. When upgrading an existing deployment, run
    `configure_auth.ps1 -Phase PostProvision` from that deployment's selected azd
    environment. See [App Authentication Configuration](./AppAuthentication.md)

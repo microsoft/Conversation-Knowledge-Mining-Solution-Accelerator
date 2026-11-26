@@ -31,6 +31,13 @@ stops deployment. No client secret or automatic user role assignment is created.
 Assign users/groups to `Reader`, `Contributor`, or `Admin` explicitly through the
 enterprise application after setup; roleless users remain read-only.
 
+In Azure Portal, open **Microsoft Entra ID > Enterprise applications**, select
+your application, then open **Users and groups > Add user/group**. Select the
+users/groups, choose the required role, and select **Assign**. The screenshot
+shows the role picker before an assignment is made; tenant details are redacted.
+
+![Select an application role when assigning users or groups](images/EntraAssignUserRole.png)
+
 The default policy does not enable `appRoleAssignmentRequired`: users in the
 configured tenant who obtain a valid API access token can query the knowledge base
 with Reader access even without an app-role assignment. This includes query
@@ -38,6 +45,13 @@ operations that consume service capacity. Deployments requiring assigned-user-on
 access must enable **Assignment required** on the enterprise application and assign
 the permitted users/groups; write and administrative operations always require
 their corresponding app roles.
+
+Find this optional setting under the enterprise application's **Properties**.
+The screenshot shows the default **Assignment required? = No**. Set it to **Yes**
+and save only when assigned-user-only access is required, with the permitted
+users/groups assigned.
+
+![Locate the optional Assignment required setting](images/EntraAssignmentRequired.png)
 
 To reuse an existing registration, set `AZURE_AD_CLIENT_ID` in the selected azd
 environment before provisioning. You can also run either phase manually:
@@ -66,6 +80,9 @@ Use these steps as an alternative to automatic registration creation, for exampl
 when an administrator must create the registration in advance. They are not a
 separate requirement for the normal `azd up` flow. The deployment hooks still
 configure the supplied registration and require permission to manage it.
+
+See [Create a New App Registration](./create_new_app_registration.md) for
+screenshots of the registration IDs, SPA redirect URIs, API scope, and app roles.
 
 1. Create a **single-tenant** Microsoft Entra app registration. Record its
    **Directory (tenant) ID** and **Application (client) ID**.
@@ -118,6 +135,9 @@ and never include it in frontend settings or source control. An unset key
 disables key-based access; an incorrect key returns HTTP 401.
 Both `setup-data.ps1` and `seed-data.ps1` prefer a configured admin key and request
 an Entra token only when no key is available.
+Without `-ResourceGroupName`, `setup-data.ps1` reads the authentication IDs from
+process environment variables first, then azd or `.env`. With an explicit resource
+group, it reads authentication settings only from that group's deployed backend.
 
 For app-only access, assign an application app role and configure the `idtyp`
 optional **access-token** claim on the API registration. App-only tokens must
