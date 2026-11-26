@@ -201,7 +201,7 @@ You may want to consider additional security measures, such as:
 
 * Enabling Microsoft Defender for Cloud to [secure your Azure resources](https://learn.microsoft.com/en-us/azure/defender-for-cloud/).
 * Protecting the Azure App Service instance with a [Virtual Network](https://learn.microsoft.com/azure/app-service/overview-vnet-integration).
-* Configuring [App Service authentication](./docs/AppAuthentication.md) to require users to sign in.
+* Adding App Service authentication as defense in depth; [backend token validation and frontend sign-in](./docs/AppAuthentication.md) are required independently.
 
 For production, deploy the **Well-Architected Framework (WAF)** aligned configuration (deployment flavor `avm-waf`), which enables private networking, VNet integration, private endpoints, a Bastion-accessed jumpbox, and optional zone redundancy. See [Choose Deployment Type](./docs/DeploymentGuide.md#33-choose-deployment-type-standard-vs-production).
 

@@ -72,9 +72,11 @@ class DbService:
         self._ensure_init()
         return self._chat.get_messages(session_id)
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict], user_id: str) -> bool:
         self._ensure_init()
-        return self._chat.save_messages_bulk(session_id, messages)
+        if self._provider == "cosmos":
+            return self._chat.save_messages_bulk(session_id, messages)
+        return self._chat.save_messages_bulk(session_id, messages, user_id)
 
     # ── Insights Cache ──
 

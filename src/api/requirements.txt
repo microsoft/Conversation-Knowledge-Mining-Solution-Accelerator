@@ -5,6 +5,7 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.30
 pydantic==2.13.4
 pydantic-settings==2.14.2
+PyJWT[crypto]==2.15.1
 PyYAML==6.0.3
 httpx==0.28.1
 openai==2.32.0

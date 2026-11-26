@@ -914,6 +914,8 @@ module frontend_docker './modules/compute/app-service.bicep' = {
       APPLICATIONINSIGHTS_CONNECTION_STRING: enableMonitoring ? app_insights!.outputs.connectionString : ''
       APP_API_BASE_URL: enablePrivateNetworking ? '' : 'https://api-${solutionSuffix}.azurewebsites.net'
       BACKEND_API_HOST: enablePrivateNetworking ? 'api-${solutionSuffix}.azurewebsites.net' : ''
+      APP_AZURE_AD_TENANT_ID: azureAdTenantId
+      APP_AZURE_AD_CLIENT_ID: azureAdClientId
     }
   }
 }

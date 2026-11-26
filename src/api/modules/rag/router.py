@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import asyncio
@@ -6,7 +6,8 @@ import logging
 
 from src.api.modules.rag.service import rag_service
 from src.api.modules.rag.models import QARequest, QAResponse
-from src.api.auth.auth_utils import get_authenticated_user_details
+from src.api.modules.security.auth import get_current_user
+from src.api.modules.security.models import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -40,10 +41,9 @@ class SaveChatRequest(BaseModel):
 
 
 @router.post("/chat/save")
-async def save_chat(body: SaveChatRequest, request: Request):
+async def save_chat(body: SaveChatRequest, user: User = Depends(get_current_user)):
     """Save chat messages."""
-    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
-    user_id = authenticated_user["user_principal_id"]
+    user_id = user.user_id
     try:
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
@@ -58,12 +58,14 @@ async def save_chat(body: SaveChatRequest, request: Request):
                     resolved_title = agent_title
 
         if not session_exists:
-            db_service.create_session(
+            session = db_service.create_session(
                 session_id=body.session_id,
                 user_id=user_id,
                 title=resolved_title or "Chat session",
             )
-        success = db_service.save_messages_bulk(body.session_id, body.messages)
+            if session is None:
+                raise HTTPException(status_code=409, detail="Chat session could not be created")
+        success = db_service.save_messages_bulk(body.session_id, body.messages, user_id)
         if success:
             db_service.update_session(
                 body.session_id, user_id,
@@ -71,6 +73,8 @@ async def save_chat(body: SaveChatRequest, request: Request):
                 message_count=len(body.messages),
             )
         return {"saved": success}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save chat session '{body.session_id}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save chat session. Please try again.")
@@ -89,10 +93,9 @@ async def load_chat(session_id: str):
 
 
 @router.get("/chat/sessions")
-async def list_chat_sessions(request: Request):
+async def list_chat_sessions(user: User = Depends(get_current_user)):
     """List all chat sessions for the current user."""
-    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
-    user_id = authenticated_user["user_principal_id"]
+    user_id = user.user_id
     try:
         from src.api.storage.db_service import db_service
         sessions = db_service.list_sessions(user_id)
@@ -103,10 +106,9 @@ async def list_chat_sessions(request: Request):
 
 
 @router.delete("/chat/session/{session_id}")
-async def delete_chat_session(session_id: str, request: Request):
+async def delete_chat_session(session_id: str, user: User = Depends(get_current_user)):
     """Delete a chat session and all its messages."""
-    authenticated_user = get_authenticated_user_details(request_headers=request.headers)
-    user_id = authenticated_user["user_principal_id"]
+    user_id = user.user_id
     try:
         from src.api.storage.db_service import db_service
         success = db_service.delete_session(session_id, user_id)

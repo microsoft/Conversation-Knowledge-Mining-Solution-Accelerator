@@ -428,7 +428,7 @@ async def list_uploaded_files():
     return ingestion_service.uploaded_files
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_role("contributor"))])
 async def refresh_cache():
     """Force reload data from database. Use after external seeding."""
     ingestion_service.reload()
@@ -608,7 +608,7 @@ def _build_runtime_extraction_filters() -> FilterSchema:
         return FilterSchema()
 
 
-@router.delete("/clear")
+@router.delete("/clear", dependencies=[Depends(require_role("admin"))])
 async def clear_documents(include_external: bool = False):
     ingestion_service.clear()
     # Also clear the insights plan cache so it regenerates for new data

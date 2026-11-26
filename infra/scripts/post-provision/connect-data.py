@@ -987,9 +987,11 @@ def main():
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        admin_key = os.getenv("ADMIN_API_KEY", "")
+        admin_key = "" if os.getenv("KM_API_AUTH_MODE") == "token" else os.getenv("ADMIN_API_KEY", "")
         if admin_key:
             req.add_header("X-Admin-Api-Key", admin_key)
+        elif os.getenv("KM_API_ACCESS_TOKEN"):
+            req.add_header("Authorization", f"Bearer {os.environ['KM_API_ACCESS_TOKEN']}")
         with _urlreq.urlopen(req, timeout=5) as resp:
             if resp.status in (200, 201):
                 print(f"  [OK] Backend notified — source is live in the app")

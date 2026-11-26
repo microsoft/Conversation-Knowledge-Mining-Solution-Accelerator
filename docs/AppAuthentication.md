@@ -1,33 +1,148 @@
-# Set Up Authentication in Azure App Service
+# Configure Microsoft Entra Authentication
 
-This document provides step-by-step instructions to configure Azure App Registrations for a front-end application.
+All application data and operation APIs require authentication, including local
+deployments. `GET/HEAD /` and `/api/health` remain anonymous health checks.
+The framework documentation routes (`/docs`, `/redoc`, `/openapi.json`) and valid
+CORS preflight requests are also public. The documentation exposes the API schema,
+not application data; health responses include dependency status for diagnostics.
+These public routes are intentional and do not bypass authentication on application
+operations. Missing credentials return HTTP 401; missing token-validation
+configuration never enables anonymous access. Client-supplied
+`x-ms-client-principal-*` headers are not credentials.
 
-## Prerequisites
+## Automated deployment setup
 
-- Access to **Microsoft Entra ID**
-- Necessary permissions to create and manage **App Registrations**
-  
-## Step 1: Add Authentication in Azure App Service configuration
+`azd up` configures authentication automatically by running
+`infra/scripts/post-provision/configure_auth.ps1` in two phases:
 
-1. Click on `Authentication` from left menu.
+- **PreProvision:** selects the subscription configured in azd (or uses the current
+  Azure CLI subscription), validates the tenant, creates or reuses a single-tenant
+  registration, and saves `AZURE_SUBSCRIPTION_ID`, `AZURE_AD_TENANT_ID`, and
+  `AZURE_AD_CLIENT_ID`. It configures v2 access tokens, the `access_as_user` scope,
+  app roles, and Azure CLI scope preauthorization.
+- **PostProvision:** adds the deployed frontend's **SPA** redirect URI and synchronizes
+  the API's `AZURE_AD_*` settings and frontend's `APP_AZURE_AD_*` settings, then
+  restarts both App Services. Existing redirects, roles, and permissions are preserved.
 
-  ![Authentication](images/AppAuthentication.png)
+Azure CLI and azd must both be signed in to the deployment tenant. The caller needs
+permission to create/manage Entra app registrations and service principals, plus
+App Service configuration permissions. A tenant mismatch or permission failure
+stops deployment. No client secret or automatic user role assignment is created.
+Assign users/groups to `Reader`, `Contributor`, or `Admin` explicitly through the
+enterprise application after setup; roleless users remain read-only.
 
-2. Click on `+ Add identity provider` to see a list of identity providers.
+In Azure Portal, open **Microsoft Entra ID > Enterprise applications**, select
+your application, then open **Users and groups > Add user/group**. Select the
+users/groups, choose the required role, and select **Assign**. The screenshot
+shows the role picker before an assignment is made; tenant details are redacted.
 
-  ![Authentication Identity](images/AppAuthenticationIdentity.png)
+![Select an application role when assigning users or groups](images/EntraAssignUserRole.png)
 
-3. Click on `Identity Provider` dropdown to see a list of identity providers.
+The default policy does not enable `appRoleAssignmentRequired`: users in the
+configured tenant who obtain a valid API access token can query the knowledge base
+with Reader access even without an app-role assignment. This includes query
+operations that consume service capacity. Deployments requiring assigned-user-only
+access must enable **Assignment required** on the enterprise application and assign
+the permitted users/groups; write and administrative operations always require
+their corresponding app roles.
 
-  ![Add Provider](images/AppAuthIdentityProvider.png)
+Find this optional setting under the enterprise application's **Properties**.
+The screenshot shows the default **Assignment required? = No**. Set it to **Yes**
+and save only when assigned-user-only access is required, with the permitted
+users/groups assigned.
 
-4. Select the first option `Microsoft Entra Id` from the drop-down list and select `client secret expiration` under App registration.
-> NOTE: If `Create new app registration` is disabled, then go to [Create new app registration](./create_new_app_registration.md) and come back to this step to complete the app authentication.
+![Locate the optional Assignment required setting](images/EntraAssignmentRequired.png)
 
- ![Add Provider](images/AppAuthIdentityProviderAdd.png)
+To reuse an existing registration, set `AZURE_AD_CLIENT_ID` in the selected azd
+environment before provisioning. You can also run either phase manually:
 
-5. Accept the default values and click on `Add` button to go back to the previous page with the identity provider added.
+```powershell
+.\infra\scripts\post-provision\configure_auth.ps1 -Phase PreProvision
+.\infra\scripts\post-provision\configure_auth.ps1 -Phase PostProvision
+```
 
- ![Add Provider](images/AppAuthIdentityProviderAdded.png)
+For an existing deployment, run **PostProvision** from its selected azd environment
+after upgrading. It creates/reuses the registration and updates the deployed apps
+without provisioning infrastructure or loading/clearing data.
+Optional parameters include `-ClientId`, `-TenantId`, `-SubscriptionId`,
+`-ResourceGroupName`, `-FrontendAppName`, and `-BackendAppName`.
 
-6. You have successfully added app authentication, and now required to log in to access the application.
+**Breaking upgrade requirements:** deployment operators now need permission to
+create/manage Entra app registrations and service principals, or permission to
+configure a registration created in advance. Direct ARM/Bicep deployments must
+supply both Entra IDs before starting the production backend. After running
+PostProvision, assign the required app roles and sign in again; the previous
+anonymous/sample-user access and unsigned identity headers are no longer supported.
+
+## Manual app registration
+
+Use these steps as an alternative to automatic registration creation, for example
+when an administrator must create the registration in advance. They are not a
+separate requirement for the normal `azd up` flow. The deployment hooks still
+configure the supplied registration and require permission to manage it.
+
+See [Create a New App Registration](./create_new_app_registration.md) for
+screenshots of the registration IDs, SPA redirect URIs, API scope, and app roles.
+
+1. Create a **single-tenant** Microsoft Entra app registration. Record its
+   **Directory (tenant) ID** and **Application (client) ID**.
+2. Under **Authentication**, add a **Single-page application** platform with the
+   frontend origin as its redirect URI, for example
+   `https://<frontend>.azurewebsites.net` or `http://localhost:3000`. Do not enable
+   implicit grants or put a client secret in the browser.
+3. Under **Expose an API**, set the Application ID URI to `api://<client-id>` and
+   add the delegated scope `access_as_user`. Grant consent to this API permission
+   according to your tenant's policy.
+4. In the app manifest, set `api.requestedAccessTokenVersion` to `2`. The backend
+   accepts only RS256 access tokens from the configured tenant's v2 issuer,
+   addressed to this application's client ID.
+5. Define app roles with values `Reader`, `Contributor`, and `Admin`. Assign users
+   or groups through the enterprise application. Authenticated users without a
+   recognized role have **Reader** access, never Contributor access.
+
+Readers can query the knowledge base and manage their chat history. Contributors
+can also ingest documents and manage data sources and pipelines. Admins can
+additionally clear all documents or the vector index and reload pipelines.
+
+## Deployment configuration
+
+The deployment hooks populate both IDs automatically. To use a manually created
+registration instead, configure both IDs before provisioning:
+
+```shell
+azd env set AZURE_AD_TENANT_ID <tenant-id>
+azd env set AZURE_AD_CLIENT_ID <client-id>
+```
+
+Both deployment flavors pass these settings to the API and the frontend's
+runtime configuration. Production startup requires both IDs. The browser uses
+MSAL authorization-code flow with PKCE and sends a Bearer access token with each
+API request, including requests forwarded through the private-network proxy.
+The API validates the signature, issuer, tenant, audience, lifetime, identity,
+and delegated API scope before using any role or user ID.
+
+For local API runs, set `AZURE_AD_TENANT_ID` and `AZURE_AD_CLIENT_ID` in the
+environment or `.env`. For `npm start`, also set
+`REACT_APP_AZURE_AD_TENANT_ID` and `REACT_APP_AZURE_AD_CLIENT_ID`. Docker Compose
+passes the IDs to both containers. There is no sample-user authentication mode.
+
+## Scripts and service identities
+
+Provisioning scripts can use an Entra access token for this API, with an
+appropriate app role, or the existing optional `ADMIN_API_KEY` credential.
+The key grants Admin access: protect it as a secret, rotate it when necessary,
+and never include it in frontend settings or source control. An unset key
+disables key-based access; an incorrect key returns HTTP 401.
+Both `setup-data.ps1` and `seed-data.ps1` prefer a configured admin key and request
+an Entra token only when no key is available.
+Without `-ResourceGroupName`, `setup-data.ps1` reads the authentication IDs from
+process environment variables first, then azd or `.env`. With an explicit resource
+group, it reads authentication settings only from that group's deployed backend.
+
+For app-only access, assign an application app role and configure the `idtyp`
+optional **access-token** claim on the API registration. App-only tokens must
+identify themselves as `idtyp=app` and contain a recognized app role. ID tokens
+are not accepted as API credentials.
+
+App Service EasyAuth may be added as defense in depth, but it does not replace
+backend access-token validation or allow unsigned identity headers.

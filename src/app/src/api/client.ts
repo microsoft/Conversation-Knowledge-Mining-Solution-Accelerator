@@ -1,9 +1,9 @@
 import axios from "axios";
-
+import { getAccessToken } from "../auth/msalConfig";
 
 function resolveApiBase(): string {
   const runtime =
-    (typeof window !== "undefined" && (window as any)._env_?.APP_API_BASE_URL) || "";
+    (typeof window !== "undefined" && window._env_?.APP_API_BASE_URL) || "";
   const runtimeVal = String(runtime).trim();
   const buildTime = process.env.REACT_APP_API_BASE_URL || "";
   let base = runtimeVal && runtimeVal !== "$APP_API_BASE_URL" ? runtimeVal : buildTime;
@@ -19,44 +19,8 @@ const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Fetch user info from EasyAuth and cache userId
-let _userId: string | null = null;
-
-async function getUserId(): Promise<string> {
-  if (_userId) return _userId;
-  const cached = localStorage.getItem("userId");
-  if (cached) {
-    _userId = cached;
-    return cached;
-  }
-  try {
-    const resp = await fetch(`${window.location.origin}/.auth/me`);
-    if (resp.ok) {
-      const data = await resp.json();
-      const claims = data?.[0]?.user_claims || [];
-      const oid = claims.find(
-        (c: any) =>
-          c.typ === "http://schemas.microsoft.com/identity/claims/objectidentifier" ||
-          c.typ === "oid"
-      );
-      if (oid?.val) {
-        _userId = oid.val;
-        localStorage.setItem("userId", oid.val);
-        return oid.val;
-      }
-    }
-  } catch {
-    // EasyAuth not available (local dev)
-  }
-  return "default";
-}
-
-// Attach userId header to every request
 apiClient.interceptors.request.use(async (config) => {
-  const userId = await getUserId();
-  if (userId) {
-    config.headers["X-Ms-Client-Principal-Id"] = userId;
-  }
+  config.headers.Authorization = `Bearer ${await getAccessToken()}`;
   return config;
 });
 
@@ -68,11 +32,16 @@ export const getDocument = (id: string) => apiClient.get(`/ingestion/documents/$
 export const getIngestionStats = () => apiClient.get("/ingestion/stats");
 export const getAvailableFilters = () => apiClient.get("/ingestion/filters");
 export const getUploadedFiles = () => apiClient.get("/ingestion/files");
-export const refreshIngestionCache = () => apiClient.post("/ingestion/refresh");
+export const refreshIngestionCache = async (): Promise<void> => {
+  const { data: user } = await apiClient.get<{ roles: string[] }>("/auth/me");
+  if (user.roles.some((role) => role === "Contributor" || role === "Admin")) {
+    await apiClient.post("/ingestion/refresh");
+  }
+};
 
 /**
- * Clear frontend session storage caches when scenario data changes.
- * This prevents duplicate files from appearing when switching scenarios.
+ * Clear frontend session storage caches when scenario data changes or before logout.
+ * This prevents stale scenario data and cross-user chat history or session ID reuse.
  */
 export const clearSessionCache = () => {
   try {

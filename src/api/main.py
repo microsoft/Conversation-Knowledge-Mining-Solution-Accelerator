@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import defaultdict
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,7 +22,7 @@ from src.api.modules.embeddings.router import router as embeddings_router
 from src.api.modules.rag.router import router as rag_router
 from src.api.modules.processing.router import router as processing_router
 from src.api.modules.pipelines.router import router as pipelines_router
-from src.api.modules.security.auth import router as auth_router
+from src.api.modules.security.auth import authenticate_request, router as auth_router
 from src.api.modules.data_sources.router import router as data_sources_router
 from src.api.modules.insights.router import router as insights_router
 
@@ -166,6 +166,7 @@ app = FastAPI(
     description="Generic solution accelerator for knowledge mining all uploaded documents.",
     version="1.0.0",
     lifespan=lifespan,
+    dependencies=[Depends(authenticate_request)],
 )
 
 # CORS: restrict to frontend hostname in production, allow localhost for dev
@@ -260,7 +261,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": _STATUS_LABELS.get(exc.status_code, f"HTTP_{exc.status_code}"), "detail": exc.detail, "request_id": rid},
-        headers={"X-Request-ID": rid} if rid else {},
+        headers={**(exc.headers or {}), **({"X-Request-ID": rid} if rid else {})},
     )
 
 

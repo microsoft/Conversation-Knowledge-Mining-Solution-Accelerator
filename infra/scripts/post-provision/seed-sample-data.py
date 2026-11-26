@@ -454,10 +454,15 @@ def main():
     api_url = os.getenv("BACKEND_URL", "http://localhost:8000")
     try:
         req = urllib.request.Request(f"{api_url}/api/ingestion/refresh", method="POST")
+        admin_key = "" if os.getenv("KM_API_AUTH_MODE") == "token" else os.getenv("ADMIN_API_KEY", "")
+        if admin_key:
+            req.add_header("X-Admin-Api-Key", admin_key)
+        elif os.getenv("KM_API_ACCESS_TOKEN"):
+            req.add_header("Authorization", f"Bearer {os.environ['KM_API_ACCESS_TOKEN']}")
         urllib.request.urlopen(req, timeout=5)
         print(f"\n  [OK] API server cache refreshed")
-    except Exception:
-        print(f"\n  [INFO] Could not reach API at {api_url} — restart the server to pick up new data")
+    except Exception as e:
+        print(f"\n  [INFO] Could not refresh API cache ({e}) — check API credentials or restart the server to pick up new data")
     print()
 
 

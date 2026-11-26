@@ -21,7 +21,7 @@ Ensure you have access to an [Azure subscription](https://azure.microsoft.com/fr
 | **Contributor** | Subscription level | Create and manage Azure resources |
 | **User Access Administrator** | Subscription level | Manage user access and role assignments |
 | **Role Based Access Control Admin** | Subscription/Resource Group level | Configure RBAC permissions |
-| **App Registration Creation** | Microsoft Entra ID | Create and configure authentication (optional) |
+| **App Registration Creation** | Microsoft Entra ID | Create and configure required API authentication |
 
 **🔍 How to Check Your Permissions:**
 
@@ -301,6 +301,18 @@ az login --tenant <tenant-id>
 
 ### 4.2 Start Deployment
 
+Authentication is required, but manual app registration is not a separate setup
+step for the normal `azd up` flow. Before provisioning, ensure both Azure CLI and
+azd are signed in to the deployment tenant, the Azure CLI account uses the intended
+subscription (or set `AZURE_SUBSCRIPTION_ID` in azd), and the caller can create/manage
+Entra app registrations and service principals and configure App Services.
+
+The pre-provision hook creates or reuses the Entra registration and saves the
+authentication IDs automatically. To reuse a registration, set
+`AZURE_AD_CLIENT_ID` before running `azd up`; the hooks still require permission
+to manage it. See [App Authentication](./AppAuthentication.md) for the manual
+registration alternative, role assignments, and recovery instructions.
+
 ```shell
 azd up
 ```
@@ -317,9 +329,10 @@ azd up
 
 `azd up` runs the hooks defined in [azure.yaml](../azure.yaml) and performs the following steps automatically — no separate manual deploy step is required:
 
-1. **Pre-provision** — Generates and stores an `ADMIN_API_KEY` in the `azd` environment.
+1. **Pre-provision** — Creates/reuses the Entra registration, saves subscription/tenant/client IDs, and generates an `ADMIN_API_KEY` in the `azd` environment.
 2. **Provision** — Creates all Azure resources using the Bicep templates in `infra/`. The backend and frontend App Services start with a temporary placeholder image.
 3. **Post-provision** — Runs automatically after provisioning:
+   - Adds the frontend SPA redirect URI and synchronizes authentication settings on both App Services.
    - Builds and pushes the API and web images to ACR and points the App Services at them ([infra/scripts/build/build_and_push_images.ps1](../infra/scripts/build/build_and_push_images.ps1))
    - Writes the `azd` environment values to a local `.env` file (already gitignored; it may contain secrets — do not commit it)
    - Creates a Python virtual environment and installs [infra/scripts/post-provision/requirements.txt](../infra/scripts/post-provision/requirements.txt)
@@ -425,12 +438,22 @@ Upon selection, the corresponding datasets and configuration files are uploaded,
 
 Once deployment and data setup complete, access your deployed frontend application at the URL from [Step 4.3](#43-get-application-url).
 
-### 5.4 Configure Authentication (Optional)
+### 5.4 Configure Authentication (Required)
 
-By default, the application is accessible without authentication (suitable for development and testing). For production deployments, enable Microsoft Entra ID authentication:
+The API requires a validated Microsoft Entra access token or the optional
+privileged script key. Anonymous access and sample-user fallback are disabled.
 
-1. Follow [App Authentication Configuration](./AppAuthentication.md)
-2. Wait up to 10 minutes for authentication changes to take effect
+The deployment hooks have already configured authentication. After deployment:
+
+1. Verify frontend sign-in succeeds and authenticated API requests are accepted.
+   The hooks configure the Entra IDs and frontend SPA redirect automatically.
+2. Assign `Contributor` or `Admin` app roles through the enterprise application
+   to users who manage data. Users without an assigned role have read-only access.
+   See the [illustrated role-assignment steps](./AppAuthentication.md#automated-deployment-setup).
+3. When upgrading an existing deployment, run
+   `configure_auth.ps1 -Phase PostProvision` from that deployment's selected azd
+   environment. See [App Authentication Configuration](./AppAuthentication.md)
+   for verification and recovery details.
 
 ### 5.5 Verify Deployment
 

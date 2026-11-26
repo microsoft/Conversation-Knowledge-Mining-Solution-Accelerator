@@ -18,6 +18,8 @@ hooks:
         Write-Host "  ---------------------------------------------------------------------------------------------------" -ForegroundColor Yellow
         Write-Host ""
         $ErrorActionPreference = "Continue"
+        pwsh -File .\infra\scripts\post-provision\configure_auth.ps1 -Phase PreProvision
+        if ($LASTEXITCODE -ne 0) { throw "Authentication preparation failed." }
         $existing = azd env get-value ADMIN_API_KEY 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $existing) {
           $key = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
@@ -40,6 +42,7 @@ hooks:
         printf '\033[36m  https://github.com/microsoft/Conversation-Knowledge-Mining-Solution-Accelerator/issues\033[0m\n'
         printf '\033[33m  ---------------------------------------------------------------------------------------------------\033[0m\n'
         printf '\n'
+        pwsh -File ./infra/scripts/post-provision/configure_auth.ps1 -Phase PreProvision || exit 1
         existing=$(azd env get-value ADMIN_API_KEY 2>/dev/null) || true
         if [ -z "$existing" ]; then
           key=$(openssl rand -base64 32 | tr '+/' '-' | tr -d '=')
@@ -57,6 +60,8 @@ hooks:
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert in the finally block ──
         try {
+          pwsh -File .\infra\scripts\post-provision\configure_auth.ps1 -Phase PostProvision
+          if ($LASTEXITCODE -ne 0) { throw "Authentication configuration failed." }
           pwsh -File ./infra/scripts/post-provision/manage-network-access.ps1 -Action Enable
           # ── Step 0: Build & push the app images to ACR and point the App Services
           #    at them (apps are provisioned with a placeholder hello-world image) ──
@@ -115,6 +120,7 @@ hooks:
     posix:
       shell: sh
       run: |
+        pwsh -File ./infra/scripts/post-provision/configure_auth.ps1 -Phase PostProvision || exit 1
         # ── Step -1: If private networking is enabled, temporarily open public
         #    network access on data-plane resources (ACR / SQL / Storage / Cosmos)
         #    so the steps below can reach them; always revert on exit (success or failure) ──

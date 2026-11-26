@@ -81,7 +81,11 @@ function Get-RgAppSettings {
         if ($apiApp) {
             $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
             if ($LASTEXITCODE -eq 0 -and $json) {
-                try { foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value } } catch {}
+                try {
+                    foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value }
+                } catch {
+                    Write-Warning "Could not parse backend app settings: $_"
+                }
             }
         }
     }
@@ -166,6 +170,18 @@ function Resolve-ScenarioDataPath {
     return $null
 }
 
+function Test-BackendReachable {
+    param([string]$Url)
+    try {
+        # Probe the anonymous root, not an authenticated ingestion endpoint.
+        Invoke-RestMethod -Uri "$($Url.TrimEnd('/'))/" -Method GET -TimeoutSec 3 -SkipHttpErrorCheck | Out-Null
+        return $true
+    } catch {
+        Write-Host "Backend at $Url is not responding; checking the next configured address." -ForegroundColor DarkGray
+        return $false
+    }
+}
+
 # ── Resolve backend URL ──
 if ($PSBoundParameters.ContainsKey("BackendUrl")) {
     Write-Host "Using explicit backend: $BackendUrl" -ForegroundColor Yellow
@@ -182,22 +198,13 @@ elseif ($ResourceGroupName) {
     }
 }
 elseif ($BackendUrl -eq "http://localhost:8000") {
-    $localHealthy = $false
-    try {
-        Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
-        $localHealthy = $true
-    } catch {
-        $localHealthy = $false
-    }
+    $localHealthy = Test-BackendReachable $BackendUrl
 
     if (-not $localHealthy) {
         $loopbackUrl = "http://127.0.0.1:8000"
-        try {
-            Invoke-RestMethod -Uri "$loopbackUrl/api/ingestion/stats" -Method GET -TimeoutSec 3 | Out-Null
+        if (Test-BackendReachable $loopbackUrl) {
             $BackendUrl = $loopbackUrl
             $localHealthy = $true
-        } catch {
-            $localHealthy = $false
         }
     }
 
@@ -221,23 +228,36 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
     }
 }
 
-# ── Auth token ──
-$token = az account get-access-token --resource "api://$(azd env get-value AZURE_AD_CLIENT_ID 2>$null)" --query accessToken -o tsv 2>$null
-$headers = @{}
-if ($token) {
-    $headers["Authorization"] = "Bearer $token"
-} else {
-    $adminKey = $env:ADMIN_API_KEY
-    if (-not $adminKey) {
-        $adminKey = azd env get-value ADMIN_API_KEY 2>$null
-    }
+function Get-ApiHeaders {
+    $adminKey = if (-not $ResourceGroupName) { $env:ADMIN_API_KEY } else { "" }
+    if (-not $adminKey) { $adminKey = Get-DeployValue "ADMIN_API_KEY" }
     if ($adminKey) {
-        Write-Host "Using admin API key for local auth" -ForegroundColor Yellow
-        $headers["X-Admin-Api-Key"] = $adminKey
-    } else {
-        Write-Host "No auth token or admin key found — requests may be rejected in prod" -ForegroundColor Yellow
+        Write-Host "Using configured admin API key for script authentication" -ForegroundColor Yellow
+        return @{ "X-Admin-Api-Key" = $adminKey }
     }
+    $clientId = if (-not $ResourceGroupName) { $env:AZURE_AD_CLIENT_ID } else { "" }
+    if (-not $clientId) { $clientId = Get-DeployValue "AZURE_AD_CLIENT_ID" }
+    $tenantId = if (-not $ResourceGroupName) { $env:AZURE_AD_TENANT_ID } else { "" }
+    if (-not $tenantId) { $tenantId = Get-DeployValue "AZURE_AD_TENANT_ID" }
+    if (-not $clientId -or -not $tenantId) {
+        throw "Configure AZURE_AD_CLIENT_ID and AZURE_AD_TENANT_ID, or ADMIN_API_KEY, for the targeted backend. See docs/AppAuthentication.md."
+    }
+    $token = az account get-access-token --tenant $tenantId --resource "api://$clientId" --query accessToken -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $token -or "$token" -match '^ERROR:') {
+        throw "Could not obtain an API access token. Run az login for the API tenant, grant Azure CLI consent to the API scope, and assign the required app role; alternatively configure ADMIN_API_KEY. See docs/AppAuthentication.md."
+    }
+    return @{ Authorization = "Bearer $($token.Trim())" }
 }
+
+$headers = Get-ApiHeaders
+$env:BACKEND_URL = $BackendUrl
+$env:ADMIN_API_KEY = if ($headers.ContainsKey("X-Admin-Api-Key")) {
+    $headers["X-Admin-Api-Key"]
+} else { "" }
+$env:KM_API_ACCESS_TOKEN = if ($headers.ContainsKey("Authorization")) {
+    $headers["Authorization"] -replace '^Bearer ', ''
+} else { "" }
+$env:KM_API_AUTH_MODE = if ($headers.ContainsKey("X-Admin-Api-Key")) { "admin-key" } else { "token" }
 
 # ── Wait for the backend's SQL connection to actually be ready ──
 # Right after a fresh deploy/restart, the container can come up and answer HTTP
@@ -332,7 +352,12 @@ function Confirm-UploadRegistered {
     $cnt = 0
     while ($elapsed -lt $TimeoutSec) {
         $cnt = -1
-        try { $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers; $cnt = [int]$r.files } catch {}
+        try {
+            $r = Invoke-RestMethod -Uri "$BackendUrl/api/ingestion/refresh" -Method POST -Headers $Headers
+            $cnt = [int]$r.files
+        } catch {
+            Write-Warning "Could not confirm upload registration; retrying: $_"
+        }
         if ($cnt -ge $expectedCount) { break }
         Start-Sleep -Seconds $PollIntervalSec
         $elapsed += $PollIntervalSec
