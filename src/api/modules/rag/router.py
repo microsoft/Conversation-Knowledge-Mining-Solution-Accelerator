@@ -58,12 +58,14 @@ async def save_chat(body: SaveChatRequest, user: User = Depends(get_current_user
                     resolved_title = agent_title
 
         if not session_exists:
-            db_service.create_session(
+            session = db_service.create_session(
                 session_id=body.session_id,
                 user_id=user_id,
                 title=resolved_title or "Chat session",
             )
-        success = db_service.save_messages_bulk(body.session_id, body.messages)
+            if session is None:
+                raise HTTPException(status_code=409, detail="Chat session could not be created")
+        success = db_service.save_messages_bulk(body.session_id, body.messages, user_id)
         if success:
             db_service.update_session(
                 body.session_id, user_id,
@@ -71,6 +73,8 @@ async def save_chat(body: SaveChatRequest, user: User = Depends(get_current_user
                 message_count=len(body.messages),
             )
         return {"saved": success}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save chat session '{body.session_id}': {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to save chat session. Please try again.")

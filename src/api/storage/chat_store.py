@@ -30,6 +30,15 @@ class ChatStore:
 
     # --- Sessions ---
 
+    def _require_session_owner(self, cursor, session_id: str, user_id: str):
+        # Keep the ownership row locked until the message transaction completes.
+        cursor.execute(
+            "SELECT id FROM chat_sessions WITH (UPDLOCK, HOLDLOCK) WHERE id = ? AND user_id = ?",
+            session_id, user_id,
+        )
+        if cursor.fetchone() is None:
+            raise PermissionError("Chat session not found or access denied")
+
     def create_session(self, user_id: str, title: str = "New Chat", session_id: Optional[str] = None) -> Optional[dict]:
         sql = self._get_sql()
         if not sql.available:
@@ -85,8 +94,8 @@ class ChatStore:
             if message_count is not None:
                 sets.append("message_count = ?")
                 params.append(message_count)
-            params.append(session_id)
-            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ?", *params)
+            params.extend((session_id, user_id))
+            cursor.execute(f"UPDATE chat_sessions SET {', '.join(sets)} WHERE id = ? AND user_id = ?", *params)
             conn.commit()
             conn.close()
             return True
@@ -99,18 +108,24 @@ class ChatStore:
         sql = self._get_sql()
         if not sql.available:
             return False
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
+            self._require_session_owner(cursor, session_id, user_id)
             cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", session_id)
             cursor.execute("DELETE FROM chat_sessions WHERE id = ? AND user_id = ?", session_id, user_id)
             conn.commit()
-            conn.close()
             return True
         except Exception as e:
+            if conn is not None:
+                conn.rollback()
             logger.warning(f"Failed to delete session: {e}")
             sql._refresh_token()
             return False
+        finally:
+            if conn is not None:
+                conn.close()
 
     # --- Messages ---
 
@@ -158,13 +173,15 @@ class ChatStore:
             sql._refresh_token()
             return []
 
-    def save_messages_bulk(self, session_id: str, messages: list[dict]) -> bool:
+    def save_messages_bulk(self, session_id: str, messages: list[dict], user_id: str) -> bool:
         sql = self._get_sql()
         if not sql.available:
             return False
+        conn = None
         try:
             conn = sql._get_connection()
             cursor = conn.cursor()
+            self._require_session_owner(cursor, session_id, user_id)
             cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", session_id)
             for i, msg in enumerate(messages):
                 cursor.execute(
@@ -173,12 +190,16 @@ class ChatStore:
                     msg.get("content", ""), json.dumps(msg.get("sources", [])), i,
                 )
             conn.commit()
-            conn.close()
             return True
         except Exception as e:
+            if conn is not None:
+                conn.rollback()
             logger.warning(f"Failed to save messages bulk: {e}")
             sql._refresh_token()
             return False
+        finally:
+            if conn is not None:
+                conn.close()
 
 
 chat_store = ChatStore()

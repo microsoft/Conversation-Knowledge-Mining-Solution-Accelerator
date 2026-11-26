@@ -454,7 +454,7 @@ def main():
     api_url = os.getenv("BACKEND_URL", "http://localhost:8000")
     try:
         req = urllib.request.Request(f"{api_url}/api/ingestion/refresh", method="POST")
-        admin_key = os.getenv("ADMIN_API_KEY", "")
+        admin_key = "" if os.getenv("KM_API_AUTH_MODE") == "token" else os.getenv("ADMIN_API_KEY", "")
         if admin_key:
             req.add_header("X-Admin-Api-Key", admin_key)
         elif os.getenv("KM_API_ACCESS_TOKEN"):

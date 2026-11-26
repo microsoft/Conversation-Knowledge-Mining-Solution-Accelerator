@@ -257,6 +257,7 @@ $env:ADMIN_API_KEY = if ($headers.ContainsKey("X-Admin-Api-Key")) {
 $env:KM_API_ACCESS_TOKEN = if ($headers.ContainsKey("Authorization")) {
     $headers["Authorization"] -replace '^Bearer ', ''
 } else { "" }
+$env:KM_API_AUTH_MODE = if ($headers.ContainsKey("X-Admin-Api-Key")) { "admin-key" } else { "token" }
 
 # ── Wait for the backend's SQL connection to actually be ready ──
 # Right after a fresh deploy/restart, the container can come up and answer HTTP
