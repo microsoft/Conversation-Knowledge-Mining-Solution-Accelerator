@@ -18,6 +18,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom";
 import ChatInterface from "./ChatInterface";
 import { loginRequest, msalInstance } from "../auth/msalConfig";
+import { clearSessionCache } from "../api/client";
 import styles from "./Layout.module.css";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -34,7 +35,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setAuthError(error instanceof Error ? error.message : "Authentication failed.");
   };
   const handleLogin = () => { void msalInstance.loginRedirect(loginRequest).catch(showAuthError); };
-  const handleLogout = () => { void msalInstance.logoutRedirect().catch(showAuthError); };
+  const handleLogout = () => {
+    if (!clearSessionCache()) {
+      showAuthError(new Error("Unable to clear session data. Please try signing out again."));
+      return;
+    }
+    void msalInstance.logoutRedirect().catch(showAuthError);
+  };
 
   const initials = userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 

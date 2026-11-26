@@ -40,8 +40,8 @@ export const refreshIngestionCache = async (): Promise<void> => {
 };
 
 /**
- * Clear frontend session storage caches when scenario data changes.
- * This prevents duplicate files from appearing when switching scenarios.
+ * Clear frontend session storage caches when scenario data changes or before logout.
+ * This prevents stale scenario data and cross-user chat history or session ID reuse.
  */
 export const clearSessionCache = () => {
   try {
