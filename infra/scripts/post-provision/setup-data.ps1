@@ -212,7 +212,12 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
         Write-Host "Using local backend: $BackendUrl" -ForegroundColor Yellow
     } else {
         if ($AllowDeployedFallback -or $env:KM_ALLOW_DEPLOYED_BACKEND_FALLBACK -eq "1") {
-            $azdUrl = azd env get-value SERVICE_BACKEND_URI 2>$null
+            $azdResourceGroup = azd env get-value RESOURCE_GROUP_NAME 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $azdResourceGroup -or "$azdResourceGroup" -match '^ERROR:') {
+                throw "Could not resolve RESOURCE_GROUP_NAME. Select the deployment's azd environment or pass -ResourceGroupName explicitly."
+            }
+            $ResourceGroupName = "$azdResourceGroup".Trim()
+            $azdUrl = Get-DiscoveredBackendUrl $ResourceGroupName
             if ($azdUrl) {
                 Write-Host "Using deployed backend: $azdUrl" -ForegroundColor Yellow
                 $BackendUrl = $azdUrl
