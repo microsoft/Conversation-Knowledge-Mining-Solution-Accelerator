@@ -238,10 +238,18 @@ function Invoke-Main {
     }
 
     if ($Phase -eq "PostProvision") {
-        Invoke-Az @(
+        $backendSettings = @("AZURE_AD_TENANT_ID=$($account.tenantId)", "AZURE_AD_CLIENT_ID=$($application.appId)")
+        $adminKey = Get-AzdEnvValue "ADMIN_API_KEY"
+        if (-not $adminKey) {
+            $adminKey = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
+            Save-AzdValue "ADMIN_API_KEY" $adminKey
+            Write-Host "Generated ADMIN_API_KEY and stored in azd env."
+        }
+        $backendSettings += "ADMIN_API_KEY=$adminKey"
+        Invoke-Az (@(
             "webapp", "config", "appsettings", "set", "--resource-group", $rg, "--name", $backend,
-            "--settings", "AZURE_AD_TENANT_ID=$($account.tenantId)", "AZURE_AD_CLIENT_ID=$($application.appId)", "--output", "none"
-        ) | Out-Null
+            "--settings"
+        ) + $backendSettings + @("--output", "none")) | Out-Null
         Invoke-Az @(
             "webapp", "config", "appsettings", "set", "--resource-group", $rg, "--name", $frontend,
             "--settings", "APP_AZURE_AD_TENANT_ID=$($account.tenantId)", "APP_AZURE_AD_CLIENT_ID=$($application.appId)", "--output", "none"
