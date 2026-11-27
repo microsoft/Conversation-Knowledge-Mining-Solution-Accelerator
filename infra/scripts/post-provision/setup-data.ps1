@@ -67,6 +67,19 @@ if (-not (Test-Path $pythonExe)) { $pythonExe = "python" }
 # Cache of the deployed backend's app settings, populated once per resource group.
 $script:RgAppSettingsCache = $null
 
+function Get-DiscoveredBackendAppName {
+    param([string]$Rg)
+    $names = az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not list backend App Services in resource group '$Rg'. Check Azure CLI sign-in and permissions."
+    }
+    $apiApps = @($names -split "\r?\n" | Where-Object { $_ -like "api-*" } | ForEach-Object { $_.Trim() })
+    if ($apiApps.Count -ne 1) {
+        throw "Expected exactly one api-* App Service in resource group '$Rg'; found $($apiApps.Count)."
+    }
+    return $apiApps[0]
+}
+
 # Read every app setting from the api-* App Service in the resource group (cached).
 # This is the source of truth when a resource group is targeted explicitly.
 function Get-RgAppSettings {
@@ -75,19 +88,15 @@ function Get-RgAppSettings {
     if ($null -ne $script:RgAppSettingsCache) { return $script:RgAppSettingsCache }
 
     $settings = @{}
-    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
-    if ($LASTEXITCODE -eq 0 -and $names) {
-        $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
-        if ($apiApp) {
-            $json = (az webapp config appsettings list --name $apiApp.Trim() --resource-group $Rg -o json 2>$null)
-            if ($LASTEXITCODE -eq 0 -and $json) {
-                try {
-                    foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value }
-                } catch {
-                    Write-Warning "Could not parse backend app settings: $_"
-                }
-            }
-        }
+    $apiApp = Get-DiscoveredBackendAppName $Rg
+    $json = az webapp config appsettings list --name $apiApp --resource-group $Rg -o json 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $json) {
+        throw "Could not read backend app settings in resource group '$Rg'. Check Azure CLI sign-in and permissions."
+    }
+    try {
+        foreach ($kv in ($json | ConvertFrom-Json)) { $settings[$kv.name] = $kv.value }
+    } catch {
+        throw "Could not parse backend app settings: $_"
     }
     $script:RgAppSettingsCache = $settings
     return $settings
@@ -121,11 +130,8 @@ function Get-DeployValue {
 function Get-DiscoveredBackendUrl {
     param([string]$Rg)
     if (-not $Rg) { return "" }
-    $names = (az webapp list --resource-group $Rg --query "[].name" -o tsv 2>$null)
-    if ($LASTEXITCODE -ne 0 -or -not $names) { return "" }
-    $apiApp = (($names -split "`n") | Where-Object { $_ -like "api-*" } | Select-Object -First 1)
-    if (-not $apiApp) { return "" }
-    $hostName = (az webapp show --name $apiApp.Trim() --resource-group $Rg --query defaultHostName -o tsv 2>$null)
+    $apiApp = Get-DiscoveredBackendAppName $Rg
+    $hostName = (az webapp show --name $apiApp --resource-group $Rg --query defaultHostName -o tsv 2>$null)
     if ($LASTEXITCODE -ne 0 -or -not $hostName) { return "" }
     return "https://$($hostName.Trim())"
 }
@@ -215,6 +221,21 @@ elseif ($BackendUrl -eq "http://localhost:8000") {
             $azdResourceGroup = azd env get-value RESOURCE_GROUP_NAME 2>$null
             if ($LASTEXITCODE -ne 0 -or -not $azdResourceGroup -or "$azdResourceGroup" -match '^ERROR:') {
                 throw "Could not resolve RESOURCE_GROUP_NAME. Select the deployment's azd environment or pass -ResourceGroupName explicitly."
+            }
+            $deploymentSubscription = azd env get-value AZURE_SUBSCRIPTION_ID 2>$null
+            $subscriptionGuid = [guid]::Empty
+            if ($LASTEXITCODE -ne 0 -or
+                -not [guid]::TryParse("$deploymentSubscription", [ref]$subscriptionGuid) -or
+                $subscriptionGuid -eq [guid]::Empty) {
+                throw "Could not resolve a valid deployment subscription (AZURE_SUBSCRIPTION_ID). Select the deployment's azd environment."
+            }
+            az account set --subscription $subscriptionGuid.ToString() | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Could not select the deployment subscription. Check Azure CLI sign-in and subscription access."
+            }
+            $currentSubscription = az account show --query id -o tsv
+            if ($LASTEXITCODE -ne 0 -or "$currentSubscription".Trim() -ne $subscriptionGuid.ToString()) {
+                throw "Could not validate the deployment subscription. Backend discovery stopped."
             }
             $ResourceGroupName = "$azdResourceGroup".Trim()
             $azdUrl = Get-DiscoveredBackendUrl $ResourceGroupName

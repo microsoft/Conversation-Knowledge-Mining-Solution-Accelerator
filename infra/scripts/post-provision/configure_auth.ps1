@@ -12,6 +12,8 @@
     ./infra/scripts/post-provision/configure_auth.ps1 -Phase PreProvision
 .EXAMPLE
     ./infra/scripts/post-provision/configure_auth.ps1 -Phase PostProvision
+.EXAMPLE
+    ./infra/scripts/post-provision/configure_auth.ps1 -Phase PostProvision -GenerateAdminApiKey
 #>
 [CmdletBinding()]
 param(
@@ -23,7 +25,8 @@ param(
     [string]$ResourceGroupName,
     [string]$FrontendAppName,
     [string]$BackendAppName,
-    [string]$AppDisplayName
+    [string]$AppDisplayName,
+    [switch]$GenerateAdminApiKey
 )
 
 $ErrorActionPreference = "Stop"
@@ -240,12 +243,12 @@ function Invoke-Main {
     if ($Phase -eq "PostProvision") {
         $backendSettings = @("AZURE_AD_TENANT_ID=$($account.tenantId)", "AZURE_AD_CLIENT_ID=$($application.appId)")
         $adminKey = Get-AzdEnvValue "ADMIN_API_KEY"
-        if (-not $adminKey) {
+        if (-not $adminKey -and $GenerateAdminApiKey) {
             $adminKey = [System.Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).TrimEnd('=') -replace '[+/]', '-'
             Save-AzdValue "ADMIN_API_KEY" $adminKey
             Write-Host "Generated ADMIN_API_KEY and stored in azd env."
         }
-        $backendSettings += "ADMIN_API_KEY=$adminKey"
+        if ($adminKey) { $backendSettings += "ADMIN_API_KEY=$adminKey" }
         Invoke-Az (@(
             "webapp", "config", "appsettings", "set", "--resource-group", $rg, "--name", $backend,
             "--settings"
